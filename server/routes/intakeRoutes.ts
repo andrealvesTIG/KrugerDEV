@@ -109,7 +109,8 @@ export function registerIntakeRoutes(app: Express) {
       const intake = await storage.createProjectIntake({
         ...input,
         status: input.status || 'draft',
-        currentStep: input.currentStep || 'intake_capture',
+        // currentStep falls back to the DB column default ("intake_capture") when omitted.
+        ...(input.currentStep ? { currentStep: input.currentStep } : {}),
       });
       
       if (userId) {

@@ -11,7 +11,21 @@ const numeric = customType<{ data: number; driverData: string }>({
 import { users } from "./models/auth";
 
 export const PROJECT_STATUSES = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"] as const;
-export const PROJECT_STATUSES_EXTENDED = [...PROJECT_STATUSES, "Billing", "Closed"] as const;
+export const PROJECT_STATUSES_EXTENDED = [...PROJECT_STATUSES, "Billing", "Closed", "On Hold", "Cancelled"] as const;
+
+// Role vocabularies (centralized so handlers, UI dropdowns, and Zod refinements agree)
+export const USER_GLOBAL_ROLES = ["super_admin", "user"] as const;
+export const ORG_MEMBER_ROLES = ["org_admin", "member", "viewer"] as const;
+export const EXTERNAL_SHARE_ROLES = ["viewer", "assignee", "manager"] as const;
+export type UserGlobalRole = (typeof USER_GLOBAL_ROLES)[number];
+export type OrgMemberRole = (typeof ORG_MEMBER_ROLES)[number];
+export type ExternalShareRole = (typeof EXTERNAL_SHARE_ROLES)[number];
+
+// Coerces inbound `numeric` payloads — Postgres `numeric` round-trips as `string`,
+// but forms commonly send a `number`. Accept either; always store as string.
+export const numericString = z
+  .union([z.number(), z.string()])
+  .transform((v) => (typeof v === "number" ? String(v) : v));
 export const PROJECT_HEALTH_VALUES = ["Green", "Yellow", "Red"] as const;
 export const PROJECT_PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
 export const BILLABLE_STATUSES = ["N/A", "On Track", "Waiting for Approval", "Verbal Approval", "Email Approval", "SOW Signed", "PO Received", "Partially Invoiced", "At Risk", "Ready for Invoice", "Critical", "Invoiced"] as const;
@@ -1340,7 +1354,7 @@ export const projectIntakes = pgTable("project_intakes", {
   programName: text("program_name"), // Stored program name for display
   
   // Workflow state
-  currentStep: text("current_step").default("is_backlog"), // Workflow step
+  currentStep: text("current_step").default("intake_capture"), // Canonical workflow step key (see intake_workflow_steps.stepKey)
   status: text("status").default("draft"), // draft, in_progress, approved, rejected, cancelled
   
   // Step completion tracking
@@ -1772,6 +1786,10 @@ export const insertExternalShareSchema = createInsertSchema(externalShares).omit
 export const insertPortfolioSchema = createInsertSchema(portfolios).omit({ id: true, createdAt: true }).extend({
   name: z.string().min(1, "Portfolio name is required"),
 });
+// NOTE: `budget`, `contractTotal` are `numeric` customType that already accepts `number`
+// in TS and converts to string at the driver layer — no manual coercion needed here.
+// `status` is intentionally left as plain text to tolerate legacy values; the
+// canonical list lives in `PROJECT_STATUSES_EXTENDED` for UI dropdowns.
 export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true, updatedAt: true, updatedBy: true, createdBy: true });
 // Risk schema is now an alias for Issue schema with itemType="risk"
 // Extend to handle date strings for escalatedAt field
@@ -1782,7 +1800,10 @@ export const insertRiskSchema = baseRiskSchema.extend({
   // non-risk rows through the risk endpoints.
   itemType: z.literal("risk").default("risk"),
 });
-/** @deprecated Renamed to Portfolio Key Dates. Schema kept for backward compatibility. */
+/** @deprecated Renamed to Portfolio Key Dates. Schema kept for backward compatibility.
+ *  NOTE: createMilestone() in storage actually writes to the `tasks` table — this Zod
+ *  schema is used only as a request DTO. Storage normalizes the legacy status/priority
+ *  vocabulary ("Done"/"Backlog") to canonical TASK_STATUSES values. */
 export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true });
 export const insertPortfolioKeyDateSchema = createInsertSchema(portfolioKeyDates).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true, deletedBy: true, isDemo: true });
 export const updatePortfolioKeyDateSchema = insertPortfolioKeyDateSchema.pick({ title: true, description: true, keyDateType: true, date: true, status: true, completed: true, notes: true }).partial();
@@ -1791,11 +1812,28 @@ const baseIssueSchema = createInsertSchema(issues).omit({ id: true, createdAt: t
 export const insertIssueSchema = baseIssueSchema.extend({
   escalatedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),
   type: issueTypeEnum.default("Bug").optional(),
+  // Pin to "issue" so the shared issues table can't be used to create risk rows
+  // through the issue endpoint (symmetric to insertRiskSchema).
+  itemType: z.literal("issue").default("issue"),
 });
+// Accept "" / null / YYYY-MM-DD / full ISO-8601 datetime. Empty string normalizes to null;
+// datetimes are truncated to their date portion (the underlying `tasks` columns are dates).
+const optionalIsoDate = z
+  .union([
+    z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/, "Date must be ISO YYYY-MM-DD or ISO-8601 datetime"),
+    z.literal(""),
+    z.null(),
+  ])
+  .transform((v) => {
+    if (v === "" || v == null) return null;
+    return v.length > 10 ? v.slice(0, 10) : v;
+  })
+  .nullable()
+  .optional();
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true }).extend({
   durationDays: z.number().min(0).max(36500).nullable().optional(),
-  startDate: z.string().nullable().optional(),
-  endDate: z.string().nullable().optional(),
+  startDate: optionalIsoDate,
+  endDate: optionalIsoDate,
   isOngoing: z.boolean().optional(),
   schedulingMode: z.enum(['auto', 'manual']).optional(),
 });
@@ -2193,8 +2231,13 @@ export const customFieldDefinitions = pgTable("custom_field_definitions", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
+  // Plain-column partial unique index. Case-insensitive uniqueness is enforced at the
+  // application layer (see storage.assertCustomFieldDefinitionNameUnique). A SQL
+  // expression like `lower(name)` was previously included here, but drizzle-kit and the
+  // Replit deploy migration generator emit malformed operator classes when a partial
+  // unique index mixes mixed-type columns with an expression — see commit history.
   uniqueIndex("cfd_org_entity_name_active_idx")
-    .on(table.organizationId, table.entityType, sql`lower(${table.name})`)
+    .on(table.organizationId, table.entityType, table.name)
     .where(sql`${table.isActive} = true`),
 ]);
 
