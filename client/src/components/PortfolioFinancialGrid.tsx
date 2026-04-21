@@ -422,6 +422,12 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
               >
                 Project / View / Category / Specification / Item
               </th>
+              <th
+                colSpan={enabledTypes.length}
+                className="px-2 py-1.5 text-center font-bold uppercase tracking-wider text-[11px] text-foreground border-l border-border bg-muted/80"
+              >
+                Total
+              </th>
               {periodCols.map((p, pi) => {
                 const isCurrent = pi === currentPeriodIdx;
                 return (
@@ -438,15 +444,20 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
                   </th>
                 );
               })}
-              <th
-                colSpan={enabledTypes.length}
-                className="px-2 py-1.5 text-center font-bold uppercase tracking-wider text-[11px] text-foreground border-l border-border bg-muted/80"
-              >
-                Total
-              </th>
             </tr>
             {/* Header row 2: scenario chips, tinted per-type to match the per-project grid */}
             <tr className="bg-card">
+              {enabledTypes.map((t, i) => {
+                const palette = getTypePalette(t.key);
+                return (
+                  <th
+                    key={`th-total-${t.key}`}
+                    className={`px-1.5 py-1 text-center font-extrabold uppercase tracking-wider text-[9px] whitespace-nowrap ${i === 0 ? "border-l border-border" : "border-l border-border/40"} ${palette.activeBg} ${palette.activeText}`}
+                  >
+                    {t.label}
+                  </th>
+                );
+              })}
               {periodCols.map((p, pi) => (
                 enabledTypes.map((t, i) => {
                   const palette = getTypePalette(t.key);
@@ -461,17 +472,6 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
                   );
                 })
               ))}
-              {enabledTypes.map((t, i) => {
-                const palette = getTypePalette(t.key);
-                return (
-                  <th
-                    key={`th-total-${t.key}`}
-                    className={`px-1.5 py-1 text-center font-extrabold uppercase tracking-wider text-[9px] whitespace-nowrap ${i === 0 ? "border-l border-border" : "border-l border-border/40"} ${palette.activeBg} ${palette.activeText}`}
-                  >
-                    {t.label}
-                  </th>
-                );
-              })}
             </tr>
           </thead>
           <tbody>
@@ -486,6 +486,16 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
               >
                 Portfolio Total ({projectGroups.length} {projectGroups.length === 1 ? "project" : "projects"})
               </td>
+              {enabledTypes.map((t, ti) => (
+                <td
+                  key={`pt-total-${t.key}`}
+                  className={`px-1.5 py-1.5 text-center text-[11px] font-bold tabular-nums bg-muted z-10 border-b-2 border-border ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
+                  style={{ top: "64px", position: "sticky" }}
+                  data-testid={`portfolio-total-${t.key}`}
+                >
+                  <MoneyCell value={portfolioTotals[t.key] ?? 0} />
+                </td>
+              ))}
               {periodCols.map((p, pi) => (
                 enabledTypes.map((t, ti) => {
                   const arr = portfolioMonthlyByType[t.key];
@@ -503,16 +513,6 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
                     </td>
                   );
                 })
-              ))}
-              {enabledTypes.map((t, ti) => (
-                <td
-                  key={`pt-total-${t.key}`}
-                  className={`px-1.5 py-1.5 text-center text-[11px] font-bold tabular-nums bg-muted z-10 border-b-2 border-border ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
-                  style={{ top: "64px", position: "sticky" }}
-                  data-testid={`portfolio-total-${t.key}`}
-                >
-                  <MoneyCell value={portfolioTotals[t.key] ?? 0} />
-                </td>
               ))}
             </tr>
 
@@ -603,6 +603,15 @@ function ProjectGroupRows({
             </Badge>
           </div>
         </td>
+        {enabledTypes.map((t, ti) => (
+          <td
+            key={`pg-total-${t.key}`}
+            className={`px-1.5 py-1 text-center text-[11px] font-bold tabular-nums ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
+            data-testid={`project-total-${group.projectId}-${t.key}`}
+          >
+            <MoneyCell value={group.grandTotalByType[t.key] ?? 0} />
+          </td>
+        ))}
         {periodCols.map((p, pi) => (
           enabledTypes.map((t, ti) => {
             const arr = group.monthlyByType[t.key];
@@ -619,15 +628,6 @@ function ProjectGroupRows({
               </td>
             );
           })
-        ))}
-        {enabledTypes.map((t, ti) => (
-          <td
-            key={`pg-total-${t.key}`}
-            className={`px-1.5 py-1 text-center text-[11px] font-bold tabular-nums ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
-            data-testid={`project-total-${group.projectId}-${t.key}`}
-          >
-            <MoneyCell value={group.grandTotalByType[t.key] ?? 0} />
-          </td>
         ))}
       </tr>
       {isOpen && group.rows.length === 0 && (
@@ -697,6 +697,14 @@ function InnerRow({
           <span className="truncate">{row.label}</span>
         </div>
       </td>
+      {enabledTypes.map((t, ti) => (
+        <td
+          key={`${row.key}-total-${t.key}`}
+          className={`px-1.5 py-1 text-center text-[11px] font-semibold tabular-nums bg-muted/30 ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
+        >
+          <MoneyCell value={row.totalByType[t.key] ?? 0} />
+        </td>
+      ))}
       {periodCols.map((p, pi) => (
         enabledTypes.map((t, ti) => {
           const arr = row.monthlyByType[t.key];
@@ -712,14 +720,6 @@ function InnerRow({
             </td>
           );
         })
-      ))}
-      {enabledTypes.map((t, ti) => (
-        <td
-          key={`${row.key}-total-${t.key}`}
-          className={`px-1.5 py-1 text-center text-[11px] font-semibold tabular-nums bg-muted/30 ${ti === 0 ? "border-l border-border" : "border-l border-border/40"}`}
-        >
-          <MoneyCell value={row.totalByType[t.key] ?? 0} />
-        </td>
       ))}
     </tr>
   );
