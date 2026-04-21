@@ -26,8 +26,10 @@ import { useOrganization } from "@/hooks/use-organization";
 import { useProjectTabSettings } from "@/hooks/use-project-tab-settings";
 import {
   PROJECT_TAB_DEFINITIONS,
+  customProjectTabId,
   resolveProjectTabHidden,
   resolveProjectTabOrder,
+  type ProjectTabDefinition,
 } from "@shared/projectTabs";
 import { useAuth } from "@/hooks/use-auth";
 import { ResourceSelector } from "@/components/ResourceSelector";
@@ -431,8 +433,18 @@ export default function ProjectDetails() {
   // in Org Settings → Project Tabs. Apply on top of module-gating, then user
   // localStorage order/pin sits above this baseline.
   const { data: orgTabSettings } = useProjectTabSettings(currentOrganization?.id);
-  const orgHiddenTabs = useMemo(() => resolveProjectTabHidden(orgTabSettings ?? null), [orgTabSettings]);
-  const orgOrderedTabIds = useMemo(() => resolveProjectTabOrder(orgTabSettings ?? null), [orgTabSettings]);
+  const customTabIdList = useMemo(
+    () => customTabs.map((t) => customProjectTabId(t.id)),
+    [customTabs],
+  );
+  const orgHiddenTabs = useMemo(
+    () => resolveProjectTabHidden(orgTabSettings ?? null, customTabIdList),
+    [orgTabSettings, customTabIdList],
+  );
+  const orgOrderedTabIds = useMemo(
+    () => resolveProjectTabOrder(orgTabSettings ?? null, customTabIdList),
+    [orgTabSettings, customTabIdList],
+  );
 
   const isTabAllowed = (id: string) => {
     const moduleKey = moduleGatedTabs[id];
@@ -441,13 +453,19 @@ export default function ProjectDetails() {
     return true;
   };
 
-  const visibleTabDefs = useMemo(() => {
-    const byId = new Map(PROJECT_TAB_DEFINITIONS.map(t => [t.id, t] as const));
+  const visibleTabDefs = useMemo<ProjectTabDefinition[]>(() => {
+    const byId = new Map<string, ProjectTabDefinition>(
+      PROJECT_TAB_DEFINITIONS.map(t => [t.id, t] as const),
+    );
+    for (const t of customTabs) {
+      const id = customProjectTabId(t.id);
+      byId.set(id, { id, label: t.name, placement: "main" });
+    }
     return orgOrderedTabIds
       .map(id => byId.get(id))
-      .filter((t): t is typeof PROJECT_TAB_DEFINITIONS[number] => !!t && isTabAllowed(t.id));
+      .filter((t): t is ProjectTabDefinition => !!t && isTabAllowed(t.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgOrderedTabIds, orgHiddenTabs, currentOrganization?.sidebarStructure]);
+  }, [orgOrderedTabIds, orgHiddenTabs, currentOrganization?.sidebarStructure, customTabs]);
 
   const allDefaultMainTabs = useMemo(
     () => visibleTabDefs.filter(t => t.placement === 'main').map(t => ({ id: t.id, label: t.label })),
@@ -1588,35 +1606,10 @@ export default function ProjectDetails() {
             </div>
           ))}
           
-          {/* Render pinned custom tabs */}
-          {customTabs.filter(tab => pinnedTabs.includes(`custom-${tab.id}`)).map(tab => (
-            <div key={tab.id} className="flex items-center gap-0.5">
-              <TabsTrigger 
-                value={`custom-${tab.id}`} 
-                className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" 
-                data-testid={`tab-pinned-custom-${tab.id}`}
-              >
-                {tab.name}
-              </TabsTrigger>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 rounded-md"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  togglePinTab(`custom-${tab.id}`);
-                }}
-                data-testid={`button-unpin-custom-${tab.id}`}
-              >
-                <PinOff className="h-3 w-3 text-muted-foreground" />
-              </Button>
-            </div>
-          ))}
-          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
-                variant={[...moreTabItems.map(t => t.id), ...customTabs.map(t => `custom-${t.id}`)].filter(t => !pinnedTabs.includes(t)).includes(activeTab) ? 'default' : 'ghost'} 
+                variant={moreTabItems.map(t => t.id).filter(t => !pinnedTabs.includes(t)).includes(activeTab) ? 'default' : 'ghost'} 
                 size="sm" 
                 className="rounded-lg px-4 py-2 font-medium gap-1"
                 data-testid="button-more-tabs"
@@ -1625,9 +1618,6 @@ export default function ProjectDetails() {
                   if (!pinnedTabs.includes(activeTab)) {
                     const moreTab = moreTabItems.find(t => t.id === activeTab);
                     if (moreTab) return moreTab.label;
-                  }
-                  if (activeTab.startsWith('custom-') && !pinnedTabs.includes(activeTab)) {
-                    return customTabs.find(t => `custom-${t.id}` === activeTab)?.name || 'More';
                   }
                   return 'More';
                 })()}
@@ -1653,29 +1643,6 @@ export default function ProjectDetails() {
                       togglePinTab(item.id);
                     }}
                     data-testid={`button-pin-${item.id}`}
-                  >
-                    <Pin className="h-3 w-3" />
-                  </Button>
-                </DropdownMenuItem>
-              ))}
-              {customTabs.filter(tab => !pinnedTabs.includes(`custom-${tab.id}`)).map((tab) => (
-                <DropdownMenuItem 
-                  key={tab.id} 
-                  className="flex items-center justify-between gap-2"
-                  data-testid={`menu-tab-custom-${tab.id}`}
-                >
-                  <span onClick={() => setActiveTab(`custom-${tab.id}`)} className="flex-1 cursor-pointer">
-                    {tab.name}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      togglePinTab(`custom-${tab.id}`);
-                    }}
-                    data-testid={`button-pin-custom-${tab.id}`}
                   >
                     <Pin className="h-3 w-3" />
                   </Button>

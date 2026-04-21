@@ -463,7 +463,7 @@ export function registerOrganizationRoutes(app: Express) {
           return res.status(403).json({ message: 'Only admins can update project tab settings' });
         }
       }
-      const { projectTabSettingsSchema, PROJECT_TAB_ID_SET, resolveProjectTabOrder, resolveProjectTabHidden } = await import('@shared/projectTabs');
+      const { projectTabSettingsSchema, isKnownProjectTabId, resolveProjectTabOrder, resolveProjectTabHidden } = await import('@shared/projectTabs');
       const parsed = projectTabSettingsSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: 'Invalid project tab settings', errors: parsed.error.flatten() });
@@ -472,7 +472,7 @@ export function registerOrganizationRoutes(app: Express) {
         const seen = new Set<string>();
         const out: string[] = [];
         for (const id of ids) {
-          if (!PROJECT_TAB_ID_SET.has(id) || seen.has(id)) continue;
+          if (!isKnownProjectTabId(id) || seen.has(id)) continue;
           seen.add(id);
           out.push(id);
         }

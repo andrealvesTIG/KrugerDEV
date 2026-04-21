@@ -2,16 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { Loader2, GripVertical, LayoutGrid, RotateCcw, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CustomTabsSection } from "./CustomTabsSection";
 import { useProjectTabSettings, useUpdateProjectTabSettings } from "@/hooks/use-project-tab-settings";
+import { useCustomProjectTabs } from "@/hooks/use-custom-tabs";
 import {
   DEFAULT_PROJECT_TAB_SETTINGS,
   PROJECT_TAB_DEFINITIONS,
   PROJECT_TAB_IDS,
-  PROJECT_TAB_ID_SET,
+  customProjectTabId,
+  isCustomProjectTabId,
+  isKnownProjectTabId,
   resolveProjectTabOrder,
+  resolveProjectTabHidden,
 } from "@shared/projectTabs";
 
 const LABEL_BY_ID = new Map(PROJECT_TAB_DEFINITIONS.map((t) => [t.id, t.label] as const));
@@ -20,7 +25,14 @@ const PLACEMENT_BY_ID = new Map(PROJECT_TAB_DEFINITIONS.map((t) => [t.id, t.plac
 export function ProjectTabsSection({ organizationId }: { organizationId: number }) {
   const { toast } = useToast();
   const { data, isLoading } = useProjectTabSettings(organizationId);
+  const { data: customTabs = [] } = useCustomProjectTabs(organizationId);
   const updateMutation = useUpdateProjectTabSettings();
+
+  const customTabIds = useMemo(() => customTabs.map((t) => customProjectTabId(t.id)), [customTabs]);
+  const customLabelById = useMemo(
+    () => new Map(customTabs.map((t) => [customProjectTabId(t.id), t.name] as const)),
+    [customTabs],
+  );
 
   const [order, setOrder] = useState<string[]>(DEFAULT_PROJECT_TAB_SETTINGS.order);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
@@ -29,14 +41,17 @@ export function ProjectTabsSection({ organizationId }: { organizationId: number 
 
   useEffect(() => {
     if (!data) return;
-    setOrder(resolveProjectTabOrder(data));
-    setHidden(new Set((data.hidden ?? []).filter((id) => PROJECT_TAB_ID_SET.has(id))));
-  }, [data]);
+    setOrder(resolveProjectTabOrder(data, customTabIds));
+    setHidden(resolveProjectTabHidden(data, customTabIds));
+  }, [data, customTabIds]);
 
   const baselineKey = useMemo(() => {
     if (!data) return "";
-    return JSON.stringify({ order: resolveProjectTabOrder(data), hidden: [...(data.hidden ?? [])].sort() });
-  }, [data]);
+    return JSON.stringify({
+      order: resolveProjectTabOrder(data, customTabIds),
+      hidden: [...resolveProjectTabHidden(data, customTabIds)].sort(),
+    });
+  }, [data, customTabIds]);
 
   const currentKey = useMemo(
     () => JSON.stringify({ order, hidden: [...hidden].sort() }),
@@ -87,7 +102,7 @@ export function ProjectTabsSection({ organizationId }: { organizationId: number 
   };
 
   const handleReset = () => {
-    setOrder([...PROJECT_TAB_IDS]);
+    setOrder([...PROJECT_TAB_IDS, ...customTabIds]);
     setHidden(new Set());
   };
 
@@ -111,11 +126,12 @@ export function ProjectTabsSection({ organizationId }: { organizationId: number 
           <div>
             <CardTitle className="flex items-center gap-2">
               <LayoutGrid className="h-5 w-5" />
-              Built-in Project Tabs
+              Project Tabs
             </CardTitle>
             <CardDescription>
-              Choose which tabs appear on every project and the order they show up by default. Users can still pin and
-              reorder tabs for themselves on top of these defaults.
+              Choose which tabs appear on every project and the order they show up by default. Drag custom tabs into
+              the same list to interleave them with the built-ins. Users can still pin and reorder tabs for themselves
+              on top of these defaults.
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -150,9 +166,12 @@ export function ProjectTabsSection({ organizationId }: { organizationId: number 
             </div>
           ) : (
             <div className="border rounded-lg divide-y">
-              {order.map((id) => {
-                const label = LABEL_BY_ID.get(id) ?? id;
-                const placement = PLACEMENT_BY_ID.get(id) ?? "main";
+              {order.filter(isKnownProjectTabId).map((id) => {
+                const isCustom = isCustomProjectTabId(id);
+                const label = isCustom
+                  ? (customLabelById.get(id) ?? id)
+                  : (LABEL_BY_ID.get(id) ?? id);
+                const placement = isCustom ? "main" : (PLACEMENT_BY_ID.get(id) ?? "main");
                 const isHidden = hidden.has(id);
                 return (
                   <div
@@ -170,7 +189,14 @@ export function ProjectTabsSection({ organizationId }: { organizationId: number 
                   >
                     <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab active:cursor-grabbing" />
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium">{label}</div>
+                      <div className="font-medium flex items-center gap-2">
+                        {label}
+                        {isCustom && (
+                          <Badge variant="outline" className="text-[10px] uppercase">
+                            Custom
+                          </Badge>
+                        )}
+                      </div>
                       <div className="text-xs text-muted-foreground">
                         {placement === "main" ? "Shown on the main tab strip" : "Shown in the More menu"}
                       </div>
