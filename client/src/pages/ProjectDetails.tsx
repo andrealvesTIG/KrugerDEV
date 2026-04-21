@@ -447,12 +447,13 @@ export default function ProjectDetails() {
     [orgTabSettings, customTabIdList],
   );
 
-  const isTabAllowed = (id: string) => {
-    const moduleKey = moduleGatedTabs[id];
-    if (moduleKey && isModuleHidden(moduleKey)) return false;
-    // Note: org-hidden tabs are intentionally NOT dropped here. They get
-    // demoted to the "More" menu in visibleTabDefs so users can still pin
-    // them on a per-project basis.
+  const isTabAllowed = (_id: string) => {
+    // All built-in project tabs are available on every project. Module-level
+    // hiding (Org Settings → Module Visibility) and org-level project tab
+    // hiding (Org Settings → Project Tabs) only control whether the tab
+    // shows on the main strip by default; in both cases the tab is demoted
+    // to the "More" dropdown in visibleTabDefs so a user can still pin it
+    // onto their personal view of a specific project.
     return true;
   };
 
@@ -486,7 +487,14 @@ export default function ProjectDetails() {
     return orgOrderedTabIds
       .map(id => byId.get(id))
       .filter((t): t is ProjectTabDefinition => !!t && isTabAllowed(t.id))
-      .map(t => orgHiddenTabs.has(t.id) ? { ...t, placement: "more" as const } : t);
+      .map(t => {
+        const moduleKey = moduleGatedTabs[t.id];
+        const moduleDemoted = moduleKey ? isModuleHidden(moduleKey) : false;
+        if (orgHiddenTabs.has(t.id) || moduleDemoted) {
+          return { ...t, placement: "more" as const };
+        }
+        return t;
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgOrderedTabIds, orgHiddenTabs, currentOrganization?.sidebarStructure, customTabs, hiddenCustomTabs]);
 
@@ -1927,61 +1935,39 @@ export default function ProjectDetails() {
           <TabsContent value="ai-agent">
             <ProjectAgentTab projectId={project.id} />
           </TabsContent>
-          {!isModuleHidden('daily-logs') && (
-            <TabsContent value="daily-logs">
-              <DailyLogsTab projectId={project.id} />
-            </TabsContent>
-          )}
-          {!isModuleHidden('rfis') && (
-            <TabsContent value="rfis">
-              <RFIsTab projectId={project.id} />
-            </TabsContent>
-          )}
-          {!isModuleHidden('submittals') && (
-            <TabsContent value="submittals">
-              <SubmittalsTab projectId={project.id} />
-            </TabsContent>
-          )}
-          {!isModuleHidden('drawings') && (
-            <TabsContent value="drawings">
-              <DrawingsTab projectId={project.id} />
-            </TabsContent>
-          )}
-          {!isModuleHidden('punch-list') && (
-            <TabsContent value="punch-list">
-              <PunchListTab projectId={project.id} />
-            </TabsContent>
-          )}
-          {!isModuleHidden('quality-safety') && (
-            <TabsContent value="quality-safety">
-              <QualitySafetyTab projectId={project.id} organizationId={project.organizationId!} />
-            </TabsContent>
-          )}
-          {!isModuleHidden('bidding') && (
-            <TabsContent value="bidding">
-              <BiddingTab projectId={project.id} />
-            </TabsContent>
-          )}
-          {!isModuleHidden('change-orders') && (
-            <TabsContent value="change-orders">
-              <ChangeOrdersTab projectId={project.id} />
-            </TabsContent>
-          )}
-          {!isModuleHidden('construction-invoices') && (
-            <TabsContent value="construction-invoices">
-              <ConstructionInvoicesTab projectId={project.id} />
-            </TabsContent>
-          )}
-          {!isModuleHidden('meetings') && (
-            <TabsContent value="meetings">
-              <MeetingsTab projectId={project.id} />
-            </TabsContent>
-          )}
-          {!isModuleHidden('correspondence') && (
-            <TabsContent value="correspondence">
-              <CorrespondenceTab projectId={project.id} />
-            </TabsContent>
-          )}
+          <TabsContent value="daily-logs">
+            <DailyLogsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="rfis">
+            <RFIsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="submittals">
+            <SubmittalsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="drawings">
+            <DrawingsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="punch-list">
+            <PunchListTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="quality-safety">
+            <QualitySafetyTab projectId={project.id} organizationId={project.organizationId!} />
+          </TabsContent>
+          <TabsContent value="bidding">
+            <BiddingTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="change-orders">
+            <ChangeOrdersTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="construction-invoices">
+            <ConstructionInvoicesTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="meetings">
+            <MeetingsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="correspondence">
+            <CorrespondenceTab projectId={project.id} />
+          </TabsContent>
           {customTabs.map((tab) => (
             <TabsContent key={tab.id} value={`custom-${tab.id}`}>
               <CustomTabRenderer tabId={tab.id} project={project} onUpdate={updateProject} />
