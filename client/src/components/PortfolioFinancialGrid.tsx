@@ -92,10 +92,13 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
     [fiscalYear, fiscalYearStartMonth],
   );
   // Calendar month (1..12) -> fiscal-month index (0..11) so we can drop a
-  // raw entry into the right per-period column.
+  // raw entry (or today's date) into the right per-period column. NOTE: must
+  // key by `p.month` (the *calendar* month), not `p.monthNum` (the fiscal-
+  // month number 1..12). Those are only equal for Jan-start FYs; for an
+  // Oct-FY they differ and we'd otherwise highlight the wrong column.
   const calendarToFiscalIdx = useMemo(() => {
     const m = new Map<number, number>();
-    monthsLayout.forEach((p, idx) => m.set(p.monthNum, idx));
+    monthsLayout.forEach((p, idx) => m.set(p.month, idx));
     return m;
   }, [monthsLayout]);
 
