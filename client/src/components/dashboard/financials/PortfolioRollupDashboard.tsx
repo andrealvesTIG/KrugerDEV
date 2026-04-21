@@ -239,6 +239,41 @@ export function PortfolioRollupDashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
+                      {/* Overall Portfolio Grand Total pinned at top — sums dollars across
+                          all visible portfolios; recomputes CPI/SPI bottom-up so they remain
+                          BAC/AC-weighted instead of a naive average. */}
+                      {(() => {
+                        const tot = rollup.reduce((acc, p) => {
+                          acc.projects += p.projectCount;
+                          acc.bac += p.bac; acc.ac += p.ac; acc.ev += p.ev;
+                          acc.eac += p.eacComputed;
+                          return acc;
+                        }, { projects: 0, bac: 0, ac: 0, ev: 0, eac: 0 });
+                        const cpiT = tot.ac > 0 ? tot.ev / tot.ac : 0;
+                        // PV is not aggregated on portfolio rows; fall back to org totals
+                        // for the schedule index so the overall row stays accurate.
+                        const spiT = data.totals.pv > 0 ? data.totals.ev / data.totals.pv : 0;
+                        const vacT = tot.bac - tot.eac;
+                        return (
+                          <TableRow data-testid="row-portfolio-grand-total" className="font-semibold bg-muted/60 border-b-2 border-border">
+                            <TableCell className="font-semibold">Overall ({rollup.length} portfolio{rollup.length === 1 ? "" : "s"})</TableCell>
+                            <TableCell className="text-right">{tot.projects}</TableCell>
+                            <TableCell className="text-right"><CompactCurrency value={tot.bac} /></TableCell>
+                            <TableCell className="text-right"><CompactCurrency value={tot.ac} /></TableCell>
+                            <TableCell className="text-right"><CompactCurrency value={tot.ev} /></TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant={cpiT >= 1 ? "default" : cpiT >= 0.95 ? "secondary" : "destructive"} className="font-mono">{cpiT.toFixed(2)}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant={spiT >= 1 ? "default" : spiT >= 0.95 ? "secondary" : "destructive"} className="font-mono">{spiT.toFixed(2)}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right"><CompactCurrency value={tot.eac} /></TableCell>
+                            <TableCell className={`text-right ${vacT >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                              {vacT >= 0 ? "+" : ""}<CompactCurrency value={vacT} />
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })()}
                       {rollup.map(p => (
                         <TableRow key={`${p.portfolioId ?? "none"}`} data-testid={`row-portfolio-${p.portfolioId ?? "unassigned"}`}>
                           <TableCell className="font-medium">{p.name}</TableCell>

@@ -175,6 +175,50 @@ function EVAnalysisBody({ data }: { data: import("@/hooks/use-financial-analytic
                       </TableRow>
                     </TableHeader>
                     <TableBody>
+                      {/* Grand Total pinned at top — sums dollars; recomputes ratios bottom-up
+                          so they remain BAC/AC-weighted instead of a naive average. */}
+                      {(() => {
+                        const tot = sorted.reduce((acc, p) => {
+                          acc.bac += p.bac; acc.pv += p.pv; acc.ev += p.ev; acc.ac += p.ac;
+                          acc.eac += p.eacComputed; acc.etc += p.etc;
+                          return acc;
+                        }, { bac: 0, pv: 0, ev: 0, ac: 0, eac: 0, etc: 0 });
+                        const cvT = tot.ev - tot.ac;
+                        const svT = tot.ev - tot.pv;
+                        const cpiT = tot.ac > 0 ? tot.ev / tot.ac : 0;
+                        const spiT = tot.pv > 0 ? tot.ev / tot.pv : 0;
+                        const vacT = tot.bac - tot.eac;
+                        const tcpiDen = tot.bac - tot.ac;
+                        const tcpiT = tcpiDen > 0 ? (tot.bac - tot.ev) / tcpiDen : null;
+                        return (
+                          <TableRow data-testid="row-evm-grand-total" className="font-semibold bg-muted/60 border-b-2 border-border">
+                            <TableCell className="font-semibold">Grand Total ({sorted.length} project{sorted.length === 1 ? "" : "s"})</TableCell>
+                            <TableCell className="text-right"><CompactCurrency value={tot.bac} /></TableCell>
+                            <TableCell className="text-right"><CompactCurrency value={tot.pv} /></TableCell>
+                            <TableCell className="text-right"><CompactCurrency value={tot.ev} /></TableCell>
+                            <TableCell className="text-right"><CompactCurrency value={tot.ac} /></TableCell>
+                            <TableCell className={`text-right ${cvT >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                              {cvT >= 0 ? "+" : ""}<CompactCurrency value={cvT} />
+                            </TableCell>
+                            <TableCell className={`text-right ${svT >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                              {svT >= 0 ? "+" : ""}<CompactCurrency value={svT} />
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant={cpiT >= 1 ? "default" : cpiT >= 0.95 ? "secondary" : "destructive"} className="font-mono">{cpiT.toFixed(2)}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant={spiT >= 1 ? "default" : spiT >= 0.95 ? "secondary" : "destructive"} className="font-mono">{spiT.toFixed(2)}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right"><CompactCurrency value={tot.eac} /></TableCell>
+                            <TableCell className="text-right"><CompactCurrency value={tot.etc} /></TableCell>
+                            <TableCell className={`text-right ${vacT >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                              {vacT >= 0 ? "+" : ""}<CompactCurrency value={vacT} />
+                            </TableCell>
+                            <TableCell className="text-right font-mono text-xs">{tcpiT == null ? "—" : tcpiT.toFixed(2)}</TableCell>
+                            <TableCell></TableCell>
+                          </TableRow>
+                        );
+                      })()}
                       {sorted.map(p => (
                         <TableRow key={p.projectId} data-testid={`row-evm-${p.projectId}`}>
                           <TableCell className="max-w-[260px] truncate font-medium">
