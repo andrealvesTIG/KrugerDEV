@@ -27,6 +27,7 @@ import { useProjectTabSettings } from "@/hooks/use-project-tab-settings";
 import {
   PROJECT_TAB_DEFINITIONS,
   customProjectTabId,
+  isCustomProjectTabId,
   resolveProjectTabHidden,
   resolveProjectTabOrder,
   type ProjectTabDefinition,
@@ -453,19 +454,38 @@ export default function ProjectDetails() {
     return true;
   };
 
+  const getHiddenCustomTabsKey = (projectId: number, userId: string) => `project-hidden-custom-tabs-${userId}-${projectId}`;
+
+  // Per-user set of custom tab ids the user has hidden from the main strip
+  // (effectively moving them into the More menu, where they can be re-pinned).
+  const [hiddenCustomTabs, setHiddenCustomTabs] = useState<string[]>(() => {
+    if (!project?.id || !user?.id) return [];
+    try {
+      const saved = localStorage.getItem(getHiddenCustomTabsKey(project.id, user.id));
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const visibleTabDefs = useMemo<ProjectTabDefinition[]>(() => {
     const byId = new Map<string, ProjectTabDefinition>(
       PROJECT_TAB_DEFINITIONS.map(t => [t.id, t] as const),
     );
+    const hiddenCustomSet = new Set(hiddenCustomTabs);
     for (const t of customTabs) {
       const id = customProjectTabId(t.id);
-      byId.set(id, { id, label: t.name, placement: "main" });
+      byId.set(id, {
+        id,
+        label: t.name,
+        placement: hiddenCustomSet.has(id) ? "more" : "main",
+      });
     }
     return orgOrderedTabIds
       .map(id => byId.get(id))
       .filter((t): t is ProjectTabDefinition => !!t && isTabAllowed(t.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgOrderedTabIds, orgHiddenTabs, currentOrganization?.sidebarStructure, customTabs]);
+  }, [orgOrderedTabIds, orgHiddenTabs, currentOrganization?.sidebarStructure, customTabs, hiddenCustomTabs]);
 
   const allDefaultMainTabs = useMemo(
     () => visibleTabDefs.filter(t => t.placement === 'main').map(t => ({ id: t.id, label: t.label })),
@@ -488,7 +508,7 @@ export default function ProjectDetails() {
   // Pinned tabs state - persisted in localStorage per project per user
   const getPinnedTabsKey = (projectId: number, userId: string) => `project-pinned-tabs-${userId}-${projectId}`;
   const getTabOrderKey = (projectId: number, userId: string) => `project-tab-order-${userId}-${projectId}`;
-  
+
   const [pinnedTabs, setPinnedTabs] = useState<string[]>(() => {
     if (!project?.id || !user?.id) return [];
     try {
@@ -527,7 +547,17 @@ export default function ProjectDetails() {
       try {
         const savedPinned = localStorage.getItem(getPinnedTabsKey(project.id, user.id));
         setPinnedTabs(savedPinned ? JSON.parse(savedPinned) : []);
-        
+
+        const savedHiddenCustom = localStorage.getItem(getHiddenCustomTabsKey(project.id, user.id));
+        if (savedHiddenCustom) {
+          const parsed: string[] = JSON.parse(savedHiddenCustom);
+          // Drop any ids that are no longer custom tabs (e.g. tab deleted).
+          const allowedCustom = new Set(customTabIdList);
+          setHiddenCustomTabs(parsed.filter(id => allowedCustom.has(id)));
+        } else {
+          setHiddenCustomTabs([]);
+        }
+
         const savedOrder = localStorage.getItem(getTabOrderKey(project.id, user.id));
         const allowed = new Set(allTabIds);
         let newOrder = allTabIds;
@@ -551,6 +581,7 @@ export default function ProjectDetails() {
         }
       } catch {
         setPinnedTabs([]);
+        setHiddenCustomTabs([]);
         setTabOrder(allTabIds);
       }
     }
@@ -564,6 +595,26 @@ export default function ProjectDetails() {
         : [...prev, tabId];
       localStorage.setItem(getPinnedTabsKey(project.id, user.id), JSON.stringify(newPinned));
       return newPinned;
+    });
+  };
+
+  // Hide a custom tab from the main strip for the current user. The tab will
+  // appear in the More menu, where it can be re-pinned via togglePinTab.
+  const hideCustomTabFromMain = (tabId: string) => {
+    if (!project?.id || !user?.id) return;
+    if (!isCustomProjectTabId(tabId)) return;
+    setHiddenCustomTabs(prev => {
+      if (prev.includes(tabId)) return prev;
+      const next = [...prev, tabId];
+      localStorage.setItem(getHiddenCustomTabsKey(project.id, user.id), JSON.stringify(next));
+      return next;
+    });
+    // Also drop from pinnedTabs so it doesn't immediately reappear pinned.
+    setPinnedTabs(prev => {
+      if (!prev.includes(tabId)) return prev;
+      const next = prev.filter(t => t !== tabId);
+      localStorage.setItem(getPinnedTabsKey(project.id, user.id), JSON.stringify(next));
+      return next;
     });
   };
   
@@ -1545,26 +1596,69 @@ export default function ProjectDetails() {
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full min-w-0">
         <TabsList className="bg-muted/80 border border-border p-1.5 rounded-xl gap-1 h-auto flex-wrap">
           {/* Render main tabs in user-defined order with drag-drop support */}
-          {orderedMainTabs.map(tab => (
-            <TabsTrigger 
-              key={tab.id}
-              value={tab.id} 
-              className={cn(
-                "rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md cursor-grab active:cursor-grabbing transition-all",
-                draggedTab === tab.id && "opacity-50",
-                dragOverTab === tab.id && "ring-2 ring-primary ring-offset-1"
-              )}
-              data-testid={`tab-${tab.id}`}
-              draggable
-              onDragStart={(e) => handleTabDragStart(e, tab.id)}
-              onDragOver={(e) => handleTabDragOver(e, tab.id)}
-              onDragLeave={handleTabDragLeave}
-              onDrop={(e) => handleTabDrop(e, tab.id)}
-              onDragEnd={handleTabDragEnd}
-            >
-              {tab.label}
-            </TabsTrigger>
-          ))}
+          {orderedMainTabs.map(tab => {
+            const isCustom = isCustomProjectTabId(tab.id);
+            const triggerEl = (
+              <TabsTrigger
+                value={tab.id}
+                className={cn(
+                  "rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md cursor-grab active:cursor-grabbing transition-all",
+                  draggedTab === tab.id && "opacity-50",
+                  !isCustom && dragOverTab === tab.id && "ring-2 ring-primary ring-offset-1"
+                )}
+                data-testid={`tab-${tab.id}`}
+              >
+                {tab.label}
+              </TabsTrigger>
+            );
+
+            if (isCustom) {
+              return (
+                <div
+                  key={tab.id}
+                  className={cn(
+                    "flex items-center gap-0.5 transition-all",
+                    dragOverTab === tab.id && "ring-2 ring-primary ring-offset-1 rounded-lg"
+                  )}
+                  draggable
+                  onDragStart={(e) => handleTabDragStart(e, tab.id)}
+                  onDragOver={(e) => handleTabDragOver(e, tab.id)}
+                  onDragLeave={handleTabDragLeave}
+                  onDrop={(e) => handleTabDrop(e, tab.id)}
+                  onDragEnd={handleTabDragEnd}
+                >
+                  {triggerEl}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 rounded-md"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      hideCustomTabFromMain(tab.id);
+                    }}
+                    data-testid={`button-unpin-${tab.id}`}
+                    title="Move to More menu"
+                  >
+                    <PinOff className="h-3 w-3 text-muted-foreground" />
+                  </Button>
+                </div>
+              );
+            }
+
+            return (
+              <div
+                key={tab.id}
+                draggable
+                onDragStart={(e) => handleTabDragStart(e, tab.id)}
+                onDragOver={(e) => handleTabDragOver(e, tab.id)}
+                onDragLeave={handleTabDragLeave}
+                onDrop={(e) => handleTabDrop(e, tab.id)}
+                onDragEnd={handleTabDragEnd}
+              >
+                {triggerEl}
+              </div>
+            );
+          })}
           
           {/* Render pinned tabs as visible TabsTriggers with drag-drop support */}
           {orderedPinnedTabs.map(item => (
