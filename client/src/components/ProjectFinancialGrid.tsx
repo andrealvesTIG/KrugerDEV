@@ -742,6 +742,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
   const [editTextValue, setEditTextValue] = useState("");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [highlightedItemKey, setHighlightedItemKey] = useState<string | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<GridRow | null>(null);
@@ -2411,8 +2412,46 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
             </div>
           </div>
 
-          {/* Top variance driver */}
-          <div className="rounded-lg border bg-card px-3 py-2.5 flex items-start gap-2 col-span-2 md:col-span-1" data-testid="insight-top-driver">
+          {/* Top variance driver — clickable: jumps to and highlights the row in the grid */}
+          <button
+            type="button"
+            onClick={() => {
+              if (!insights.topDriver) return;
+              const targetKey = insights.topDriver.itemKey;
+              // Find the target item row and walk backward to collect ancestors.
+              const idx = rows.findIndex(r => r.type === "item" && r.itemKey === targetKey);
+              if (idx < 0) return;
+              const ancestors: string[] = [];
+              let curLevel = rows[idx].level;
+              for (let i = idx - 1; i >= 0 && curLevel > 0; i--) {
+                if (rows[i].level < curLevel) {
+                  ancestors.push(rows[i].key);
+                  curLevel = rows[i].level;
+                }
+              }
+              if (ancestors.length) {
+                setExpanded(prev => {
+                  const next = new Set(prev);
+                  for (const k of ancestors) next.add(k);
+                  return next;
+                });
+              }
+              setHighlightedItemKey(targetKey);
+              // Wait two frames so newly-expanded rows are in the DOM before scrolling.
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  const sel = `[data-item-key="${(window as any).CSS?.escape ? CSS.escape(targetKey) : targetKey}"]`;
+                  const el = document.querySelector(sel) as HTMLElement | null;
+                  el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                });
+              });
+              window.setTimeout(() => setHighlightedItemKey(null), 2500);
+            }}
+            disabled={!insights.topDriver}
+            className="rounded-lg border bg-card px-3 py-2.5 flex items-start gap-2 col-span-2 md:col-span-1 text-left hover:bg-accent/40 hover:border-primary/40 transition-colors disabled:cursor-not-allowed disabled:hover:bg-card disabled:hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            title={insights.topDriver ? `Jump to "${insights.topDriver.itemName}" in the grid` : undefined}
+            data-testid="insight-top-driver"
+          >
             <AlertTriangle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
             <div className="min-w-0 flex-1">
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Top Variance Driver</div>
@@ -2435,7 +2474,7 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                 <div className="text-sm text-muted-foreground/60">No variance data yet</div>
               )}
             </div>
-          </div>
+          </button>
         </div>
       )}
 
@@ -3038,12 +3077,14 @@ export default function ProjectFinancialGrid({ projectId }: ProjectFinancialGrid
                       row.type === "specification" ? "bg-secondary" :
                       "bg-card";
                     const stickyHover = "group-hover:bg-accent";
+                    const isHighlighted = isItem && row.itemKey != null && row.itemKey === highlightedItemKey;
                     const rowEl = (
                       <div
                         key={row.key}
-                        className={`grid border-b border-border/60 group hover:bg-accent/40 transition-colors ${rowBgClass}`}
+                        className={`grid border-b border-border/60 group hover:bg-accent/40 transition-colors ${rowBgClass} ${isHighlighted ? "ring-2 ring-amber-400 ring-inset bg-amber-50 dark:bg-amber-950/30 animate-pulse" : ""}`}
                         style={{ gridTemplateColumns: gridTemplate }}
                         data-testid={`row-${row.type}-${row.key}`}
+                        data-item-key={isItem ? row.itemKey : undefined}
                       >
                         {/* Cost Item (sticky) */}
                         <div
