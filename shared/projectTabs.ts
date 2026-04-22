@@ -63,20 +63,9 @@ export const projectTabSettingsSchema = z.object({
 
 export type ProjectTabSettings = z.infer<typeof projectTabSettingsSchema>;
 
-export const DEFAULT_VISIBLE_PROJECT_TAB_IDS: string[] = [
-  "summary",
-  "tasks",
-  "team",
-  "risks",
-  "issues",
-  "financials",
-];
-
-const DEFAULT_VISIBLE_SET = new Set(DEFAULT_VISIBLE_PROJECT_TAB_IDS);
-
 export const DEFAULT_PROJECT_TAB_SETTINGS: ProjectTabSettings = {
   order: [...PROJECT_TAB_IDS],
-  hidden: PROJECT_TAB_IDS.filter((id) => !DEFAULT_VISIBLE_SET.has(id)),
+  hidden: [],
 };
 
 /**
