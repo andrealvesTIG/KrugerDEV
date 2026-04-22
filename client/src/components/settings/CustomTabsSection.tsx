@@ -15,7 +15,8 @@ import { useCustomProjectTabs, useCreateCustomTab, useUpdateCustomTab, useDelete
 import { useCustomFieldDefinitions } from "@/hooks/use-custom-fields";
 import { useProjectTabTemplates, useApplyTemplate, useSaveOrgAsTemplate, useDeleteProjectTabTemplate } from "@/hooks/use-project-tab-templates";
 import { useAuth } from "@/hooks/useAuth";
-import type { CustomProjectTab, ProjectTabTemplate } from "@shared/schema";
+import { useOrganization } from "@/hooks/use-organization";
+import type { CustomProjectTab, ProjectTabTemplate, User } from "@shared/schema";
 
 export function CustomTabsSection({ organizationId }: { organizationId: number }) {
   const { toast } = useToast();
@@ -45,9 +46,14 @@ export function CustomTabsSection({ organizationId }: { organizationId: number }
   const [fieldPickerSectionId, setFieldPickerSectionId] = useState<number | null>(null);
   const [fieldPickerTabId, setFieldPickerTabId] = useState<number | null>(null);
   const { data: fullTabData } = useFullCustomTab(editingTabId ?? undefined);
-  const { user } = useAuth();
-  const isSuperAdmin = (user as any)?.role === 'super_admin' || (user as any)?.role === 'marketing';
-  const { data: templates = [] } = useProjectTabTemplates(organizationId);
+  const { user } = useAuth() as { user: User | null | undefined };
+  const { memberships = [] } = useOrganization();
+  const currentMembership = memberships.find(m => m.organizationId === organizationId);
+  const isSuperAdmin = user?.role === 'super_admin' || user?.role === 'marketing';
+  const isOrgAdminOrOwner = isSuperAdmin
+    || currentMembership?.role === 'org_admin'
+    || currentMembership?.role === 'owner';
+  const { data: templates = [] } = useProjectTabTemplates(isOrgAdminOrOwner ? organizationId : undefined);
   const applyTemplate = useApplyTemplate();
   const saveAsTemplate = useSaveOrgAsTemplate();
   const deleteTemplate = useDeleteProjectTabTemplate();
@@ -215,12 +221,16 @@ export function CustomTabsSection({ organizationId }: { organizationId: number }
           </CardDescription>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setShowTemplatesDialog(true)} data-testid="button-browse-templates">
-            <Library className="h-4 w-4 mr-2" /> Templates
-          </Button>
-          <Button variant="outline" onClick={() => setShowSaveTemplateDialog(true)} disabled={tabs.length === 0} data-testid="button-save-as-template">
-            <Sparkles className="h-4 w-4 mr-2" /> Save as Template
-          </Button>
+          {isOrgAdminOrOwner && (
+            <>
+              <Button variant="outline" onClick={() => setShowTemplatesDialog(true)} data-testid="button-browse-templates">
+                <Library className="h-4 w-4 mr-2" /> Templates
+              </Button>
+              <Button variant="outline" onClick={() => setShowSaveTemplateDialog(true)} disabled={tabs.length === 0} data-testid="button-save-as-template">
+                <Sparkles className="h-4 w-4 mr-2" /> Save as Template
+              </Button>
+            </>
+          )}
           <Button onClick={() => setShowNewTabDialog(true)} data-testid="button-add-custom-tab">
             <Plus className="h-4 w-4 mr-2" /> Add Tab
           </Button>

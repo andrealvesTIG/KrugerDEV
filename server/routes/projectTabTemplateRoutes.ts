@@ -29,6 +29,9 @@ async function isOrgAdmin(userId: string | null | undefined, orgId: number): Pro
   const user = await storage.getUser(userId);
   if (!user) return false;
   if (hasAdminAccess(user)) return true;
+  // Org owners get full admin powers over their org's templates
+  const org = await storage.getOrganization(orgId);
+  if (org?.ownerId === userId) return true;
   const role = await getUserOrgRole(userId, orgId);
   return role === 'org_admin';
 }
@@ -61,7 +64,11 @@ export function registerProjectTabTemplateRoutes(app: Express) {
         }
       }
       const templates = await listTemplatesForOrg(organizationId);
-      res.json(templates);
+      // Non-super-admins only see published templates
+      const visible = hasAdminAccess(user)
+        ? templates
+        : templates.filter(t => t.isPublished !== false);
+      res.json(visible);
     } catch (err) {
       console.error('Error listing project tab templates:', err);
       const c = classifyError(err);
@@ -125,6 +132,11 @@ export function registerProjectTabTemplateRoutes(app: Express) {
       // Org-scoped templates can only be applied to their owning org
       if (template.scope === 'org' && template.organizationId !== organizationId) {
         return res.status(403).json({ message: 'Template is not available to this organization' });
+      }
+      // Non-super-admins cannot apply unpublished templates
+      const actor = await storage.getUser(userId);
+      if (template.isPublished === false && !hasAdminAccess(actor)) {
+        return res.status(403).json({ message: 'Template is not currently published' });
       }
       const result = await applyTemplateToOrganization({
         templateId: id,
