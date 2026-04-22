@@ -100,7 +100,6 @@ export function TabTemplatesTab() {
                         <h4 className="font-semibold text-foreground truncate">{t.name}</h4>
                         <Badge variant="secondary" className="text-xs">{t.industry ?? "generic"}</Badge>
                         {t.isPublished === false && <Badge variant="outline" className="text-xs">Draft</Badge>}
-                        {t.isDefault && <Badge className="text-xs">Default</Badge>}
                       </div>
                       {t.description && (
                         <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.description}</p>
