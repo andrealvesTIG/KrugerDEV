@@ -1334,31 +1334,11 @@ export const costItems = pgTable("cost_items", {
   index("cost_items_project_id_idx").on(table.projectId),
 ]);
 
-// Intake Types - Categorize intakes (e.g. "Default", "Power BI Request").
-// `behavior` controls special handling: 'standard' = normal intake form,
-// 'powerbi_redirect' = selecting this type sends the user to the Power BI agent
-// instead of creating a normal intake row.
-export const intakeTypes = pgTable("intake_types", {
-  id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
-  name: text("name").notNull(),
-  description: text("description"),
-  behavior: text("behavior").notNull().default("standard"), // 'standard' | 'powerbi_redirect'
-  isSystem: boolean("is_system").notNull().default(false), // seeded defaults that cannot be deleted
-  isActive: boolean("is_active").notNull().default(true),
-  position: integer("position").notNull().default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => [
-  index("intake_types_org_id_idx").on(table.organizationId),
-]);
-
 // Project Intakes (Intake workflow for new project ideas)
 export const projectIntakes = pgTable("project_intakes", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   intakeNumber: text("intake_number"), // Auto-generated intake ID (e.g., "INT-2026-001")
-  intakeTypeId: integer("intake_type_id").references(() => intakeTypes.id, { onDelete: "set null" }),
   workflowId: integer("workflow_id"), // FK to intake_workflows.id (nullable; assigned when org has multiple intake workflows)
   
   // Basic Information (Intake Form tab)
@@ -1437,6 +1417,9 @@ export const intakeWorkflows = pgTable("intake_workflows", {
   isActive: boolean("is_active").default(true),
   creationMode: text("creation_mode").notNull().default("dialog"), // 'dialog' | 'url'
   creationUrl: text("creation_url"),
+  // When set to 'powerbi', selecting this workflow opens the Power BI agent
+  // instead of the standard intake dialog. null = standard intake behavior.
+  agentTarget: text("agent_target"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -1843,7 +1826,6 @@ export const insertRiskResourceAssignmentSchema = insertIssueResourceAssignmentS
 export const insertTimesheetEntrySchema = createInsertSchema(timesheetEntries).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCostItemSchema = createInsertSchema(costItems).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProjectIntakeSchema = createInsertSchema(projectIntakes).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertIntakeTypeSchema = createInsertSchema(intakeTypes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMppImportSchema = createInsertSchema(mppImports).omit({ id: true, createdAt: true, lastSyncedAt: true });
 export const insertMppImportTaskSchema = createInsertSchema(mppImportTasks).omit({ id: true, createdAt: true });
 export const insertChangeRequestSchema = createInsertSchema(changeRequests).omit({ id: true, createdAt: true });
@@ -1947,8 +1929,6 @@ export type InsertCostItem = z.infer<typeof insertCostItemSchema>;
 
 export type ProjectIntake = typeof projectIntakes.$inferSelect;
 export type InsertProjectIntake = z.infer<typeof insertProjectIntakeSchema>;
-export type IntakeType = typeof intakeTypes.$inferSelect;
-export type InsertIntakeType = z.infer<typeof insertIntakeTypeSchema>;
 
 export type MppImport = typeof mppImports.$inferSelect;
 export type InsertMppImport = z.infer<typeof insertMppImportSchema>;
