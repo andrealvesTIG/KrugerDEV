@@ -27,11 +27,14 @@ export function useProjectTabTemplates(organizationId: number | undefined, indus
   });
 }
 
-export function useSystemProjectTabTemplates(enabled: boolean = true) {
+export function useSystemProjectTabTemplates(enabled: boolean = true, industry?: string) {
   return useQuery<ProjectTabTemplate[]>({
-    queryKey: ['/api/project-tab-templates', 'system'],
+    queryKey: ['/api/project-tab-templates', 'system', industry ?? 'all'],
     queryFn: async () => {
-      const res = await apiRequest('GET', '/api/project-tab-templates');
+      const params = new URLSearchParams();
+      if (industry && industry !== 'all') params.set('industry', industry);
+      const qs = params.toString();
+      const res = await apiRequest('GET', `/api/project-tab-templates${qs ? `?${qs}` : ''}`);
       return res.json();
     },
     enabled,

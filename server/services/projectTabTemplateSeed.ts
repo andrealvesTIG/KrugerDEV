@@ -16,7 +16,7 @@ export const SYSTEM_TEMPLATES: TemplateBlueprint[] = [
     slug: GENERIC_PMO_SLUG,
     name: 'Generic PMO',
     description: 'A balanced PMO layout: charter, governance, finance, and risk visibility for any project.',
-    industry: 'Generic',
+    industry: 'generic',
     icon: 'Briefcase',
     tabs: [
       {
@@ -107,7 +107,7 @@ export const SYSTEM_TEMPLATES: TemplateBlueprint[] = [
     slug: 'construction',
     name: 'Construction',
     description: 'Field-ready layout: site information, contracts, milestones, and safety.',
-    industry: 'Construction',
+    industry: 'construction',
     icon: 'HardHat',
     tabs: [
       {
@@ -175,7 +175,7 @@ export const SYSTEM_TEMPLATES: TemplateBlueprint[] = [
     slug: 'it-software',
     name: 'IT / Software',
     description: 'Engineering-friendly layout: scope, delivery, and technical context.',
-    industry: 'IT/Software',
+    industry: 'it',
     icon: 'Code',
     tabs: [
       {
@@ -234,7 +234,7 @@ export const SYSTEM_TEMPLATES: TemplateBlueprint[] = [
     slug: 'marketing',
     name: 'Marketing',
     description: 'Campaign-centric layout: audience, creative, budget, and KPIs.',
-    industry: 'Marketing',
+    industry: 'marketing',
     icon: 'Megaphone',
     tabs: [
       {
@@ -282,7 +282,7 @@ export const SYSTEM_TEMPLATES: TemplateBlueprint[] = [
     slug: 'product-rd',
     name: 'Product / R&D',
     description: 'Discovery-friendly layout for new product or research initiatives.',
-    industry: 'Product/R&D',
+    industry: 'rnd',
     icon: 'Beaker',
     tabs: [
       {
@@ -322,7 +322,7 @@ export const SYSTEM_TEMPLATES: TemplateBlueprint[] = [
     slug: 'healthcare',
     name: 'Healthcare / Life Sciences',
     description: 'Compliance-aware layout for regulated programs.',
-    industry: 'Healthcare/Life Sciences',
+    industry: 'healthcare',
     icon: 'HeartPulse',
     tabs: [
       {
@@ -372,7 +372,7 @@ export const SYSTEM_TEMPLATES: TemplateBlueprint[] = [
     slug: 'professional-services',
     name: 'Professional Services',
     description: 'Client-engagement layout: scope, billing, and delivery.',
-    industry: 'Professional Services',
+    industry: 'services',
     icon: 'Briefcase',
     tabs: [
       {

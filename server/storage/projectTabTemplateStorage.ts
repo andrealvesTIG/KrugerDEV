@@ -32,7 +32,7 @@ export type ApplyResult = {
 
 export async function listTemplatesForOrg(organizationId: number | null, industry?: string | null): Promise<ProjectTabTemplate[]> {
   const industryFilter = industry && industry !== 'all'
-    ? eq(projectTabTemplates.industry, industry)
+    ? sql`lower(${projectTabTemplates.industry}) = lower(${industry})`
     : undefined;
   if (organizationId == null) {
     const where = industryFilter

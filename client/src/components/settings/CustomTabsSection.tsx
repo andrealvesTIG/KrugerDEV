@@ -25,7 +25,7 @@ const INDUSTRY_CHIPS = [
   { value: 'construction', label: 'Construction' },
   { value: 'it', label: 'IT' },
   { value: 'marketing', label: 'Marketing' },
-  { value: 'rd', label: 'R&D' },
+  { value: 'rnd', label: 'R&D' },
   { value: 'healthcare', label: 'Healthcare' },
   { value: 'services', label: 'Services' },
 ];

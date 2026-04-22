@@ -37,21 +37,18 @@ const INDUSTRY_OPTIONS = [
 
 export function TabTemplatesTab() {
   const { toast } = useToast();
-  const { data: templates = [], isLoading } = useSystemProjectTabTemplates();
+  const [industry, setIndustry] = useState<string>("all");
+  const { data: templates = [], isLoading } = useSystemProjectTabTemplates(true, industry);
   const updateTemplate = useUpdateProjectTabTemplate();
   const deleteTemplate = useDeleteProjectTabTemplate();
   const createTemplate = useCreateProjectTabTemplate();
-
-  const [industry, setIndustry] = useState<string>("all");
   const [previewId, setPreviewId] = useState<number | null>(null);
   const [builderId, setBuilderId] = useState<number | null>(null);
   const [editing, setEditing] = useState<ProjectTabTemplate | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [showCreate, setShowCreate] = useState(false);
 
-  const filtered = useMemo(() => {
-    return templates.filter(t => industry === "all" || (t.industry ?? "generic") === industry);
-  }, [templates, industry]);
+  const filtered = templates;
 
   return (
     <Card>
