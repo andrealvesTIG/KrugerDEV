@@ -25,40 +25,42 @@ export function useTabOverflow(
         container.querySelectorAll<HTMLElement>("[data-tab-item]"),
       );
       if (items.length === 0) {
-        // eslint-disable-next-line no-console
-        console.debug("[useTabOverflow] no items found in container", container);
         setOverflow((prev) => (prev.size === 0 ? prev : new Set()));
         return;
       }
 
-      const restore: Array<[HTMLElement, string]> = [];
+      // Snapshot current inline display (value + priority) so we can restore
+      // exactly. We force every item visible with !important so that any
+      // class-based hiding (e.g. Tailwind's `!hidden` => display:none!important)
+      // is overridden during measurement. Without this the hook would see
+      // hidden items with offsetTop=0, decide nothing overflows, un-hide them,
+      // re-detect overflow, hide them again, looping forever.
+      const restore: Array<[HTMLElement, string, string]> = [];
       items.forEach((el) => {
-        if (el.style.display === "none") {
-          restore.push([el, el.style.display]);
-          el.style.display = "";
-        }
+        restore.push([
+          el,
+          el.style.getPropertyValue("display"),
+          el.style.getPropertyPriority("display"),
+        ]);
+        el.style.setProperty("display", "flex", "important");
       });
 
       void container.offsetHeight;
       const firstTop = items[0].offsetTop;
       const next = new Set<string>();
-      const debugRows: Array<{ id: string; top: number }> = [];
       for (const el of items) {
         const id = el.dataset.tabItem ?? "?";
-        debugRows.push({ id, top: el.offsetTop });
         if (el.offsetTop > firstTop) {
           if (id) next.add(id);
         }
       }
-      // eslint-disable-next-line no-console
-      console.debug("[useTabOverflow] measure", {
-        firstTop,
-        rows: debugRows,
-        overflow: Array.from(next),
-      });
 
-      restore.forEach(([el, display]) => {
-        el.style.display = display;
+      restore.forEach(([el, value, priority]) => {
+        if (value) {
+          el.style.setProperty("display", value, priority);
+        } else {
+          el.style.removeProperty("display");
+        }
       });
 
       setOverflow((prev) => {

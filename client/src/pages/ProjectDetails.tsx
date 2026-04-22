@@ -749,8 +749,6 @@ export default function ProjectDetails() {
     [orderedMainTabs, orderedPinnedTabs, activeTab],
   );
   const autoOverflowIds = useTabOverflow(tabsListRef, overflowKey);
-  // eslint-disable-next-line no-console
-  console.debug("[ProjectDetails] render autoOverflowIds", Array.from(autoOverflowIds));
 
   // Redirect if project doesn't belong to current organization
   useEffect(() => {
