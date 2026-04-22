@@ -47,7 +47,9 @@ import { registerCorrespondenceRoutes } from "./routes/correspondenceRoutes";
 import { registerBlogRoutes } from "./routes/blogRoutes";
 import { registerPowerBIAgentRoutes } from "./routes/powerbiAgentRoutes";
 import { registerLocationRoutes } from "./routes/locationRoutes";
+import { registerProjectTabTemplateRoutes } from "./routes/projectTabTemplateRoutes";
 import { seedDatabase } from "./routes/helpers";
+import { seedSystemTemplates, backfillDefaultTemplateForOrgs } from "./services/projectTabTemplateSeed";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -136,6 +138,19 @@ export async function registerRoutes(
   registerBlogRoutes(app);
   registerPowerBIAgentRoutes(app);
   registerLocationRoutes(app);
+  registerProjectTabTemplateRoutes(app);
+
+  // Seed system project tab templates and backfill the default Generic PMO
+  // template for any organization that hasn't received it yet. Both calls are
+  // idempotent and safe to run on every boot.
+  (async () => {
+    try {
+      await seedSystemTemplates();
+      await backfillDefaultTemplateForOrgs();
+    } catch (err) {
+      console.error('[project-tab-templates] Seed/backfill failed:', err);
+    }
+  })();
 
   seedTrainingDataIfEmpty().catch(err => {
     console.error('[training] Failed to seed training data:', err.message);

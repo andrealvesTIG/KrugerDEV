@@ -177,6 +177,7 @@ export const organizations = pgTable("organizations", {
   deactivatedBy: varchar("deactivated_by").references(() => users.id), // Who deactivated
   fridayAgentConfig: jsonb("friday_agent_config"), // Friday AI agent configuration (per-org)
   projectTabSettings: jsonb("project_tab_settings").$type<{ order: string[]; hidden: string[] }>(), // Org-level default order + visibility for project detail tabs
+  defaultTemplateAppliedAt: timestamp("default_template_applied_at"), // One-time backfill marker for default project tab template
 });
 
 // Organization Members (Join table for users <-> organizations)
@@ -2390,6 +2391,66 @@ export const PROJECT_FIELD_DEFINITIONS = [
 ] as const;
 
 export type ProjectFieldKey = typeof PROJECT_FIELD_DEFINITIONS[number]['key'];
+
+// =====================================================================
+// Project Tab Templates - Reusable, industry-flavored snapshots of
+// custom-tab layouts that admins can apply to organizations.
+// `scope` = 'system' (managed by super-admins, available to all orgs)
+// or 'org' (private to the organization that owns it).
+// =====================================================================
+export const projectTabTemplates = pgTable("project_tab_templates", {
+  id: serial("id").primaryKey(),
+  slug: text("slug").notNull().unique(), // Stable identifier for system templates ('generic-pmo', etc)
+  name: text("name").notNull(),
+  description: text("description"),
+  industry: text("industry"), // e.g. 'Generic', 'Construction', 'IT/Software'
+  icon: text("icon"),
+  scope: text("scope").notNull().default("system"), // 'system' | 'org'
+  organizationId: integer("organization_id").references(() => organizations.id), // nullable for system
+  isPublished: boolean("is_published").default(true),
+  version: integer("version").default(1),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const projectTabTemplateTabs = pgTable("project_tab_template_tabs", {
+  id: serial("id").primaryKey(),
+  templateId: integer("template_id").references(() => projectTabTemplates.id, { onDelete: 'cascade' }).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  icon: text("icon"),
+  displayOrder: integer("display_order").default(0),
+});
+
+export const projectTabTemplateSections = pgTable("project_tab_template_sections", {
+  id: serial("id").primaryKey(),
+  templateTabId: integer("template_tab_id").references(() => projectTabTemplateTabs.id, { onDelete: 'cascade' }).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  columns: integer("columns").default(2),
+  displayOrder: integer("display_order").default(0),
+  isCollapsible: boolean("is_collapsible").default(true),
+  isCollapsedByDefault: boolean("is_collapsed_by_default").default(false),
+});
+
+export const projectTabTemplateFields = pgTable("project_tab_template_fields", {
+  id: serial("id").primaryKey(),
+  templateSectionId: integer("template_section_id").references(() => projectTabTemplateSections.id, { onDelete: 'cascade' }).notNull(),
+  fieldKey: text("field_key").notNull(),
+  fieldType: text("field_type").notNull(),
+  label: text("label"),
+  displayOrder: integer("display_order").default(0),
+  span: integer("span").default(1),
+  isRequired: boolean("is_required").default(false),
+});
+
+export const insertProjectTabTemplateSchema = createInsertSchema(projectTabTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export type ProjectTabTemplate = typeof projectTabTemplates.$inferSelect;
+export type InsertProjectTabTemplate = z.infer<typeof insertProjectTabTemplateSchema>;
+export type ProjectTabTemplateTab = typeof projectTabTemplateTabs.$inferSelect;
+export type ProjectTabTemplateSection = typeof projectTabTemplateSections.$inferSelect;
+export type ProjectTabTemplateField = typeof projectTabTemplateFields.$inferSelect;
 
 // Portfolio Scoring Criteria - defines scoring dimensions with weights
 // Project Scoring Criteria - organization-level criteria for scoring projects
