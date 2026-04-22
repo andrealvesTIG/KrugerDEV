@@ -2,18 +2,77 @@ import { db } from "../db";
 import { calculateEndDate, formatDateStr } from "../lib/workingDays";
 import {
   projectIntakes, mppImports, mppImportTasks, changeRequests,
-  intakeWorkflows, intakeWorkflowSteps, projectWorkflows, projectWorkflowSteps,
-  projects, tasks, taskDependencies,
+  intakeWorkflowSteps, intakeTypes, projects, tasks, taskDependencies,
   type ProjectIntake, type InsertProjectIntake, type UpdateProjectIntakeRequest,
   type MppImport, type InsertMppImport,
   type MppImportTask, type InsertMppImportTask,
   type ChangeRequest, type InsertChangeRequest, type UpdateChangeRequestRequest,
   type IntakeWorkflowStep, type InsertIntakeWorkflowStep,
-  type ProjectWorkflow, type InsertProjectWorkflow,
-  type ProjectWorkflowStep,
+  type IntakeType, type InsertIntakeType,
   type Project, type Task,
 } from "@shared/schema";
 import { eq, and, desc, asc, isNull, sql } from "drizzle-orm";
+
+const DEFAULT_INTAKE_TYPES: Array<Omit<InsertIntakeType, "organizationId">> = [
+  { name: "Default", description: "Standard project intake request", behavior: "standard", isSystem: true, isActive: true, position: 0 },
+  { name: "Power BI Request", description: "Captured via the Power BI AI agent", behavior: "powerbi_redirect", isSystem: true, isActive: true, position: 1 },
+];
+
+export async function ensureDefaultIntakeTypes(organizationId: number): Promise<void> {
+  const existing = await db.select().from(intakeTypes).where(eq(intakeTypes.organizationId, organizationId));
+  const haveStandard = existing.some(t => t.behavior === "standard" && t.isSystem);
+  const havePowerBI = existing.some(t => t.behavior === "powerbi_redirect" && t.isSystem);
+  const toInsert: InsertIntakeType[] = [];
+  if (!haveStandard) toInsert.push({ ...DEFAULT_INTAKE_TYPES[0], organizationId });
+  if (!havePowerBI) toInsert.push({ ...DEFAULT_INTAKE_TYPES[1], organizationId });
+  if (toInsert.length > 0) {
+    await db.insert(intakeTypes).values(toInsert);
+  }
+}
+
+export async function getIntakeTypes(organizationId: number): Promise<IntakeType[]> {
+  await ensureDefaultIntakeTypes(organizationId);
+  return await db.select().from(intakeTypes)
+    .where(eq(intakeTypes.organizationId, organizationId))
+    .orderBy(asc(intakeTypes.position), asc(intakeTypes.id));
+}
+
+export async function getIntakeType(id: number): Promise<IntakeType | undefined> {
+  const [t] = await db.select().from(intakeTypes).where(eq(intakeTypes.id, id));
+  return t;
+}
+
+export async function createIntakeType(input: InsertIntakeType): Promise<IntakeType> {
+  const [created] = await db.insert(intakeTypes).values({
+    ...input,
+    behavior: input.behavior || "standard",
+    isSystem: false,
+  }).returning();
+  return created;
+}
+
+export async function updateIntakeType(id: number, updates: Partial<InsertIntakeType>): Promise<IntakeType> {
+  const existing = await getIntakeType(id);
+  const safeUpdates: Partial<InsertIntakeType> = { ...updates, updatedAt: new Date() } as any;
+  // Don't allow changing behavior of system rows; rename + description are fine.
+  if (existing?.isSystem) {
+    delete (safeUpdates as any).behavior;
+    delete (safeUpdates as any).isSystem;
+  }
+  const [updated] = await db.update(intakeTypes)
+    .set(safeUpdates as any)
+    .where(eq(intakeTypes.id, id))
+    .returning();
+  return updated;
+}
+
+export async function deleteIntakeType(id: number): Promise<void> {
+  const existing = await getIntakeType(id);
+  if (existing?.isSystem) {
+    throw new Error("System intake types cannot be deleted");
+  }
+  await db.delete(intakeTypes).where(eq(intakeTypes.id, id));
+}
 import { getProject } from "./projectStorage";
 import { getTasks, deleteAllTasksForProject } from "./taskStorage";
 

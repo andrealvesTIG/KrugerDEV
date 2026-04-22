@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { and } from "drizzle-orm";
-import { resources, insertProjectIntakeSchema, type InsertIntakeWorkflow, type InsertProjectWorkflow } from "@shared/schema";
+import { resources, insertProjectIntakeSchema, insertIntakeTypeSchema } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -531,138 +531,101 @@ export function registerIntakeRoutes(app: Express) {
     }
   });
 
-  // ----- Multi-workflow management: Project -----
-
-  apiRoute(app, 'get', '/api/organizations/:orgId/project-workflows', {
-    tag: 'Project Workflow',
-    summary: 'List all project workflows for an organization',
-    parameters: [pathId('orgId')],
-    responses: { ...r200('Workflows', { type: 'array' }), ...idRes },
+  // ----- Intake Types -----
+  apiRoute(app, 'get', '/api/intake-types', {
+    tag: 'Intake Types',
+    summary: 'List intake types for an organization',
+    parameters: [qInt('organizationId', true, 'Organization ID')],
+    responses: { ...r200('Intake types', { type: 'array' }), ...authRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ message: "Authentication required" });
-      const orgId = Number(req.params.orgId);
-      const accessibleOrgIds = await getUserOrgIds(userId);
-      if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
-      await storage.ensureDefaultProjectWorkflow(orgId);
-      const wfs = await storage.getProjectWorkflows(orgId);
-      res.json(wfs);
-    } catch (err) {
-      console.error("Error listing project workflows:", err);
-      const classified = classifyError(err);
-      res.status(classified.status).json({ message: classified.status === 500 ? "Error listing project workflows" : classified.message });
-    }
-  });
-
-  apiRoute(app, 'post', '/api/organizations/:orgId/project-workflows', {
-    tag: 'Project Workflow',
-    summary: 'Create a new project workflow (with default steps)',
-    parameters: [pathId('orgId')],
-    requestBody: body({ type: 'object', properties: { name: { type: 'string' }, description: { type: 'string' }, isDefault: { type: 'boolean' }, creationMode: { type: 'string', enum: ['dialog', 'url'] }, creationUrl: { type: 'string' } }, required: ['name'] }),
-    responses: { ...r201('Workflow created', { type: 'object' }), ...inputRes },
-  }, async (req, res) => {
-    try {
-      const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ message: "Authentication required" });
-      const orgId = Number(req.params.orgId);
-      const accessibleOrgIds = await getUserOrgIds(userId);
-      if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
-      const { name, description, isDefault, creationMode, creationUrl } = req.body || {};
-      if (!name || typeof name !== 'string' || !name.trim()) return res.status(400).json({ message: "Name is required" });
-      const mode: 'dialog' | 'url' = creationMode === 'url' ? 'url' : 'dialog';
-      if (mode === 'url') {
-        if (!creationUrl || typeof creationUrl !== 'string') return res.status(400).json({ message: "creationUrl is required when creationMode is 'url'" });
-        if (!/^https?:\/\//i.test(creationUrl)) return res.status(400).json({ message: "creationUrl must start with http:// or https://" });
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const organizationId = Number(req.query.organizationId);
+      if (!organizationId) return res.status(400).json({ message: "organizationId is required" });
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
       }
-      const wf = await storage.createProjectWorkflow({
-        organizationId: orgId,
-        name: name.trim(),
-        description: description || null,
-        isDefault: !!isDefault,
-        isActive: true,
-        creationMode: mode,
-        creationUrl: mode === 'url' ? creationUrl : null,
-      });
-      await storage.resetProjectWorkflowToDefaults(orgId, wf.id);
-      res.status(201).json(wf);
+      const types = await storage.getIntakeTypes(organizationId);
+      res.json(types);
     } catch (err) {
-      console.error("Error creating project workflow:", err);
+      console.error("Error fetching intake types:", err);
       const classified = classifyError(err);
-      res.status(classified.status).json({ message: classified.status === 500 ? "Error creating project workflow" : (err instanceof Error ? err.message : classified.message) });
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching intake types" : classified.message });
     }
   });
 
-  apiRoute(app, 'patch', '/api/organizations/:orgId/project-workflows/:wfId', {
-    tag: 'Project Workflow',
-    summary: 'Update a project workflow (name, description, isDefault, isActive, creationMode, creationUrl)',
-    parameters: [pathId('orgId'), pathId('wfId')],
+  apiRoute(app, 'post', '/api/intake-types', {
+    tag: 'Intake Types',
+    summary: 'Create an intake type',
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('Intake type created', { type: 'object' }), ...inputRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const input = insertIntakeTypeSchema.parse({ ...req.body, isSystem: false });
+      if (!await userHasOrgAccess(userId, input.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const created = await storage.createIntakeType(input);
+      res.status(201).json(created);
+    } catch (err) {
+      console.error("Error creating intake type:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error creating intake type" : classified.message });
+    }
+  });
+
+  apiRoute(app, 'put', '/api/intake-types/:id', {
+    tag: 'Intake Types',
+    summary: 'Update an intake type',
+    parameters: [pathId()],
     requestBody: body({ type: 'object' }, false),
-    responses: { ...r200('Workflow updated', { type: 'object' }), ...updateRes },
+    responses: { ...r200('Intake type updated', { type: 'object' }), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ message: "Authentication required" });
-      const orgId = Number(req.params.orgId);
-      const wfId = Number(req.params.wfId);
-      const accessibleOrgIds = await getUserOrgIds(userId);
-      if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
-      const existing = await storage.getProjectWorkflow(wfId);
-      if (!existing || existing.organizationId !== orgId) return res.status(404).json({ message: "Workflow not found" });
-      const { name, description, isDefault, isActive, creationMode, creationUrl } = req.body || {};
-      const updates: Partial<InsertProjectWorkflow> = {};
-      if (name !== undefined) updates.name = String(name).trim();
-      if (description !== undefined) updates.description = description;
-      if (isDefault !== undefined) updates.isDefault = !!isDefault;
-      if (isActive !== undefined) updates.isActive = !!isActive;
-      if (creationMode !== undefined) {
-        if (creationMode !== 'dialog' && creationMode !== 'url') return res.status(400).json({ message: "creationMode must be 'dialog' or 'url'" });
-        updates.creationMode = creationMode;
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const existing = await storage.getIntakeType(id);
+      if (!existing) return res.status(404).json({ message: 'Intake type not found' });
+      if (!await userHasOrgAccess(userId, existing.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
       }
-      if (creationUrl !== undefined) {
-        if (creationUrl !== null && creationUrl !== '') {
-          if (typeof creationUrl !== 'string' || !/^https?:\/\//i.test(creationUrl)) return res.status(400).json({ message: "creationUrl must start with http:// or https://" });
-          updates.creationUrl = creationUrl;
-        } else {
-          updates.creationUrl = null;
-        }
-      }
-      const effectiveMode = updates.creationMode ?? existing.creationMode;
-      if (effectiveMode === 'url') {
-        const effectiveUrl = updates.creationUrl ?? existing.creationUrl;
-        if (!effectiveUrl) return res.status(400).json({ message: "creationUrl is required when creationMode is 'url'" });
-      }
-      const updated = await storage.updateProjectWorkflow(wfId, updates);
+      const updated = await storage.updateIntakeType(id, req.body);
       res.json(updated);
     } catch (err) {
-      console.error("Error updating project workflow:", err);
+      console.error("Error updating intake type:", err);
       const classified = classifyError(err);
-      res.status(classified.status).json({ message: err instanceof Error ? err.message : classified.message });
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error updating intake type" : classified.message });
     }
   });
 
-  apiRoute(app, 'delete', '/api/organizations/:orgId/project-workflows/:wfId', {
-    tag: 'Project Workflow',
-    summary: 'Delete a project workflow',
-    parameters: [pathId('orgId'), pathId('wfId')],
-    responses: { ...r204('Workflow deleted'), ...fullRes },
+  apiRoute(app, 'delete', '/api/intake-types/:id', {
+    tag: 'Intake Types',
+    summary: 'Delete an intake type',
+    parameters: [pathId()],
+    responses: { ...r204('Intake type deleted'), ...fullRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
-      if (!userId) return res.status(401).json({ message: "Authentication required" });
-      const orgId = Number(req.params.orgId);
-      const wfId = Number(req.params.wfId);
-      const accessibleOrgIds = await getUserOrgIds(userId);
-      if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
-      const existing = await storage.getProjectWorkflow(wfId);
-      if (!existing || existing.organizationId !== orgId) return res.status(404).json({ message: "Workflow not found" });
-      await storage.deleteProjectWorkflow(wfId);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const existing = await storage.getIntakeType(id);
+      if (!existing) return res.status(404).json({ message: 'Intake type not found' });
+      if (!await userHasOrgAccess(userId, existing.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (existing.isSystem) {
+        return res.status(400).json({ message: 'System intake types cannot be deleted' });
+      }
+      await storage.deleteIntakeType(id);
       res.status(204).send();
     } catch (err) {
-      console.error("Error deleting project workflow:", err);
+      console.error("Error deleting intake type:", err);
       const classified = classifyError(err);
-      res.status(classified.status).json({ message: err instanceof Error ? err.message : classified.message });
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error deleting intake type" : classified.message });
     }
   });
-
 }
