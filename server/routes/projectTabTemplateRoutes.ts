@@ -89,10 +89,22 @@ export function registerProjectTabTemplateRoutes(app: Express) {
       const id = Number(req.params.id);
       const full = await getFullTemplate(id);
       if (!full) return res.status(404).json({ message: 'Template not found' });
-      // Org-scoped templates require org access
-      if (full.template.scope === 'org' && full.template.organizationId) {
-        if (!await userHasOrgAccess(userId, full.template.organizationId)) {
-          return res.status(403).json({ message: 'Access denied' });
+      const orgIdQuery = req.query.organizationId ? Number(req.query.organizationId) : undefined;
+      const user = await storage.getUser(userId);
+      if (full.template.scope === 'system') {
+        // System templates: super-admin or org-admin (within any provided org)
+        if (!hasAdminAccess(user)) {
+          if (!orgIdQuery || !await isOrgAdmin(userId, orgIdQuery)) {
+            return res.status(403).json({ message: 'Organization admin access required' });
+          }
+        }
+        if (full.template.isPublished === false && !hasAdminAccess(user)) {
+          return res.status(403).json({ message: 'Template is not currently published' });
+        }
+      } else if (full.template.organizationId) {
+        // Org-scoped templates: must be org-admin in the owning org (or super-admin)
+        if (!await isOrgAdmin(userId, full.template.organizationId)) {
+          return res.status(403).json({ message: 'Organization admin access required' });
         }
       }
       res.json(full);
