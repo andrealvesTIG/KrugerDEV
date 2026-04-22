@@ -343,16 +343,18 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
               value={selectedWorkflowId ? String(selectedWorkflowId) : ''}
               onValueChange={(v) => setSelectedWorkflowId(Number(v))}
             >
-              <SelectTrigger className="w-[220px]" data-testid="select-active-workflow">
-                <SelectValue placeholder="Select workflow" />
+              <SelectTrigger className="w-[260px]" data-testid="select-active-workflow">
+                <SelectValue placeholder="Select workflow">
+                  {selectedWorkflow?.name || 'Select workflow'}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {workflows.map(w => (
                   <SelectItem key={w.id} value={String(w.id)} data-testid={`option-workflow-${w.id}`}>
-                    <div className="flex items-center gap-2">
-                      <span>{w.name}</span>
-                      {w.isDefault && <Badge variant="secondary" className="text-xs">Default</Badge>}
-                      {w.agentTarget === 'powerbi' && <Badge variant="outline" className="text-xs">Power BI</Badge>}
+                    <div className="flex items-center gap-2 pr-2">
+                      <span className="truncate">{w.name}</span>
+                      {w.isDefault && <Badge variant="secondary" className="text-[10px] px-1 py-0">Default</Badge>}
+                      {w.agentTarget === 'powerbi' && <Badge variant="outline" className="text-[10px] px-1 py-0">Power BI</Badge>}
                     </div>
                   </SelectItem>
                 ))}
