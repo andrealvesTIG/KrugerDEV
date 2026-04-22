@@ -49,7 +49,7 @@ import { registerPowerBIAgentRoutes } from "./routes/powerbiAgentRoutes";
 import { registerLocationRoutes } from "./routes/locationRoutes";
 import { registerProjectTabTemplateRoutes } from "./routes/projectTabTemplateRoutes";
 import { seedDatabase } from "./routes/helpers";
-import { seedSystemTemplates, backfillDefaultTemplateForOrgs } from "./services/projectTabTemplateSeed";
+import { seedSystemTemplates, backfillDefaultTemplateForOrgs, ensureDefaultTemplateRegistry } from "./services/projectTabTemplateSeed";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -147,6 +147,7 @@ export async function registerRoutes(
     try {
       await seedSystemTemplates();
       await backfillDefaultTemplateForOrgs();
+      await ensureDefaultTemplateRegistry();
     } catch (err) {
       console.error('[project-tab-templates] Seed/backfill failed:', err);
     }

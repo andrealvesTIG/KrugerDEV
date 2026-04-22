@@ -6,6 +6,9 @@ import {
   type TemplateBlueprint,
 } from "../storage/projectTabTemplateStorage";
 import { PROJECT_FIELD_DEFINITIONS } from "@shared/schema";
+import { db } from "../db";
+import { organizations, organizationAppliedTemplates } from "@shared/schema";
+import { sql, eq, and, isNotNull, notExists } from "drizzle-orm";
 
 const VALID_FIELD_KEYS = new Set(PROJECT_FIELD_DEFINITIONS.map(d => d.key));
 
@@ -469,6 +472,45 @@ export async function backfillDefaultTemplateForOrgs(): Promise<void> {
     } catch (err) {
       console.error(`[project-tab-templates] Backfill failed for org ${org.id}:`, err);
     }
+  }
+}
+
+/**
+ * Ensure every organization that already has the default template marker is
+ * also registered in `organization_applied_templates` for Generic PMO. Older
+ * backfill runs set the marker without registering the template, which means
+ * later edits to Generic PMO never propagated to those orgs.
+ */
+export async function ensureDefaultTemplateRegistry(): Promise<void> {
+  const generic = await getTemplateBySlug(GENERIC_PMO_SLUG);
+  if (!generic) return;
+  const orphans = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(
+      and(
+        isNotNull(organizations.defaultTemplateAppliedAt),
+        notExists(
+          db
+            .select({ x: sql`1` })
+            .from(organizationAppliedTemplates)
+            .where(
+              and(
+                eq(organizationAppliedTemplates.organizationId, organizations.id),
+                eq(organizationAppliedTemplates.templateId, generic.id),
+              ),
+            ),
+        ),
+      ),
+    );
+  if (orphans.length === 0) return;
+  console.log(`[project-tab-templates] Registering Generic PMO for ${orphans.length} legacy org(s)`);
+  for (const o of orphans) {
+    await db.insert(organizationAppliedTemplates).values({
+      organizationId: o.id,
+      templateId: generic.id,
+      appliedAt: new Date(),
+    }).onConflictDoNothing();
   }
 }
 
