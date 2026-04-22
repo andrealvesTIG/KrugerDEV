@@ -95,9 +95,10 @@ interface CreateIntakeDialogProps {
   onOpenChange: (open: boolean) => void;
   portfolios: Portfolio[];
   organizationId?: number;
+  workflowId?: number | null;
 }
 
-function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: CreateIntakeDialogProps) {
+function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, workflowId }: CreateIntakeDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -813,7 +814,7 @@ export default function ProjectIntakes() {
           <p className="mt-1 text-muted-foreground">Submit and track new requests through the approval workflow.</p>
         </div>
         {activeTab === "project" ? (
-          <Button onClick={() => setIsDialogOpen(true)} data-testid="button-new-intake">
+          <Button onClick={() => openCreateIntake()} data-testid="button-new-intake">
             <Plus className="h-4 w-4 mr-2" />
             New Intake
           </Button>
@@ -1010,7 +1011,7 @@ export default function ProjectIntakes() {
                 : "Submit a new intake request to get started"}
             </p>
             {!search && statusFilter === "all" && (
-              <Button onClick={() => setIsDialogOpen(true)}>
+              <Button onClick={() => openCreateIntake()}>
                 <Plus className="h-4 w-4 mr-2" />
                 New Intake
               </Button>
@@ -1133,9 +1134,10 @@ export default function ProjectIntakes() {
 
       <CreateIntakeDialog 
         open={isDialogOpen} 
-        onOpenChange={setIsDialogOpen}
+        onOpenChange={(o) => { setIsDialogOpen(o); if (!o) setPendingWorkflowId(null); }}
         portfolios={portfolios || []}
         organizationId={currentOrganization?.id}
+        workflowId={pendingWorkflowId}
       />
 
       <Dialog open={deleteIntakeId !== null} onOpenChange={() => setDeleteIntakeId(null)}>

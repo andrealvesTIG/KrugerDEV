@@ -120,6 +120,13 @@ export function registerOrganizationRoutes(app: Express) {
         userId: safeOwnerId, 
         role: 'org_admin' 
       });
+      // Seed default intake & project workflows (best-effort)
+      try {
+        await storage.ensureDefaultIntakeWorkflow(org.id);
+        await storage.ensureDefaultProjectWorkflow(org.id);
+      } catch (wfErr) {
+        console.error("Failed to seed default workflows for new org:", wfErr);
+      }
       // Auto-apply the Generic PMO project tab template (best-effort)
       try {
         const { applyDefaultTemplateToOrg } = await import("../services/projectTabTemplateSeed");

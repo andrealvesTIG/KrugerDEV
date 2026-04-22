@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useOrganization } from "@/hooks/use-organization";
-import type { IntakeWorkflowStep, InsertIntakeWorkflowStep } from "@shared/schema";
+import type { IntakeWorkflowStep, InsertIntakeWorkflowStep, IntakeWorkflow } from "@shared/schema";
 import { Lightbulb, Filter, FileText, Calculator, Shield, Gavel, LucideIcon } from "lucide-react";
 
 // Map step keys to icons

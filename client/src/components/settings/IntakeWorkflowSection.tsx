@@ -62,9 +62,10 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
   const [stepToDelete, setStepToDelete] = useState<IntakeWorkflowStep | null>(null);
 
   const { data: workflowSteps, isLoading } = useQuery<IntakeWorkflowStep[]>({
-    queryKey: ['/api/organizations', organizationId, 'intake-workflow'],
+    queryKey: wfQueryKey,
+    enabled: !!selectedWorkflowId,
     queryFn: async () => {
-      const res = await fetch(`/api/organizations/${organizationId}/intake-workflow`);
+      const res = await fetch(`/api/organizations/${organizationId}/intake-workflow${wfQuery}`);
       if (!res.ok) return [];
       return res.json();
     }
@@ -72,10 +73,10 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
 
   const updateWorkflowMutation = useMutation({
     mutationFn: async (steps: Partial<IntakeWorkflowStep>[]) => {
-      return apiRequest('PUT', `/api/organizations/${organizationId}/intake-workflow`, { steps });
+      return apiRequest('PUT', `/api/organizations/${organizationId}/intake-workflow${wfQuery}`, { steps });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'intake-workflow'] });
+      queryClient.invalidateQueries({ queryKey: wfQueryKey });
       toast({ title: "Saved", description: "Workflow configuration updated" });
       setEditingStep(null);
     },
@@ -86,10 +87,10 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
 
   const resetWorkflowMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('POST', `/api/organizations/${organizationId}/intake-workflow/reset`);
+      return apiRequest('POST', `/api/organizations/${organizationId}/intake-workflow/reset${wfQuery}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'intake-workflow'] });
+      queryClient.invalidateQueries({ queryKey: wfQueryKey });
       toast({ title: "Reset", description: "Workflow restored to default configuration" });
       setShowResetConfirm(false);
     },
