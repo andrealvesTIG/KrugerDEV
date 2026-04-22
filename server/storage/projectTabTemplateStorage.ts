@@ -16,6 +16,77 @@ import {
   type ProjectTabTemplateField,
 } from "@shared/schema";
 import { eq, and, or, asc, isNull, sql } from "drizzle-orm";
+import {
+  PROJECT_TAB_IDS,
+  PROJECT_TAB_ID_SET,
+  DEFAULT_PROJECT_TAB_SETTINGS,
+} from "@shared/projectTabs";
+
+/**
+ * Compute org-level project_tab_settings ({ order, hidden }) from a template's
+ * canonical-tab list. `visibleIds` is the ordered list of canonical tab ids
+ * the template explicitly enables; everything else canonical is hidden.
+ */
+function computeProjectTabSettings(visibleIds: string[]): { order: string[]; hidden: string[] } {
+  const visibleSet = new Set(visibleIds.filter((id) => PROJECT_TAB_ID_SET.has(id)));
+  const cleanVisible = visibleIds.filter((id) => visibleSet.has(id));
+  // Append any canonical ids not explicitly placed (hidden but kept in order tail)
+  const trailing = PROJECT_TAB_IDS.filter((id) => !visibleSet.has(id));
+  const order = [...cleanVisible, ...trailing];
+  const hidden = trailing;
+  return { order, hidden };
+}
+
+export type CanonicalTemplateLayout = { order: string[]; hidden: string[] };
+
+/**
+ * Read a template's canonical layout (which standard project tabs are enabled
+ * and in what order). Tabs whose name is not a canonical PROJECT_TAB_ID are
+ * ignored here — those represent legacy custom-tab blueprints.
+ */
+export async function getTemplateCanonicalLayout(templateId: number): Promise<CanonicalTemplateLayout> {
+  const tabs = await db.select().from(projectTabTemplateTabs)
+    .where(eq(projectTabTemplateTabs.templateId, templateId))
+    .orderBy(asc(projectTabTemplateTabs.displayOrder));
+  const visible = tabs
+    .map((t) => t.name)
+    .filter((n) => PROJECT_TAB_ID_SET.has(n));
+  return computeProjectTabSettings(visible);
+}
+
+/**
+ * Replace a template's canonical-tab list with the given ordered visible ids.
+ * Existing canonical-id tab rows are deleted; legacy non-canonical tab rows
+ * (and their sections/fields) are preserved untouched.
+ */
+export async function setTemplateCanonicalLayout(
+  templateId: number,
+  layout: { order: string[]; hidden: string[] },
+): Promise<CanonicalTemplateLayout> {
+  const hiddenSet = new Set(layout.hidden);
+  const visibleIds = layout.order.filter((id) => PROJECT_TAB_ID_SET.has(id) && !hiddenSet.has(id));
+  return await db.transaction(async (tx) => {
+    const existing = await tx.select().from(projectTabTemplateTabs)
+      .where(eq(projectTabTemplateTabs.templateId, templateId));
+    for (const t of existing) {
+      if (PROJECT_TAB_ID_SET.has(t.name)) {
+        await tx.delete(projectTabTemplateTabs).where(eq(projectTabTemplateTabs.id, t.id));
+      }
+    }
+    let order = 0;
+    for (const id of visibleIds) {
+      await tx.insert(projectTabTemplateTabs).values({
+        templateId,
+        name: id,
+        displayOrder: order++,
+      });
+    }
+    await tx.update(projectTabTemplates)
+      .set({ updatedAt: new Date() })
+      .where(eq(projectTabTemplates.id, templateId));
+    return computeProjectTabSettings(visibleIds);
+  });
+}
 
 export type FullTemplate = {
   template: ProjectTabTemplate;
@@ -255,7 +326,27 @@ export async function applyTemplateToOrganization(opts: {
     }).from(customProjectTabs).where(eq(customProjectTabs.organizationId, opts.organizationId));
     let nextOrder = (max ?? -1) + 1;
 
+    // Collect canonical (built-in) tab ids for visibility/order updates.
+    // We update org settings whenever the template has ANY canonical-tab rows,
+    // even if all of them are hidden — that's still a deliberate directive.
+    const canonicalVisible: string[] = [];
+    let hasCanonicalDirective = false;
     for (const tab of full.tabs) {
+      if (PROJECT_TAB_ID_SET.has(tab.name)) {
+        hasCanonicalDirective = true;
+        canonicalVisible.push(tab.name);
+      }
+    }
+    if (hasCanonicalDirective) {
+      const settings = computeProjectTabSettings(canonicalVisible);
+      await tx.update(organizations)
+        .set({ projectTabSettings: settings })
+        .where(eq(organizations.id, opts.organizationId));
+    }
+
+    for (const tab of full.tabs) {
+      // Skip canonical built-in tabs — they're handled via projectTabSettings above.
+      if (PROJECT_TAB_ID_SET.has(tab.name)) continue;
       const [createdTab] = await tx.insert(customProjectTabs).values({
         organizationId: opts.organizationId,
         name: tab.name,
@@ -605,7 +696,28 @@ export async function propagateTemplateToAppliedOrgs(opts: {
       const [{ max }] = await tx.select({ max: sql<number>`coalesce(max(${customProjectTabs.displayOrder}), -1)::int` })
         .from(customProjectTabs).where(eq(customProjectTabs.organizationId, orgId));
       let nextOrder = (max ?? -1) + 1;
+
+      // Update canonical project_tab_settings on the org if the template
+      // contains canonical (built-in) tab directives — including the valid
+      // edge case where every canonical tab is hidden.
+      const canonicalVisible: string[] = [];
+      let hasCanonicalDirective = false;
       for (const tab of full.tabs) {
+        if (PROJECT_TAB_ID_SET.has(tab.name)) {
+          hasCanonicalDirective = true;
+          canonicalVisible.push(tab.name);
+        }
+      }
+      if (hasCanonicalDirective) {
+        const settings = computeProjectTabSettings(canonicalVisible);
+        await tx.update(organizations)
+          .set({ projectTabSettings: settings })
+          .where(eq(organizations.id, orgId));
+      }
+
+      for (const tab of full.tabs) {
+        // Canonical built-ins are visibility/order directives only — handled above.
+        if (PROJECT_TAB_ID_SET.has(tab.name)) continue;
         const [createdTab] = await tx.insert(customProjectTabs).values({
           organizationId: orgId,
           name: tab.name,

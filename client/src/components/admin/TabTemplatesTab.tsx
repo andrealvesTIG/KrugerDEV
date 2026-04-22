@@ -22,7 +22,10 @@ import {
   type FullTemplateField,
 } from "@/hooks/use-project-tab-templates";
 import type { ProjectTabTemplate } from "@shared/schema";
+import { PROJECT_TAB_DEFINITIONS } from "@shared/projectTabs";
 import { TemplateBuilderDialog } from "./TemplateBuilderDialog";
+
+const CANONICAL_LABEL_BY_ID = new Map(PROJECT_TAB_DEFINITIONS.map((t) => [t.id, t.label] as const));
 
 const INDUSTRY_OPTIONS = [
   { value: "all", label: "All" },
@@ -277,7 +280,7 @@ function PreviewDialog({ id, onClose }: { id: number; onClose: () => void }) {
           <div className="space-y-4">
             {(data.tabs ?? []).map((tab: FullTemplateTab) => (
               <div key={tab.id} className="border rounded-md p-3" data-testid={`preview-tab-${tab.id}`}>
-                <h4 className="font-semibold">{tab.name}</h4>
+                <h4 className="font-semibold">{CANONICAL_LABEL_BY_ID.get(tab.name) ?? tab.name}</h4>
                 {tab.description && <p className="text-xs text-muted-foreground">{tab.description}</p>}
                 <div className="mt-2 space-y-2">
                   {(tab.sections ?? []).map((section: FullTemplateSection) => (

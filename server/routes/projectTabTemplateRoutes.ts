@@ -35,7 +35,10 @@ import {
   getTemplateIdForSection,
   getTemplateIdForField,
   propagateTemplateToAppliedOrgs,
+  getTemplateCanonicalLayout,
+  setTemplateCanonicalLayout,
 } from "../storage/projectTabTemplateStorage";
+import { PROJECT_TAB_ID_SET } from "@shared/projectTabs";
 import { VALID_FIELD_KEYS } from "../services/projectTabTemplateSeed";
 
 async function authorizeTemplateEdit(userId: string, templateId: number): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
@@ -152,6 +155,75 @@ export function registerProjectTabTemplateRoutes(app: Express) {
       console.error('Error fetching template:', err);
       const c = classifyError(err);
       res.status(c.status).json({ message: c.status === 500 ? 'Failed to fetch template' : c.message });
+    }
+  });
+
+  // Get the canonical project-tab layout (which standard tabs are visible + order)
+  apiRoute(app, 'get', '/api/project-tab-templates/:id/layout', {
+    tag: 'Project Tab Templates',
+    summary: 'Get template canonical project-tab layout',
+    parameters: [pathId()],
+    responses: { ...r200('Layout', { type: 'object' }), ...idRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const tmpl = await getTemplate(id);
+      if (!tmpl) return res.status(404).json({ message: 'Template not found' });
+      const user = await storage.getUser(userId);
+      const orgIdQuery = req.query.organizationId ? Number(req.query.organizationId) : undefined;
+      if (tmpl.scope === 'system') {
+        if (!hasAdminAccess(user)) {
+          if (!orgIdQuery || !await isOrgAdmin(userId, orgIdQuery)) {
+            return res.status(403).json({ message: 'Organization admin access required' });
+          }
+        }
+        if (tmpl.isPublished === false && !hasAdminAccess(user)) {
+          return res.status(403).json({ message: 'Template is not currently published' });
+        }
+      } else if (tmpl.organizationId) {
+        if (!await isOrgAdmin(userId, tmpl.organizationId)) {
+          return res.status(403).json({ message: 'Organization admin access required' });
+        }
+      }
+      const layout = await getTemplateCanonicalLayout(id);
+      res.json(layout);
+    } catch (err) {
+      const c = classifyError(err);
+      res.status(c.status).json({ message: c.status === 500 ? 'Failed to fetch layout' : c.message });
+    }
+  });
+
+  // Save the canonical project-tab layout for a template
+  apiRoute(app, 'put', '/api/project-tab-templates/:id/layout', {
+    tag: 'Project Tab Templates',
+    summary: 'Update template canonical project-tab layout',
+    parameters: [pathId()],
+    requestBody: body({
+      type: 'object',
+      required: ['order', 'hidden'],
+      properties: {
+        order: { type: 'array', items: { type: 'string' } },
+        hidden: { type: 'array', items: { type: 'string' } },
+      },
+    }),
+    responses: { ...r200('Updated layout', { type: 'object' }), ...inputRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const auth = await authorizeTemplateEdit(userId, id);
+      if (!auth.ok) return res.status(auth.status).json({ message: auth.message });
+      const order = Array.isArray(req.body?.order) ? req.body.order.filter((s: unknown): s is string => typeof s === 'string' && PROJECT_TAB_ID_SET.has(s)) : [];
+      const hidden = Array.isArray(req.body?.hidden) ? req.body.hidden.filter((s: unknown): s is string => typeof s === 'string' && PROJECT_TAB_ID_SET.has(s)) : [];
+      const layout = await setTemplateCanonicalLayout(id, { order, hidden });
+      await propagate(id, userId);
+      res.json(layout);
+    } catch (err) {
+      const c = classifyError(err);
+      res.status(c.status).json({ message: c.status === 500 ? 'Failed to update layout' : c.message });
     }
   });
 

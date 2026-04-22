@@ -55,6 +55,32 @@ export function useFullProjectTabTemplate(id: number | undefined, organizationId
   });
 }
 
+export type CanonicalTemplateLayout = { order: string[]; hidden: string[] };
+
+export function useTemplateLayout(id: number | undefined) {
+  return useQuery<CanonicalTemplateLayout>({
+    queryKey: ['/api/project-tab-templates', id, 'layout'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/project-tab-templates/${id}/layout`);
+      return res.json();
+    },
+    enabled: !!id,
+  });
+}
+
+export function useUpdateTemplateLayout() {
+  return useMutation({
+    mutationFn: async ({ id, order, hidden }: { id: number; order: string[]; hidden: string[] }) => {
+      const res = await apiRequest('PUT', `/api/project-tab-templates/${id}/layout`, { order, hidden });
+      return res.json() as Promise<CanonicalTemplateLayout>;
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/project-tab-templates', vars.id, 'layout'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/project-tab-templates', vars.id, 'full'] });
+    },
+  });
+}
+
 export function useUpdateProjectTabTemplate() {
   return useMutation({
     mutationFn: async ({ id, ...body }: { id: number; name?: string; description?: string; industry?: string; icon?: string; isPublished?: boolean }) => {
