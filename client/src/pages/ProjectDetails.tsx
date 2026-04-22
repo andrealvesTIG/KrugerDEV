@@ -749,6 +749,8 @@ export default function ProjectDetails() {
     [orderedMainTabs, orderedPinnedTabs, activeTab],
   );
   const autoOverflowIds = useTabOverflow(tabsListRef, overflowKey);
+  // eslint-disable-next-line no-console
+  console.debug("[ProjectDetails] render autoOverflowIds", Array.from(autoOverflowIds));
 
   // Redirect if project doesn't belong to current organization
   useEffect(() => {
@@ -1738,10 +1740,10 @@ export default function ProjectDetails() {
                 <div
                   key={tab.id}
                   data-tab-item={tab.id}
-                  style={autoOverflowIds.has(tab.id) ? { display: "none" } : undefined}
                   className={cn(
                     "flex items-center gap-0.5 transition-all",
-                    dragOverTab === tab.id && "ring-2 ring-primary ring-offset-1 rounded-lg"
+                    dragOverTab === tab.id && "ring-2 ring-primary ring-offset-1 rounded-lg",
+                    autoOverflowIds.has(tab.id) && "!hidden"
                   )}
                   draggable
                   onDragStart={(e) => handleTabDragStart(e, tab.id)}
@@ -1772,7 +1774,7 @@ export default function ProjectDetails() {
               <div
                 key={tab.id}
                 data-tab-item={tab.id}
-                style={autoOverflowIds.has(tab.id) ? { display: "none" } : undefined}
+                className={cn(autoOverflowIds.has(tab.id) && "!hidden")}
                 draggable
                 onDragStart={(e) => handleTabDragStart(e, tab.id)}
                 onDragOver={(e) => handleTabDragOver(e, tab.id)}
@@ -1790,10 +1792,10 @@ export default function ProjectDetails() {
             <div 
               key={item.id} 
               data-tab-item={item.id}
-              style={autoOverflowIds.has(item.id) ? { display: "none" } : undefined}
               className={cn(
                 "flex items-center gap-0.5 transition-all",
-                dragOverTab === item.id && "ring-2 ring-primary ring-offset-1 rounded-lg"
+                dragOverTab === item.id && "ring-2 ring-primary ring-offset-1 rounded-lg",
+                autoOverflowIds.has(item.id) && "!hidden"
               )}
               draggable
               onDragStart={(e) => handleTabDragStart(e, item.id)}
