@@ -47,13 +47,17 @@ export function IntakePipelineDashboard() {
     const rejected = intakes.filter(i => i.status === 'Rejected').length;
     const onHold = intakes.filter(i => i.status === 'On Hold').length;
 
-    const avgCycleTime = intakes.length > 0
-      ? Math.round(intakes.reduce((sum, i) => {
-          if (!i.submittedAt) return sum;
-          const start = new Date(i.submittedAt);
-          const end = i.approvedAt ? new Date(i.approvedAt) : new Date();
-          return sum + differenceInDays(end, start);
-        }, 0) / intakes.length)
+    const cycleTimeSamples = intakes
+      .map(i => {
+        if (!i.createdAt) return null;
+        const start = new Date(i.createdAt);
+        const end = i.approvedAt ? new Date(i.approvedAt) : new Date();
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+        return differenceInDays(end, start);
+      })
+      .filter((d): d is number => d !== null);
+    const avgCycleTime = cycleTimeSamples.length > 0
+      ? Math.round(cycleTimeSamples.reduce((sum, d) => sum + d, 0) / cycleTimeSamples.length)
       : 0;
 
     const approvalRate = total > 0 ? Math.round((approved / total) * 100) : 0;
@@ -103,8 +107,9 @@ export function IntakePipelineDashboard() {
       const monthEnd = new Date(month.getFullYear(), month.getMonth() + 1, 0);
 
       const submitted = intakes.filter(i => {
-        if (!i.submittedAt) return false;
-        const date = new Date(i.submittedAt);
+        if (!i.createdAt) return false;
+        const date = new Date(i.createdAt);
+        if (isNaN(date.getTime())) return false;
         return date >= monthStart && date <= monthEnd;
       }).length;
 

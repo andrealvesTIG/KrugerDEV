@@ -19,7 +19,7 @@ import { useBillableStatusComments, useCreateBillableStatusComment } from "@/hoo
 import { useHealthStatusHistory } from "@/hooks/use-health-status-history";
 import { useCustomFieldDefinitions, useProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useCustomProjectTabs, useFullCustomTab } from "@/hooks/use-custom-tabs";
-import { PROJECT_STATUSES, PROJECT_HEALTH_VALUES, PROJECT_PRIORITIES, BILLABLE_STATUSES } from "@shared/schema";
+import { PROJECT_STATUSES, PROJECT_STATUSES_EXTENDED, PROJECT_HEALTH_VALUES, PROJECT_PRIORITIES, BILLABLE_STATUSES } from "@shared/schema";
 import type { CustomFieldDefinition, CustomTabField } from "@shared/schema";
 import { useProjectFinancials } from "@/hooks/use-project-financials";
 import { useResources, useProjectTaskAssignments } from "@/hooks/use-resources";
@@ -3530,7 +3530,7 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
     }
     if (isSelect) {
       const options: Record<string, string[]> = {
-        status: [...PROJECT_STATUSES, 'Billing', 'On Hold', 'Cancelled'],
+        status: [...PROJECT_STATUSES_EXTENDED],
         priority: [...PROJECT_PRIORITIES],
         health: [...PROJECT_HEALTH_VALUES],
         riskLevel: ['Low', 'Medium', 'High'],

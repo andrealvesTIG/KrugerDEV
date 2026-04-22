@@ -59,7 +59,7 @@ export function FirstProjectWizard() {
         name: projectName,
         description: projectDescription,
         organizationId: currentOrganization.id,
-        status: "active",
+        status: "Initiation",
       });
       const project = await projectRes.json();
       trackChecklistEvent("create_project");
@@ -67,7 +67,7 @@ export function FirstProjectWizard() {
       const validTasks = wizardTasks.filter(t => t.title.trim());
       for (const task of validTasks) {
         await apiRequest("POST", "/api/tasks", {
-          title: task.title,
+          name: task.title,
           projectId: project.id,
           priority: task.priority,
           startDate: task.startDate || null,
