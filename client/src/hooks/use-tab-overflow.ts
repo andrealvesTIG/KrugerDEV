@@ -25,6 +25,8 @@ export function useTabOverflow(
         container.querySelectorAll<HTMLElement>("[data-tab-item]"),
       );
       if (items.length === 0) {
+        // eslint-disable-next-line no-console
+        console.debug("[useTabOverflow] no items found in container", container);
         setOverflow((prev) => (prev.size === 0 ? prev : new Set()));
         return;
       }
@@ -40,12 +42,20 @@ export function useTabOverflow(
       void container.offsetHeight;
       const firstTop = items[0].offsetTop;
       const next = new Set<string>();
+      const debugRows: Array<{ id: string; top: number }> = [];
       for (const el of items) {
+        const id = el.dataset.tabItem ?? "?";
+        debugRows.push({ id, top: el.offsetTop });
         if (el.offsetTop > firstTop) {
-          const id = el.dataset.tabItem;
           if (id) next.add(id);
         }
       }
+      // eslint-disable-next-line no-console
+      console.debug("[useTabOverflow] measure", {
+        firstTop,
+        rows: debugRows,
+        overflow: Array.from(next),
+      });
 
       restore.forEach(([el, display]) => {
         el.style.display = display;
