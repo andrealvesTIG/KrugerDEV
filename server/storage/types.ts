@@ -38,7 +38,7 @@ import type {
   StatusReportHistory, InsertStatusReportHistory,
   IntakeWorkflowStep, InsertIntakeWorkflowStep,
   IntakeWorkflow, InsertIntakeWorkflow,
-  ProjectWorkflow, InsertProjectWorkflow, ProjectWorkflowStep,
+  ProjectWorkflow, InsertProjectWorkflow, ProjectWorkflowStep, InsertProjectWorkflowStep,
   TimesheetEntry, InsertTimesheetEntry, UpdateTimesheetEntryRequest,
   TimeCategory, InsertTimeCategory,
   NonProjectTimeEntry, InsertNonProjectTimeEntry,
@@ -409,6 +409,12 @@ export interface IIntakeStorage {
   deleteProjectWorkflow(id: number): Promise<void>;
   ensureDefaultProjectWorkflow(organizationId: number): Promise<ProjectWorkflow>;
   resetProjectWorkflowToDefaults(organizationId: number, workflowId: number): Promise<ProjectWorkflowStep[]>;
+  getProjectWorkflowSteps(organizationId: number, workflowId: number): Promise<ProjectWorkflowStep[]>;
+  upsertProjectWorkflowSteps(
+    organizationId: number,
+    workflowId: number,
+    steps: Array<Omit<InsertProjectWorkflowStep, 'organizationId' | 'workflowId'>>,
+  ): Promise<ProjectWorkflowStep[]>;
 }
 
 export interface IMiscStorage {

@@ -492,11 +492,28 @@ export function registerIntakeRoutes(app: Express) {
     }
   });
 
+  // Helper to resolve workflowId from query/body, verifying it belongs to the org.
+  const resolveProjectWorkflowId = async (
+    req: any,
+    orgId: number,
+  ): Promise<number | { status: number; message: string }> => {
+    const raw = req.query.workflowId ?? req.body?.workflowId;
+    if (raw !== undefined && raw !== null && raw !== '') {
+      const parsed = Number(raw);
+      if (!Number.isInteger(parsed) || parsed <= 0) return { status: 400, message: "Invalid workflowId" };
+      const wf = await storage.getProjectWorkflow(parsed);
+      if (!wf || wf.organizationId !== orgId) return { status: 404, message: "Workflow not found" };
+      return parsed;
+    }
+    const def = await storage.ensureDefaultProjectWorkflow(orgId);
+    return def.id;
+  };
+
   apiRoute(app, 'get', '/api/organizations/:orgId/project-workflow', {
     tag: 'Project Workflow',
-    summary: 'Get project workflow configuration',
+    summary: 'Get project workflow steps (optionally scoped by ?workflowId)',
     parameters: [pathId('orgId')],
-    responses: { ...r200('Workflow config', { type: 'object' }), ...idRes },
+    responses: { ...r200('Workflow steps', { type: 'array' }), ...idRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -505,7 +522,14 @@ export function registerIntakeRoutes(app: Express) {
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
 
-      res.json([]);
+      const wfIdResult = await resolveProjectWorkflowId(req, orgId);
+      if (typeof wfIdResult === 'object') return res.status(wfIdResult.status).json({ message: wfIdResult.message });
+
+      let steps = await storage.getProjectWorkflowSteps(orgId, wfIdResult);
+      if (steps.length === 0) {
+        steps = await storage.resetProjectWorkflowToDefaults(orgId, wfIdResult);
+      }
+      res.json(steps);
     } catch (err) {
       console.error("Error fetching project workflow:", err);
       const classified = classifyError(err);
@@ -515,10 +539,10 @@ export function registerIntakeRoutes(app: Express) {
 
   apiRoute(app, 'put', '/api/organizations/:orgId/project-workflow', {
     tag: 'Project Workflow',
-    summary: 'Update project workflow configuration',
+    summary: 'Update project workflow steps (optionally scoped by ?workflowId)',
     parameters: [pathId('orgId')],
     requestBody: body({ type: 'object' }),
-    responses: { ...r200('Workflow updated', { type: 'object' }), ...updateRes },
+    responses: { ...r200('Workflow updated', { type: 'array' }), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -535,7 +559,19 @@ export function registerIntakeRoutes(app: Express) {
         }
       }
 
-      res.json(steps);
+      const wfIdResult = await resolveProjectWorkflowId(req, orgId);
+      if (typeof wfIdResult === 'object') return res.status(wfIdResult.status).json({ message: wfIdResult.message });
+
+      const cleaned = steps.map((s: any) => ({
+        stepKey: String(s.stepKey),
+        label: String(s.label),
+        description: s.description ?? null,
+        position: Number(s.position),
+        isTerminal: !!s.isTerminal,
+        isActive: s.isActive !== false,
+      }));
+      const saved = await storage.upsertProjectWorkflowSteps(orgId, wfIdResult, cleaned);
+      res.json(saved);
     } catch (err) {
       console.error("Error updating project workflow:", err);
       const classified = classifyError(err);
@@ -545,9 +581,9 @@ export function registerIntakeRoutes(app: Express) {
 
   apiRoute(app, 'post', '/api/organizations/:orgId/project-workflow/reset', {
     tag: 'Project Workflow',
-    summary: 'Reset project workflow to defaults',
+    summary: 'Reset project workflow to defaults (optionally scoped by ?workflowId)',
     parameters: [pathId('orgId')],
-    responses: { ...r200('Workflow reset', { type: 'object' }), ...fullRes },
+    responses: { ...r200('Workflow reset', { type: 'array' }), ...fullRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -556,7 +592,11 @@ export function registerIntakeRoutes(app: Express) {
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
 
-      res.json([]);
+      const wfIdResult = await resolveProjectWorkflowId(req, orgId);
+      if (typeof wfIdResult === 'object') return res.status(wfIdResult.status).json({ message: wfIdResult.message });
+
+      const steps = await storage.resetProjectWorkflowToDefaults(orgId, wfIdResult);
+      res.json(steps);
     } catch (err) {
       console.error("Error resetting project workflow:", err);
       const classified = classifyError(err);

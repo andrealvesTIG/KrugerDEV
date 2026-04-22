@@ -834,6 +834,31 @@ export async function deleteProjectWorkflow(id: number): Promise<void> {
   await db.delete(projectWorkflows).where(eq(projectWorkflows.id, id));
 }
 
+export async function getProjectWorkflowSteps(organizationId: number, workflowId: number): Promise<ProjectWorkflowStep[]> {
+  return await db.select().from(projectWorkflowSteps)
+    .where(and(
+      eq(projectWorkflowSteps.organizationId, organizationId),
+      eq(projectWorkflowSteps.workflowId, workflowId),
+    ))
+    .orderBy(asc(projectWorkflowSteps.position));
+}
+
+export async function upsertProjectWorkflowSteps(
+  organizationId: number,
+  workflowId: number,
+  steps: Array<Omit<InsertProjectWorkflowStep, 'organizationId' | 'workflowId'>>,
+): Promise<ProjectWorkflowStep[]> {
+  return await db.transaction(async (tx) => {
+    await tx.delete(projectWorkflowSteps).where(and(
+      eq(projectWorkflowSteps.organizationId, organizationId),
+      eq(projectWorkflowSteps.workflowId, workflowId),
+    ));
+    if (steps.length === 0) return [];
+    const rows = steps.map(s => ({ ...s, organizationId, workflowId }));
+    return await tx.insert(projectWorkflowSteps).values(rows).returning();
+  });
+}
+
 export async function resetProjectWorkflowToDefaults(organizationId: number, workflowId: number): Promise<ProjectWorkflowStep[]> {
   await db.delete(projectWorkflowSteps).where(and(
     eq(projectWorkflowSteps.organizationId, organizationId),
