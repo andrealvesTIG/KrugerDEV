@@ -382,7 +382,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     },
     onSuccess: async () => {
       toast({ title: "Success", description: "Project detached successfully. You can now add, edit, and delete tasks." });
-      queryClient.invalidateQueries({ queryKey: [api.projects.get.path, projectId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId] });
       queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/projects', projectId, 'history'] });
       await refetchTasks();
@@ -1454,12 +1454,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                         <Label>Duration</Label>
                         <DurationInput
                           value={durationInput}
-                          onChange={(value, parsed) => {
+                          onChange={(value) => {
                             setDurationInput(value);
-                            if (parsed !== null && parsed >= 0) {
-                              const currentStartDate = form.getValues("startDate");
-                              recalculateEndDate(currentStartDate, parsed);
-                            }
                           }}
                           data-testid="input-task-duration" 
                         />

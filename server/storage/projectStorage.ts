@@ -170,6 +170,13 @@ export async function getMilestones(projectId: number): Promise<Milestone[]> {
   return rows.map(taskToMilestone);
 }
 
+export async function getMilestone(id: number): Promise<Milestone | undefined> {
+  const [row] = await db.select().from(tasks).where(
+    and(eq(tasks.id, id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone'), isNull(tasks.deletedAt))
+  );
+  return row ? taskToMilestone(row) : undefined;
+}
+
 export async function getAllMilestones(): Promise<Milestone[]> {
   const rows = await db.select().from(tasks).where(
     and(eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone'), isNull(tasks.deletedAt))

@@ -1984,6 +1984,7 @@ export type StatusReportHistory = typeof statusReportHistory.$inferSelect;
 export type InsertStatusReportHistory = z.infer<typeof insertStatusReportHistorySchema>;
 
 export type IntakeWorkflowStep = typeof intakeWorkflowSteps.$inferSelect;
+export type ProjectWorkflowStep = typeof projectWorkflowSteps.$inferSelect;
 export type InsertIntakeWorkflowStep = z.infer<typeof insertIntakeWorkflowStepSchema>;
 
 // API Request/Response Types

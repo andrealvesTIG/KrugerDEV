@@ -1140,7 +1140,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     const limit = parseInt(req.query.limit as string) || 100;
     const offset = parseInt(req.query.offset as string) || 0;
 
-    const dateFilters: import('./storage').TaskDateFilterOptions = {};
+    const dateFilters: import('../storage').TaskDateFilterOptions = {};
     if (req.query.startDateFrom) dateFilters.startDateFrom = req.query.startDateFrom as string;
     if (req.query.startDateTo) dateFilters.startDateTo = req.query.startDateTo as string;
     if (req.query.endDateFrom) dateFilters.endDateFrom = req.query.endDateFrom as string;
