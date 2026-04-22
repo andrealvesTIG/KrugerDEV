@@ -119,3 +119,57 @@ export function useIntakeWorkflow() {
     getRequiredFieldsForStep,
   };
 }
+
+/**
+ * Hook for listing/managing all intake workflows for the current organization.
+ */
+export function useIntakeWorkflows() {
+  const { currentOrganization } = useOrganization();
+  const orgId = currentOrganization?.id;
+
+  const query = useQuery<IntakeWorkflow[]>({
+    queryKey: ['/api/organizations', orgId, 'intake-workflows'],
+    enabled: !!orgId,
+  });
+
+  const createWorkflow = useMutation({
+    mutationFn: async (data: { name: string; description?: string; isDefault?: boolean; creationMode?: 'dialog' | 'url'; creationUrl?: string | null; agentTarget?: 'powerbi' | null }) => {
+      if (!orgId) throw new Error("No organization selected");
+      const res = await apiRequest("POST", `/api/organizations/${orgId}/intake-workflows`, data);
+      return res.json() as Promise<IntakeWorkflow>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', orgId, 'intake-workflows'] });
+    },
+  });
+
+  const updateWorkflowMeta = useMutation({
+    mutationFn: async ({ id, ...data }: { id: number; name?: string; description?: string; isDefault?: boolean; isActive?: boolean; creationMode?: 'dialog' | 'url'; creationUrl?: string | null; agentTarget?: 'powerbi' | null }) => {
+      if (!orgId) throw new Error("No organization selected");
+      const res = await apiRequest("PATCH", `/api/organizations/${orgId}/intake-workflows/${id}`, data);
+      return res.json() as Promise<IntakeWorkflow>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', orgId, 'intake-workflows'] });
+    },
+  });
+
+  const deleteWorkflow = useMutation({
+    mutationFn: async (id: number) => {
+      if (!orgId) throw new Error("No organization selected");
+      await apiRequest("DELETE", `/api/organizations/${orgId}/intake-workflows/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', orgId, 'intake-workflows'] });
+    },
+  });
+
+  return {
+    workflows: query.data || [],
+    isLoading: query.isLoading,
+    isError: query.isError,
+    createWorkflow,
+    updateWorkflowMeta,
+    deleteWorkflow,
+  };
+}
