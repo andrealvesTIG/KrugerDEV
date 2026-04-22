@@ -344,9 +344,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
               onValueChange={(v) => setSelectedWorkflowId(Number(v))}
             >
               <SelectTrigger className="w-[260px]" data-testid="select-active-workflow">
-                <SelectValue placeholder="Select workflow">
-                  {selectedWorkflow?.name || 'Select workflow'}
-                </SelectValue>
+                <SelectValue placeholder="Select workflow" />
               </SelectTrigger>
               <SelectContent>
                 {workflows.map(w => (
