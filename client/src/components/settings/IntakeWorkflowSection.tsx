@@ -338,27 +338,104 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
           </CardDescription>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {workflows.length > 0 && (
+            <Select
+              value={selectedWorkflowId ? String(selectedWorkflowId) : ''}
+              onValueChange={(v) => setSelectedWorkflowId(Number(v))}
+            >
+              <SelectTrigger className="w-[220px]" data-testid="select-active-workflow">
+                <SelectValue placeholder="Select workflow" />
+              </SelectTrigger>
+              <SelectContent>
+                {workflows.map(w => (
+                  <SelectItem key={w.id} value={String(w.id)} data-testid={`option-workflow-${w.id}`}>
+                    <div className="flex items-center gap-2">
+                      <span>{w.name}</span>
+                      {w.isDefault && <Badge variant="secondary" className="text-xs">Default</Badge>}
+                      {w.agentTarget === 'powerbi' && <Badge variant="outline" className="text-xs">Power BI</Badge>}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Button
             variant="default"
             size="sm"
-            onClick={() => setShowAddStep(true)}
-            data-testid="button-add-step"
+            onClick={() => openWorkflowDialog(null)}
+            data-testid="button-new-workflow"
           >
             <Plus className="h-4 w-4 mr-2" />
-            Add Step
+            New Workflow
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowResetConfirm(true)}
-            data-testid="button-reset-workflow"
-          >
-            <RotateCw className="h-4 w-4 mr-2" />
-            Reset to Defaults
-          </Button>
+          {selectedWorkflow && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openWorkflowDialog(selectedWorkflow)}
+                data-testid="button-edit-workflow"
+              >
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+              {!selectedWorkflow.isDefault && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleSetDefault(selectedWorkflow)}
+                  data-testid="button-set-default-workflow"
+                >
+                  Set Default
+                </Button>
+              )}
+              {workflows.length > 1 && !selectedWorkflow.isDefault && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setWorkflowToDelete(selectedWorkflow)}
+                  data-testid="button-delete-workflow"
+                >
+                  <Trash2 className="h-4 w-4 mr-2 text-destructive" />
+                  Delete
+                </Button>
+              )}
+            </>
+          )}
+          {selectedWorkflow && selectedWorkflow.creationMode === 'dialog' && !selectedWorkflow.agentTarget && (
+            <>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setShowAddStep(true)}
+                data-testid="button-add-step"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Step
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowResetConfirm(true)}
+                data-testid="button-reset-workflow"
+              >
+                <RotateCw className="h-4 w-4 mr-2" />
+                Reset to Defaults
+              </Button>
+            </>
+          )}
         </div>
       </CardHeader>
       <CardContent>
+        {selectedWorkflow && (selectedWorkflow.creationMode === 'url' || selectedWorkflow.agentTarget) && (
+          <div className="mb-4 p-3 rounded-md border bg-muted/30 text-sm">
+            {selectedWorkflow.agentTarget === 'powerbi' ? (
+              <p>This workflow opens the <strong>Power BI agent</strong> instead of the standard intake form. No step configuration is needed.</p>
+            ) : (
+              <p>This workflow opens an external URL: <code className="text-xs">{selectedWorkflow.creationUrl}</code></p>
+            )}
+          </div>
+        )}
         <div className="space-y-3">
           {sortedSteps.map((step, index) => (
             <div
