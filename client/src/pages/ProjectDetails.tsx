@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { useTabOverflow } from "@/hooks/use-tab-overflow";
 import { formatDuration } from "@/lib/workingDays";
 import { formatCurrency } from "@/lib/format";
 import { CompactCurrency } from "@/components/CompactCurrency";
@@ -730,6 +731,24 @@ export default function ProjectDetails() {
     }
     return out;
   }, [tabOrder, pinnedTabs, moreTabItems]);
+
+  // Auto-overflow: when the visible tab strip would wrap to a second row,
+  // detect which tabs don't fit and surface them through the More menu instead.
+  const tabsListRef = useRef<HTMLDivElement>(null);
+  const overflowKey = useMemo(
+    () => [
+      ...orderedMainTabs.map(t => t.id),
+      "|",
+      ...orderedPinnedTabs.map(t => t.id),
+      "|",
+      // The More trigger's label changes to the active tab's label when the
+      // active tab is in the dropdown, which changes available row width even
+      // though the container itself didn't resize. Re-measure on activeTab.
+      activeTab,
+    ].join(","),
+    [orderedMainTabs, orderedPinnedTabs, activeTab],
+  );
+  const autoOverflowIds = useTabOverflow(tabsListRef, overflowKey);
 
   // Redirect if project doesn't belong to current organization
   useEffect(() => {
@@ -1693,7 +1712,10 @@ export default function ProjectDetails() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full min-w-0">
-        <TabsList className="bg-muted/80 border border-border p-1.5 rounded-xl gap-1 h-auto flex-wrap">
+        <TabsList
+          ref={tabsListRef}
+          className="bg-muted/80 border border-border p-1.5 rounded-xl gap-1 h-auto flex-wrap"
+        >
           {/* Render main tabs in user-defined order with drag-drop support */}
           {orderedMainTabs.map(tab => {
             const isCustom = isCustomProjectTabId(tab.id);
@@ -1715,6 +1737,8 @@ export default function ProjectDetails() {
               return (
                 <div
                   key={tab.id}
+                  data-tab-item={tab.id}
+                  style={autoOverflowIds.has(tab.id) ? { display: "none" } : undefined}
                   className={cn(
                     "flex items-center gap-0.5 transition-all",
                     dragOverTab === tab.id && "ring-2 ring-primary ring-offset-1 rounded-lg"
@@ -1747,6 +1771,8 @@ export default function ProjectDetails() {
             return (
               <div
                 key={tab.id}
+                data-tab-item={tab.id}
+                style={autoOverflowIds.has(tab.id) ? { display: "none" } : undefined}
                 draggable
                 onDragStart={(e) => handleTabDragStart(e, tab.id)}
                 onDragOver={(e) => handleTabDragOver(e, tab.id)}
@@ -1763,6 +1789,8 @@ export default function ProjectDetails() {
           {orderedPinnedTabs.map(item => (
             <div 
               key={item.id} 
+              data-tab-item={item.id}
+              style={autoOverflowIds.has(item.id) ? { display: "none" } : undefined}
               className={cn(
                 "flex items-center gap-0.5 transition-all",
                 dragOverTab === item.id && "ring-2 ring-primary ring-offset-1 rounded-lg"
@@ -1801,27 +1829,49 @@ export default function ProjectDetails() {
           
           {(() => {
             const visibleMoreItems = moreTabItems.filter(item => !pinnedTabs.includes(item.id));
-            if (visibleMoreItems.length === 0) return null;
+            // Build auto-overflow entries (main + pinned tabs that didn't fit on row 1)
+            const autoOverflowItems = [
+              ...orderedMainTabs.filter(t => autoOverflowIds.has(t.id)),
+              ...orderedPinnedTabs.filter(t => autoOverflowIds.has(t.id)),
+            ];
+            const totalCount = visibleMoreItems.length + autoOverflowItems.length;
+            if (totalCount === 0) return null;
+            const dropdownActiveLabel = (() => {
+              const overflowed = autoOverflowItems.find(t => t.id === activeTab);
+              if (overflowed) return overflowed.label;
+              if (!pinnedTabs.includes(activeTab)) {
+                const moreTab = visibleMoreItems.find(t => t.id === activeTab);
+                if (moreTab) return moreTab.label;
+              }
+              return 'More';
+            })();
+            const isDropdownActive =
+              autoOverflowItems.some(t => t.id === activeTab) ||
+              visibleMoreItems.some(t => t.id === activeTab);
             return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
-                variant={visibleMoreItems.map(t => t.id).includes(activeTab) ? 'default' : 'ghost'} 
+                variant={isDropdownActive ? 'default' : 'ghost'} 
                 size="sm" 
                 className="rounded-lg px-4 py-2 font-medium gap-1"
                 data-testid="button-more-tabs"
               >
-                {(() => {
-                  if (!pinnedTabs.includes(activeTab)) {
-                    const moreTab = visibleMoreItems.find(t => t.id === activeTab);
-                    if (moreTab) return moreTab.label;
-                  }
-                  return 'More';
-                })()}
+                {dropdownActiveLabel}
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-[200px]">
+              {autoOverflowItems.map(item => (
+                <DropdownMenuItem
+                  key={`auto-${item.id}`}
+                  className="flex items-center justify-between gap-2"
+                  data-testid={`menu-tab-overflow-${item.id}`}
+                  onSelect={() => setActiveTab(item.id)}
+                >
+                  <span className="flex-1 cursor-pointer">{item.label}</span>
+                </DropdownMenuItem>
+              ))}
               {visibleMoreItems.map(item => (
                 <DropdownMenuItem 
                   key={item.id} 
