@@ -15,14 +15,17 @@ import {
   projectDocuments,
   projectComments,
   changeRequests,
+  notifications,
   customDashboards,
   helpTickets,
+  mppImports,
   projectFinancials,
   costItems,
   projectRiskAssessments,
   customFieldDefinitions,
   customProjectTabs,
   projectScoringCriteria,
+  projectScores,
   portfolioScoringConfig,
   projectBenefits,
   projectDecisions,
@@ -31,6 +34,7 @@ import {
   timesheetPeriods,
   projectViews,
   projectTemplates,
+  timesheetAuditLog,
   timesheetComments,
   timesheetReminderSettings,
   timesheetSettings,
@@ -513,21 +517,48 @@ export function generateOpenApiSchemas(): Record<string, any> {
       },
     },
 
-    TaskDependencyMutationResponse: {
+    TaskDependencyCreateResponse: {
       type: 'object',
-      description: 'Returned by create and update dependency endpoints. Contains the resulting dependency row plus a human-readable summary and any downstream tasks whose dates shifted as a result.',
       properties: {
-        id: { type: 'integer', description: 'ID of the dependency' },
+        id: { type: 'integer', description: 'ID of the created dependency' },
         taskId: { type: 'integer' },
         dependsOnTaskId: { type: 'integer' },
         dependencyType: ref('DependencyType'),
         lagDays: { type: 'integer' },
-        createdAt: { type: 'string', format: 'date-time', description: 'Present on create responses' },
+        createdAt: { type: 'string', format: 'date-time' },
         message: { type: 'string', description: 'Human-readable summary (e.g. "Dependency created successfully. Adjusted dates for 3 tasks.")' },
-        adjustedCount: { type: 'integer', description: 'Number of downstream tasks whose dates were adjusted (create responses only)' },
+        adjustedCount: { type: 'integer', description: 'Number of downstream tasks whose dates were adjusted' },
         propagatedTasks: {
           type: 'array',
           description: 'Tasks whose dates changed due to dependency propagation',
+          items: {
+            type: 'object',
+            properties: {
+              taskId: { type: 'integer' },
+              name: { type: 'string' },
+              oldStartDate: { type: 'string', format: 'date', nullable: true },
+              newStartDate: { type: 'string', format: 'date', nullable: true },
+              oldEndDate: { type: 'string', format: 'date', nullable: true },
+              newEndDate: { type: 'string', format: 'date', nullable: true },
+            },
+          },
+        },
+      },
+      required: ['id', 'taskId', 'dependsOnTaskId'],
+    },
+
+    TaskDependencyUpdateResponse: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer' },
+        taskId: { type: 'integer' },
+        dependsOnTaskId: { type: 'integer' },
+        dependencyType: ref('DependencyType'),
+        lagDays: { type: 'integer' },
+        message: { type: 'string', description: 'Human-readable summary' },
+        propagatedTasks: {
+          type: 'array',
+          description: 'Tasks whose dates changed due to updated dependency',
           items: {
             type: 'object',
             properties: {
@@ -593,6 +624,16 @@ export function generateOpenApiSchemas(): Record<string, any> {
       },
     }),
 
+    Notification: drizzleTableToOpenApiSchema(notifications, {
+      overrides: {
+        type: { description: 'mention, comment_reply, task_overdue, task_deadline_warning, project_health_alert, task_assignment, risk_assignment, issue_assignment, project_assignment, milestone_approaching, milestone_overdue, status_change' },
+        riskIssueId: { description: 'Polymorphic: can reference risks or issues' },
+        severity: { enum: STATUS_ENUMS.notificationSeverity },
+        actionUrl: { description: 'Deep link to the relevant item' },
+        metadata: { description: 'JSON string for additional context' },
+      },
+    }),
+
     CustomDashboard: drizzleTableToOpenApiSchema(customDashboards, {
       overrides: {
         description: { description: "User's original request" },
@@ -644,6 +685,15 @@ export function generateOpenApiSchemas(): Record<string, any> {
       },
     }),
 
+    MppImport: drizzleTableToOpenApiSchema(mppImports, {
+      overrides: {
+        projectId: { description: 'Link to existing project' },
+        fileType: { enum: STATUS_ENUMS.fileType },
+        fileUrl: { description: 'URL to original uploaded file' },
+        status: { enum: ['active', 'archived'] },
+      },
+    }),
+
     ProjectFinancial: drizzleTableToOpenApiSchema(projectFinancials, {
       description: 'Budget/Plan/Actuals with CapEx/OpEx breakdown per fiscal year and period.',
       overrides: {
@@ -691,6 +741,33 @@ export function generateOpenApiSchemas(): Record<string, any> {
       },
       example: { id: 1, organizationId: 1, name: 'Strategic Alignment', category: 'Strategic', weight: '2.5', maxScore: 10, isActive: true },
     }),
+
+    ScoringCriterionRequest: createRequestSchema(projectScoringCriteria, {
+      description: 'Input schema for creating or updating a scoring criterion.',
+      overrides: {
+        category: { description: 'Strategic, Financial, Risk, Resource, Technical' },
+        weight: { description: 'Numeric weight (default "1")' },
+      },
+    }),
+
+    ProjectScore: drizzleTableToOpenApiSchema(projectScores, {
+      overrides: {
+        score: { description: 'Score value (typically 0-10)' },
+        justification: { description: 'Rationale for the score' },
+      },
+      example: { id: 1, projectId: 100, criteriaId: 1, score: 8, justification: 'Strong strategic alignment with Q2 objectives' },
+    }),
+
+    ProjectScoreRequest: {
+      type: 'object',
+      description: 'Input schema for saving a project score. Uses upsert: if a score already exists for this project+criterion, it is updated.',
+      properties: {
+        criterionId: { type: 'integer', description: 'Scoring criterion ID' },
+        score: { type: 'integer', description: 'Score value (typically 0 to maxScore)' },
+        justification: { type: 'string', nullable: true, description: 'Rationale for the score' },
+      },
+      required: ['criterionId', 'score'],
+    },
 
     PortfolioScoringConfig: drizzleTableToOpenApiSchema(portfolioScoringConfig, {
       description: 'Per-portfolio override for how project scores are aggregated per criterion.',
@@ -753,6 +830,8 @@ export function generateOpenApiSchemas(): Record<string, any> {
         source: { description: 'file or project' },
       },
     }),
+
+    TimesheetAuditLog: drizzleTableToOpenApiSchema(timesheetAuditLog, {}),
 
     TimesheetComment: drizzleTableToOpenApiSchema(timesheetComments, {}),
 

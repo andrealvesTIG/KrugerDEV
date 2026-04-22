@@ -86,12 +86,6 @@ function formatZodErrors(err: z.ZodError): string {
 function classifyError(err: unknown): { status: number; message: string } {
   const errMsg = err instanceof Error ? err.message : String(err);
   const errCode = (err as any)?.code;
-  const explicitStatus = (err as any)?.status;
-
-  // Honor explicit HTTP status set by application-level validation errors.
-  if (typeof explicitStatus === 'number' && explicitStatus >= 400 && explicitStatus < 600) {
-    return { status: explicitStatus, message: errMsg };
-  }
 
   // PostgreSQL constraint violations → 400 Bad Request
   if (errCode === '23505') {
@@ -328,171 +322,8 @@ async function parseXmlMspdi(xmlContent: string): Promise<ParsedMppTask[]> {
   return tasks;
 }
 
-// Structured CSV-import error: surfaced as 400 by upload routes.
-export interface CsvImportRowError {
-  row: number;          // 1-based, excluding header
-  column?: string;      // original header text
-  value?: string;       // offending raw value
-  message: string;      // human-readable reason
-}
-
-export class CsvImportError extends Error {
-  status = 400;
-  errors: CsvImportRowError[];
-  constructor(errors: CsvImportRowError[], message?: string) {
-    super(message || `CSV import failed with ${errors.length} error(s)`);
-    this.name = 'CsvImportError';
-    this.errors = errors;
-  }
-}
-
-// Canonical task-field aliases. Each entry: standard field key -> recognised header tokens (lowercased).
-// Anything NOT in this map is preserved on `customFields` (e.g. Asana "Section", "Tags", custom columns).
-const FIELD_ALIASES: Record<string, string[]> = {
-  taskName:      ['task name', 'name', 'task', 'title', 'summary', 'subject'],
-  wbs:           ['wbs', 'outline number', 'work breakdown structure'],
-  startDate:     ['start date', 'start', 'begin', 'begin date', 'planned start'],
-  finishDate:    ['finish date', 'finish', 'end date', 'end', 'due date', 'due', 'completion date', 'planned finish'],
-  duration:      ['duration', 'estimated duration'],
-  percentComplete: ['percent complete', '% complete', 'progress', 'completion', '% done', 'percent done'],
-  outlineLevel:  ['outline level', 'outlinelevel', 'level', 'indent level', 'hierarchy level'],
-  type:          ['type', 'task type', 'item type'],
-  priority:      ['priority'],
-  assigned:      ['assigned to', 'assignee', 'assigned', 'resource names', 'resources', 'owner'],
-  notes:         ['notes', 'description', 'comments'],
-  workHours:     ['work', 'work hours', 'effort', 'estimated hours', 'estimated work'],
-  actualWork:    ['actual work', 'actual hours'],
-  remainingWork: ['remaining work', 'remaining hours'],
-  predecessors:  ['predecessors', 'depends on', 'dependencies'],
-  milestoneFlag: ['milestone'],
-  summaryFlag:   ['summary task', 'is summary'],
-};
-
-// Build reverse lookup: lowercased header -> standard field key.
-function buildHeaderMap(headers: string[]): { mapped: Map<string, string>; customHeaders: string[] } {
-  const mapped = new Map<string, string>();
-  const customHeaders: string[] = [];
-  for (const original of headers) {
-    if (!original) continue;
-    const norm = original.trim().toLowerCase();
-    let matchedKey: string | undefined;
-    for (const [key, aliases] of Object.entries(FIELD_ALIASES)) {
-      if (aliases.includes(norm)) { matchedKey = key; break; }
-    }
-    if (!matchedKey) {
-      // Looser fallback: substring match for the most common ones.
-      for (const [key, aliases] of Object.entries(FIELD_ALIASES)) {
-        if (aliases.some(a => norm === a || norm.includes(a))) { matchedKey = key; break; }
-      }
-    }
-    if (matchedKey && !Array.from(mapped.values()).includes(matchedKey)) {
-      mapped.set(original, matchedKey);
-    } else if (!matchedKey) {
-      customHeaders.push(original);
-    }
-  }
-  return { mapped, customHeaders };
-}
-
-function parsePercent(raw: string): { value?: number; error?: string } {
-  const cleaned = raw.replace('%', '').trim();
-  if (cleaned === '') return { value: undefined };
-  const num = Number(cleaned);
-  if (!Number.isFinite(num)) return { error: `not a valid percent value` };
-  if (num < 0 || num > 100) return { error: `percent must be between 0 and 100` };
-  return { value: Math.round(num) };
-}
-
-function parseDuration(raw: string): { days?: number; error?: string } {
-  const str = (raw || '').trim();
-  if (!str) return { days: undefined };
-  const hoursMatch = str.match(/(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b/i);
-  const daysMatch  = str.match(/(\d+(?:\.\d+)?)\s*(?:days?|d)\b/i);
-  const weeksMatch = str.match(/(\d+(?:\.\d+)?)\s*(?:weeks?|wks?|w)\b/i);
-  let days = 0;
-  let matched = false;
-  if (weeksMatch) { days += parseFloat(weeksMatch[1]) * 5; matched = true; }
-  if (daysMatch)  { days += parseFloat(daysMatch[1]); matched = true; }
-  if (hoursMatch) { days += parseFloat(hoursMatch[1]) / 8; matched = true; }
-  if (matched) return { days };
-  const num = Number(str);
-  if (Number.isFinite(num)) return { days: num };
-  return { error: `unrecognised duration format` };
-}
-
-// Existing custom-field definition shape used for CSV value validation.
-export interface ExistingCustomFieldDef {
-  name: string;
-  fieldType: string;            // 'text' | 'number' | 'date' | 'select' | 'multiselect' | 'checkbox' | 'url'
-  options?: string[] | null;
-}
-
-// Validate a raw CSV value against an existing custom-field definition's type/options.
-// Returns either { ok: true, value } (normalised value to persist) or { error } (human reason).
-function validateCustomFieldValue(
-  def: ExistingCustomFieldDef,
-  raw: string,
-): { value: string; error?: undefined } | { error: string; value?: undefined } {
-  const trimmed = raw.trim();
-  if (trimmed === '') return { value: '' };
-  switch ((def.fieldType || 'text').toLowerCase()) {
-    case 'number': {
-      const n = Number(trimmed);
-      if (!Number.isFinite(n)) return { error: `"${trimmed}" is not a valid number` };
-      return { value: String(n) };
-    }
-    case 'date': {
-      const iso = parseDate(trimmed);
-      if (!iso) return { error: `"${trimmed}" is not a valid date (use YYYY-MM-DD or MM/DD/YYYY)` };
-      return { value: iso };
-    }
-    case 'checkbox': {
-      const lc = trimmed.toLowerCase();
-      if (['true', 'yes', '1', 'y'].includes(lc)) return { value: 'true' };
-      if (['false', 'no', '0', 'n'].includes(lc)) return { value: 'false' };
-      return { error: `"${trimmed}" is not a valid checkbox value (use true/false, yes/no, or 1/0)` };
-    }
-    case 'url': {
-      if (!/^https?:\/\/\S+$/i.test(trimmed)) return { error: `"${trimmed}" is not a valid URL (must start with http:// or https://)` };
-      return { value: trimmed };
-    }
-    case 'select': {
-      const opts = def.options || [];
-      if (opts.length === 0) return { value: trimmed };
-      const norm = trimmed.normalize('NFC').toLowerCase();
-      const match = opts.find(o => o.normalize('NFC').toLowerCase() === norm);
-      if (!match) return { error: `"${trimmed}" is not an allowed option. Allowed: ${opts.join(', ')}` };
-      return { value: match };
-    }
-    case 'multiselect': {
-      const opts = def.options || [];
-      const parts = trimmed.split(/[\s]*[,;\n\r][\s]*/).map(p => p.trim()).filter(Boolean);
-      if (opts.length === 0) return { value: parts.join(', ') };
-      const normalised: string[] = [];
-      const bad: string[] = [];
-      for (const p of parts) {
-        const pn = p.normalize('NFC').toLowerCase();
-        const m = opts.find(o => o.normalize('NFC').toLowerCase() === pn);
-        if (m) normalised.push(m); else bad.push(p);
-      }
-      if (bad.length > 0) return { error: `Invalid option(s): ${bad.join(', ')}. Allowed: ${opts.join(', ')}` };
-      return { value: normalised.join(', ') };
-    }
-    case 'text':
-    default:
-      return { value: trimmed };
-  }
-}
-
-// Parse CSV format using papaparse for robust RFC-compliant parsing.
-// Maps every detected header to either a standard task field or a customFields entry.
-// Validates row data; throws CsvImportError if any validation issues are found.
-// `existingCustomFieldDefs` (optional) — when provided, custom-field values are validated against
-// the existing org-level definition (type/options) so that bad values surface as explicit errors.
-function parseCsv(
-  csvContent: string,
-  existingCustomFieldDefs: ExistingCustomFieldDef[] = [],
-): Array<{
+// Parse CSV format using papaparse for robust RFC-compliant parsing
+function parseCsv(csvContent: string): Array<{
   taskId?: number;
   wbs?: string;
   taskName: string;
@@ -506,199 +337,112 @@ function parseCsv(
   isSummary?: boolean;
   isMilestone?: boolean;
   notes?: string;
-  workHours?: number;
-  actualWorkHours?: number;
-  remainingWorkHours?: number;
-  customFields?: Record<string, string>;
 }> {
-  const parseResult = Papa.parse<Record<string, string>>(csvContent, {
+  const parseResult = Papa.parse(csvContent, {
     header: true,
     skipEmptyLines: true,
-    transformHeader: (header: string) => header.trim(),
+    transformHeader: (header: string) => header.trim().toLowerCase(),
   });
-
-  const errors: CsvImportRowError[] = [];
-
-  if (parseResult.errors.length > 0) {
-    for (const e of parseResult.errors) {
-      errors.push({
-        row: typeof e.row === 'number' ? e.row + 1 : 0,
-        message: `CSV parse error: ${e.message}`,
-      });
-    }
+  
+  if (parseResult.errors.length > 0 || !parseResult.data.length) {
+    console.error('CSV parsing errors:', parseResult.errors);
+    return [];
   }
-
-  const headers = (parseResult.meta.fields || []).filter(Boolean);
-  if (headers.length === 0) {
-    throw new CsvImportError([{ row: 0, message: 'CSV has no header row' }], 'CSV has no header row');
-  }
-
-  const { mapped, customHeaders } = buildHeaderMap(headers);
-
-  // Reverse lookup: standardKey -> original header (so we can read row[header])
-  const colFor: Record<string, string | undefined> = {};
-  for (const [hdr, key] of mapped.entries()) colFor[key] = hdr;
-
-  // Map custom CSV header (case-insensitive) -> existing org-level definition (if any).
-  const existingDefByHeader = new Map<string, ExistingCustomFieldDef>();
-  for (const def of existingCustomFieldDefs) {
-    if (!def?.name) continue;
-    existingDefByHeader.set(def.name.toLowerCase().trim(), def);
-  }
-
-  if (!colFor.taskName) {
-    throw new CsvImportError(
-      [{ row: 0, message: 'No task name column detected. Expected one of: Name, Task Name, Title, Summary.' }],
-      'No task name column detected'
-    );
-  }
-
+  
   const tasks: any[] = [];
+  const headers = parseResult.meta.fields || [];
+  
+  // Find column names (flexible matching)
+  const findColumn = (patterns: string[]): string | undefined => {
+    return headers.find(h => patterns.some(p => h.includes(p)));
+  };
+  
+  const nameCol = findColumn(['name', 'task']);
+  const startCol = findColumn(['start']);
+  const finishCol = findColumn(['finish', 'end']);
+  const durationCol = findColumn(['duration']);
+  const percentCol = findColumn(['percent', '%', 'complete']);
+  const wbsCol = findColumn(['wbs']);
+  const outlineLevelCol = findColumn(['outline level', 'outline_level', 'outlinelevel']);
+  const typeCol = findColumn(['type']);
+  const priorityCol = findColumn(['priority']);
+  const assignedCol = findColumn(['assigned', 'resource']);
+  const descriptionCol = findColumn(['description', 'notes']);
+  
   const parentStack: { taskId: number; level: number }[] = [];
 
-  parseResult.data.forEach((row, index) => {
-    const rowNum = index + 2; // header is row 1
-    const rawName = row[colFor.taskName!] ?? '';
-    const taskName = String(rawName).trim();
-    if (!taskName) return; // skip blank lines silently
-
-    const typeValue = colFor.type ? String(row[colFor.type] || '').trim().toLowerCase() : '';
+  parseResult.data.forEach((row: any, index: number) => {
+    const rawName = nameCol ? row[nameCol] || '' : '';
+    const taskName = rawName.trim();
+    
+    if (!taskName) return;
+    
+    const typeValue = typeCol ? (row[typeCol] || '').trim().toLowerCase() : '';
     if (typeValue === 'project') return;
-
-    // Duration
+    
     let durationDays: number | undefined;
-    const durationStr = colFor.duration ? String(row[colFor.duration] || '') : '';
-    if (durationStr.trim()) {
-      const dRes = parseDuration(durationStr);
-      if (dRes.error) errors.push({ row: rowNum, column: colFor.duration, value: durationStr, message: dRes.error });
-      else durationDays = dRes.days;
+    const durationStr = durationCol ? row[durationCol] || '' : '';
+    const hoursExcelMatch = durationStr.match(/(\d+(?:\.\d+)?)\s*(?:hours?|h)/i);
+    const daysExcelMatch = durationStr.match(/(\d+(?:\.\d+)?)\s*(?:days?|d)/i);
+    if (hoursExcelMatch && daysExcelMatch) {
+      durationDays = parseFloat(daysExcelMatch[1]) + parseFloat(hoursExcelMatch[1]) / 8;
+    } else if (hoursExcelMatch) {
+      durationDays = parseFloat(hoursExcelMatch[1]) / 8;
+    } else if (daysExcelMatch) {
+      durationDays = parseFloat(daysExcelMatch[1]);
+    } else {
+      const numMatch = durationStr.match(/(\d+(?:\.\d+)?)/);
+      if (numMatch) {
+        durationDays = parseFloat(numMatch[1]);
+      }
     }
-
-    // Percent complete
+    
     let percentComplete = 0;
-    if (colFor.percentComplete) {
-      const raw = String(row[colFor.percentComplete] || '');
-      if (raw.trim()) {
-        const pRes = parsePercent(raw);
-        if (pRes.error) errors.push({ row: rowNum, column: colFor.percentComplete, value: raw, message: pRes.error });
-        else if (pRes.value !== undefined) percentComplete = pRes.value;
-      }
+    if (percentCol && row[percentCol]) {
+      const pctStr = row[percentCol].replace('%', '').trim();
+      percentComplete = parseInt(pctStr) || 0;
     }
-
-    // Outline level
+    
     let outlineLevel = 1;
-    if (colFor.outlineLevel) {
-      const raw = String(row[colFor.outlineLevel] || '').trim();
-      if (raw) {
-        const parsed = parseInt(raw, 10);
-        if (Number.isNaN(parsed) || parsed < 1) {
-          errors.push({ row: rowNum, column: colFor.outlineLevel, value: raw, message: 'outline level must be a positive integer' });
-        } else {
-          outlineLevel = parsed;
-        }
+    if (outlineLevelCol && row[outlineLevelCol]) {
+      const parsed = parseInt(row[outlineLevelCol]);
+      if (!isNaN(parsed) && parsed >= 1) outlineLevel = parsed;
+    } else if (rawName !== taskName) {
+      const leadingSpaces = rawName.length - rawName.trimStart().length;
+      if (leadingSpaces > 0) {
+        outlineLevel = Math.floor(leadingSpaces / 4) + 1;
       }
-    } else if (String(rawName) !== taskName) {
-      const leadingSpaces = String(rawName).length - String(rawName).trimStart().length;
-      if (leadingSpaces > 0) outlineLevel = Math.floor(leadingSpaces / 4) + 1;
     }
 
-    // Dates
-    let startDate: string | undefined;
-    if (colFor.startDate) {
-      const raw = String(row[colFor.startDate] || '').trim();
-      if (raw) {
-        startDate = parseDate(raw);
-        if (!startDate) errors.push({ row: rowNum, column: colFor.startDate, value: raw, message: 'unrecognised date format (use YYYY-MM-DD or MM/DD/YYYY)' });
-      }
-    }
-    let finishDate: string | undefined;
-    if (colFor.finishDate) {
-      const raw = String(row[colFor.finishDate] || '').trim();
-      if (raw) {
-        finishDate = parseDate(raw);
-        if (!finishDate) errors.push({ row: rowNum, column: colFor.finishDate, value: raw, message: 'unrecognised date format (use YYYY-MM-DD or MM/DD/YYYY)' });
-      }
-    }
-    if (startDate && finishDate && finishDate < startDate) {
-      errors.push({ row: rowNum, column: colFor.finishDate, value: finishDate, message: 'finish date is before start date' });
-    }
-
-    // Work hours
-    const parseHours = (key: 'workHours' | 'actualWork' | 'remainingWork'): number | undefined => {
-      const col = colFor[key];
-      if (!col) return undefined;
-      const raw = String(row[col] || '').trim();
-      if (!raw) return undefined;
-      const dRes = parseDuration(raw);
-      if (dRes.error || dRes.days === undefined) {
-        errors.push({ row: rowNum, column: col, value: raw, message: 'unrecognised work/effort value' });
-        return undefined;
-      }
-      return dRes.days * 8; // duration parser returns days; convert back to hours
-    };
-    const workHours = parseHours('workHours');
-    const actualWorkHours = parseHours('actualWork');
-    const remainingWorkHours = parseHours('remainingWork');
-
-    const isSummary   = typeValue === 'summary'   || (colFor.summaryFlag   ? /^(true|yes|1)$/i.test(String(row[colFor.summaryFlag]   || '').trim()) : false);
-    const isMilestone = typeValue === 'milestone' || (colFor.milestoneFlag ? /^(true|yes|1)$/i.test(String(row[colFor.milestoneFlag] || '').trim()) : false);
+    const isSummary = typeValue === 'summary';
+    const isMilestone = typeValue === 'milestone';
 
     const taskId = tasks.length + 1;
+
     while (parentStack.length > 0 && parentStack[parentStack.length - 1].level >= outlineLevel) {
       parentStack.pop();
     }
     const parentTaskId = parentStack.length > 0 ? parentStack[parentStack.length - 1].taskId : undefined;
+
     parentStack.push({ taskId, level: outlineLevel });
-
-    // Capture all unmapped headers as custom fields (preserves "Section", "Tags", etc.)
-    // If an org-level definition already exists for the header, validate the value
-    // against its type/options and surface clear, row-level errors on mismatch.
-    const customFields: Record<string, string> = {};
-    for (const hdr of customHeaders) {
-      const rawVal = row[hdr];
-      if (rawVal === undefined || rawVal === null) continue;
-      const strVal = String(rawVal).trim();
-      if (strVal === '') continue;
-      const def = existingDefByHeader.get(hdr.toLowerCase().trim());
-      if (def) {
-        const res = validateCustomFieldValue(def, strVal);
-        if (res.error) {
-          errors.push({ row: rowNum, column: hdr, value: strVal, message: res.error });
-          continue;
-        }
-        // Store under the canonical def name so values match the existing
-        // org definition exactly (avoids "Section" vs "section" duplicates).
-        if (res.value !== '') customFields[def.name] = res.value;
-      } else {
-        customFields[hdr] = strVal;
-      }
-    }
-
+    
     tasks.push({
       taskId,
-      wbs: colFor.wbs ? String(row[colFor.wbs] || '').trim() || undefined : undefined,
+      wbs: wbsCol ? row[wbsCol]?.trim() : undefined,
       taskName,
-      startDate,
-      finishDate,
-      duration: durationStr || undefined,
+      startDate: startCol ? parseDate(row[startCol]) : undefined,
+      finishDate: finishCol ? parseDate(row[finishCol]) : undefined,
+      duration: durationStr,
       durationDays,
       percentComplete,
       outlineLevel,
       parentTaskId,
       isSummary,
       isMilestone,
-      notes: colFor.notes ? String(row[colFor.notes] || '').trim() || undefined : undefined,
-      workHours,
-      actualWorkHours,
-      remainingWorkHours,
-      customFields: Object.keys(customFields).length > 0 ? customFields : undefined,
+      notes: descriptionCol ? row[descriptionCol]?.trim() : undefined,
     });
   });
-
-  if (errors.length > 0) {
-    throw new CsvImportError(errors);
-  }
-
+  
   return tasks;
 }
 
@@ -1699,6 +1443,12 @@ export {
   getTeamMemberRiskIds,
   getTeamMemberIssueIds,
   getTeamMemberPortfolioIds,
+  validateUserInOrg,
 };
+
+async function validateUserInOrg(targetUserId: string, orgId: number): Promise<boolean> {
+  const membership = await storage.getUserOrganizations(targetUserId);
+  return membership.some(m => m.organizationId === orgId);
+}
 
 export type { ParsedMppTask, TeamMemberAccessData };

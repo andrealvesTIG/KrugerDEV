@@ -12,7 +12,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Folder, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, CheckSquare, Eye, EyeOff, GripVertical, Pencil, X, Plus, ChevronUp, ChevronDown, Trash2, ExternalLink, Link as LinkIcon, BookOpen, Home, Radar, Clock, Lightbulb, Receipt, PlayCircle, Users, GraduationCap, LayoutTemplate } from "lucide-react";
+import { Folder, LayoutDashboard, Briefcase, FolderKanban, FileInput, CircleDot, Calendar, CheckSquare, Eye, EyeOff, GripVertical, Pencil, X, Plus, ChevronUp, ChevronDown, Trash2, ExternalLink, Link as LinkIcon, BookOpen, Home, Radar, Clock, Lightbulb, Receipt, PlayCircle, Users, GraduationCap, LayoutTemplate, ClipboardList, MessageSquare, FileCheck, PenSquare, ClipboardCheck, Shield, Gavel, Building2, FileSignature, CalendarDays, MailOpen } from "lucide-react";
 import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, UniqueIdentifier } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -36,6 +36,18 @@ export const availableModules = [
   { key: "user-guide", name: "User Guide", icon: BookOpen, description: "Help documentation" },
   { key: "training", name: "Training", icon: GraduationCap, description: "Training & certification courses" },
   { key: "templates", name: "Templates", icon: LayoutTemplate, description: "Reusable project templates" },
+  { key: "daily-logs", name: "Daily Logs", icon: ClipboardList, description: "Daily site activity logs" },
+  { key: "rfis", name: "RFIs", icon: MessageSquare, description: "Requests for Information tracking" },
+  { key: "submittals", name: "Submittals", icon: FileCheck, description: "Submittal management and review" },
+  { key: "drawings", name: "Drawings", icon: PenSquare, description: "Drawing management and markup" },
+  { key: "punch-list", name: "Punch List", icon: ClipboardCheck, description: "Punch list items for project close-out" },
+  { key: "quality-safety", name: "Quality & Safety", icon: Shield, description: "Inspections, incidents, and safety observations" },
+  { key: "bidding", name: "Bidding", icon: Gavel, description: "Bid packages, vendor bids, and bid leveling" },
+  { key: "vendors", name: "Vendors", icon: Building2, description: "Vendor directory and prequalification" },
+  { key: "change-orders", name: "Change Orders", icon: FileSignature, description: "PCO/COR/CO change order management" },
+  { key: "construction-invoices", name: "Payment Apps", icon: Receipt, description: "Construction invoices and payment applications" },
+  { key: "meetings", name: "Meetings", icon: CalendarDays, description: "Meeting agendas, minutes, and action items" },
+  { key: "correspondence", name: "Correspondence", icon: MailOpen, description: "Formal project correspondence and transmittals" },
 ];
 
 export const moduleIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -56,6 +68,18 @@ export const moduleIconMap: Record<string, React.ComponentType<{ className?: str
   "user-guide": BookOpen,
   training: GraduationCap,
   templates: LayoutTemplate,
+  "daily-logs": ClipboardList,
+  rfis: MessageSquare,
+  submittals: FileCheck,
+  drawings: PenSquare,
+  "punch-list": ClipboardCheck,
+  "quality-safety": Shield,
+  bidding: Gavel,
+  vendors: Building2,
+  "change-orders": FileSignature,
+  "construction-invoices": Receipt,
+  meetings: CalendarDays,
+  correspondence: MailOpen,
 };
 
 function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder?: string[] | null, hiddenGroups?: string[] | null): SidebarStructure {
@@ -72,6 +96,18 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
       { type: "module" as const, key: "issues", hidden: false },
       { type: "module" as const, key: "tasks", hidden: false },
       { type: "module" as const, key: "timesheets", hidden: false },
+      { type: "module" as const, key: "daily-logs", hidden: true },
+      { type: "module" as const, key: "rfis", hidden: true },
+      { type: "module" as const, key: "submittals", hidden: true },
+      { type: "module" as const, key: "drawings", hidden: true },
+      { type: "module" as const, key: "punch-list", hidden: true },
+      { type: "module" as const, key: "quality-safety", hidden: true },
+      { type: "module" as const, key: "bidding", hidden: true },
+      { type: "module" as const, key: "vendors", hidden: true },
+      { type: "module" as const, key: "change-orders", hidden: true },
+      { type: "module" as const, key: "construction-invoices", hidden: true },
+      { type: "module" as const, key: "meetings", hidden: true },
+      { type: "module" as const, key: "correspondence", hidden: true },
     ]},
     { id: "resource-management", name: "Resource Management", hidden: false, collapsedByDefault: true, items: [
       { type: "module" as const, key: "resources", hidden: false },
@@ -154,7 +190,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
     })
   }));
 
-  const ensureModule = (moduleKey: string, targetGroupId: string, afterKey?: string) => {
+  const ensureModule = (moduleKey: string, targetGroupId: string, afterKey?: string, hiddenByDefault: boolean = false) => {
     const hasModule = cleanedStructure.some(g => 
       g.items.some(item => item.type === "module" && item.key === moduleKey)
     );
@@ -167,9 +203,9 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
             if (afterKey) {
               const afterIndex = newItems.findIndex(item => item.type === "module" && item.key === afterKey);
               const insertIndex = afterIndex >= 0 ? afterIndex + 1 : newItems.length;
-              newItems.splice(insertIndex, 0, { type: "module" as const, key: moduleKey, hidden: false });
+              newItems.splice(insertIndex, 0, { type: "module" as const, key: moduleKey, hidden: hiddenByDefault });
             } else {
-              newItems.push({ type: "module" as const, key: moduleKey, hidden: false });
+              newItems.push({ type: "module" as const, key: moduleKey, hidden: hiddenByDefault });
             }
             return { ...g, items: newItems };
           }
@@ -188,6 +224,18 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   ensureModule("invoices", "finance", "pmo-radar");
   ensureModule("user-guide", "help");
   ensureModule("training", "help", "user-guide");
+  ensureModule("daily-logs", "portfolio", "tasks", true);
+  ensureModule("rfis", "portfolio", "daily-logs", true);
+  ensureModule("submittals", "portfolio", "rfis", true);
+  ensureModule("drawings", "portfolio", "submittals", true);
+  ensureModule("punch-list", "portfolio", "drawings", true);
+  ensureModule("quality-safety", "portfolio", "punch-list", true);
+  ensureModule("bidding", "portfolio", "quality-safety", true);
+  ensureModule("vendors", "portfolio", "bidding", true);
+  ensureModule("change-orders", "portfolio", "vendors", true);
+  ensureModule("construction-invoices", "portfolio", "change-orders", true);
+  ensureModule("meetings", "portfolio", "construction-invoices", true);
+  ensureModule("correspondence", "portfolio", "meetings", true);
   
   const helpGroup = cleanedStructure.find(g => g.id === "help");
   if (!helpGroup) {

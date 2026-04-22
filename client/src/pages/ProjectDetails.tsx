@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { useTabOverflow } from "@/hooks/use-tab-overflow";
 import { formatDuration } from "@/lib/workingDays";
 import { formatCurrency } from "@/lib/format";
 import { CompactCurrency } from "@/components/CompactCurrency";
@@ -18,20 +19,41 @@ import { useBillableStatusComments, useCreateBillableStatusComment } from "@/hoo
 import { useHealthStatusHistory } from "@/hooks/use-health-status-history";
 import { useCustomFieldDefinitions, useProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useCustomProjectTabs, useFullCustomTab } from "@/hooks/use-custom-tabs";
-import { PROJECT_STATUSES, PROJECT_HEALTH_VALUES, PROJECT_PRIORITIES, BILLABLE_STATUSES } from "@shared/schema";
+import { PROJECT_STATUSES, PROJECT_STATUSES_EXTENDED, PROJECT_HEALTH_VALUES, PROJECT_PRIORITIES, BILLABLE_STATUSES } from "@shared/schema";
 import type { CustomFieldDefinition, CustomTabField } from "@shared/schema";
 import { useProjectFinancials } from "@/hooks/use-project-financials";
 import { useResources, useProjectTaskAssignments } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
+import { useProjectTabSettings } from "@/hooks/use-project-tab-settings";
+import {
+  PROJECT_TAB_DEFINITIONS,
+  customProjectTabId,
+  isCustomProjectTabId,
+  resolveProjectTabHidden,
+  resolveProjectTabOrder,
+  type ProjectTabDefinition,
+} from "@shared/projectTabs";
 import { useAuth } from "@/hooks/use-auth";
 import { ResourceSelector } from "@/components/ResourceSelector";
 import { StatusReportDialog } from "@/components/StatusReportDialog";
 import { CrossProjectReferences } from "@/components/CrossProjectReferences";
 import { ChangeWorkflowDialog } from "@/components/ChangeWorkflowDialog";
+import { ProjectLocationMediaSection } from "@/components/ProjectLocationMediaSection";
 import TasksTab from "@/components/project/ProjectTasksTab";
 import RisksTab from "@/components/project/ProjectRisksTab";
 import { IssuesTab, FinancialsTab, ChangeRequestsTab, DocumentsTab, StatusReportTab, ScoringTab, BenefitsTab, DecisionsTab, LessonsLearnedTab, InvoicesTab } from "@/components/project/ProjectTabs";
 import ProjectAgentTab from "@/components/project/ProjectAgentTab";
+import DailyLogsTab from "@/components/project/DailyLogsTab";
+import RFIsTab from "@/components/project/RFIsTab";
+import SubmittalsTab from "@/components/project/SubmittalsTab";
+import DrawingsTab from "@/components/project/DrawingsTab";
+import PunchListTab from "@/components/project/PunchListTab";
+import QualitySafetyTab from "@/components/project/QualitySafetyTab";
+import BiddingTab from "@/components/project/BiddingTab";
+import ChangeOrdersTab from "@/components/project/ChangeOrdersTab";
+import ConstructionInvoicesTab from "@/components/project/ConstructionInvoicesTab";
+import MeetingsTab from "@/components/project/MeetingsTab";
+import CorrespondenceTab from "@/components/project/CorrespondenceTab";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -397,35 +419,121 @@ export default function ProjectDetails() {
   const urlRiskId = urlParams.get('riskId');
 
   // Default tab order - main tabs first, then "More" tabs
-  const defaultMainTabs = [
-    { id: 'summary', label: 'Summary' },
-    { id: 'tasks', label: 'Tasks' },
-    { id: 'team', label: 'Team' },
-    { id: 'risks', label: 'Risks' },
-    { id: 'issues', label: 'Issues' },
-    { id: 'financials', label: 'Financials' },
-  ];
-  
+  const isModuleHidden = (moduleKey: string): boolean => {
+    const sidebarStructure = currentOrganization?.sidebarStructure as Array<{ items: Array<{ type: string; key?: string; hidden?: boolean }> }> | null;
+    if (sidebarStructure && Array.isArray(sidebarStructure)) {
+      for (const group of sidebarStructure) {
+        const item = group.items?.find(i => i.type === "module" && i.key === moduleKey);
+        if (item) return item.hidden === true;
+      }
+    } else {
+      const hiddenModules = (currentOrganization as Record<string, unknown>)?.hiddenModules as string[] | undefined;
+      if (hiddenModules?.includes(moduleKey)) return true;
+    }
+    return false;
+  };
+
+  const moduleGatedTabs: Record<string, string> = Object.fromEntries(
+    PROJECT_TAB_DEFINITIONS.filter(t => t.moduleKey).map(t => [t.id, t.moduleKey as string])
+  );
+
+  // Org-level project tab settings (default order + hidden) — admins manage these
+  // in Org Settings → Project Tabs. Apply on top of module-gating, then user
+  // localStorage order/pin sits above this baseline.
+  const { data: orgTabSettings } = useProjectTabSettings(currentOrganization?.id);
+  const customTabIdList = useMemo(
+    () => customTabs.map((t) => customProjectTabId(t.id)),
+    [customTabs],
+  );
+  const orgHiddenTabs = useMemo(
+    () => resolveProjectTabHidden(orgTabSettings ?? null, customTabIdList),
+    [orgTabSettings, customTabIdList],
+  );
+  const orgOrderedTabIds = useMemo(
+    () => resolveProjectTabOrder(orgTabSettings ?? null, customTabIdList),
+    [orgTabSettings, customTabIdList],
+  );
+
+  const isTabAllowed = (_id: string) => {
+    // All built-in project tabs are available on every project. Module-level
+    // hiding (Org Settings → Module Visibility) and org-level project tab
+    // hiding (Org Settings → Project Tabs) only control whether the tab
+    // shows on the main strip by default; in both cases the tab is demoted
+    // to the "More" dropdown in visibleTabDefs so a user can still pin it
+    // onto their personal view of a specific project.
+    return true;
+  };
+
+  const getHiddenCustomTabsKey = (projectId: number, userId: string) => `project-hidden-custom-tabs-${userId}-${projectId}`;
+
+  // Per-user set of custom tab ids the user has hidden from the main strip
+  // (effectively moving them into the More menu, where they can be re-pinned).
+  const [hiddenCustomTabs, setHiddenCustomTabs] = useState<string[]>(() => {
+    if (!project?.id || !user?.id) return [];
+    try {
+      const saved = localStorage.getItem(getHiddenCustomTabsKey(project.id, user.id));
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const visibleTabDefs = useMemo<ProjectTabDefinition[]>(() => {
+    const byId = new Map<string, ProjectTabDefinition>(
+      PROJECT_TAB_DEFINITIONS.map(t => [t.id, t] as const),
+    );
+    const hiddenCustomSet = new Set(hiddenCustomTabs);
+    for (const t of customTabs) {
+      const id = customProjectTabId(t.id);
+      byId.set(id, {
+        id,
+        label: t.name,
+        placement: hiddenCustomSet.has(id) ? "more" : "main",
+      });
+    }
+    return orgOrderedTabIds
+      .map(id => byId.get(id))
+      .filter((t): t is ProjectTabDefinition => {
+        if (!t) return false;
+        // Custom tabs hidden by an org admin should be removed entirely; only
+        // built-in tabs get the "demote to More" treatment so they remain
+        // pinnable per project.
+        if (isCustomProjectTabId(t.id) && orgHiddenTabs.has(t.id)) return false;
+        return isTabAllowed(t.id);
+      })
+      .map(t => {
+        const moduleKey = moduleGatedTabs[t.id];
+        const moduleDemoted = moduleKey ? isModuleHidden(moduleKey) : false;
+        if (orgHiddenTabs.has(t.id) || moduleDemoted) {
+          return { ...t, placement: "more" as const };
+        }
+        return t;
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgOrderedTabIds, orgHiddenTabs, currentOrganization?.sidebarStructure, customTabs, hiddenCustomTabs]);
+
+  const allDefaultMainTabs = useMemo(
+    () => visibleTabDefs.filter(t => t.placement === 'main').map(t => ({ id: t.id, label: t.label })),
+    [visibleTabDefs],
+  );
+  const defaultMainTabs = allDefaultMainTabs;
+
   // Available tabs for pinning from the More menu
-  const moreTabItems = [
-    { id: 'scoring', label: 'Scoring' },
-    { id: 'benefits', label: 'Benefits' },
-    { id: 'decisions', label: 'Decisions' },
-    { id: 'lessons-learned', label: 'Lessons Learned' },
-    { id: 'change-requests', label: 'Change Requests' },
-    { id: 'documents', label: 'Documents' },
-    { id: 'invoices', label: 'Invoices' },
-    { id: 'status-report', label: 'Status Report' },
-    { id: 'ai-agent', label: 'AI Agent' },
-  ];
-  
-  // All available tab IDs for ordering
-  const allTabIds = [...defaultMainTabs.map(t => t.id), ...moreTabItems.map(t => t.id)];
+  const moreTabItems = useMemo(
+    () => visibleTabDefs.filter(t => t.placement === 'more').map(t => ({ id: t.id, label: t.label })),
+    [visibleTabDefs],
+  );
+
+  // All available tab IDs for ordering (org-defined order, post-filter)
+  const allTabIds = useMemo(
+    () => [...defaultMainTabs.map(t => t.id), ...moreTabItems.map(t => t.id)],
+    [defaultMainTabs, moreTabItems],
+  );
 
   // Pinned tabs state - persisted in localStorage per project per user
   const getPinnedTabsKey = (projectId: number, userId: string) => `project-pinned-tabs-${userId}-${projectId}`;
   const getTabOrderKey = (projectId: number, userId: string) => `project-tab-order-${userId}-${projectId}`;
-  
+
   const [pinnedTabs, setPinnedTabs] = useState<string[]>(() => {
     if (!project?.id || !user?.id) return [];
     try {
@@ -464,13 +572,27 @@ export default function ProjectDetails() {
       try {
         const savedPinned = localStorage.getItem(getPinnedTabsKey(project.id, user.id));
         setPinnedTabs(savedPinned ? JSON.parse(savedPinned) : []);
-        
+
+        const savedHiddenCustom = localStorage.getItem(getHiddenCustomTabsKey(project.id, user.id));
+        if (savedHiddenCustom) {
+          const parsed: string[] = JSON.parse(savedHiddenCustom);
+          // Drop any ids that are no longer custom tabs (e.g. tab deleted).
+          const allowedCustom = new Set(customTabIdList);
+          setHiddenCustomTabs(parsed.filter(id => allowedCustom.has(id)));
+        } else {
+          setHiddenCustomTabs([]);
+        }
+
         const savedOrder = localStorage.getItem(getTabOrderKey(project.id, user.id));
+        const allowed = new Set(allTabIds);
         let newOrder = allTabIds;
         if (savedOrder) {
-          const parsed = JSON.parse(savedOrder);
-          const newTabs = allTabIds.filter(id => !parsed.includes(id));
-          newOrder = [...parsed, ...newTabs];
+          const parsed: string[] = JSON.parse(savedOrder);
+          // Drop ids that are no longer allowed (org-hidden or module-hidden),
+          // then append any newly-allowed ids that the user hasn't seen yet.
+          const filtered = parsed.filter(id => allowed.has(id));
+          const newTabs = allTabIds.filter(id => !filtered.includes(id));
+          newOrder = [...filtered, ...newTabs];
         }
         setTabOrder(newOrder);
         
@@ -484,10 +606,11 @@ export default function ProjectDetails() {
         }
       } catch {
         setPinnedTabs([]);
+        setHiddenCustomTabs([]);
         setTabOrder(allTabIds);
       }
     }
-  }, [project?.id, user?.id]);
+  }, [project?.id, user?.id, allTabIds.join('|')]);
 
   const togglePinTab = (tabId: string) => {
     if (!project?.id || !user?.id) return;
@@ -497,6 +620,26 @@ export default function ProjectDetails() {
         : [...prev, tabId];
       localStorage.setItem(getPinnedTabsKey(project.id, user.id), JSON.stringify(newPinned));
       return newPinned;
+    });
+  };
+
+  // Hide a custom tab from the main strip for the current user. The tab will
+  // appear in the More menu, where it can be re-pinned via togglePinTab.
+  const hideCustomTabFromMain = (tabId: string) => {
+    if (!project?.id || !user?.id) return;
+    if (!isCustomProjectTabId(tabId)) return;
+    setHiddenCustomTabs(prev => {
+      if (prev.includes(tabId)) return prev;
+      const next = [...prev, tabId];
+      localStorage.setItem(getHiddenCustomTabsKey(project.id, user.id), JSON.stringify(next));
+      return next;
+    });
+    // Also drop from pinnedTabs so it doesn't immediately reappear pinned.
+    setPinnedTabs(prev => {
+      if (!prev.includes(tabId)) return prev;
+      const next = prev.filter(t => t !== tabId);
+      localStorage.setItem(getPinnedTabsKey(project.id, user.id), JSON.stringify(next));
+      return next;
     });
   };
   
@@ -553,20 +696,60 @@ export default function ProjectDetails() {
   
   // Get ordered main tabs based on user's custom order
   const orderedMainTabs = useMemo(() => {
-    const mainTabIds = defaultMainTabs.map(t => t.id);
-    return tabOrder
-      .filter(id => mainTabIds.includes(id))
-      .map(id => defaultMainTabs.find(t => t.id === id)!)
-      .filter(Boolean);
-  }, [tabOrder]);
-  
+    const byId = new Map(defaultMainTabs.map(t => [t.id, t] as const));
+    const seen = new Set<string>();
+    const out: typeof defaultMainTabs = [];
+    for (const id of tabOrder) {
+      if (seen.has(id)) continue;
+      const t = byId.get(id);
+      if (t) {
+        seen.add(id);
+        out.push(t);
+      }
+    }
+    // Append any newly-allowed tabs that aren't yet in the saved order
+    for (const t of defaultMainTabs) {
+      if (!seen.has(t.id)) {
+        seen.add(t.id);
+        out.push(t);
+      }
+    }
+    return out;
+  }, [tabOrder, defaultMainTabs]);
+
   // Get ordered pinned tabs based on user's custom order
   const orderedPinnedTabs = useMemo(() => {
-    return tabOrder
-      .filter(id => pinnedTabs.includes(id) && moreTabItems.some(t => t.id === id))
-      .map(id => moreTabItems.find(t => t.id === id)!)
-      .filter(Boolean);
-  }, [tabOrder, pinnedTabs]);
+    const byId = new Map(moreTabItems.map(t => [t.id, t] as const));
+    const seen = new Set<string>();
+    const out: typeof moreTabItems = [];
+    for (const id of tabOrder) {
+      if (seen.has(id) || !pinnedTabs.includes(id)) continue;
+      const t = byId.get(id);
+      if (t) {
+        seen.add(id);
+        out.push(t);
+      }
+    }
+    return out;
+  }, [tabOrder, pinnedTabs, moreTabItems]);
+
+  // Auto-overflow: when the visible tab strip would wrap to a second row,
+  // detect which tabs don't fit and surface them through the More menu instead.
+  const tabsListRef = useRef<HTMLDivElement>(null);
+  const overflowKey = useMemo(
+    () => [
+      ...orderedMainTabs.map(t => t.id),
+      "|",
+      ...orderedPinnedTabs.map(t => t.id),
+      "|",
+      // The More trigger's label changes to the active tab's label when the
+      // active tab is in the dropdown, which changes available row width even
+      // though the container itself didn't resize. Re-measure on activeTab.
+      activeTab,
+    ].join(","),
+    [orderedMainTabs, orderedPinnedTabs, activeTab],
+  );
+  const autoOverflowIds = useTabOverflow(tabsListRef, overflowKey);
 
   // Redirect if project doesn't belong to current organization
   useEffect(() => {
@@ -1538,36 +1721,88 @@ export default function ProjectDetails() {
           window.history.replaceState({}, '', url.toString());
         } catch {}
       }} className="w-full min-w-0">
-        <TabsList className="bg-muted/80 border border-border p-1.5 rounded-xl gap-1 h-auto flex-wrap">
+        <TabsList
+          ref={tabsListRef}
+          className="bg-muted/80 border border-border p-1.5 rounded-xl gap-1 h-auto flex-wrap"
+        >
           {/* Render main tabs in user-defined order with drag-drop support */}
-          {orderedMainTabs.map(tab => (
-            <TabsTrigger 
-              key={tab.id}
-              value={tab.id} 
-              className={cn(
-                "rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md cursor-grab active:cursor-grabbing transition-all",
-                draggedTab === tab.id && "opacity-50",
-                dragOverTab === tab.id && "ring-2 ring-primary ring-offset-1"
-              )}
-              data-testid={`tab-${tab.id}`}
-              draggable
-              onDragStart={(e) => handleTabDragStart(e, tab.id)}
-              onDragOver={(e) => handleTabDragOver(e, tab.id)}
-              onDragLeave={handleTabDragLeave}
-              onDrop={(e) => handleTabDrop(e, tab.id)}
-              onDragEnd={handleTabDragEnd}
-            >
-              {tab.label}
-            </TabsTrigger>
-          ))}
+          {orderedMainTabs.map(tab => {
+            const isCustom = isCustomProjectTabId(tab.id);
+            const triggerEl = (
+              <TabsTrigger
+                value={tab.id}
+                className={cn(
+                  "rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md cursor-grab active:cursor-grabbing transition-all",
+                  draggedTab === tab.id && "opacity-50",
+                  !isCustom && dragOverTab === tab.id && "ring-2 ring-primary ring-offset-1"
+                )}
+                data-testid={`tab-${tab.id}`}
+              >
+                {tab.label}
+              </TabsTrigger>
+            );
+
+            if (isCustom) {
+              return (
+                <div
+                  key={tab.id}
+                  data-tab-item={tab.id}
+                  className={cn(
+                    "flex items-center gap-0.5 transition-all",
+                    dragOverTab === tab.id && "ring-2 ring-primary ring-offset-1 rounded-lg",
+                    autoOverflowIds.has(tab.id) && "!hidden"
+                  )}
+                  draggable
+                  onDragStart={(e) => handleTabDragStart(e, tab.id)}
+                  onDragOver={(e) => handleTabDragOver(e, tab.id)}
+                  onDragLeave={handleTabDragLeave}
+                  onDrop={(e) => handleTabDrop(e, tab.id)}
+                  onDragEnd={handleTabDragEnd}
+                >
+                  {triggerEl}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 rounded-md"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      hideCustomTabFromMain(tab.id);
+                    }}
+                    data-testid={`button-unpin-${tab.id}`}
+                    title="Move to More menu"
+                  >
+                    <PinOff className="h-3 w-3 text-muted-foreground" />
+                  </Button>
+                </div>
+              );
+            }
+
+            return (
+              <div
+                key={tab.id}
+                data-tab-item={tab.id}
+                className={cn(autoOverflowIds.has(tab.id) && "!hidden")}
+                draggable
+                onDragStart={(e) => handleTabDragStart(e, tab.id)}
+                onDragOver={(e) => handleTabDragOver(e, tab.id)}
+                onDragLeave={handleTabDragLeave}
+                onDrop={(e) => handleTabDrop(e, tab.id)}
+                onDragEnd={handleTabDragEnd}
+              >
+                {triggerEl}
+              </div>
+            );
+          })}
           
           {/* Render pinned tabs as visible TabsTriggers with drag-drop support */}
           {orderedPinnedTabs.map(item => (
             <div 
               key={item.id} 
+              data-tab-item={item.id}
               className={cn(
                 "flex items-center gap-0.5 transition-all",
-                dragOverTab === item.id && "ring-2 ring-primary ring-offset-1 rounded-lg"
+                dragOverTab === item.id && "ring-2 ring-primary ring-offset-1 rounded-lg",
+                autoOverflowIds.has(item.id) && "!hidden"
               )}
               draggable
               onDragStart={(e) => handleTabDragStart(e, item.id)}
@@ -1601,55 +1836,52 @@ export default function ProjectDetails() {
             </div>
           ))}
           
-          {/* Render pinned custom tabs */}
-          {customTabs.filter(tab => pinnedTabs.includes(`custom-${tab.id}`)).map(tab => (
-            <div key={tab.id} className="flex items-center gap-0.5">
-              <TabsTrigger 
-                value={`custom-${tab.id}`} 
-                className="rounded-lg px-4 py-2 font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md" 
-                data-testid={`tab-pinned-custom-${tab.id}`}
-              >
-                {tab.name}
-              </TabsTrigger>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 rounded-md"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  togglePinTab(`custom-${tab.id}`);
-                }}
-                data-testid={`button-unpin-custom-${tab.id}`}
-              >
-                <PinOff className="h-3 w-3 text-muted-foreground" />
-              </Button>
-            </div>
-          ))}
-          
+          {(() => {
+            const visibleMoreItems = moreTabItems.filter(item => !pinnedTabs.includes(item.id));
+            // Build auto-overflow entries (main + pinned tabs that didn't fit on row 1)
+            const autoOverflowItems = [
+              ...orderedMainTabs.filter(t => autoOverflowIds.has(t.id)),
+              ...orderedPinnedTabs.filter(t => autoOverflowIds.has(t.id)),
+            ];
+            const totalCount = visibleMoreItems.length + autoOverflowItems.length;
+            if (totalCount === 0) return null;
+            const dropdownActiveLabel = (() => {
+              const overflowed = autoOverflowItems.find(t => t.id === activeTab);
+              if (overflowed) return overflowed.label;
+              if (!pinnedTabs.includes(activeTab)) {
+                const moreTab = visibleMoreItems.find(t => t.id === activeTab);
+                if (moreTab) return moreTab.label;
+              }
+              return 'More';
+            })();
+            const isDropdownActive =
+              autoOverflowItems.some(t => t.id === activeTab) ||
+              visibleMoreItems.some(t => t.id === activeTab);
+            return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
-                variant={['change-requests', 'documents', 'invoices', 'status-report', 'scoring', 'benefits', 'decisions', 'lessons-learned', 'ai-agent', ...customTabs.map(t => `custom-${t.id}`)].filter(t => !pinnedTabs.includes(t)).includes(activeTab) ? 'default' : 'ghost'} 
+                variant={isDropdownActive ? 'default' : 'ghost'} 
                 size="sm" 
                 className="rounded-lg px-4 py-2 font-medium gap-1"
                 data-testid="button-more-tabs"
               >
-                {!pinnedTabs.includes(activeTab) && activeTab === 'change-requests' ? 'Change Requests' : 
-                 !pinnedTabs.includes(activeTab) && activeTab === 'documents' ? 'Documents' : 
-                 !pinnedTabs.includes(activeTab) && activeTab === 'invoices' ? 'Invoices' :
-                 !pinnedTabs.includes(activeTab) && activeTab === 'status-report' ? 'Status Report' :
-                 !pinnedTabs.includes(activeTab) && activeTab === 'scoring' ? 'Scoring' :
-                 !pinnedTabs.includes(activeTab) && activeTab === 'benefits' ? 'Benefits' :
-                 !pinnedTabs.includes(activeTab) && activeTab === 'decisions' ? 'Decisions' :
-                 !pinnedTabs.includes(activeTab) && activeTab === 'ai-agent' ? 'AI Agent' :
-                 !pinnedTabs.includes(activeTab) && activeTab === 'lessons-learned' ? 'Lessons Learned' :
-                 activeTab.startsWith('custom-') && !pinnedTabs.includes(activeTab) ? customTabs.find(t => `custom-${t.id}` === activeTab)?.name :
-                 'More'}
+                {dropdownActiveLabel}
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-[200px]">
-              {moreTabItems.filter(item => !pinnedTabs.includes(item.id)).map(item => (
+              {autoOverflowItems.map(item => (
+                <DropdownMenuItem
+                  key={`auto-${item.id}`}
+                  className="flex items-center justify-between gap-2"
+                  data-testid={`menu-tab-overflow-${item.id}`}
+                  onSelect={() => setActiveTab(item.id)}
+                >
+                  <span className="flex-1 cursor-pointer">{item.label}</span>
+                </DropdownMenuItem>
+              ))}
+              {visibleMoreItems.map(item => (
                 <DropdownMenuItem 
                   key={item.id} 
                   className="flex items-center justify-between gap-2"
@@ -1672,31 +1904,10 @@ export default function ProjectDetails() {
                   </Button>
                 </DropdownMenuItem>
               ))}
-              {customTabs.filter(tab => !pinnedTabs.includes(`custom-${tab.id}`)).map((tab) => (
-                <DropdownMenuItem 
-                  key={tab.id} 
-                  className="flex items-center justify-between gap-2"
-                  data-testid={`menu-tab-custom-${tab.id}`}
-                >
-                  <span onClick={() => setActiveTab(`custom-${tab.id}`)} className="flex-1 cursor-pointer">
-                    {tab.name}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      togglePinTab(`custom-${tab.id}`);
-                    }}
-                    data-testid={`button-pin-custom-${tab.id}`}
-                  >
-                    <Pin className="h-3 w-3" />
-                  </Button>
-                </DropdownMenuItem>
-              ))}
             </DropdownMenuContent>
           </DropdownMenu>
+            );
+          })()}
         </TabsList>
 
         <div className="mt-6 min-w-0">
@@ -1870,6 +2081,39 @@ export default function ProjectDetails() {
           </TabsContent>
           <TabsContent value="ai-agent">
             <ProjectAgentTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="daily-logs">
+            <DailyLogsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="rfis">
+            <RFIsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="submittals">
+            <SubmittalsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="drawings">
+            <DrawingsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="punch-list">
+            <PunchListTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="quality-safety">
+            <QualitySafetyTab projectId={project.id} organizationId={project.organizationId!} />
+          </TabsContent>
+          <TabsContent value="bidding">
+            <BiddingTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="change-orders">
+            <ChangeOrdersTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="construction-invoices">
+            <ConstructionInvoicesTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="meetings">
+            <MeetingsTab projectId={project.id} />
+          </TabsContent>
+          <TabsContent value="correspondence">
+            <CorrespondenceTab projectId={project.id} />
           </TabsContent>
           {customTabs.map((tab) => (
             <TabsContent key={tab.id} value={`custom-${tab.id}`}>
@@ -3409,7 +3653,7 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
     }
     if (isSelect) {
       const options: Record<string, string[]> = {
-        status: [...PROJECT_STATUSES, 'Billing', 'On Hold', 'Cancelled'],
+        status: [...PROJECT_STATUSES_EXTENDED],
         priority: [...PROJECT_PRIORITIES],
         health: [...PROJECT_HEALTH_VALUES],
         riskLevel: ['Low', 'Medium', 'High'],
@@ -4844,6 +5088,21 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
     </Dialog>
     
     <div className="space-y-4">
+      <ProjectLocationMediaSection
+        projectId={project.id}
+        addressLine1={project.addressLine1}
+        city={project.city}
+        region={project.region}
+        country={project.country}
+        postalCode={project.postalCode}
+        latitude={project.latitude}
+        longitude={project.longitude}
+        images={project.images || []}
+        disabled={readOnly}
+        onChange={(patch) => {
+          onUpdate({ id: project.id, ...patch });
+        }}
+      />
       <ProjectCommentsFeed projectId={project.id} />
       <BillableStatusCommentLog projectId={project.id} />
       <HealthStatusHistoryLog projectId={project.id} />

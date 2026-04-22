@@ -34,8 +34,20 @@ import { registerUserInsightsRoutes } from "./routes/userInsightsRoutes";
 import { registerProjectAgentRoutes } from "./routes/projectAgentRoutes";
 import { registerJarvisRoutes } from "./routes/jarvisRoutes";
 import { registerInvestorRoutes } from "./routes/investorRoutes";
+import { registerDailyLogRoutes } from "./routes/dailyLogRoutes";
+import { registerRfiRoutes } from "./routes/rfiRoutes";
+import { registerSubmittalRoutes } from "./routes/submittalRoutes";
+import { registerDrawingRoutes } from "./routes/drawingRoutes";
+import { registerPunchListRoutes } from "./routes/punchListRoutes";
+import { registerQualitySafetyRoutes } from "./routes/qualitySafetyRoutes";
+import { registerBiddingRoutes } from "./routes/biddingRoutes";
+import { registerChangeOrderRoutes } from "./routes/changeOrderRoutes";
+import { registerConstructionInvoiceRoutes } from "./routes/constructionInvoiceRoutes";
+import { registerMeetingRoutes } from "./routes/meetingRoutes";
+import { registerCorrespondenceRoutes } from "./routes/correspondenceRoutes";
 import { registerBlogRoutes } from "./routes/blogRoutes";
 import { registerPowerBIAgentRoutes } from "./routes/powerbiAgentRoutes";
+import { registerLocationRoutes } from "./routes/locationRoutes";
 import { seedDatabase } from "./routes/helpers";
 
 export async function registerRoutes(
@@ -43,7 +55,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
 
-  const numericParams = ['id', 'projectId', 'portfolioId', 'taskId', 'issueId', 'milestoneId', 'riskId', 'resourceId', 'orgId', 'organizationId', 'memberId', 'ticketId', 'documentId', 'assessmentId', 'subscriptionId', 'planId', 'viewId', 'entryId', 'notificationId'];
+  const numericParams = ['id', 'projectId', 'portfolioId', 'taskId', 'issueId', 'milestoneId', 'riskId', 'resourceId', 'orgId', 'organizationId', 'memberId', 'ticketId', 'documentId', 'assessmentId', 'subscriptionId', 'planId', 'viewId', 'entryId', 'notificationId', 'logId', 'rfiId', 'submittalId', 'revisionId', 'responseId', 'drawingId', 'markupId', 'setId', 'punchItemId', 'photoId', 'templateId', 'inspectionId', 'incidentId', 'observationId', 'actionId', 'vendorId', 'prequalId', 'bidPackageId', 'invitationId', 'bidId', 'changeOrderId', 'invoiceId', 'meetingId', 'actionItemId', 'correspondenceId'];
   for (const param of numericParams) {
     app.param(param, (req, res, next, value) => {
       const num = Number(value);
@@ -112,8 +124,20 @@ export async function registerRoutes(
   registerProjectAgentRoutes(app);
   registerJarvisRoutes(app);
   registerInvestorRoutes(app);
+  registerDailyLogRoutes(app);
+  registerRfiRoutes(app);
+  registerSubmittalRoutes(app);
+  registerDrawingRoutes(app);
+  registerPunchListRoutes(app);
+  registerQualitySafetyRoutes(app);
+  registerBiddingRoutes(app);
+  registerChangeOrderRoutes(app);
+  registerConstructionInvoiceRoutes(app);
+  registerMeetingRoutes(app);
+  registerCorrespondenceRoutes(app);
   registerBlogRoutes(app);
   registerPowerBIAgentRoutes(app);
+  registerLocationRoutes(app);
 
   seedTrainingDataIfEmpty().catch(err => {
     console.error('[training] Failed to seed training data:', err.message);

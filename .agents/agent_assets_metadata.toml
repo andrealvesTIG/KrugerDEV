@@ -78,3 +78,9 @@ id = "uAUbZbyRwaLCngDLUUgGY"
 uri = "file://schema_diff_report.json"
 type = "unspecified"
 title = "Schema Diff Report (DB ↔ Drizzle)"
+
+[[outputs]]
+id = "FlHmaP3PGlHPouhVKs58j"
+uri = "file://.local/audit/schema_code_mismatch_audit.md"
+type = "text"
+title = "Schema / Code Mismatch Audit"

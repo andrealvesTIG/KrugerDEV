@@ -22,11 +22,7 @@ export interface EmailAttachment {
   content_id?: string;
 }
 
-export type SendEmailResult =
-  | { ok: true; id?: string }
-  | { ok: false; status: number; code: string; message: string };
-
-export async function sendEmailDetailed({
+export async function sendEmail({
   to,
   subject,
   text,
@@ -42,9 +38,9 @@ export async function sendEmailDetailed({
   from?: string;
   cc?: string[];
   attachments?: EmailAttachment[];
-}): Promise<SendEmailResult> {
+}): Promise<boolean> {
   const client = getResendClient();
-
+  
   if (!client) {
     console.log("Email would be sent to:", to);
     if (cc && cc.length > 0) {
@@ -55,12 +51,12 @@ export async function sendEmailDetailed({
     if (attachments) {
       console.log("Attachments:", attachments.map(a => a.filename).join(", "));
     }
-    return { ok: false, status: 503, code: 'email_not_configured', message: 'Email service is not configured (missing RESEND_API_KEY).' };
+    return false;
   }
 
   try {
     const fromAddress = from || process.env.RESEND_FROM_EMAIL || "FridayReport.AI <onboarding@resend.dev>";
-
+    
     const emailPayload: {
       from: string;
       to: string[];
@@ -80,7 +76,7 @@ export async function sendEmailDetailed({
     if (cc && cc.length > 0) {
       emailPayload.cc = cc;
     }
-
+    
     if (attachments && attachments.length > 0) {
       emailPayload.attachments = attachments.map(att => {
         const mapped: { filename: string; content: Buffer; contentId?: string; contentType?: string } = {
@@ -96,40 +92,20 @@ export async function sendEmailDetailed({
         return mapped;
       });
     }
-
+    
     const { data, error } = await client.emails.send(emailPayload);
 
     if (error) {
       console.error("Failed to send email:", error);
-      const errAny = error as { statusCode?: number; name?: string; message?: string };
-      return {
-        ok: false,
-        status: typeof errAny.statusCode === 'number' ? errAny.statusCode : 502,
-        code: errAny.name || 'email_send_failed',
-        message: errAny.message || 'Email service rejected the message',
-      };
+      return false;
     }
 
     console.log(`Email sent successfully to ${to}, ID: ${data?.id}`);
-    return { ok: true, id: data?.id };
+    return true;
   } catch (error) {
     console.error("Failed to send email:", error);
-    const msg = error instanceof Error ? error.message : 'Unknown error';
-    return { ok: false, status: 502, code: 'email_send_failed', message: msg };
+    return false;
   }
-}
-
-export async function sendEmail(opts: {
-  to: string;
-  subject: string;
-  text: string;
-  html?: string;
-  from?: string;
-  cc?: string[];
-  attachments?: EmailAttachment[];
-}): Promise<boolean> {
-  const result = await sendEmailDetailed(opts);
-  return result.ok;
 }
 
 export async function sendPasswordResetEmail(email: string, resetUrl: string): Promise<boolean> {

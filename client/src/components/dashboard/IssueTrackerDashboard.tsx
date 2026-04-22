@@ -16,6 +16,12 @@ import {
 import { format, subMonths, eachMonthOfInterval, differenceInDays } from "date-fns";
 import type { Issue } from "@shared/schema";
 
+function getResolutionDate(issue: Issue): string | Date | null | undefined {
+  return issue.itemType === "risk"
+    ? issue.actualResolutionDateRisk ?? issue.actualResolutionDate
+    : issue.actualResolutionDate ?? issue.actualResolutionDateRisk;
+}
+
 const STATUS_COLORS: Record<string, string> = {
   'Open': '#ef4444',
   'In Progress': '#f59e0b',
@@ -57,11 +63,19 @@ export function IssueTrackerDashboard() {
       (i.priority === 'Critical' || i.priority === 'High')
     ).length;
 
-    const avgResolutionTime = resolved > 0
-      ? Math.round(allIssues
-          .filter(i => i.status === 'Resolved' || i.status === 'Closed')
-          .filter(i => i.createdAt && i.resolvedAt)
-          .reduce((sum, i) => sum + differenceInDays(new Date(i.resolvedAt!), new Date(i.createdAt!)), 0) / resolved)
+    const resolutionDurations = allIssues
+      .filter(i => i.status === 'Resolved' || i.status === 'Closed')
+      .map(i => {
+        const resolvedOn = getResolutionDate(i);
+        if (!i.createdAt || !resolvedOn) return null;
+        const created = new Date(i.createdAt);
+        const ended = new Date(resolvedOn as string);
+        if (isNaN(created.getTime()) || isNaN(ended.getTime())) return null;
+        return differenceInDays(ended, created);
+      })
+      .filter((d): d is number => d !== null);
+    const avgResolutionTime = resolutionDurations.length > 0
+      ? Math.round(resolutionDurations.reduce((sum, d) => sum + d, 0) / resolutionDurations.length)
       : 0;
 
     const overdueIssues = allIssues.filter(i => {
@@ -131,8 +145,11 @@ export function IssueTrackerDashboard() {
       }).length;
 
       const resolved = allIssues.filter(i => {
-        if (!i.resolvedAt) return false;
-        const date = new Date(i.resolvedAt);
+        if (i.status !== 'Resolved' && i.status !== 'Closed') return false;
+        const resolvedOn = getResolutionDate(i);
+        if (!resolvedOn) return false;
+        const date = new Date(resolvedOn as string);
+        if (isNaN(date.getTime())) return false;
         return date >= monthStart && date <= monthEnd;
       }).length;
 

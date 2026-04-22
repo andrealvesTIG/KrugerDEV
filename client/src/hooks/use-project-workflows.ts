@@ -1,89 +1,48 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
-import type { ProjectWorkflow, ProjectWorkflowStep } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+
+export interface ProjectWorkflow {
+  id: number;
+  organizationId: number;
+  name: string;
+  description: string | null;
+  isDefault: boolean | null;
+  isActive: boolean | null;
+  creationMode: string;
+  creationUrl: string | null;
+}
 
 /**
- * Hook for listing/managing all project workflows for the current organization.
+ * Fetches the list of project workflow templates for the current organization.
+ *
+ * The backend endpoint is optional — when it's not yet wired up the hook
+ * returns an empty list so consumers can render gracefully (e.g. by falling
+ * back to the default lifecycle).
  */
 export function useProjectWorkflows() {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
 
   const query = useQuery<ProjectWorkflow[]>({
-    queryKey: ['/api/organizations', orgId, 'project-workflows'],
+    queryKey: ["/api/project-workflows", orgId],
     enabled: !!orgId,
-  });
-
-  const createWorkflow = useMutation({
-    mutationFn: async (data: { name: string; description?: string; isDefault?: boolean; creationMode?: 'dialog' | 'url'; creationUrl?: string | null }) => {
-      if (!orgId) throw new Error("No organization selected");
-      const res = await apiRequest("POST", `/api/organizations/${orgId}/project-workflows`, data);
-      return res.json() as Promise<ProjectWorkflow>;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/organizations', orgId, 'project-workflows'] });
-    },
-  });
-
-  const updateWorkflowMeta = useMutation({
-    mutationFn: async ({ id, ...data }: { id: number; name?: string; description?: string; isDefault?: boolean; isActive?: boolean; creationMode?: 'dialog' | 'url'; creationUrl?: string | null }) => {
-      if (!orgId) throw new Error("No organization selected");
-      const res = await apiRequest("PATCH", `/api/organizations/${orgId}/project-workflows/${id}`, data);
-      return res.json() as Promise<ProjectWorkflow>;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/organizations', orgId, 'project-workflows'] });
-    },
-  });
-
-  const deleteWorkflow = useMutation({
-    mutationFn: async (id: number) => {
-      if (!orgId) throw new Error("No organization selected");
-      await apiRequest("DELETE", `/api/organizations/${orgId}/project-workflows/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/organizations', orgId, 'project-workflows'] });
-    },
-  });
-
-  return {
-    workflows: query.data || [],
-    isLoading: query.isLoading,
-    isError: query.isError,
-    createWorkflow,
-    updateWorkflowMeta,
-    deleteWorkflow,
-  };
-}
-
-/**
- * Hook for fetching the steps of a specific project workflow (or org default).
- */
-export function useProjectWorkflowSteps(workflowId?: number | null) {
-  const { currentOrganization } = useOrganization();
-  const orgId = currentOrganization?.id;
-
-  const queryKey = workflowId
-    ? ['/api/organizations', orgId, 'project-workflow', { workflowId }]
-    : ['/api/organizations', orgId, 'project-workflow'];
-
-  const url = workflowId
-    ? `/api/organizations/${orgId}/project-workflow?workflowId=${workflowId}`
-    : `/api/organizations/${orgId}/project-workflow`;
-
-  const query = useQuery<ProjectWorkflowStep[]>({
-    queryKey,
     queryFn: async () => {
-      const res = await apiRequest("GET", url);
-      return res.json();
+      try {
+        const res = await apiRequest("GET", "/api/project-workflows");
+        if (!res.ok) return [];
+        const data = await res.json();
+        return Array.isArray(data) ? data : [];
+      } catch {
+        return [];
+      }
     },
-    enabled: !!orgId,
+    staleTime: 5 * 60 * 1000,
   });
 
   return {
-    steps: query.data || [],
+    workflows: query.data ?? [],
     isLoading: query.isLoading,
-    isError: query.isError,
+    error: query.error,
   };
 }

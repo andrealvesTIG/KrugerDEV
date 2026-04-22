@@ -101,19 +101,6 @@ export function TimesheetWeeklySummaryDashboard() {
     return num;
   };
 
-  const parseRate = (v: any): number => {
-    const num = Number(v ?? 0);
-    if (!isFinite(num) || isNaN(num) || num < 0) return 0;
-    return num;
-  };
-
-  // Per-resource weekly capacity, honoring availability % (not a hardcoded 40)
-  const resourceWeeklyCapacity = (r: any): number => {
-    const weekly = parseRate(r.weeklyCapacity ?? 40) || 40;
-    const avail = ((r.availability ?? 100) as number) / 100;
-    return weekly * avail;
-  };
-
   const getWeekEntries = (weekStart: Date, weekEnd: Date) => {
     return entries.filter(e => {
       const entryDate = new Date(e.entryDate);
@@ -128,7 +115,7 @@ export function TimesheetWeeklySummaryDashboard() {
   const previousWeekHours = previousWeekEntries.reduce((sum, e) => sum + parseHoursSafe(e.hours), 0);
   const hoursChange = previousWeekHours > 0 ? ((currentWeekHours - previousWeekHours) / previousWeekHours * 100) : 0;
 
-  const expectedWeeklyHours = activeResources.reduce((s, r) => s + resourceWeeklyCapacity(r), 0);
+  const expectedWeeklyHours = activeResources.length * 40;
   const complianceRate = expectedWeeklyHours > 0 ? Math.round((currentWeekHours / expectedWeeklyHours) * 100) : 0;
 
   const currentWeekSubmitted = currentWeekEntries.filter(e => e.status === "Submitted" || e.status === "Approved").length;
@@ -157,7 +144,7 @@ export function TimesheetWeeklySummaryDashboard() {
     return {
       week: format(weekStart, 'MMM d'),
       hours: Math.round(hours),
-      target: Math.round(activeResources.reduce((s, r) => s + resourceWeeklyCapacity(r), 0)),
+      target: activeResources.length * 40,
     };
   });
 
@@ -166,16 +153,14 @@ export function TimesheetWeeklySummaryDashboard() {
     const hours = resourceEntries.reduce((sum, e) => sum + parseHoursSafe(e.hours), 0);
     const prevResourceEntries = previousWeekEntries.filter(e => e.resourceId === r.id);
     const prevHours = prevResourceEntries.reduce((sum, e) => sum + parseHoursSafe(e.hours), 0);
-    const cap = resourceWeeklyCapacity(r) || 40;
     return {
       id: r.id,
       name: r.displayName,
       department: r.department,
       hours: Math.round(hours * 10) / 10,
       prevHours: Math.round(prevHours * 10) / 10,
-      capacity: Math.round(cap * 10) / 10,
       change: prevHours > 0 ? Math.round((hours - prevHours) / prevHours * 100) : 0,
-      compliance: Math.round((hours / cap) * 100),
+      compliance: Math.round((hours / 40) * 100),
     };
   }).sort((a, b) => b.hours - a.hours);
 

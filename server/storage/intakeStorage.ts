@@ -2,20 +2,77 @@ import { db } from "../db";
 import { calculateEndDate, formatDateStr } from "../lib/workingDays";
 import {
   projectIntakes, mppImports, mppImportTasks, changeRequests,
-  intakeWorkflows, intakeWorkflowSteps, projectWorkflows, projectWorkflowSteps,
-  projects, tasks, taskDependencies,
-  customFieldDefinitions, taskCustomFieldValues,
+  intakeWorkflowSteps, intakeTypes, projects, tasks, taskDependencies,
   type ProjectIntake, type InsertProjectIntake, type UpdateProjectIntakeRequest,
   type MppImport, type InsertMppImport,
   type MppImportTask, type InsertMppImportTask,
   type ChangeRequest, type InsertChangeRequest, type UpdateChangeRequestRequest,
-  type IntakeWorkflow, type InsertIntakeWorkflow,
   type IntakeWorkflowStep, type InsertIntakeWorkflowStep,
-  type ProjectWorkflow, type InsertProjectWorkflow,
-  type ProjectWorkflowStep,
+  type IntakeType, type InsertIntakeType,
   type Project, type Task,
 } from "@shared/schema";
 import { eq, and, desc, asc, isNull, sql } from "drizzle-orm";
+
+const DEFAULT_INTAKE_TYPES: Array<Omit<InsertIntakeType, "organizationId">> = [
+  { name: "Default", description: "Standard project intake request", behavior: "standard", isSystem: true, isActive: true, position: 0 },
+  { name: "Power BI Request", description: "Captured via the Power BI AI agent", behavior: "powerbi_redirect", isSystem: true, isActive: true, position: 1 },
+];
+
+export async function ensureDefaultIntakeTypes(organizationId: number): Promise<void> {
+  const existing = await db.select().from(intakeTypes).where(eq(intakeTypes.organizationId, organizationId));
+  const haveStandard = existing.some(t => t.behavior === "standard" && t.isSystem);
+  const havePowerBI = existing.some(t => t.behavior === "powerbi_redirect" && t.isSystem);
+  const toInsert: InsertIntakeType[] = [];
+  if (!haveStandard) toInsert.push({ ...DEFAULT_INTAKE_TYPES[0], organizationId });
+  if (!havePowerBI) toInsert.push({ ...DEFAULT_INTAKE_TYPES[1], organizationId });
+  if (toInsert.length > 0) {
+    await db.insert(intakeTypes).values(toInsert);
+  }
+}
+
+export async function getIntakeTypes(organizationId: number): Promise<IntakeType[]> {
+  await ensureDefaultIntakeTypes(organizationId);
+  return await db.select().from(intakeTypes)
+    .where(eq(intakeTypes.organizationId, organizationId))
+    .orderBy(asc(intakeTypes.position), asc(intakeTypes.id));
+}
+
+export async function getIntakeType(id: number): Promise<IntakeType | undefined> {
+  const [t] = await db.select().from(intakeTypes).where(eq(intakeTypes.id, id));
+  return t;
+}
+
+export async function createIntakeType(input: InsertIntakeType): Promise<IntakeType> {
+  const [created] = await db.insert(intakeTypes).values({
+    ...input,
+    behavior: input.behavior || "standard",
+    isSystem: false,
+  }).returning();
+  return created;
+}
+
+export async function updateIntakeType(id: number, updates: Partial<InsertIntakeType>): Promise<IntakeType> {
+  const existing = await getIntakeType(id);
+  const safeUpdates: Partial<InsertIntakeType> = { ...updates, updatedAt: new Date() } as any;
+  // Don't allow changing behavior of system rows; rename + description are fine.
+  if (existing?.isSystem) {
+    delete (safeUpdates as any).behavior;
+    delete (safeUpdates as any).isSystem;
+  }
+  const [updated] = await db.update(intakeTypes)
+    .set(safeUpdates as any)
+    .where(eq(intakeTypes.id, id))
+    .returning();
+  return updated;
+}
+
+export async function deleteIntakeType(id: number): Promise<void> {
+  const existing = await getIntakeType(id);
+  if (existing?.isSystem) {
+    throw new Error("System intake types cannot be deleted");
+  }
+  await db.delete(intakeTypes).where(eq(intakeTypes.id, id));
+}
 import { getProject } from "./projectStorage";
 import { getTasks, deleteAllTasksForProject } from "./taskStorage";
 
@@ -143,77 +200,6 @@ export async function deleteMppImportTasks(importId: number): Promise<void> {
   await db.delete(mppImportTasks).where(eq(mppImportTasks.importId, importId));
 }
 
-// Persist unmapped CSV columns (e.g. Asana "Section") as task-level custom fields.
-// Auto-creates a `customFieldDefinitions` row of type 'text' for any header that doesn't
-// already exist for the org. Returns a name->definitionId map for reuse across rows.
-async function ensureTaskCustomFieldDefs(
-  tx: any,
-  organizationId: number,
-  fieldNames: string[],
-): Promise<Map<string, number>> {
-  const result = new Map<string, number>();
-  if (fieldNames.length === 0) return result;
-  const existing = await tx.select().from(customFieldDefinitions).where(
-    and(eq(customFieldDefinitions.organizationId, organizationId), eq(customFieldDefinitions.entityType, 'task'))
-  );
-  const byNameLower = new Map<string, any>();
-  for (const def of existing) byNameLower.set(def.name.toLowerCase().trim(), def);
-  for (const name of fieldNames) {
-    const key = name.toLowerCase().trim();
-    if (!key) continue;
-    const found = byNameLower.get(key);
-    if (found) {
-      result.set(name, found.id);
-      continue;
-    }
-    let created;
-    try {
-      [created] = await tx.insert(customFieldDefinitions).values({
-        organizationId,
-        name,
-        fieldType: 'text',
-        entityType: 'task',
-        description: 'Auto-created from CSV import',
-        isRequired: false,
-        isActive: true,
-      }).returning();
-    } catch (e) {
-      // Race: another import may have inserted the same definition concurrently. Re-select.
-      const [refetched] = await tx.select().from(customFieldDefinitions).where(
-        and(
-          eq(customFieldDefinitions.organizationId, organizationId),
-          eq(customFieldDefinitions.entityType, 'task'),
-          eq(customFieldDefinitions.name, name),
-        )
-      ).limit(1);
-      if (!refetched) throw e;
-      created = refetched;
-    }
-    result.set(name, created.id);
-    byNameLower.set(key, created);
-  }
-  return result;
-}
-
-async function writeTaskCustomFieldValues(
-  tx: any,
-  taskId: number,
-  customFields: Record<string, string> | null | undefined,
-  defIdByName: Map<string, number>,
-): Promise<void> {
-  if (!customFields) return;
-  for (const [name, value] of Object.entries(customFields)) {
-    const defId = defIdByName.get(name);
-    if (!defId || value === undefined || value === null || String(value).trim() === '') continue;
-    await tx.insert(taskCustomFieldValues)
-      .values({ taskId, fieldDefinitionId: defId, value: String(value) })
-      .onConflictDoUpdate({
-        target: [taskCustomFieldValues.taskId, taskCustomFieldValues.fieldDefinitionId],
-        set: { value: String(value), updatedAt: new Date() },
-      });
-  }
-}
-
 export async function convertMppImportToProject(
   importId: number,
   projectData: {
@@ -266,14 +252,6 @@ export async function convertMppImportToProject(
       sourceFileUrl: mppImportRecord.fileUrl,
     }).returning();
 
-    // Pre-create custom field definitions for any unmapped CSV headers across all import rows.
-    const customFieldNames = new Set<string>();
-    for (const t of importedTasks) {
-      const cf = (t as any).customFields as Record<string, string> | null | undefined;
-      if (cf) for (const k of Object.keys(cf)) customFieldNames.add(k);
-    }
-    const cfDefIdByName = await ensureTaskCustomFieldDefs(tx, projectData.organizationId, Array.from(customFieldNames));
-
     const taskIdMapping: Map<number, number> = new Map();
     
     for (let i = 0; i < importedTasks.length; i++) {
@@ -316,8 +294,6 @@ export async function convertMppImportToProject(
       if (importedTask.taskId) {
         taskIdMapping.set(importedTask.taskId, newTask.id);
       }
-
-      await writeTaskCustomFieldValues(tx, newTask.id, (importedTask as any).customFields, cfDefIdByName);
     }
 
     for (const importedTask of importedTasks) {
@@ -449,14 +425,6 @@ export async function syncMppImportToProject(
     existingByWbs.clear();
   }
 
-  // Pre-create custom field defs so unmapped CSV columns (e.g. "Section") become task custom fields.
-  const customFieldNames = new Set<string>();
-  for (const t of importedTasks) {
-    const cf = (t as any).customFields as Record<string, string> | null | undefined;
-    if (cf) for (const k of Object.keys(cf)) customFieldNames.add(k);
-  }
-  const cfDefIdByName = await ensureTaskCustomFieldDefs(db, project.organizationId, Array.from(customFieldNames));
-
   const matchedExistingIds = new Set<number>();
   const taskIdMapping = new Map<number, number>();
 
@@ -500,14 +468,12 @@ export async function syncMppImportToProject(
       existingTask = existingByName.get(importedTask.taskName.toLowerCase().trim());
     }
 
-    let writeCustomFieldsForTaskId: number | undefined;
     if (existingTask && syncMode === 'merge') {
       await db.update(tasks)
         .set(taskData)
         .where(eq(tasks.id, existingTask.id));
       matchedExistingIds.add(existingTask.id);
       tasksUpdated++;
-      writeCustomFieldsForTaskId = existingTask.id;
       if (importedTask.taskId) {
         taskIdMapping.set(importedTask.taskId, existingTask.id);
       }
@@ -518,14 +484,9 @@ export async function syncMppImportToProject(
         parentId: null,
       }).returning();
       tasksAdded++;
-      writeCustomFieldsForTaskId = newTask.id;
       if (importedTask.taskId) {
         taskIdMapping.set(importedTask.taskId, newTask.id);
       }
-    }
-
-    if (writeCustomFieldsForTaskId !== undefined) {
-      await writeTaskCustomFieldValues(db, writeCustomFieldsForTaskId, (importedTask as any).customFields, cfDefIdByName);
     }
   }
 
@@ -664,145 +625,29 @@ export async function deleteChangeRequest(id: number): Promise<void> {
   await db.delete(changeRequests).where(eq(changeRequests.id, id));
 }
 
-// ============== Multi-workflow management (intake) ==============
-
-export async function getIntakeWorkflows(organizationId: number): Promise<IntakeWorkflow[]> {
-  await ensureDefaultIntakeWorkflow(organizationId);
-  return await db.select().from(intakeWorkflows)
-    .where(eq(intakeWorkflows.organizationId, organizationId))
-    .orderBy(desc(intakeWorkflows.isDefault), intakeWorkflows.name);
-}
-
-export async function getIntakeWorkflow(id: number): Promise<IntakeWorkflow | undefined> {
-  const [wf] = await db.select().from(intakeWorkflows).where(eq(intakeWorkflows.id, id));
-  return wf;
-}
-
-export async function createIntakeWorkflow(data: InsertIntakeWorkflow): Promise<IntakeWorkflow> {
-  await ensureDefaultIntakeWorkflow(data.organizationId);
-  return await db.transaction(async (tx) => {
-    if (data.isDefault) {
-      await tx.update(intakeWorkflows)
-        .set({ isDefault: false, updatedAt: new Date() })
-        .where(eq(intakeWorkflows.organizationId, data.organizationId));
-    }
-    const [wf] = await tx.insert(intakeWorkflows).values({
-      ...data,
-      isDefault: data.isDefault ?? false,
-    }).returning();
-    return wf;
-  });
-}
-
-export async function updateIntakeWorkflow(id: number, updates: Partial<InsertIntakeWorkflow>): Promise<IntakeWorkflow> {
-  const existing = await getIntakeWorkflow(id);
-  if (!existing) throw new Error("Workflow not found");
-  return await db.transaction(async (tx) => {
-    if (updates.isDefault === true) {
-      await tx.update(intakeWorkflows)
-        .set({ isDefault: false, updatedAt: new Date() })
-        .where(and(eq(intakeWorkflows.organizationId, existing.organizationId), eq(intakeWorkflows.isDefault, true)));
-    } else if (updates.isDefault === false && existing.isDefault) {
-      throw new Error("Cannot unset default; set another workflow as default instead.");
-    }
-    const [updated] = await tx.update(intakeWorkflows)
-      .set({ ...updates, updatedAt: new Date() })
-      .where(eq(intakeWorkflows.id, id))
-      .returning();
-    return updated;
-  });
-}
-
-export async function deleteIntakeWorkflow(id: number): Promise<void> {
-  const existing = await getIntakeWorkflow(id);
-  if (!existing) throw new Error("Workflow not found");
-  if (existing.isDefault) throw new Error("Cannot delete the default workflow");
-  const all = await db.select().from(intakeWorkflows).where(eq(intakeWorkflows.organizationId, existing.organizationId));
-  if (all.length <= 1) throw new Error("Cannot delete the last remaining workflow");
-  const [defaultWf] = await db.select().from(intakeWorkflows)
-    .where(and(eq(intakeWorkflows.organizationId, existing.organizationId), eq(intakeWorkflows.isDefault, true)));
-  await db.transaction(async (tx) => {
-    if (defaultWf) {
-      await tx.update(projectIntakes)
-        .set({ workflowId: defaultWf.id, updatedAt: new Date() })
-        .where(eq(projectIntakes.workflowId, id));
-    }
-    await tx.delete(intakeWorkflows).where(eq(intakeWorkflows.id, id));
-  });
-}
-
-export async function ensureDefaultIntakeWorkflow(organizationId: number): Promise<IntakeWorkflow> {
-  const [existing] = await db.select().from(intakeWorkflows)
-    .where(and(eq(intakeWorkflows.organizationId, organizationId), eq(intakeWorkflows.isDefault, true)));
-  if (existing) return existing;
-
-  const allWfs = await db.select().from(intakeWorkflows).where(eq(intakeWorkflows.organizationId, organizationId));
-  if (allWfs.length > 0) {
-    const [promoted] = await db.update(intakeWorkflows)
-      .set({ isDefault: true, updatedAt: new Date() })
-      .where(eq(intakeWorkflows.id, allWfs[0].id))
-      .returning();
-    return promoted;
-  }
-
-  const [created] = await db.insert(intakeWorkflows).values({
-    organizationId,
-    name: "Default",
-    description: "Default intake workflow",
-    isDefault: true,
-    isActive: true,
-  }).returning();
-
-  await db.update(intakeWorkflowSteps)
-    .set({ workflowId: created.id, updatedAt: new Date() })
-    .where(and(eq(intakeWorkflowSteps.organizationId, organizationId), isNull(intakeWorkflowSteps.workflowId)));
-
-  await db.update(projectIntakes)
-    .set({ workflowId: created.id, updatedAt: new Date() })
-    .where(and(eq(projectIntakes.organizationId, organizationId), isNull(projectIntakes.workflowId)));
-
-  return created;
-}
-
-export async function getDefaultIntakeWorkflow(organizationId: number): Promise<IntakeWorkflow> {
-  return await ensureDefaultIntakeWorkflow(organizationId);
-}
-
-// ============== Step CRUD per workflow (intake) ==============
-
-export async function getIntakeWorkflowSteps(organizationId: number, workflowId?: number): Promise<IntakeWorkflowStep[]> {
-  const wfId = workflowId ?? (await ensureDefaultIntakeWorkflow(organizationId)).id;
+export async function getIntakeWorkflowSteps(organizationId: number): Promise<IntakeWorkflowStep[]> {
   return await db.select().from(intakeWorkflowSteps)
-    .where(and(eq(intakeWorkflowSteps.organizationId, organizationId), eq(intakeWorkflowSteps.workflowId, wfId)))
+    .where(eq(intakeWorkflowSteps.organizationId, organizationId))
     .orderBy(intakeWorkflowSteps.position);
 }
 
-export async function getIntakeWorkflowStepsByWorkflowId(workflowId: number): Promise<IntakeWorkflowStep[]> {
-  return await db.select().from(intakeWorkflowSteps)
-    .where(eq(intakeWorkflowSteps.workflowId, workflowId))
-    .orderBy(intakeWorkflowSteps.position);
-}
-
-export async function upsertIntakeWorkflowSteps(organizationId: number, steps: InsertIntakeWorkflowStep[], workflowId?: number): Promise<IntakeWorkflowStep[]> {
-  const wfId = workflowId ?? (await ensureDefaultIntakeWorkflow(organizationId)).id;
-  await db.delete(intakeWorkflowSteps).where(eq(intakeWorkflowSteps.workflowId, wfId));
-
+export async function upsertIntakeWorkflowSteps(organizationId: number, steps: InsertIntakeWorkflowStep[]): Promise<IntakeWorkflowStep[]> {
+  await db.delete(intakeWorkflowSteps).where(eq(intakeWorkflowSteps.organizationId, organizationId));
+  
   if (steps.length === 0) {
     return [];
   }
-
+  
   const stepsWithOrg = steps.map(step => ({
     ...step,
     organizationId,
-    workflowId: wfId,
   }));
-
+  
   const inserted = await db.insert(intakeWorkflowSteps).values(stepsWithOrg).returning();
   return inserted;
 }
 
-export async function resetIntakeWorkflowToDefaults(organizationId: number, workflowId?: number): Promise<IntakeWorkflowStep[]> {
-  const wfId = workflowId ?? (await ensureDefaultIntakeWorkflow(organizationId)).id;
+export async function resetIntakeWorkflowToDefaults(organizationId: number): Promise<IntakeWorkflowStep[]> {
   const defaultSteps: InsertIntakeWorkflowStep[] = [
     {
       organizationId,
@@ -860,274 +705,5 @@ export async function resetIntakeWorkflowToDefaults(organizationId: number, work
     },
   ];
   
-  return upsertIntakeWorkflowSteps(organizationId, defaultSteps, wfId);
-}
-
-const DEFAULT_PROJECT_WORKFLOW_STEPS = [
-  { stepKey: "Initiation", position: 0, label: "Initiation", description: "Project kickoff & charter", isTerminal: false },
-  { stepKey: "Planning", position: 1, label: "Planning", description: "Detailed planning & scoping", isTerminal: false },
-  { stepKey: "Execution", position: 2, label: "Execution", description: "Active delivery", isTerminal: false },
-  { stepKey: "Monitoring", position: 3, label: "Monitoring", description: "Track & control", isTerminal: false },
-  { stepKey: "Closure", position: 4, label: "Closure", description: "Final acceptance & lessons learned", isTerminal: false },
-  { stepKey: "Completed", position: 5, label: "Completed", description: "Project done", isTerminal: true },
-  { stepKey: "Cancelled", position: 6, label: "Cancelled", description: "Stopped before completion", isTerminal: true },
-  { stepKey: "Closed", position: 7, label: "Closed", description: "Project archived & locked", isTerminal: true },
-];
-
-// ============== Project workflow CRUD ==============
-
-export async function getProjectWorkflows(organizationId: number): Promise<ProjectWorkflow[]> {
-  await ensureDefaultProjectWorkflow(organizationId);
-  return await db.select().from(projectWorkflows)
-    .where(eq(projectWorkflows.organizationId, organizationId))
-    .orderBy(desc(projectWorkflows.isDefault), projectWorkflows.name);
-}
-
-export async function getProjectWorkflow(id: number): Promise<ProjectWorkflow | undefined> {
-  const [wf] = await db.select().from(projectWorkflows).where(eq(projectWorkflows.id, id));
-  return wf;
-}
-
-export async function createProjectWorkflow(data: InsertProjectWorkflow): Promise<ProjectWorkflow> {
-  await ensureDefaultProjectWorkflow(data.organizationId);
-  return await db.transaction(async (tx) => {
-    if (data.isDefault) {
-      await tx.update(projectWorkflows)
-        .set({ isDefault: false, updatedAt: new Date() })
-        .where(eq(projectWorkflows.organizationId, data.organizationId));
-    }
-    const [wf] = await tx.insert(projectWorkflows).values({
-      ...data,
-      isDefault: data.isDefault ?? false,
-    }).returning();
-    return wf;
-  });
-}
-
-export async function updateProjectWorkflow(id: number, updates: Partial<InsertProjectWorkflow>): Promise<ProjectWorkflow> {
-  const existing = await getProjectWorkflow(id);
-  if (!existing) throw new Error("Workflow not found");
-  return await db.transaction(async (tx) => {
-    if (updates.isDefault === true) {
-      await tx.update(projectWorkflows)
-        .set({ isDefault: false, updatedAt: new Date() })
-        .where(and(eq(projectWorkflows.organizationId, existing.organizationId), eq(projectWorkflows.isDefault, true)));
-    } else if (updates.isDefault === false && existing.isDefault) {
-      throw new Error("Cannot unset default; set another workflow as default instead.");
-    }
-    const [updated] = await tx.update(projectWorkflows)
-      .set({ ...updates, updatedAt: new Date() })
-      .where(eq(projectWorkflows.id, id))
-      .returning();
-    return updated;
-  });
-}
-
-export async function deleteProjectWorkflow(id: number): Promise<void> {
-  const existing = await getProjectWorkflow(id);
-  if (!existing) throw new Error("Workflow not found");
-  if (existing.isDefault) throw new Error("Cannot delete the default workflow");
-  const all = await db.select().from(projectWorkflows).where(eq(projectWorkflows.organizationId, existing.organizationId));
-  if (all.length <= 1) throw new Error("Cannot delete the last remaining workflow");
-  const [defaultWf] = await db.select().from(projectWorkflows)
-    .where(and(eq(projectWorkflows.organizationId, existing.organizationId), eq(projectWorkflows.isDefault, true)));
-  await db.transaction(async (tx) => {
-    if (defaultWf) {
-      await tx.update(projects)
-        .set({ workflowId: defaultWf.id, updatedAt: new Date() })
-        .where(eq(projects.workflowId, id));
-    }
-    await tx.delete(projectWorkflows).where(eq(projectWorkflows.id, id));
-  });
-}
-
-export async function ensureDefaultProjectWorkflow(organizationId: number): Promise<ProjectWorkflow> {
-  const [existing] = await db.select().from(projectWorkflows)
-    .where(and(eq(projectWorkflows.organizationId, organizationId), eq(projectWorkflows.isDefault, true)));
-  if (existing) return existing;
-
-  const allWfs = await db.select().from(projectWorkflows).where(eq(projectWorkflows.organizationId, organizationId));
-  if (allWfs.length > 0) {
-    const [promoted] = await db.update(projectWorkflows)
-      .set({ isDefault: true, updatedAt: new Date() })
-      .where(eq(projectWorkflows.id, allWfs[0].id))
-      .returning();
-    return promoted;
-  }
-
-  const [created] = await db.insert(projectWorkflows).values({
-    organizationId,
-    name: "Default",
-    description: "Default project workflow",
-    isDefault: true,
-    isActive: true,
-  }).returning();
-
-  await db.update(projectWorkflowSteps)
-    .set({ workflowId: created.id, updatedAt: new Date() })
-    .where(and(eq(projectWorkflowSteps.organizationId, organizationId), isNull(projectWorkflowSteps.workflowId)));
-
-  await db.update(projects)
-    .set({ workflowId: created.id, updatedAt: new Date() })
-    .where(and(eq(projects.organizationId, organizationId), isNull(projects.workflowId)));
-
-  return created;
-}
-
-export async function getDefaultProjectWorkflow(organizationId: number): Promise<ProjectWorkflow> {
-  return await ensureDefaultProjectWorkflow(organizationId);
-}
-
-export async function getProjectWorkflowSteps(organizationId: number, workflowId?: number): Promise<ProjectWorkflowStep[]> {
-  const wfId = workflowId ?? (await ensureDefaultProjectWorkflow(organizationId)).id;
-  return await db.select().from(projectWorkflowSteps)
-    .where(and(eq(projectWorkflowSteps.organizationId, organizationId), eq(projectWorkflowSteps.workflowId, wfId)))
-    .orderBy(projectWorkflowSteps.position);
-}
-
-export async function getProjectWorkflowStepsByWorkflowId(workflowId: number): Promise<ProjectWorkflowStep[]> {
-  return await db.select().from(projectWorkflowSteps)
-    .where(eq(projectWorkflowSteps.workflowId, workflowId))
-    .orderBy(projectWorkflowSteps.position);
-}
-
-export async function upsertProjectWorkflowSteps(
-  organizationId: number,
-  steps: Array<{ stepKey: string; position: number; label: string; description?: string; isTerminal?: boolean; isActive?: boolean }>,
-  workflowId?: number,
-): Promise<ProjectWorkflowStep[]> {
-  const wfId = workflowId ?? (await ensureDefaultProjectWorkflow(organizationId)).id;
-  await db.delete(projectWorkflowSteps).where(eq(projectWorkflowSteps.workflowId, wfId));
-
-  if (steps.length === 0) return [];
-
-  const stepsWithOrg = steps.map(step => ({
-    organizationId,
-    workflowId: wfId,
-    stepKey: step.stepKey,
-    position: step.position,
-    label: step.label,
-    description: step.description,
-    isTerminal: step.isTerminal ?? false,
-    isActive: step.isActive ?? true,
-  }));
-
-  return await db.insert(projectWorkflowSteps).values(stepsWithOrg).returning();
-}
-
-export async function resetProjectWorkflowToDefaults(organizationId: number, workflowId?: number): Promise<ProjectWorkflowStep[]> {
-  const wfId = workflowId ?? (await ensureDefaultProjectWorkflow(organizationId)).id;
-  const steps = DEFAULT_PROJECT_WORKFLOW_STEPS.map(s => ({ ...s, organizationId }));
-  return upsertProjectWorkflowSteps(organizationId, steps, wfId);
-}
-
-// ============== Workflow switching with step mapping ==============
-
-export type WorkflowSwitchResult<T> = {
-  record: T;
-  previousWorkflowId: number | null;
-  previousStep: string | null;
-  newStep: string;
-  stepPreserved: boolean;
-};
-
-function findClosestStepMatch<T extends { stepKey: string; label: string }>(
-  stepKey: string,
-  label: string | undefined,
-  targetSteps: T[],
-): T | null {
-  const exact = targetSteps.find(s => s.stepKey === stepKey);
-  if (exact) return exact;
-  if (label) {
-    const norm = label.trim().toLowerCase();
-    const byLabel = targetSteps.find(s => s.label.trim().toLowerCase() === norm);
-    if (byLabel) return byLabel;
-  }
-  return null;
-}
-
-export async function changeIntakeWorkflow(
-  intakeId: number,
-  targetWorkflowId: number,
-  opts?: { resetToFirstStep?: boolean },
-): Promise<WorkflowSwitchResult<ProjectIntake>> {
-  const intake = await getProjectIntake(intakeId);
-  if (!intake) throw new Error("Project intake not found");
-
-  const targetWf = await getIntakeWorkflow(targetWorkflowId);
-  if (!targetWf || targetWf.organizationId !== intake.organizationId) {
-    throw new Error("Target workflow not found in this organization");
-  }
-
-  const targetSteps = await getIntakeWorkflowStepsByWorkflowId(targetWorkflowId);
-  if (targetSteps.length === 0) {
-    throw new Error("Target workflow has no steps configured");
-  }
-
-  const previousStep = intake.currentStep ?? null;
-  const sourceSteps = intake.workflowId
-    ? await getIntakeWorkflowStepsByWorkflowId(intake.workflowId)
-    : [];
-  const sourceStep = previousStep ? sourceSteps.find(s => s.stepKey === previousStep) : undefined;
-  const matched = previousStep
-    ? findClosestStepMatch(previousStep, sourceStep?.label, targetSteps)
-    : null;
-  const newStep = (!opts?.resetToFirstStep && matched) ? matched.stepKey : targetSteps[0].stepKey;
-
-  const [updated] = await db.update(projectIntakes)
-    .set({ workflowId: targetWorkflowId, currentStep: newStep, updatedAt: new Date() })
-    .where(eq(projectIntakes.id, intakeId))
-    .returning();
-
-  return {
-    record: updated,
-    previousWorkflowId: intake.workflowId ?? null,
-    previousStep,
-    newStep,
-    stepPreserved: !!matched && !opts?.resetToFirstStep,
-  };
-}
-
-export async function changeProjectWorkflow(
-  projectId: number,
-  targetWorkflowId: number,
-  opts?: { resetToFirstStep?: boolean },
-): Promise<WorkflowSwitchResult<Project>> {
-  const { getProject } = await import("./projectStorage");
-  const project = await getProject(projectId);
-  if (!project) throw new Error("Project not found");
-  if (!project.organizationId) throw new Error("Project has no organization");
-
-  const targetWf = await getProjectWorkflow(targetWorkflowId);
-  if (!targetWf || targetWf.organizationId !== project.organizationId) {
-    throw new Error("Target workflow not found in this organization");
-  }
-
-  const targetSteps = await getProjectWorkflowStepsByWorkflowId(targetWorkflowId);
-  if (targetSteps.length === 0) {
-    throw new Error("Target workflow has no steps configured");
-  }
-
-  const previousStep = project.status ?? null;
-  const sourceSteps = project.workflowId
-    ? await getProjectWorkflowStepsByWorkflowId(project.workflowId)
-    : [];
-  const sourceStep = previousStep ? sourceSteps.find(s => s.stepKey === previousStep) : undefined;
-  const matched = previousStep
-    ? findClosestStepMatch(previousStep, sourceStep?.label, targetSteps)
-    : null;
-  const newStep = (!opts?.resetToFirstStep && matched) ? matched.stepKey : targetSteps[0].stepKey;
-
-  const [updated] = await db.update(projects)
-    .set({ workflowId: targetWorkflowId, status: newStep, updatedAt: new Date() })
-    .where(eq(projects.id, projectId))
-    .returning();
-
-  return {
-    record: updated,
-    previousWorkflowId: project.workflowId ?? null,
-    previousStep,
-    newStep,
-    stepPreserved: !!matched && !opts?.resetToFirstStep,
-  };
+  return upsertIntakeWorkflowSteps(organizationId, defaultSteps);
 }

@@ -15,7 +15,7 @@ import { SchedulingDefaultsSection } from "@/components/settings/SchedulingDefau
 import { ModuleVisibilitySection } from "@/components/settings/ModuleVisibilitySection";
 import { SystemViewsSection } from "@/components/settings/SystemViewsSection";
 import { CustomFieldsSection } from "@/components/settings/CustomFieldsSection";
-import { CustomTabsSection } from "@/components/settings/CustomTabsSection";
+import { ProjectTabsSection } from "@/components/settings/ProjectTabsSection";
 import { GovernanceSection } from "@/components/settings/GovernanceSection";
 import { MembersSection } from "@/components/settings/MembersSection";
 import { RecycleBinSection } from "@/components/settings/RecycleBinSection";
@@ -98,7 +98,7 @@ const settingsTabs = [
   { value: "modules", label: "Module Visibility", icon: Eye },
   { value: "system-views", label: "System Views", icon: Columns },
   { value: "custom-fields", label: "Custom Fields", icon: FileText },
-  { value: "custom-tabs", label: "Custom Tabs", icon: LayoutGrid },
+  { value: "custom-tabs", label: "Project Tabs", icon: LayoutGrid },
   { value: "governance", label: "Governance", icon: GitBranch },
   { value: "members", label: "Team Members", icon: Users },
   { value: "recycle", label: "Recycle Bin", icon: Trash2 },
@@ -248,7 +248,7 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
           <CustomFieldsSection organizationId={currentOrganization.id} />
         </TabsContent>
         <TabsContent value="custom-tabs" className="mt-0">
-          <CustomTabsSection organizationId={currentOrganization.id} />
+          <ProjectTabsSection organizationId={currentOrganization.id} />
         </TabsContent>
         <TabsContent value="governance" className="mt-0">
           <GovernanceSection organizationId={currentOrganization.id} />

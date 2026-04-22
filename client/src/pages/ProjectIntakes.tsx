@@ -9,8 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Link, useLocation } from "wouter";
-import { useIntakeWorkflows } from "@/hooks/use-intake-workflow";
-import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen, ChevronsUpDown, BarChart3, Timer, GitBranch } from "lucide-react";
+import { useIntakeTypes } from "@/hooks/use-intake-types";
+import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen, ChevronsUpDown, BarChart3, Timer } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -95,35 +95,41 @@ interface CreateIntakeDialogProps {
   onOpenChange: (open: boolean) => void;
   portfolios: Portfolio[];
   organizationId?: number;
-  initialWorkflowId?: number | null;
 }
 
-function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, initialWorkflowId }: CreateIntakeDialogProps) {
+function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId }: CreateIntakeDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const { data: intakeTypes = [] } = useIntakeTypes(organizationId);
+  const [intakeTypeId, setIntakeTypeId] = useState<string>("");
   const [intakeName, setIntakeName] = useState("");
   const [description, setDescription] = useState("");
   const [portfolioId, setPortfolioId] = useState<string>("");
   const [portfolioOpen, setPortfolioOpen] = useState(false);
   const [fundingSource, setFundingSource] = useState("");
   const [businessUnit, setBu] = useState("");
-  const [workflowId, setWorkflowId] = useState<string>("");
+  const [limitError, setLimitError] = useState<{ resourceType: string } | null>(null);
 
-  const { workflows: intakeWorkflows } = useIntakeWorkflows();
+  const activeTypes = intakeTypes.filter(t => t.isActive);
+  const selectedType = activeTypes.find(t => t.id.toString() === intakeTypeId);
 
+  // Default to a standard type whenever the dialog opens or the list changes.
   useEffect(() => {
     if (!open) return;
-    if (initialWorkflowId != null && intakeWorkflows.some(w => w.id === initialWorkflowId)) {
-      setWorkflowId(String(initialWorkflowId));
-      return;
+    if (intakeTypeId && activeTypes.some(t => t.id.toString() === intakeTypeId)) return;
+    const standard = activeTypes.find(t => t.behavior === "standard") || activeTypes[0];
+    if (standard) setIntakeTypeId(standard.id.toString());
+  }, [open, activeTypes, intakeTypeId]);
+
+  const handleTypeChange = (value: string) => {
+    setIntakeTypeId(value);
+    const t = activeTypes.find(x => x.id.toString() === value);
+    if (t?.behavior === "powerbi_redirect") {
+      onOpenChange(false);
+      setLocation("/powerbi-agent");
     }
-    if (!workflowId && intakeWorkflows.length > 0) {
-      const def = intakeWorkflows.find(w => w.isDefault) || intakeWorkflows[0];
-      setWorkflowId(String(def.id));
-    }
-  }, [open, initialWorkflowId, intakeWorkflows, workflowId]);
-  const [limitError, setLimitError] = useState<{ resourceType: string } | null>(null);
+  };
 
   const createIntake = useMutation({
     mutationFn: async (data: any) => {
@@ -158,7 +164,6 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, in
     setPortfolioId("");
     setFundingSource("");
     setBu("");
-    setWorkflowId("");
   };
 
   const handleSubmit = () => {
@@ -176,7 +181,7 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, in
       businessUnit: businessUnit,
       submitterId: user?.id,
       currentStep: "intake_capture",
-      workflowId: workflowId ? parseInt(workflowId) : undefined,
+      intakeTypeId: intakeTypeId ? parseInt(intakeTypeId) : null,
     });
   };
 
@@ -188,6 +193,24 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, in
         </DialogHeader>
         <p className="text-xs text-muted-foreground mt-2"><span className="text-destructive">*</span> Required fields</p>
         <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="intakeType">Intake Type <span className="text-destructive">*</span></Label>
+            <Select value={intakeTypeId} onValueChange={handleTypeChange}>
+              <SelectTrigger id="intakeType" data-testid="select-intake-type">
+                <SelectValue placeholder="Select intake type" />
+              </SelectTrigger>
+              <SelectContent>
+                {activeTypes.map(t => (
+                  <SelectItem key={t.id} value={t.id.toString()}>
+                    {t.name}{t.behavior === "powerbi_redirect" ? " — opens Power BI agent" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedType?.description && (
+              <p className="text-xs text-muted-foreground">{selectedType.description}</p>
+            )}
+          </div>
           <div className="space-y-2">
             <Label htmlFor="intakeName">Intake Name <span className="text-destructive">*</span></Label>
             <Input
@@ -299,23 +322,6 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, in
               </SelectContent>
             </Select>
           </div>
-          {intakeWorkflows.length > 1 && (
-            <div className="space-y-2">
-              <Label>Intake Workflow</Label>
-              <Select value={workflowId} onValueChange={setWorkflowId}>
-                <SelectTrigger data-testid="select-intake-workflow-create">
-                  <SelectValue placeholder="Select workflow" />
-                </SelectTrigger>
-                <SelectContent>
-                  {intakeWorkflows.map(wf => (
-                    <SelectItem key={wf.id} value={String(wf.id)}>
-                      {wf.name}{wf.isDefault ? ' (Default)' : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
@@ -756,42 +762,12 @@ function PowerBIRequestsSection({ organizationId }: { organizationId: number | u
 export default function ProjectIntakes() {
   const { currentOrganization } = useOrganization();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [pendingWorkflowId, setPendingWorkflowId] = useState<number | null>(null);
-  const { workflows: outerIntakeWorkflows } = useIntakeWorkflows();
-  const [, setLocation] = useLocation();
-  const openCreateIntake = (workflowId: number | null = null) => {
-    const wf = workflowId != null
-      ? (outerIntakeWorkflows || []).find(w => w.id === workflowId)
-      : ((outerIntakeWorkflows || []).find(w => w.isDefault) || (outerIntakeWorkflows || [])[0]);
-    if (wf && wf.agentTarget === 'powerbi') {
-      setLocation('/powerbi-agent');
-      return;
-    }
-    if (wf && wf.creationMode === 'url' && wf.creationUrl) {
-      window.open(wf.creationUrl, '_blank', 'noopener,noreferrer');
-      return;
-    }
-    setPendingWorkflowId(workflowId);
-    setIsDialogOpen(true);
-  };
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const { toast } = useToast();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const [deleteIntakeId, setDeleteIntakeId] = useState<number | null>(null);
-  const [activeWorkflowId, setActiveWorkflowId] = useState<number | null>(null);
-
-  const activeWorkflows = (outerIntakeWorkflows || []).filter(w => w.isActive !== false);
-  const defaultWorkflow = activeWorkflows.find(w => w.isDefault) || activeWorkflows[0] || null;
-  const activeWorkflow = activeWorkflows.find(w => w.id === activeWorkflowId) || defaultWorkflow;
-  const isPowerBIWorkflow = activeWorkflow?.agentTarget === 'powerbi';
-
-  useEffect(() => {
-    if (activeWorkflows.length === 0) return;
-    if (activeWorkflowId == null || !activeWorkflows.some(w => w.id === activeWorkflowId)) {
-      setActiveWorkflowId(defaultWorkflow ? defaultWorkflow.id : null);
-    }
-  }, [activeWorkflows, activeWorkflowId, defaultWorkflow]);
+  const [activeTab, setActiveTab] = useState<"project" | "powerbi">("project");
 
   const { data: intakes, isLoading } = useQuery<ProjectIntake[]>({
     queryKey: ['/api/project-intakes', currentOrganization?.id],
@@ -818,58 +794,26 @@ export default function ProjectIntakes() {
   });
 
   const intakesList = Array.isArray(intakes) ? intakes : [];
-
-  const intakesForActiveWorkflow = intakesList.filter(intake => {
-    if (!activeWorkflow) return true;
-    if (intake.workflowId == null) {
-      return defaultWorkflow ? activeWorkflow.id === defaultWorkflow.id : true;
-    }
-    return intake.workflowId === activeWorkflow.id;
-  });
-
-  const filteredIntakes = intakesForActiveWorkflow.filter(intake => {
+  
+  const filteredIntakes = intakesList.filter(intake => {
     const matchesSearch = normalizeSearch(intake.projectName).includes(normalizeSearch(search));
-    const matchesStatus = statusFilter === "all"
+    const matchesStatus = statusFilter === "all" 
       || (statusFilter === "in_review" && (intake.status === "draft" || intake.status === "in_progress"))
       || intake.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   const stats = {
-    total: intakesForActiveWorkflow.length,
-    draft: intakesForActiveWorkflow.filter(i => i.status === "draft").length,
-    inProgress: intakesForActiveWorkflow.filter(i => i.status === "in_progress").length,
-    approved: intakesForActiveWorkflow.filter(i => i.status === "approved").length,
-    rejected: intakesForActiveWorkflow.filter(i => i.status === "rejected").length,
+    total: intakesList.length,
+    draft: intakesList.filter(i => i.status === "draft").length,
+    inProgress: intakesList.filter(i => i.status === "in_progress").length,
+    approved: intakesList.filter(i => i.status === "approved").length,
+    rejected: intakesList.filter(i => i.status === "rejected").length,
   };
-
-  const countsByWorkflowId = new Map<number, number>();
-  for (const wf of activeWorkflows) {
-    if (wf.agentTarget === 'powerbi') continue;
-    const count = intakesList.filter(intake => {
-      if (intake.workflowId == null) {
-        return defaultWorkflow ? wf.id === defaultWorkflow.id : false;
-      }
-      return intake.workflowId === wf.id;
-    }).length;
-    countsByWorkflowId.set(wf.id, count);
-  }
 
   const getStepLabel = (stepId: string) => {
     const step = WORKFLOW_STEPS.find(s => s.id === stepId);
     return step?.label || "Unknown";
-  };
-
-  const workflowsById = new Map<number, typeof activeWorkflows[number]>();
-  for (const wf of (outerIntakeWorkflows || [])) {
-    workflowsById.set(wf.id, wf);
-  }
-  const showWorkflowBadge = activeWorkflows.length > 1;
-  const getIntakeWorkflowName = (intake: ProjectIntake): string | null => {
-    if (intake.workflowId == null) {
-      return defaultWorkflow?.name || null;
-    }
-    return workflowsById.get(intake.workflowId)?.name || null;
   };
 
   const { data: pbiCount } = useQuery<PowerBIIntakeRequest[]>({
@@ -890,72 +834,55 @@ export default function ProjectIntakes() {
           <h1 className="text-3xl font-display font-bold text-foreground">Intake Requests</h1>
           <p className="mt-1 text-muted-foreground">Submit and track new requests through the approval workflow.</p>
         </div>
-        {isPowerBIWorkflow ? (
+        {activeTab === "project" ? (
+          <Button onClick={() => setIsDialogOpen(true)} data-testid="button-new-intake">
+            <Plus className="h-4 w-4 mr-2" />
+            New Intake
+          </Button>
+        ) : (
           <Link href="/powerbi-agent">
-            <Button data-testid="button-new-intake">
+            <Button>
               <Plus className="h-4 w-4 mr-2" />
               New Power BI Request
             </Button>
           </Link>
-        ) : activeWorkflows.length > 1 ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button data-testid="button-new-intake">
-                <Plus className="h-4 w-4 mr-2" />
-                New Intake
-                <ChevronsUpDown className="h-4 w-4 ml-2" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {activeWorkflows.map(w => (
-                <DropdownMenuItem
-                  key={w.id}
-                  onSelect={() => openCreateIntake(w.id)}
-                  data-testid={`menuitem-new-intake-workflow-${w.id}`}
-                >
-                  {w.name}{w.isDefault ? ' (Default)' : ''}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <Button onClick={() => openCreateIntake(activeWorkflow?.id ?? null)} data-testid="button-new-intake">
-            <Plus className="h-4 w-4 mr-2" />
-            New Intake
-          </Button>
         )}
       </div>
 
-      {activeWorkflows.length > 1 && (
-        <div className="flex gap-1 bg-muted/50 p-1 rounded-xl w-fit flex-wrap">
-          {activeWorkflows.map(wf => {
-            const isActive = activeWorkflow?.id === wf.id;
-            const isPbi = wf.agentTarget === 'powerbi';
-            const count = isPbi ? pbiTotal : (countsByWorkflowId.get(wf.id) ?? 0);
-            return (
-              <button
-                key={wf.id}
-                className={cn(
-                  "px-4 py-2 rounded-lg text-sm font-medium transition-all",
-                  isActive
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-                onClick={() => setActiveWorkflowId(wf.id)}
-                data-testid={`tab-workflow-${wf.id}`}
-              >
-                <div className="flex items-center gap-2">
-                  {isPbi ? <BarChart3 className="h-4 w-4" /> : <FileInput className="h-4 w-4" />}
-                  {wf.name}
-                  {count > 0 && <Badge variant="secondary" className="text-xs">{count}</Badge>}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
+      <div className="flex gap-1 bg-muted/50 p-1 rounded-xl w-fit">
+        <button
+          className={cn(
+            "px-4 py-2 rounded-lg text-sm font-medium transition-all",
+            activeTab === "project"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+          onClick={() => setActiveTab("project")}
+        >
+          <div className="flex items-center gap-2">
+            <FileInput className="h-4 w-4" />
+            Project Intakes
+            <Badge variant="secondary" className="text-xs">{intakesList.length}</Badge>
+          </div>
+        </button>
+        <button
+          className={cn(
+            "px-4 py-2 rounded-lg text-sm font-medium transition-all",
+            activeTab === "powerbi"
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+          onClick={() => setActiveTab("powerbi")}
+        >
+          <div className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Power BI Requests
+            {pbiTotal > 0 && <Badge variant="secondary" className="text-xs">{pbiTotal}</Badge>}
+          </div>
+        </button>
+      </div>
 
-      {isPowerBIWorkflow ? (
+      {activeTab === "powerbi" ? (
         <PowerBIRequestsSection organizationId={currentOrganization?.id} />
       ) : (<>
 
@@ -1105,7 +1032,7 @@ export default function ProjectIntakes() {
                 : "Submit a new intake request to get started"}
             </p>
             {!search && statusFilter === "all" && (
-              <Button onClick={() => openCreateIntake(activeWorkflow?.id ?? null)}>
+              <Button onClick={() => setIsDialogOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 New Intake
               </Button>
@@ -1139,23 +1066,6 @@ export default function ProjectIntakes() {
                         {intake.projectName}
                       </h3>
                       {getStatusBadge(intake.status || "draft")}
-                      {showWorkflowBadge && getIntakeWorkflowName(intake) && (
-                        <Badge
-                          variant="outline"
-                          className="gap-1.5 cursor-pointer hover:bg-accent"
-                          data-testid={`badge-intake-workflow-${intake.id}`}
-                          title={`Workflow: ${getIntakeWorkflowName(intake)}`}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const wfId = intake.workflowId ?? defaultWorkflow?.id ?? null;
-                            if (wfId != null) setActiveWorkflowId(wfId);
-                          }}
-                        >
-                          <GitBranch className="h-3 w-3" />
-                          {getIntakeWorkflowName(intake)}
-                        </Badge>
-                      )}
                       {intake.intakeNumber && (
                         <span className="text-xs text-muted-foreground font-mono">{intake.intakeNumber}</span>
                       )}
@@ -1245,10 +1155,9 @@ export default function ProjectIntakes() {
 
       <CreateIntakeDialog 
         open={isDialogOpen} 
-        onOpenChange={(o) => { setIsDialogOpen(o); if (!o) setPendingWorkflowId(null); }}
+        onOpenChange={setIsDialogOpen}
         portfolios={portfolios || []}
         organizationId={currentOrganization?.id}
-        initialWorkflowId={pendingWorkflowId}
       />
 
       <Dialog open={deleteIntakeId !== null} onOpenChange={() => setDeleteIntakeId(null)}>

@@ -79,6 +79,18 @@ const Training = lazy(() => import("@/pages/Training"));
 const TrainingModule = lazy(() => import("@/pages/TrainingModule"));
 const Templates = lazy(() => import("@/pages/Templates"));
 const InvestorRoom = lazy(() => import("@/pages/InvestorRoom"));
+const DailyLogs = lazy(() => import("@/pages/DailyLogs"));
+const RFIs = lazy(() => import("@/pages/RFIs"));
+const Submittals = lazy(() => import("@/pages/Submittals"));
+const Drawings = lazy(() => import("@/pages/Drawings"));
+const PunchList = lazy(() => import("@/pages/PunchList"));
+const QualitySafety = lazy(() => import("@/pages/QualitySafety"));
+const Bidding = lazy(() => import("@/pages/Bidding"));
+const Vendors = lazy(() => import("@/pages/Vendors"));
+const ChangeOrders = lazy(() => import("@/pages/ChangeOrders"));
+const ConstructionInvoices = lazy(() => import("@/pages/ConstructionInvoices"));
+const Meetings = lazy(() => import("@/pages/Meetings"));
+const Correspondence = lazy(() => import("@/pages/Correspondence"));
 const Blog = lazy(() => import("@/pages/Blog"));
 const BlogPost = lazy(() => import("@/pages/BlogPost"));
 const PowerBIAgent = lazy(() => import("@/pages/PowerBIAgent"));
@@ -222,6 +234,18 @@ function Router() {
             <ModuleGuard moduleKey="resources"><ResourceDetails /></ModuleGuard>
           </Route>
           <GuardedRoute path="/resources" component={Resources} moduleKey="resources" />
+          <GuardedRoute path="/daily-logs" component={DailyLogs} moduleKey="daily-logs" />
+          <GuardedRoute path="/rfis" component={RFIs} moduleKey="rfis" />
+          <GuardedRoute path="/submittals" component={Submittals} moduleKey="submittals" />
+          <GuardedRoute path="/drawings" component={Drawings} moduleKey="drawings" />
+          <GuardedRoute path="/punch-list" component={PunchList} moduleKey="punch-list" />
+          <GuardedRoute path="/quality-safety" component={QualitySafety} moduleKey="quality-safety" />
+          <GuardedRoute path="/bidding" component={Bidding} moduleKey="bidding" />
+          <GuardedRoute path="/vendors" component={Vendors} moduleKey="vendors" />
+          <GuardedRoute path="/change-orders" component={ChangeOrders} moduleKey="change-orders" />
+          <GuardedRoute path="/construction-invoices" component={ConstructionInvoices} moduleKey="construction-invoices" />
+          <GuardedRoute path="/meetings" component={Meetings} moduleKey="meetings" />
+          <GuardedRoute path="/correspondence" component={Correspondence} moduleKey="correspondence" />
           <GuardedRoute path="/calendar" component={Calendar} moduleKey="calendar" />
           <GuardedRoute path="/integrations" component={Integrations} moduleKey="integrations" />
           <Route path="/billing" component={Billing} />

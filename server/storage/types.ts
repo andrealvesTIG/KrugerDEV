@@ -41,7 +41,6 @@ import type {
   Notification, InsertNotification,
   StatusReportHistory, InsertStatusReportHistory,
   IntakeWorkflowStep, InsertIntakeWorkflowStep, ProjectWorkflowStep,
-  IntakeWorkflow, InsertIntakeWorkflow, ProjectWorkflow, InsertProjectWorkflow,
   TimesheetEntry, InsertTimesheetEntry, UpdateTimesheetEntryRequest,
   TimeCategory, InsertTimeCategory,
   NonProjectTimeEntry, InsertNonProjectTimeEntry,
@@ -420,44 +419,12 @@ export interface IIntakeStorage {
   createMppImportTask(task: InsertMppImportTask): Promise<MppImportTask>;
   createMppImportTasks(tasks: InsertMppImportTask[]): Promise<MppImportTask[]>;
   deleteMppImportTasks(importId: number): Promise<void>;
-  getIntakeWorkflowSteps(organizationId: number, workflowId?: number): Promise<IntakeWorkflowStep[]>;
-  getIntakeWorkflowStepsByWorkflowId(workflowId: number): Promise<IntakeWorkflowStep[]>;
-  upsertIntakeWorkflowSteps(organizationId: number, steps: InsertIntakeWorkflowStep[], workflowId?: number): Promise<IntakeWorkflowStep[]>;
-  resetIntakeWorkflowToDefaults(organizationId: number, workflowId?: number): Promise<IntakeWorkflowStep[]>;
-  getProjectWorkflowSteps(organizationId: number, workflowId?: number): Promise<ProjectWorkflowStep[]>;
-  getProjectWorkflowStepsByWorkflowId(workflowId: number): Promise<ProjectWorkflowStep[]>;
-  upsertProjectWorkflowSteps(organizationId: number, steps: Array<{ stepKey: string; position: number; label: string; description?: string; isTerminal?: boolean; isActive?: boolean }>, workflowId?: number): Promise<ProjectWorkflowStep[]>;
-  resetProjectWorkflowToDefaults(organizationId: number, workflowId?: number): Promise<ProjectWorkflowStep[]>;
-
-  // Multi-workflow management
-  getIntakeWorkflows(organizationId: number): Promise<IntakeWorkflow[]>;
-  getIntakeWorkflow(id: number): Promise<IntakeWorkflow | undefined>;
-  createIntakeWorkflow(data: InsertIntakeWorkflow): Promise<IntakeWorkflow>;
-  updateIntakeWorkflow(id: number, updates: Partial<InsertIntakeWorkflow>): Promise<IntakeWorkflow>;
-  deleteIntakeWorkflow(id: number): Promise<void>;
-  ensureDefaultIntakeWorkflow(organizationId: number): Promise<IntakeWorkflow>;
-  getDefaultIntakeWorkflow(organizationId: number): Promise<IntakeWorkflow>;
-  getProjectWorkflows(organizationId: number): Promise<ProjectWorkflow[]>;
-  getProjectWorkflow(id: number): Promise<ProjectWorkflow | undefined>;
-  createProjectWorkflow(data: InsertProjectWorkflow): Promise<ProjectWorkflow>;
-  updateProjectWorkflow(id: number, updates: Partial<InsertProjectWorkflow>): Promise<ProjectWorkflow>;
-  deleteProjectWorkflow(id: number): Promise<void>;
-  ensureDefaultProjectWorkflow(organizationId: number): Promise<ProjectWorkflow>;
-  getDefaultProjectWorkflow(organizationId: number): Promise<ProjectWorkflow>;
-  changeIntakeWorkflow(intakeId: number, targetWorkflowId: number, opts?: { resetToFirstStep?: boolean }): Promise<{
-    record: ProjectIntake;
-    previousWorkflowId: number | null;
-    previousStep: string | null;
-    newStep: string;
-    stepPreserved: boolean;
-  }>;
-  changeProjectWorkflow(projectId: number, targetWorkflowId: number, opts?: { resetToFirstStep?: boolean }): Promise<{
-    record: Project;
-    previousWorkflowId: number | null;
-    previousStep: string | null;
-    newStep: string;
-    stepPreserved: boolean;
-  }>;
+  getIntakeWorkflowSteps(organizationId: number): Promise<IntakeWorkflowStep[]>;
+  upsertIntakeWorkflowSteps(organizationId: number, steps: InsertIntakeWorkflowStep[]): Promise<IntakeWorkflowStep[]>;
+  resetIntakeWorkflowToDefaults(organizationId: number): Promise<IntakeWorkflowStep[]>;
+  getProjectWorkflowSteps(organizationId: number): Promise<ProjectWorkflowStep[]>;
+  upsertProjectWorkflowSteps(organizationId: number, steps: Array<{ stepKey: string; position: number; label: string; description?: string; isTerminal?: boolean; isActive?: boolean }>): Promise<ProjectWorkflowStep[]>;
+  resetProjectWorkflowToDefaults(organizationId: number): Promise<ProjectWorkflowStep[]>;
 }
 
 export interface IMiscStorage {

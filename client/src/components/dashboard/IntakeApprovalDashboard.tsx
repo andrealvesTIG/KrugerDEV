@@ -39,15 +39,26 @@ export function IntakeApprovalDashboard() {
     const approvalRate = total > 0 ? Math.round((approved / total) * 100) : 0;
     const rejectionRate = total > 0 ? Math.round((rejected / total) * 100) : 0;
 
-    const avgApprovalTime = approved > 0
-      ? Math.round(intakes.filter(i => i.status === 'Approved' && i.submittedAt && i.approvedAt)
-          .reduce((sum, i) => sum + differenceInDays(new Date(i.approvedAt!), new Date(i.submittedAt!)), 0) / approved)
+    const approvalDurations = intakes
+      .filter(i => i.status === 'Approved')
+      .map(i => {
+        if (!i.createdAt || !i.approvedAt) return null;
+        const start = new Date(i.createdAt);
+        const end = new Date(i.approvedAt);
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) return null;
+        return differenceInDays(end, start);
+      })
+      .filter((d): d is number => d !== null);
+    const avgApprovalTime = approvalDurations.length > 0
+      ? Math.round(approvalDurations.reduce((sum, d) => sum + d, 0) / approvalDurations.length)
       : 0;
 
     const overdueReviews = intakes.filter(i => {
       if (i.status === 'Approved' || i.status === 'Rejected') return false;
-      if (!i.submittedAt) return false;
-      return differenceInDays(new Date(), new Date(i.submittedAt)) > 14;
+      if (!i.createdAt) return false;
+      const created = new Date(i.createdAt);
+      if (isNaN(created.getTime())) return false;
+      return differenceInDays(new Date(), created) > 14;
     }).length;
 
     return {

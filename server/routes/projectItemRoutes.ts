@@ -2072,7 +2072,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     summary: 'Add task dependency',
     parameters: [pathId()],
     requestBody: body(ref('TaskDependencyCreateRequest')),
-    responses: { ...r201('Dependency created', ref('TaskDependencyMutationResponse')), ...createRes },
+    responses: { ...r201('Dependency created', ref('TaskDependencyCreateResponse')), ...createRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -2221,7 +2221,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     summary: 'Update task dependency',
     parameters: [pathId(), pathId('dependsOnTaskId')],
     requestBody: body(ref('TaskDependencyUpdateRequest')),
-    responses: { ...r200('Dependency updated', ref('TaskDependencyMutationResponse')), ...updateRes },
+    responses: { ...r200('Dependency updated', ref('TaskDependencyUpdateResponse')), ...updateRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -2808,48 +2808,6 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         return res.status(400).json({ message: "CSV file is empty or has no data rows" });
       }
 
-      // Detect custom field columns. The exporter emits headers like
-      // "Project: <Field Name>" and "Task: <Field Name>". Match them against
-      // the organization's custom field definitions by name (case-insensitive).
-      const headerNames: string[] = (parseResult.meta?.fields as string[] | undefined) ?? Object.keys(rows[0] ?? {});
-      const allCfDefs = project.organizationId
-        ? await storage.getCustomFieldDefinitions(project.organizationId)
-        : [];
-      const taskDefByName = new Map<string, typeof allCfDefs[0]>();
-      const projectDefByName = new Map<string, typeof allCfDefs[0]>();
-      for (const def of allCfDefs) {
-        if (def.entityType === 'task') taskDefByName.set(def.name.toLowerCase().trim(), def);
-        else if (def.entityType === 'project') projectDefByName.set(def.name.toLowerCase().trim(), def);
-      }
-      // header -> { def, scope }
-      const cfHeaderMap = new Map<string, { def: typeof allCfDefs[0]; scope: 'task' | 'project' }>();
-      for (const h of headerNames) {
-        const m = h.match(/^\s*(Project|Task)\s*:\s*(.+?)\s*$/i);
-        if (!m) continue;
-        const scope = m[1].toLowerCase() === 'project' ? 'project' : 'task';
-        const fieldName = m[2].toLowerCase().trim();
-        const def = scope === 'task' ? taskDefByName.get(fieldName) : projectDefByName.get(fieldName);
-        if (def) cfHeaderMap.set(h, { def, scope });
-      }
-      let customFieldValuesUpdated = 0;
-      const customFieldErrors: { row: number; field: string; scope: 'task' | 'project'; message: string }[] = [];
-      const formatCfError = (err: unknown): string => {
-        const raw = err instanceof Error
-          ? err.message
-          : typeof err === 'string'
-            ? err
-            : (() => { try { return JSON.stringify(err); } catch { return 'Unknown error'; } })();
-        // Sanitize: strip obvious internals (SQL statements, stack-like prefixes)
-        // and cap length so we never leak large DB payloads to the client.
-        let msg = raw.split('\n')[0].trim();
-        msg = msg.replace(/\s+at\s+.*$/i, '').trim();
-        if (/^(error:|pg|syntaxerror|queryfailederror)/i.test(msg) || /select\s|insert\s|update\s|from\s/i.test(msg)) {
-          msg = 'Invalid value for custom field';
-        }
-        if (msg.length > 200) msg = msg.slice(0, 197) + '...';
-        return msg || 'Failed to save value';
-      };
-
       const existingTasks = await storage.getTasksByProject(projectId);
       const existingByWbs = new Map<string, typeof existingTasks[0]>();
       const existingByName = new Map<string, typeof existingTasks[0][]>();
@@ -2893,41 +2851,12 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const hasOutlineLevelColumn = rows.length > 0 && 'Outline Level' in rows[0];
       const outlineLevelParentStack: { level: number; csvIndex: number }[] = [];
 
-      for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
-        const row = rows[rowIdx];
-        const rowNumber = rowIdx + 2; // +1 for header, +1 for 1-based
+      for (const row of rows) {
         const name = (row['Name'] || '').trim();
         const type = (row['Type'] || '').trim();
         const csvIndex = parseInt((row['Index'] || '').trim(), 10);
 
         if (!name || type === 'Project') {
-          // The project summary row carries project-level custom field values.
-          if (type === 'Project') {
-            for (const [header, info] of cfHeaderMap) {
-              if (info.scope !== 'project') continue;
-              const raw = (row[header] ?? '').trim();
-              // Skip blanks only for non-required fields; for required fields
-              // we still call upsert so server-side enforcement can report the
-              // violation on the row.
-              if (raw === '' && !info.def.isRequired) continue;
-              try {
-                await storage.upsertProjectCustomFieldValue({
-                  projectId,
-                  fieldDefinitionId: info.def.id,
-                  value: raw,
-                });
-                customFieldValuesUpdated++;
-              } catch (cfErr) {
-                console.error('Error upserting project custom field value:', cfErr);
-                customFieldErrors.push({
-                  row: rowNumber,
-                  field: info.def.name,
-                  scope: 'project',
-                  message: formatCfError(cfErr),
-                });
-              }
-            }
-          }
           skipped++;
           continue;
         }
@@ -3031,35 +2960,6 @@ Format your response as a numbered list with clear, concise strategies. Do not i
           if (predecessorsStr) pendingDependencies.push({ csvIndex, predecessorsStr });
           if (parentTaskIndexStr) pendingParentLinks.push({ csvIndex, parentTaskIndexStr });
         }
-
-        // Persist task-level custom field values for this row (covers both
-        // newly created and updated tasks).
-        if (cfHeaderMap.size > 0) {
-          const taskIdForCf = (existingTask?.id) ?? (!isNaN(csvIndex) ? csvIndexToTaskId.get(csvIndex) : undefined);
-          if (taskIdForCf) {
-            for (const [header, info] of cfHeaderMap) {
-              if (info.scope !== 'task') continue;
-              const raw = (row[header] ?? '').trim();
-              if (raw === '' && !info.def.isRequired) continue;
-              try {
-                await storage.upsertTaskCustomFieldValue({
-                  taskId: taskIdForCf,
-                  fieldDefinitionId: info.def.id,
-                  value: raw,
-                });
-                customFieldValuesUpdated++;
-              } catch (cfErr) {
-                console.error('Error upserting task custom field value:', cfErr);
-                customFieldErrors.push({
-                  row: rowNumber,
-                  field: info.def.name,
-                  scope: 'task',
-                  message: formatCfError(cfErr),
-                });
-              }
-            }
-          }
-        }
       }
 
       let dependenciesCreated = 0;
@@ -3128,21 +3028,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         }
       }
 
-      const cfFailedCount = customFieldErrors.length;
-      const baseMsg = `Import complete: ${created} tasks created, ${updated} tasks updated, ${skipped} rows skipped, ${dependenciesCreated} dependencies created, ${parentLinksSet} parent links set, ${customFieldValuesUpdated} custom field values applied`;
-      const message = cfFailedCount > 0
-        ? `${baseMsg}, ${cfFailedCount} custom field value${cfFailedCount === 1 ? '' : 's'} failed`
-        : baseMsg;
       res.json({
-        message,
+        message: `Import complete: ${created} tasks created, ${updated} tasks updated, ${skipped} rows skipped, ${dependenciesCreated} dependencies created, ${parentLinksSet} parent links set`,
         created,
         updated,
         skipped,
         dependenciesCreated,
         parentLinksSet,
-        customFieldValuesUpdated,
-        customFieldValuesFailed: cfFailedCount,
-        customFieldErrors: customFieldErrors.slice(0, 50),
       });
     } catch (err) {
       console.error('CSV import error:', err);

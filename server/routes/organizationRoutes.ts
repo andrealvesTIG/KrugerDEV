@@ -791,6 +791,84 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
+  apiRoute(app, 'get', '/api/organizations/:id/project-tab-settings', {
+    tag: 'Organizations',
+    summary: 'Get organization project tab default order/visibility',
+    parameters: [pathId()],
+    responses: { ...r200('Project tab settings', { type: 'object', properties: { order: { type: 'array', items: { type: 'string' } }, hidden: { type: 'array', items: { type: 'string' } } } }), ...idRes },
+  }, async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const org = await storage.getOrganization(orgId);
+      if (!org) return res.status(404).json({ message: 'Organization not found' });
+      const { DEFAULT_PROJECT_TAB_SETTINGS, resolveProjectTabOrder, resolveProjectTabHidden } = await import('@shared/projectTabs');
+      const saved = (org as { projectTabSettings?: { order?: string[]; hidden?: string[] } | null }).projectTabSettings ?? null;
+      res.json({
+        order: saved ? resolveProjectTabOrder(saved) : DEFAULT_PROJECT_TAB_SETTINGS.order,
+        hidden: saved ? Array.from(resolveProjectTabHidden(saved)) : DEFAULT_PROJECT_TAB_SETTINGS.hidden,
+      });
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to get project tab settings' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'put', '/api/organizations/:id/project-tab-settings', {
+    tag: 'Organizations',
+    summary: 'Update organization project tab default order/visibility',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object', properties: { order: { type: 'array', items: { type: 'string' } }, hidden: { type: 'array', items: { type: 'string' } } } }),
+    responses: { ...r200('Project tab settings updated', { type: 'object', properties: { order: { type: 'array', items: { type: 'string' } }, hidden: { type: 'array', items: { type: 'string' } } } }), ...updateRes },
+  }, async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const memberships = await storage.getUserOrganizations(userId!);
+      const membership = memberships.find(m => m.organizationId === orgId);
+      if (!membership || !['owner', 'org_admin'].includes(membership.role)) {
+        const [user] = await db.select().from(users).where(eq(users.id, userId!));
+        if (!hasAdminAccess(user)) {
+          return res.status(403).json({ message: 'Only admins can update project tab settings' });
+        }
+      }
+      const { projectTabSettingsSchema, isKnownProjectTabId, resolveProjectTabOrder, resolveProjectTabHidden } = await import('@shared/projectTabs');
+      const parsed = projectTabSettingsSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: 'Invalid project tab settings', errors: parsed.error.flatten() });
+      }
+      const dedupe = (ids: string[]) => {
+        const seen = new Set<string>();
+        const out: string[] = [];
+        for (const id of ids) {
+          if (!isKnownProjectTabId(id) || seen.has(id)) continue;
+          seen.add(id);
+          out.push(id);
+        }
+        return out;
+      };
+      const cleaned = {
+        order: dedupe(parsed.data.order),
+        hidden: dedupe(parsed.data.hidden),
+      };
+      const updated = await storage.updateOrganization(orgId, { projectTabSettings: cleaned } as Record<string, unknown>);
+      const saved = (updated as { projectTabSettings?: { order?: string[]; hidden?: string[] } | null } | undefined)?.projectTabSettings ?? cleaned;
+      res.json({
+        order: resolveProjectTabOrder(saved),
+        hidden: Array.from(resolveProjectTabHidden(saved)),
+      });
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update project tab settings' : classified.message });
+    }
+  });
+
   apiRoute(app, 'get', '/api/organizations/:id/integrations', {
     tag: 'Organizations',
     summary: 'Get organization integrations',

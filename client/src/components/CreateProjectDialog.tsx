@@ -1,7 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useCreateProject } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
-import { useProjectWorkflows } from "@/hooks/use-project-workflows";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -15,6 +14,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertProjectSchema } from "@shared/schema";
+import { ProjectLocationMediaSection } from "@/components/ProjectLocationMediaSection";
 import type { InsertProject } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
@@ -64,10 +64,9 @@ interface CreateProjectDialogProps {
   organizationId?: number;
   portfolios?: any[];
   onProjectCreated?: (projectId: number) => void;
-  initialWorkflowId?: number | null;
 }
 
-export function CreateProjectDialog({ open, onOpenChange, organizationId, portfolios: portfoliosProp, onProjectCreated, initialWorkflowId }: CreateProjectDialogProps) {
+export function CreateProjectDialog({ open, onOpenChange, organizationId, portfolios: portfoliosProp, onProjectCreated }: CreateProjectDialogProps) {
   const { toast } = useToast();
   const createMutation = useCreateProject();
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
@@ -83,8 +82,6 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
 
   const { data: portfoliosFetched } = usePortfolios(portfoliosProp ? null : (organizationId ?? null));
   const portfolios = portfoliosProp ?? portfoliosFetched ?? [];
-
-  const { workflows: projectWorkflows } = useProjectWorkflows();
 
   const { data: plannerStatus, refetch: refetchPlannerStatus } = useQuery<{ configured: boolean; connected: boolean }>({
     queryKey: ["/api/planner/status", organizationId],
@@ -254,7 +251,6 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
       startDate: undefined,
       endDate: undefined,
       organizationId: organizationId || undefined,
-      workflowId: null,
     },
   });
 
@@ -263,22 +259,6 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
       form.setValue("organizationId", organizationId);
     }
   }, [organizationId, form]);
-
-  const workflowInitializedRef = useRef(false);
-  useEffect(() => {
-    if (!open) {
-      workflowInitializedRef.current = false;
-      return;
-    }
-    if (workflowInitializedRef.current || projectWorkflows.length === 0) return;
-    if (initialWorkflowId != null && projectWorkflows.some(w => w.id === initialWorkflowId)) {
-      form.setValue("workflowId", initialWorkflowId);
-    } else {
-      const def = projectWorkflows.find(w => w.isDefault) || projectWorkflows[0];
-      form.setValue("workflowId", def.id);
-    }
-    workflowInitializedRef.current = true;
-  }, [open, initialWorkflowId, projectWorkflows, form]);
 
   const onSubmit = (data: InsertProject) => {
     const cleanedData = {
@@ -558,33 +538,6 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
                   <Textarea id="cp-description" {...form.register("description")} data-testid="input-description" />
                 </div>
 
-                {projectWorkflows.length > 1 && (
-                  <div className="space-y-2 col-span-2">
-                    <Label htmlFor="cp-workflowId">Project Workflow</Label>
-                    <Controller
-                      control={form.control}
-                      name="workflowId"
-                      render={({ field }) => (
-                        <Select
-                          onValueChange={(val) => field.onChange(val ? parseInt(val) : null)}
-                          value={field.value?.toString() || (projectWorkflows.find(w => w.isDefault)?.id?.toString() ?? '')}
-                        >
-                          <SelectTrigger data-testid="select-project-workflow-create">
-                            <SelectValue placeholder="Select workflow" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {projectWorkflows.map((wf) => (
-                              <SelectItem key={wf.id} value={wf.id.toString()}>
-                                {wf.name}{wf.isDefault ? ' (Default)' : ''}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                  </div>
-                )}
-
                 <div className="col-span-2 flex items-center space-x-2">
                   <Controller
                     control={form.control}
@@ -601,6 +554,27 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
                   <Label htmlFor="cp-isInternal" className="text-sm cursor-pointer">Internal Project</Label>
                 </div>
               </div>
+
+              <ProjectLocationMediaSection
+                addressLine1={form.watch("addressLine1")}
+                city={form.watch("city")}
+                region={form.watch("region")}
+                country={form.watch("country")}
+                postalCode={form.watch("postalCode")}
+                latitude={form.watch("latitude")}
+                longitude={form.watch("longitude")}
+                images={form.watch("images") || []}
+                onChange={(patch) => {
+                  if (patch.addressLine1 !== undefined) form.setValue("addressLine1", patch.addressLine1, { shouldDirty: true });
+                  if (patch.city !== undefined) form.setValue("city", patch.city, { shouldDirty: true });
+                  if (patch.region !== undefined) form.setValue("region", patch.region, { shouldDirty: true });
+                  if (patch.country !== undefined) form.setValue("country", patch.country, { shouldDirty: true });
+                  if (patch.postalCode !== undefined) form.setValue("postalCode", patch.postalCode, { shouldDirty: true });
+                  if (patch.latitude !== undefined) form.setValue("latitude", patch.latitude, { shouldDirty: true });
+                  if (patch.longitude !== undefined) form.setValue("longitude", patch.longitude, { shouldDirty: true });
+                  if (patch.images !== undefined) form.setValue("images", patch.images, { shouldDirty: true });
+                }}
+              />
 
               <DialogFooter>
                 <Button type="submit" disabled={createMutation.isPending} data-testid="button-create-project">

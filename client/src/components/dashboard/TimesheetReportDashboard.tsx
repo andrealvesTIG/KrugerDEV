@@ -5,6 +5,7 @@ import { useProjects } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useAuth } from "@/hooks/use-auth";
 import { useCurrentUserResource, useTeamTimesheetEntries, useTimesheetEntries } from "@/hooks/use-timesheets";
+import { useQuery } from "@tanstack/react-query";
 import { DashboardActionBar } from "./DashboardActionBar";
 import { DashboardFilters, getDefaultFilters, type DashboardFilterState } from "./DashboardFilters";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,48 +13,9 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import {
-  Loader2,
-  Clock,
-  Target,
-  CheckCircle2,
-  AlertCircle,
-  FileCheck,
-  TrendingUp,
-  Calendar,
-  Users,
-  Eye,
-  DollarSign,
-  Hourglass,
-  Briefcase,
-  Activity,
-} from "lucide-react";
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-  CartesianGrid,
-  PieChart,
-  Pie,
-  Cell,
-  ComposedChart,
-  Line,
-} from "recharts";
-import {
-  startOfMonth,
-  endOfMonth,
-  startOfWeek,
-  endOfWeek,
-  addDays,
-  subWeeks,
-  format,
-  differenceInCalendarDays,
-  isWeekend,
-} from "date-fns";
+import { Loader2, Clock, Target, CheckCircle2, AlertCircle, FileCheck, TrendingUp, Calendar, Users, Eye, Zap, ArrowUp, ArrowDown, Minus } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, LineChart, Line, CartesianGrid, PieChart, Pie, Cell } from "recharts";
+import type { TimesheetEntry } from "@shared/schema";
 
 const COLORS = {
   Green: "#10b981",
@@ -63,58 +25,7 @@ const COLORS = {
   Purple: "#8b5cf6",
   Teal: "#14b8a6",
   Cyan: "#06b6d4",
-  Slate: "#64748b",
 };
-
-// ---- helpers ----
-const parseHoursSafe = (hours: any): number => {
-  const num = Number(hours ?? 0);
-  if (!isFinite(num) || isNaN(num) || num < 0 || num > 24) return 0;
-  return num;
-};
-
-const parseRate = (rate: any): number => {
-  const num = Number(rate ?? 0);
-  if (!isFinite(num) || isNaN(num) || num < 0) return 0;
-  return num;
-};
-
-function workingDaysBetween(startDate: Date, endDate: Date): number {
-  if (endDate < startDate) return 0;
-  let count = 0;
-  const d = new Date(startDate);
-  d.setHours(0, 0, 0, 0);
-  const end = new Date(endDate);
-  end.setHours(0, 0, 0, 0);
-  while (d <= end) {
-    if (!isWeekend(d)) count++;
-    d.setDate(d.getDate() + 1);
-  }
-  return count;
-}
-
-interface ResourceLite {
-  id: number;
-  weeklyCapacity?: string | number | null;
-  availability?: number | null;
-  costRate?: string | number | null;
-  hourlyRate?: string | number | null;
-  isBillable?: boolean | null;
-}
-
-function dailyExpectedHours(resource: ResourceLite): number {
-  const weekly = parseRate(resource.weeklyCapacity ?? 40) || 40;
-  const avail = ((resource.availability ?? 100) as number) / 100;
-  return (weekly / 5) * avail;
-}
-
-function expectedHoursForResource(resource: ResourceLite, start: Date, end: Date): number {
-  return workingDaysBetween(start, end) * dailyExpectedHours(resource);
-}
-
-function effectiveRate(resource: ResourceLite): number {
-  return parseRate(resource.costRate) || parseRate(resource.hourlyRate) || 0;
-}
 
 export function TimesheetReportDashboard() {
   const { currentOrganization, memberships } = useOrganization();
@@ -124,39 +35,34 @@ export function TimesheetReportDashboard() {
   const { data: projectsData, isLoading: projectsLoading } = useProjects(currentOrganization?.id);
   const { data: portfolios, isLoading: portfoliosLoading } = usePortfolios(currentOrganization?.id);
   const [filters, setFilters] = useState<DashboardFilterState>(getDefaultFilters());
-
-  // ---- Permissions ----
-  const isSuperAdmin = user?.role === "super_admin";
+  
+  // Determine if user can view team data (admin, owner, or approver)
+  const isSuperAdmin = user?.role === 'super_admin';
   const currentMembership = memberships.find(m => m.organizationId === currentOrganization?.id);
-  const isOrgAdmin = currentMembership?.role === "org_admin" || currentMembership?.role === "owner";
+  const isOrgAdmin = currentMembership?.role === 'org_admin' || currentMembership?.role === 'owner';
   const isApprover = currentResource?.isApprover === true;
   const canViewTeam = isSuperAdmin || isOrgAdmin || isApprover;
 
-  // ---- Date ranges ----
-  const today = useMemo(() => new Date(), []);
-  const monthStart = startOfMonth(today);
-  const monthEnd = endOfMonth(today);
-  // Fetch a wider window so we can compute multi-week trends and approval turnaround accurately
-  const fetchStart = subWeeks(startOfWeek(today, { weekStartsOn: 1 }), 7);
-  const fetchEnd = monthEnd;
-  const fetchStartStr = fetchStart.toISOString().split("T")[0];
-  const fetchEndStr = fetchEnd.toISOString().split("T")[0];
+  const today = new Date();
+  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const startDate = startOfMonth.toISOString().split('T')[0];
+  const endDate = endOfMonth.toISOString().split('T')[0];
 
   const { data: teamEntries = [], isLoading: teamLoading } = useTeamTimesheetEntries(
     canViewTeam ? (currentOrganization?.id ?? null) : null,
-    fetchStartStr,
-    fetchEndStr,
+    startDate,
+    endDate
   );
   const { data: personalEntries = [], isLoading: personalLoading } = useTimesheetEntries(
     canViewTeam ? undefined : user?.id,
     canViewTeam ? null : (currentOrganization?.id ?? null),
-    fetchStartStr,
-    fetchEndStr,
+    startDate,
+    endDate
   );
-  const allEntries = canViewTeam ? teamEntries : personalEntries;
+  const timesheetEntries = canViewTeam ? teamEntries : personalEntries;
   const timesheetsLoading = canViewTeam ? teamLoading : personalLoading;
 
-  // ---- Filtered resources & entries ----
   const filteredResources = useMemo(() => {
     return (resources ?? []).filter(r => {
       if (!r.isActive) return false;
@@ -166,33 +72,15 @@ export function TimesheetReportDashboard() {
     });
   }, [resources, filters]);
 
-  const projects = projectsData ?? [];
-
-  const filteredAllEntries = useMemo(() => {
+  const filteredEntries = useMemo(() => {
     const hiddenIds = new Set((resources ?? []).filter(r => r.timesheetHidden).map(r => r.id));
-    return (allEntries ?? []).filter(e => {
+    return (timesheetEntries ?? []).filter(e => {
       if (hiddenIds.has(e.resourceId)) return false;
       if (filters.resourceId && e.resourceId !== filters.resourceId) return false;
       if (filters.projectId && e.projectId !== filters.projectId) return false;
-      if (filters.portfolioId !== null) {
-        const project = projects.find(p => p.id === e.projectId);
-        if (filters.portfolioId === -1) {
-          if (!project || project.portfolioId) return false;
-        } else {
-          if (!project || project.portfolioId !== filters.portfolioId) return false;
-        }
-      }
       return true;
     });
-  }, [allEntries, filters, projects, resources]);
-
-  // Entries inside the current month (for KPIs/charts that say "this month")
-  const monthEntries = useMemo(() => {
-    return filteredAllEntries.filter(e => {
-      const d = new Date(e.entryDate);
-      return d >= monthStart && d <= monthEnd;
-    });
-  }, [filteredAllEntries, monthStart, monthEnd]);
+  }, [timesheetEntries, filters, resources]);
 
   if (resourcesLoading || timesheetsLoading || projectsLoading || portfoliosLoading) {
     return (
@@ -203,197 +91,149 @@ export function TimesheetReportDashboard() {
   }
 
   const activeResources = filteredResources;
-  const resourceById = new Map(activeResources.map(r => [r.id, r]));
+  const entries = filteredEntries;
 
-  // ---- Capacity / Expected hours ----
-  // "To-date" expected: working days from month start through today (or month end, whichever earlier)
-  const toDateEnd = today < monthEnd ? today : monthEnd;
-  const totalExpectedToDate = activeResources.reduce(
-    (sum, r) => sum + expectedHoursForResource(r as ResourceLite, monthStart, toDateEnd),
-    0,
-  );
-  const totalExpectedFullMonth = activeResources.reduce(
-    (sum, r) => sum + expectedHoursForResource(r as ResourceLite, monthStart, monthEnd),
-    0,
-  );
-
-  // ---- Core totals (this month) ----
-  const totalLoggedHours = monthEntries.reduce((s, e) => s + parseHoursSafe(e.hours), 0);
-
-  // Compliance: vs expected to-date (so unfinished month doesn't unfairly drag it down)
-  const complianceRate = totalExpectedToDate > 0
-    ? Math.round((totalLoggedHours / totalExpectedToDate) * 100)
-    : 0;
-
-  // Approval pipeline
-  const draftEntries = monthEntries.filter(e => e.status === "Draft");
-  const submittedEntries = monthEntries.filter(e => e.status === "Submitted");
-  const approvedEntries = monthEntries.filter(e => e.status === "Approved");
-  const rejectedEntries = monthEntries.filter(e => e.status === "Rejected");
-  const reviewedEntries = approvedEntries.length + rejectedEntries.length;
-  const approvalRate = reviewedEntries > 0
-    ? Math.round((approvedEntries.length / reviewedEntries) * 100)
-    : 0;
-
-  // Pending approval (Submitted, awaiting decision) — across whole fetch window
-  const pendingApprovalAll = filteredAllEntries.filter(e => e.status === "Submitted");
-  const oldestPending = pendingApprovalAll.reduce<number>((max, e) => {
-    const ref = e.submittedAt ? new Date(e.submittedAt) : new Date(e.entryDate);
-    const days = differenceInCalendarDays(today, ref);
-    return days > max ? days : max;
-  }, 0);
-
-  // Avg approval turnaround (days submittedAt → approvedAt)
-  const turnaroundSamples = filteredAllEntries
-    .filter(e => e.status === "Approved" && e.submittedAt && e.approvedAt)
-    .map(e => differenceInCalendarDays(new Date(e.approvedAt as any), new Date(e.submittedAt as any)))
-    .filter(d => d >= 0);
-  const avgTurnaround = turnaroundSamples.length > 0
-    ? Math.round((turnaroundSamples.reduce((a, b) => a + b, 0) / turnaroundSamples.length) * 10) / 10
-    : null;
-
-  // Billable mix
-  const billableHours = monthEntries.reduce((s, e) => {
-    const r = resourceById.get(e.resourceId);
-    return r && r.isBillable !== false ? s + parseHoursSafe(e.hours) : s;
-  }, 0);
-  const nonBillableHours = totalLoggedHours - billableHours;
-  const billablePct = totalLoggedHours > 0 ? Math.round((billableHours / totalLoggedHours) * 100) : 0;
-
-  // Estimated cost (this month)
-  const estCost = monthEntries.reduce((s, e) => {
-    const r = resourceById.get(e.resourceId);
-    if (!r) return s;
-    return s + parseHoursSafe(e.hours) * effectiveRate(r as ResourceLite);
-  }, 0);
-
-  // Active trackers — resources that logged any time this month
-  const activeTrackerIds = new Set(monthEntries.map(e => e.resourceId));
-  const activeTrackerCount = activeTrackerIds.size;
-  const trackerRate = activeResources.length > 0
-    ? Math.round((activeTrackerCount / activeResources.length) * 100)
-    : 0;
-
-  // ---- Per-resource roll-up ----
-  const resourceStats = activeResources.map(r => {
-    const rEntries = monthEntries.filter(e => e.resourceId === r.id);
-    const hours = rEntries.reduce((s, e) => s + parseHoursSafe(e.hours), 0);
-    const expected = expectedHoursForResource(r as ResourceLite, monthStart, toDateEnd);
-    const compliance = expected > 0 ? Math.round((hours / expected) * 100) : 0;
-    const lastEntryDate = rEntries.reduce<Date | null>((latest, e) => {
-      const d = new Date(e.entryDate);
-      return !latest || d > latest ? d : latest;
-    }, null);
-    return {
-      id: r.id,
-      name: r.displayName,
-      department: r.department,
-      hours: Math.round(hours * 10) / 10,
-      expected: Math.round(expected * 10) / 10,
-      compliance,
-      entryCount: rEntries.length,
-      lastEntryDate,
-      pendingCount: rEntries.filter(e => e.status === "Submitted").length,
-    };
-  });
-
-  const topContributors = [...resourceStats]
-    .filter(r => r.hours > 0)
-    .sort((a, b) => b.hours - a.hours)
-    .slice(0, 8);
-
-  const atRiskResources = resourceStats
-    .filter(r => r.compliance < 70)
-    .sort((a, b) => a.compliance - b.compliance)
-    .slice(0, 12);
-
-  // ---- 6-week trend ----
-  const weeklyTrend = Array.from({ length: 6 }, (_, i) => {
-    const wkStart = startOfWeek(subWeeks(today, 5 - i), { weekStartsOn: 1 });
-    const wkEnd = endOfWeek(wkStart, { weekStartsOn: 1 });
-    const effectiveEnd = wkEnd < today ? wkEnd : today;
-    const weekEntries = filteredAllEntries.filter(e => {
-      const d = new Date(e.entryDate);
-      return d >= wkStart && d <= wkEnd;
-    });
-    const logged = weekEntries.reduce((s, e) => s + parseHoursSafe(e.hours), 0);
-    const target = activeResources.reduce(
-      (s, r) => s + expectedHoursForResource(r as ResourceLite, wkStart, wkEnd),
-      0,
-    );
-    const targetToDate = activeResources.reduce(
-      (s, r) => s + expectedHoursForResource(r as ResourceLite, wkStart, effectiveEnd),
-      0,
-    );
-    return {
-      week: format(wkStart, "MMM d"),
-      logged: Math.round(logged),
-      target: Math.round(target),
-      targetToDate: Math.round(targetToDate),
-    };
-  });
-
-  // Week-over-week change (using completed prior week vs running current week)
-  const thisWeek = weeklyTrend[weeklyTrend.length - 1];
-  const lastWeek = weeklyTrend[weeklyTrend.length - 2];
-  const wowChange = lastWeek && lastWeek.logged > 0
-    ? Math.round(((thisWeek.logged - lastWeek.logged) / lastWeek.logged) * 100)
-    : 0;
-
-  // ---- Status pipeline ----
-  const statusPipeline = [
-    { name: "Draft", value: draftEntries.length, color: COLORS.Slate },
-    { name: "Submitted", value: submittedEntries.length, color: COLORS.Blue },
-    { name: "Approved", value: approvedEntries.length, color: COLORS.Green },
-    { name: "Rejected", value: rejectedEntries.length, color: COLORS.Red },
-  ].filter(d => d.value > 0);
-
-  // ---- Top projects ----
-  const projectAgg = new Map<number, { id: number; name: string; portfolio: string; hours: number; resources: Set<number> }>();
-  monthEntries.forEach(e => {
-    const proj = projects.find(p => p.id === e.projectId);
-    const cur = projectAgg.get(e.projectId) || {
-      id: e.projectId,
-      name: proj?.name || `Project ${e.projectId}`,
-      portfolio: portfolios?.find(pf => pf.id === proj?.portfolioId)?.name || "No Portfolio",
-      hours: 0,
-      resources: new Set<number>(),
-    };
-    cur.hours += parseHoursSafe(e.hours);
-    cur.resources.add(e.resourceId);
-    projectAgg.set(e.projectId, cur);
-  });
-  const topProjects = Array.from(projectAgg.values())
-    .map(p => ({ ...p, hours: Math.round(p.hours * 10) / 10, resourceCount: p.resources.size }))
-    .sort((a, b) => b.hours - a.hours)
-    .slice(0, 8);
-
-  // ---- Export ----
   const handleExportCsv = () => {
-    const headers = ["Resource", "Department", "Logged Hours", "Expected (to date)", "Compliance %", "Entries", "Pending"];
-    const rows = resourceStats.map(r => [
-      r.name,
-      r.department || "",
-      r.hours,
-      r.expected,
-      r.compliance,
-      r.entryCount,
-      r.pendingCount,
-    ]);
-    const csv = [headers.join(","), ...rows.map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
+    const headers = ["Resource", "Department", "Logged Hours", "Expected", "Compliance", "Status"];
+    const rows = activeResources.map(r => {
+      const data = resourceHours[r.id] || { hours: 0, submitted: 0 };
+      const compliance = Math.round((data.hours / 40) * 100);
+      return [r.displayName, r.department || "", data.hours, 40, `${compliance}%`, data.submitted > 0 ? "Submitted" : "Pending"];
+    });
+    const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `timesheet_overview_${format(today, "yyyy-MM-dd")}.csv`;
+    link.download = "timesheet_report.csv";
     link.click();
     URL.revokeObjectURL(url);
   };
 
+  // Helper to safely parse hours - filters out NaN, Infinity, and values outside valid range
+  const parseHoursSafe = (hours: any): number => {
+    const num = Number(hours || 0);
+    if (!isFinite(num) || isNaN(num) || num < 0 || num > 24) {
+      return 0;
+    }
+    return num;
+  };
+
+  const totalLoggedHours = entries.reduce((sum, e) => sum + parseHoursSafe(e.hours), 0);
+  const expectedHoursPerResource = 160;
+  const totalExpectedHours = activeResources.length * expectedHoursPerResource;
+  
+  const submittedEntries = entries.filter(e => e.status === "Submitted" || e.status === "Approved");
+  const approvedEntries = entries.filter(e => e.status === "Approved");
+  const pendingEntries = entries.filter(e => e.status === "Draft" || e.status === "Submitted");
+  const rejectedEntries = entries.filter(e => e.status === "Rejected");
+  
+  const complianceRate = totalExpectedHours > 0 ? Math.round((totalLoggedHours / totalExpectedHours) * 100) : 0;
+  const approvalRate = submittedEntries.length > 0 ? Math.round((approvedEntries.length / submittedEntries.length) * 100) : 0;
+  const avgHoursPerEntry = entries.length > 0 ? Math.round(totalLoggedHours / entries.length * 10) / 10 : 0;
+  
+  // Team speed/velocity metrics
+  const avgHoursPerResource = activeResources.length > 0 
+    ? Math.round((totalLoggedHours / activeResources.length) * 10) / 10 
+    : 0;
+  const targetHoursPerResource = 40; // weekly target
+  const velocityScore = targetHoursPerResource > 0 
+    ? Math.round((avgHoursPerResource / targetHoursPerResource) * 100) 
+    : 0;
+  
+  // Calculate week-over-week trend
+  const currentWeekStart = new Date(today);
+  currentWeekStart.setDate(today.getDate() - today.getDay());
+  const lastWeekStart = new Date(currentWeekStart);
+  lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+  const lastWeekEnd = new Date(currentWeekStart);
+  lastWeekEnd.setDate(lastWeekEnd.getDate() - 1);
+  
+  const currentWeekEntries = entries.filter(e => {
+    const entryDate = new Date(e.entryDate);
+    return entryDate >= currentWeekStart && entryDate <= today;
+  });
+  const lastWeekEntries = entries.filter(e => {
+    const entryDate = new Date(e.entryDate);
+    return entryDate >= lastWeekStart && entryDate <= lastWeekEnd;
+  });
+  
+  const currentWeekHours = currentWeekEntries.reduce((sum, e) => sum + parseHoursSafe(e.hours), 0);
+  const lastWeekHours = lastWeekEntries.reduce((sum, e) => sum + parseHoursSafe(e.hours), 0);
+  const weekOverWeekChange = lastWeekHours > 0 
+    ? Math.round(((currentWeekHours - lastWeekHours) / lastWeekHours) * 100) 
+    : 0;
+  
+  // Calculate daily average for the team
+  const daysInMonth = Math.ceil((today.getTime() - startOfMonth.getTime()) / (1000 * 60 * 60 * 24)) || 1;
+  const avgDailyHours = Math.round((totalLoggedHours / daysInMonth) * 10) / 10;
+
+  const statusDistribution = [
+    { name: "Draft", value: entries.filter(e => e.status === "Draft").length, color: COLORS.Yellow },
+    { name: "Submitted", value: entries.filter(e => e.status === "Submitted").length, color: COLORS.Blue },
+    { name: "Approved", value: approvedEntries.length, color: COLORS.Green },
+    { name: "Rejected", value: rejectedEntries.length, color: COLORS.Red },
+  ].filter(d => d.value > 0);
+
+  const generateWeeklyHours = () => {
+    const weeks = [];
+    const startOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    
+    for (let week = 0; week < 4; week++) {
+      const weekStart = new Date(startOfCurrentMonth);
+      weekStart.setDate(startOfCurrentMonth.getDate() + (week * 7));
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      
+      const weekEntries = entries.filter(e => {
+        const entryDate = new Date(e.entryDate);
+        return entryDate >= weekStart && entryDate <= weekEnd;
+      });
+      
+      const weekHours = weekEntries.reduce((sum, e) => sum + parseHoursSafe(e.hours), 0);
+      
+      weeks.push({ week: `Week ${week + 1}`, logged: Math.round(weekHours), target: activeResources.length * 40 });
+    }
+    return weeks;
+  };
+
+  const weeklyHours = generateWeeklyHours();
+
+  const resourceHours = activeResources.reduce((acc, resource) => {
+    const resourceEntries = entries.filter(e => e.resourceId === resource.id);
+    const totalHours = resourceEntries.reduce((sum, e) => sum + parseHoursSafe(e.hours), 0);
+    acc[resource.id] = {
+      name: resource.displayName,
+      email: resource.email,
+      department: resource.department,
+      hours: totalHours,
+      entries: resourceEntries.length,
+      submitted: resourceEntries.filter(e => e.status !== "Draft").length,
+    };
+    return acc;
+  }, {} as Record<number, { name: string; email: string | null; department: string | null; hours: number; entries: number; submitted: number }>);
+
+  const resourcesWithMissingTime = activeResources
+    .filter(r => {
+      const data = resourceHours[r.id];
+      return !data || data.hours < 32;
+    })
+    .map(r => ({
+      id: r.id,
+      name: r.displayName,
+      email: r.email,
+      department: r.department,
+      loggedHours: resourceHours[r.id]?.hours || 0,
+      expectedHours: 40,
+    }));
+
+  const topContributors = activeResources
+    .map(r => ({ ...r, hours: resourceHours[r.id]?.hours || 0 }))
+    .filter(r => r.hours > 0)
+    .sort((a, b) => b.hours - a.hours)
+    .slice(0, 8);
+
   const getInitials = (name: string) => name.split(" ").map(n => n[0]).join("").toUpperCase().substring(0, 2);
-  const complianceColor = (c: number) => (c >= 90 ? COLORS.Green : c >= 70 ? COLORS.Yellow : COLORS.Red);
-  const formatCurrency = (n: number) =>
-    n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : `$${Math.round(n)}`;
 
   return (
     <div className="space-y-4">
@@ -401,27 +241,24 @@ export function TimesheetReportDashboard() {
         <div className="flex items-center gap-3">
           <div>
             <h2 className="text-xl font-semibold">Timesheet Overview</h2>
-            <p className="text-sm text-muted-foreground">
-              {format(monthStart, "MMM d")} – {format(monthEnd, "MMM d, yyyy")} • Capacity-based KPIs from logged entries
-            </p>
+            <p className="text-sm text-muted-foreground">Monthly compliance, approval status, and team performance.</p>
           </div>
-          <Badge variant="outline" className="flex items-center gap-1.5 h-6" data-testid="badge-view-scope">
+          <Badge 
+            variant="outline" 
+            className="flex items-center gap-1.5 h-6"
+            data-testid="badge-view-scope"
+          >
             <Eye className="h-3 w-3" />
             {canViewTeam ? "Team View" : "Personal View"}
           </Badge>
         </div>
-        <DashboardActionBar
-          title="Timesheet Overview Dashboard"
-          dashboardType="timesheet"
-          organizationId={currentOrganization?.id || 0}
-          onExportCsv={handleExportCsv}
-        />
+        <DashboardActionBar title="Timesheet Overview Dashboard" dashboardType="timesheet" organizationId={currentOrganization?.id || 0} onExportCsv={handleExportCsv} />
       </div>
 
       <DashboardFilters
         portfolios={portfolios || []}
         projects={filters.portfolioId !== null
-          ? (projectsData || []).filter(p => filters.portfolioId === -1 ? !p.portfolioId : p.portfolioId === filters.portfolioId)
+          ? (projectsData || []).filter(p => filters.portfolioId === -1 ? !p.portfolioId : p.portfolioId === filters.portfolioId) 
           : (projectsData || [])}
         resources={resources || []}
         filters={filters}
@@ -430,124 +267,102 @@ export function TimesheetReportDashboard() {
         showPriority={false}
       />
 
-      {/* ---- KPI ROW ---- */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-        <Card className="p-3 hover-elevate" data-testid="kpi-logged-hours">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <Card className="p-3 hover-elevate" data-testid="kpi-total-hours">
           <div className="flex items-center gap-2 mb-1">
             <div className="p-1.5 rounded-md bg-blue-500/10">
               <Clock className="h-3.5 w-3.5 text-blue-500" />
             </div>
-            <span className="text-xs text-muted-foreground">Logged</span>
+            <span className="text-xs text-muted-foreground">Total Hours</span>
           </div>
-          <div className="text-2xl font-bold">{Math.round(totalLoggedHours)}h</div>
-          <div className="text-[11px] text-muted-foreground">
-            of {Math.round(totalExpectedFullMonth)}h plan
-          </div>
+          <div className="text-2xl font-bold">{Math.round(totalLoggedHours)}</div>
+          <div className="text-xs text-muted-foreground">of {Math.round(totalExpectedHours)}</div>
         </Card>
 
-        <Card className="p-3 hover-elevate" data-testid="kpi-compliance">
+        <Card className="p-3 hover-elevate" data-testid="kpi-team-velocity">
           <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-md" style={{ backgroundColor: `${complianceColor(complianceRate)}15` }}>
-              <Target className="h-3.5 w-3.5" style={{ color: complianceColor(complianceRate) }} />
+            <div className="p-1.5 rounded-md" style={{ backgroundColor: `${velocityScore >= 80 ? COLORS.Green : velocityScore >= 50 ? COLORS.Yellow : COLORS.Red}15` }}>
+              <Zap className="h-3.5 w-3.5" style={{ color: velocityScore >= 80 ? COLORS.Green : velocityScore >= 50 ? COLORS.Yellow : COLORS.Red }} />
             </div>
-            <span className="text-xs text-muted-foreground">Compliance</span>
+            <span className="text-xs text-muted-foreground">Team Speed</span>
           </div>
-          <div className="text-2xl font-bold" style={{ color: complianceColor(complianceRate) }}>
-            {complianceRate}%
-          </div>
-          <div className="text-[11px] text-muted-foreground">vs {Math.round(totalExpectedToDate)}h to-date</div>
+          <div className="text-2xl font-bold" style={{ color: velocityScore >= 80 ? COLORS.Green : velocityScore >= 50 ? COLORS.Yellow : COLORS.Red }}>{velocityScore}%</div>
+          <div className="text-xs text-muted-foreground">{avgHoursPerResource}h avg/member</div>
         </Card>
 
-        <Card className="p-3 hover-elevate" data-testid="kpi-billable">
+        <Card className="p-3 hover-elevate" data-testid="kpi-week-trend">
           <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-md bg-emerald-500/10">
-              <Briefcase className="h-3.5 w-3.5 text-emerald-500" />
+            <div className="p-1.5 rounded-md" style={{ backgroundColor: `${weekOverWeekChange >= 0 ? COLORS.Green : COLORS.Red}15` }}>
+              {weekOverWeekChange > 0 ? (
+                <ArrowUp className="h-3.5 w-3.5" style={{ color: COLORS.Green }} />
+              ) : weekOverWeekChange < 0 ? (
+                <ArrowDown className="h-3.5 w-3.5" style={{ color: COLORS.Red }} />
+              ) : (
+                <Minus className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
             </div>
-            <span className="text-xs text-muted-foreground">Billable</span>
+            <span className="text-xs text-muted-foreground">Week Trend</span>
           </div>
-          <div className="text-2xl font-bold">{billablePct}%</div>
-          <div className="text-[11px] text-muted-foreground">
-            {Math.round(billableHours)}h / {Math.round(nonBillableHours)}h non-bill
+          <div className="text-2xl font-bold flex items-center gap-1" style={{ color: weekOverWeekChange >= 0 ? COLORS.Green : COLORS.Red }}>
+            {weekOverWeekChange > 0 ? "+" : ""}{weekOverWeekChange}%
           </div>
+          <div className="text-xs text-muted-foreground">{Math.round(currentWeekHours)}h this week</div>
         </Card>
 
-        <Card className="p-3 hover-elevate" data-testid="kpi-cost">
+        <Card className="p-3 hover-elevate" data-testid="kpi-daily-avg">
           <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-md bg-violet-500/10">
-              <DollarSign className="h-3.5 w-3.5 text-violet-500" />
+            <div className="p-1.5 rounded-md bg-cyan-500/10">
+              <TrendingUp className="h-3.5 w-3.5 text-cyan-500" />
             </div>
-            <span className="text-xs text-muted-foreground">Est. Cost</span>
+            <span className="text-xs text-muted-foreground">Daily Avg</span>
           </div>
-          <div className="text-2xl font-bold">{formatCurrency(estCost)}</div>
-          <div className="text-[11px] text-muted-foreground">labor this month</div>
+          <div className="text-2xl font-bold">{avgDailyHours}h</div>
+          <div className="text-xs text-muted-foreground">team total/day</div>
         </Card>
 
         <Card className="p-3 hover-elevate" data-testid="kpi-approval">
           <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-md bg-green-500/10">
-              <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+            <div className="p-1.5 rounded-md bg-emerald-500/10">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
             </div>
             <span className="text-xs text-muted-foreground">Approval Rate</span>
           </div>
-          <div className="text-2xl font-bold text-green-600">{approvalRate}%</div>
-          <div className="text-[11px] text-muted-foreground">
-            {approvedEntries.length} ok / {rejectedEntries.length} rej
-          </div>
+          <div className="text-2xl font-bold text-emerald-600">{approvalRate}%</div>
+          <div className="text-xs text-muted-foreground">{approvedEntries.length} approved</div>
         </Card>
 
-        <Card className="p-3 hover-elevate" data-testid="kpi-pending">
+        <Card className="p-3 hover-elevate" data-testid="kpi-missing">
           <div className="flex items-center gap-2 mb-1">
             <div className="p-1.5 rounded-md bg-amber-500/10">
-              <Hourglass className="h-3.5 w-3.5 text-amber-500" />
+              <AlertCircle className="h-3.5 w-3.5 text-amber-500" />
             </div>
-            <span className="text-xs text-muted-foreground">Pending</span>
+            <span className="text-xs text-muted-foreground">Missing</span>
           </div>
-          <div className="text-2xl font-bold text-amber-600">{pendingApprovalAll.length}</div>
-          <div className="text-[11px] text-muted-foreground">
-            {avgTurnaround !== null ? `${avgTurnaround}d avg turnaround` : oldestPending > 0 ? `oldest ${oldestPending}d` : "no backlog"}
-          </div>
-        </Card>
-
-        <Card className="p-3 hover-elevate" data-testid="kpi-trackers">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-md bg-cyan-500/10">
-              <Activity className="h-3.5 w-3.5 text-cyan-500" />
-            </div>
-            <span className="text-xs text-muted-foreground">Active Trackers</span>
-          </div>
-          <div className="text-2xl font-bold">{activeTrackerCount}<span className="text-sm text-muted-foreground">/{activeResources.length}</span></div>
-          <div className="text-[11px] text-muted-foreground">{trackerRate}% logged this month</div>
+          <div className="text-2xl font-bold text-amber-600">{resourcesWithMissingTime.length}</div>
+          <div className="text-xs text-muted-foreground">incomplete</div>
         </Card>
       </div>
 
-      {/* ---- TREND + PIPELINE ---- */}
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2" data-testid="chart-weekly-hours">
           <CardHeader className="pb-2 pt-3 px-4">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
-              6-Week Hours vs Capacity
-              <Badge variant="outline" className="ml-2 text-[10px] h-5">
-                WoW {wowChange >= 0 ? "+" : ""}{wowChange}%
-              </Badge>
+              Weekly Hours Trend
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-3">
-            <div className="h-[220px]">
+            <div className="h-[180px]">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={weeklyTrend}>
+                <BarChart data={weeklyHours}>
                   <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                   <XAxis dataKey="week" fontSize={10} tickLine={false} axisLine={false} />
                   <YAxis fontSize={10} tickLine={false} axisLine={false} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 2px 8px rgb(0 0 0 / 0.1)", fontSize: 12 }}
-                    formatter={(v: number, name: string) => [`${v}h`, name]}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
+                  <Legend wrapperStyle={{ fontSize: '10px' }} />
                   <Bar dataKey="logged" fill={COLORS.Blue} radius={[4, 4, 0, 0]} name="Logged" />
-                  <Line type="monotone" dataKey="target" stroke={COLORS.Green} strokeWidth={2} dot={false} name="Full-Week Capacity" />
-                  <Line type="monotone" dataKey="targetToDate" stroke={COLORS.Yellow} strokeDasharray="4 4" strokeWidth={1.5} dot={false} name="Capacity-to-Date" />
-                </ComposedChart>
+                  <Bar dataKey="target" fill={COLORS.Green} radius={[4, 4, 0, 0]} name="Target" opacity={0.5} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -557,85 +372,25 @@ export function TimesheetReportDashboard() {
           <CardHeader className="pb-2 pt-3 px-4">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <FileCheck className="h-4 w-4 text-muted-foreground" />
-              Approval Pipeline
+              Status Distribution
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-3">
-            {statusPipeline.length === 0 ? (
-              <div className="h-[220px] flex items-center justify-center text-xs text-muted-foreground">
-                No entries this month
-              </div>
-            ) : (
-              <div className="h-[220px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={statusPipeline}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={75}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {statusPipeline.map((entry, i) => (
-                        <Cell key={i} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 2px 8px rgb(0 0 0 / 0.1)", fontSize: 12 }}
-                      formatter={(v: number, name: string) => [`${v} entries`, name]}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 10 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            )}
+            <div className="h-[180px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={statusDistribution} cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={4} dataKey="value">
+                    {statusDistribution.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 8px rgb(0 0 0 / 0.1)', fontSize: '12px' }} />
+                  <Legend wrapperStyle={{ fontSize: '10px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* ---- TOP PROJECTS ---- */}
-      <Card data-testid="chart-top-projects">
-        <CardHeader className="pb-2 pt-3 px-4">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Briefcase className="h-4 w-4 text-muted-foreground" />
-            Top Projects by Hours (this month)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-3">
-          {topProjects.length === 0 ? (
-            <div className="h-[160px] flex items-center justify-center text-xs text-muted-foreground">
-              No project hours this month
-            </div>
-          ) : (
-            <div className="h-[200px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={topProjects} layout="vertical" margin={{ left: 90 }}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} horizontal={false} />
-                  <XAxis type="number" fontSize={10} tickLine={false} axisLine={false} />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    fontSize={10}
-                    tickLine={false}
-                    axisLine={false}
-                    width={85}
-                    tickFormatter={(v: string) => (v.length > 18 ? v.substring(0, 18) + "…" : v)}
-                  />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 8, border: "none", boxShadow: "0 2px 8px rgb(0 0 0 / 0.1)", fontSize: 12 }}
-                    formatter={(v: number, _n, p: any) => [`${v}h • ${p.payload.resourceCount} resources`, p.payload.portfolio]}
-                  />
-                  <Bar dataKey="hours" fill={COLORS.Purple} radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ---- CONTRIBUTORS + AT RISK ---- */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card data-testid="card-top-contributors">
           <CardHeader className="pb-2 pt-3 px-4">
@@ -645,96 +400,77 @@ export function TimesheetReportDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-3">
-            <ScrollArea className="h-[260px]">
+            <ScrollArea className="h-[220px]">
               <div className="space-y-2">
-                {topContributors.length === 0 && (
-                  <div className="text-center py-8 text-sm text-muted-foreground">No hours logged yet this month</div>
-                )}
-                {topContributors.map(r => (
-                  <div
-                    key={r.id}
-                    className="flex items-center gap-3 p-2 rounded-lg border hover-elevate"
-                    data-testid={`row-contributor-${r.id}`}
-                  >
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="text-xs">{getInitials(r.name)}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm truncate">{r.name}</div>
-                      <div className="text-xs text-muted-foreground">{r.department || "No department"}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-right">
-                        <div className="text-xs font-medium">{r.hours}h</div>
-                        <div className="text-[10px] text-muted-foreground">of {r.expected}h</div>
+                {topContributors.map((resource) => {
+                  const compliance = Math.round((resource.hours / 40) * 100);
+                  return (
+                    <div key={resource.id} className="flex items-center gap-3 p-2 rounded-lg border hover-elevate" data-testid={`row-contributor-${resource.id}`}>
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="text-xs">{getInitials(resource.displayName)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm truncate">{resource.displayName}</div>
+                        <div className="text-xs text-muted-foreground">{resource.department || "No department"}</div>
                       </div>
-                      <Badge
-                        variant="secondary"
-                        className="text-[10px] h-5 min-w-[44px] justify-center"
-                        style={{ backgroundColor: `${complianceColor(r.compliance)}15`, color: complianceColor(r.compliance) }}
-                      >
-                        {r.compliance}%
-                      </Badge>
-                      <div className="w-12">
-                        <Progress value={Math.min(100, r.compliance)} className="h-1.5" />
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          <div className="text-xs font-medium">{resource.hours}h</div>
+                        </div>
+                        <Badge variant="secondary" className="text-[10px] h-5" style={{ backgroundColor: `${compliance >= 80 ? COLORS.Green : compliance >= 50 ? COLORS.Yellow : COLORS.Red}15`, color: compliance >= 80 ? COLORS.Green : compliance >= 50 ? COLORS.Yellow : COLORS.Red }}>
+                          {compliance}%
+                        </Badge>
+                        <div className="w-12">
+                          <Progress value={Math.min(100, compliance)} className="h-1.5" />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </ScrollArea>
           </CardContent>
         </Card>
 
-        <Card data-testid="card-at-risk">
+        <Card data-testid="card-missing-submissions">
           <CardHeader className="pb-2 pt-3 px-4">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <AlertCircle className="h-4 w-4 text-amber-500" />
-              Below Pace (under 70% to-date)
+              Missing Submissions
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-3">
-            <ScrollArea className="h-[260px]">
-              {atRiskResources.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-muted-foreground text-sm py-12">
+            <ScrollArea className="h-[220px]">
+              {resourcesWithMissingTime.length === 0 ? (
+                <div className="flex h-full items-center justify-center text-muted-foreground text-sm">
                   <CheckCircle2 className="h-6 w-6 mr-2 text-emerald-500" />
-                  Everyone is on pace
+                  All submissions complete
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {atRiskResources.map(r => (
-                    <div
-                      key={r.id}
-                      className="flex items-center gap-3 p-2 rounded-lg border hover-elevate"
-                      data-testid={`row-at-risk-${r.id}`}
-                    >
-                      <Avatar className="h-8 w-8">
-                        <AvatarFallback className="text-xs">{getInitials(r.name)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">{r.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {r.department || "No department"}
-                          {r.lastEntryDate && (
-                            <span> • last {format(r.lastEntryDate, "MMM d")}</span>
-                          )}
-                          {!r.lastEntryDate && <span> • no entries</span>}
+                  {resourcesWithMissingTime.map((resource) => {
+                    const compliance = Math.round((resource.loggedHours / resource.expectedHours) * 100);
+                    return (
+                      <div key={resource.id} className="flex items-center gap-3 p-2 rounded-lg border hover-elevate" data-testid={`row-missing-${resource.id}`}>
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="text-xs">{getInitials(resource.name)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">{resource.name}</div>
+                          <div className="text-xs text-muted-foreground">{resource.department || "No department"}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right text-xs">
+                            <span className="font-medium">{resource.loggedHours}h</span>
+                            <span className="text-muted-foreground"> / {resource.expectedHours}h</span>
+                          </div>
+                          <Badge variant={compliance >= 50 ? "secondary" : "destructive"} className="text-[10px] h-5">
+                            {compliance}%
+                          </Badge>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-right text-xs">
-                          <span className="font-medium">{r.hours}h</span>
-                          <span className="text-muted-foreground"> / {r.expected}h</span>
-                        </div>
-                        <Badge
-                          variant={r.compliance >= 50 ? "secondary" : "destructive"}
-                          className="text-[10px] h-5 min-w-[44px] justify-center"
-                        >
-                          {r.compliance}%
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </ScrollArea>

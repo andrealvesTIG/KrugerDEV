@@ -11,21 +11,7 @@ const numeric = customType<{ data: number; driverData: string }>({
 import { users } from "./models/auth";
 
 export const PROJECT_STATUSES = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"] as const;
-export const PROJECT_STATUSES_EXTENDED = [...PROJECT_STATUSES, "Billing", "Closed", "On Hold", "Cancelled"] as const;
-
-// Role vocabularies (centralized so handlers, UI dropdowns, and Zod refinements agree)
-export const USER_GLOBAL_ROLES = ["super_admin", "user"] as const;
-export const ORG_MEMBER_ROLES = ["org_admin", "member", "viewer"] as const;
-export const EXTERNAL_SHARE_ROLES = ["viewer", "assignee", "manager"] as const;
-export type UserGlobalRole = (typeof USER_GLOBAL_ROLES)[number];
-export type OrgMemberRole = (typeof ORG_MEMBER_ROLES)[number];
-export type ExternalShareRole = (typeof EXTERNAL_SHARE_ROLES)[number];
-
-// Coerces inbound `numeric` payloads — Postgres `numeric` round-trips as `string`,
-// but forms commonly send a `number`. Accept either; always store as string.
-export const numericString = z
-  .union([z.number(), z.string()])
-  .transform((v) => (typeof v === "number" ? String(v) : v));
+export const PROJECT_STATUSES_EXTENDED = [...PROJECT_STATUSES, "Billing", "Closed"] as const;
 export const PROJECT_HEALTH_VALUES = ["Green", "Yellow", "Red"] as const;
 export const PROJECT_PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
 export const BILLABLE_STATUSES = ["N/A", "On Track", "Waiting for Approval", "Verbal Approval", "Email Approval", "SOW Signed", "PO Received", "Partially Invoiced", "At Risk", "Ready for Invoice", "Critical", "Invoiced"] as const;
@@ -431,6 +417,7 @@ export const organizations = pgTable("organizations", {
   financialTypesConfig: jsonb("financial_scenarios_config").$type<FinancialTypesConfig>(), // AOP/FCST/ACT and custom financial types (column kept for back-compat)
   costItemCategoriesConfig: jsonb("cost_item_categories_config").$type<CostItemCategoriesConfig>(), // Configurable Financial View / Cost Category / Cost Specification hierarchy
   fiscalYearStartMonth: integer("fiscal_year_start_month").default(10).notNull(), // 1..12 calendar month that is M1 of the org's fiscal year (default 10 = October)
+  projectTabSettings: jsonb("project_tab_settings").$type<{ order: string[]; hidden: string[] }>(), // Org-level default order + visibility for project detail tabs
 });
 
 // Organization Members (Join table for users <-> organizations)
@@ -622,6 +609,15 @@ export const projects = pgTable("projects", {
   isDemo: boolean("is_demo").default(false),
   isInternal: boolean("is_internal").default(false),
   timesheetBlocked: boolean("timesheet_blocked").default(false),
+  // Location & Media
+  addressLine1: text("address_line1"),
+  city: text("city"),
+  region: text("region"),
+  country: text("country"),
+  postalCode: text("postal_code"),
+  latitude: numeric("latitude"),
+  longitude: numeric("longitude"),
+  images: jsonb("images").$type<Array<{ url: string; alt?: string }>>().default([]),
 }, (table) => [
   index("projects_org_id_idx").on(table.organizationId),
   index("projects_portfolio_id_idx").on(table.portfolioId),
@@ -1700,11 +1696,31 @@ export const multiYearWbs = pgTable("multi_year_wbs", {
   index("multi_year_wbs_project_id_idx").on(table.projectId),
 ]);
 
+// Intake Types - Categorize intakes (e.g. "Default", "Power BI Request").
+// `behavior` controls special handling: 'standard' = normal intake form,
+// 'powerbi_redirect' = selecting this type sends the user to the Power BI agent
+// instead of creating a normal intake row.
+export const intakeTypes = pgTable("intake_types", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  behavior: text("behavior").notNull().default("standard"), // 'standard' | 'powerbi_redirect'
+  isSystem: boolean("is_system").notNull().default(false), // seeded defaults that cannot be deleted
+  isActive: boolean("is_active").notNull().default(true),
+  position: integer("position").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("intake_types_org_id_idx").on(table.organizationId),
+]);
+
 // Project Intakes (Intake workflow for new project ideas)
 export const projectIntakes = pgTable("project_intakes", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   intakeNumber: text("intake_number"), // Auto-generated intake ID (e.g., "INT-2026-001")
+  intakeTypeId: integer("intake_type_id").references(() => intakeTypes.id, { onDelete: "set null" }),
   workflowId: integer("workflow_id"), // FK to intake_workflows.id (nullable; assigned when org has multiple intake workflows)
   
   // Basic Information (Intake Form tab)
@@ -1718,7 +1734,7 @@ export const projectIntakes = pgTable("project_intakes", {
   programName: text("program_name"), // Stored program name for display
   
   // Workflow state
-  currentStep: text("current_step").default("intake_capture"), // Canonical workflow step key (see intake_workflow_steps.stepKey)
+  currentStep: text("current_step").default("is_backlog"), // Workflow step
   status: text("status").default("draft"), // draft, in_progress, approved, rejected, cancelled
   
   // Step completion tracking
@@ -1783,9 +1799,6 @@ export const intakeWorkflows = pgTable("intake_workflows", {
   isActive: boolean("is_active").default(true),
   creationMode: text("creation_mode").notNull().default("dialog"), // 'dialog' | 'url'
   creationUrl: text("creation_url"),
-  // When set to 'powerbi', selecting this workflow opens the Power BI agent
-  // instead of the standard intake dialog. null = standard intake behavior.
-  agentTarget: text("agent_target"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -1916,7 +1929,6 @@ export const mppImportTasks = pgTable("mpp_import_tasks", {
   actualWorkHours: numeric("actual_work_hours"), // Actual work hours from MPP
   remainingWorkHours: numeric("remaining_work_hours"), // Remaining work hours from MPP
   predecessors: text("predecessors"), // JSON array of predecessor relationships [{predecessorTaskId, type, lagDays}]
-  customFields: jsonb("custom_fields").$type<Record<string, string>>(), // Unmapped CSV columns kept as raw key/value (e.g. Asana "Section")
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -2150,10 +2162,6 @@ export const insertExternalShareSchema = createInsertSchema(externalShares).omit
 export const insertPortfolioSchema = createInsertSchema(portfolios).omit({ id: true, createdAt: true }).extend({
   name: z.string().min(1, "Portfolio name is required"),
 });
-// NOTE: `budget`, `contractTotal` are `numeric` customType that already accepts `number`
-// in TS and converts to string at the driver layer — no manual coercion needed here.
-// `status` is intentionally left as plain text to tolerate legacy values; the
-// canonical list lives in `PROJECT_STATUSES_EXTENDED` for UI dropdowns.
 export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true, updatedAt: true, updatedBy: true, createdBy: true });
 // Risk schema is now an alias for Issue schema with itemType="risk"
 // Extend to handle date strings for escalatedAt field
@@ -2164,10 +2172,7 @@ export const insertRiskSchema = baseRiskSchema.extend({
   // non-risk rows through the risk endpoints.
   itemType: z.literal("risk").default("risk"),
 });
-/** @deprecated Renamed to Portfolio Key Dates. Schema kept for backward compatibility.
- *  NOTE: createMilestone() in storage actually writes to the `tasks` table — this Zod
- *  schema is used only as a request DTO. Storage normalizes the legacy status/priority
- *  vocabulary ("Done"/"Backlog") to canonical TASK_STATUSES values. */
+/** @deprecated Renamed to Portfolio Key Dates. Schema kept for backward compatibility. */
 export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true });
 export const insertPortfolioKeyDateSchema = createInsertSchema(portfolioKeyDates).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true, deletedBy: true, isDemo: true });
 export const updatePortfolioKeyDateSchema = insertPortfolioKeyDateSchema.pick({ title: true, description: true, keyDateType: true, date: true, status: true, completed: true, notes: true }).partial();
@@ -2176,28 +2181,11 @@ const baseIssueSchema = createInsertSchema(issues).omit({ id: true, createdAt: t
 export const insertIssueSchema = baseIssueSchema.extend({
   escalatedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),
   type: issueTypeEnum.default("Bug").optional(),
-  // Pin to "issue" so the shared issues table can't be used to create risk rows
-  // through the issue endpoint (symmetric to insertRiskSchema).
-  itemType: z.literal("issue").default("issue"),
 });
-// Accept "" / null / YYYY-MM-DD / full ISO-8601 datetime. Empty string normalizes to null;
-// datetimes are truncated to their date portion (the underlying `tasks` columns are dates).
-const optionalIsoDate = z
-  .union([
-    z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/, "Date must be ISO YYYY-MM-DD or ISO-8601 datetime"),
-    z.literal(""),
-    z.null(),
-  ])
-  .transform((v) => {
-    if (v === "" || v == null) return null;
-    return v.length > 10 ? v.slice(0, 10) : v;
-  })
-  .nullable()
-  .optional();
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true }).extend({
   durationDays: z.number().min(0).max(36500).nullable().optional(),
-  startDate: optionalIsoDate,
-  endDate: optionalIsoDate,
+  startDate: z.string().nullable().optional(),
+  endDate: z.string().nullable().optional(),
   isOngoing: z.boolean().optional(),
   schedulingMode: z.enum(['auto', 'manual']).optional(),
 });
@@ -2226,6 +2214,7 @@ export const financialLockdownInputSchema = z.object({
 });
 export const insertMultiYearWbsSchema = createInsertSchema(multiYearWbs).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProjectIntakeSchema = createInsertSchema(projectIntakes).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertIntakeTypeSchema = createInsertSchema(intakeTypes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMppImportSchema = createInsertSchema(mppImports).omit({ id: true, createdAt: true, lastSyncedAt: true });
 export const insertMppImportTaskSchema = createInsertSchema(mppImportTasks).omit({ id: true, createdAt: true });
 export const insertChangeRequestSchema = createInsertSchema(changeRequests).omit({ id: true, createdAt: true });
@@ -2239,9 +2228,6 @@ export const insertInvoiceNoteSchema = createInsertSchema(invoiceNotes).omit({ i
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
 export const insertStatusReportHistorySchema = createInsertSchema(statusReportHistory).omit({ id: true, createdAt: true });
 export const insertIntakeWorkflowStepSchema = createInsertSchema(intakeWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertIntakeWorkflowSchema = createInsertSchema(intakeWorkflows).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertProjectWorkflowSchema = createInsertSchema(projectWorkflows).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertProjectWorkflowStepSchema = createInsertSchema(projectWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
 
@@ -2345,6 +2331,8 @@ export type InsertMultiYearWbs = z.infer<typeof insertMultiYearWbsSchema>;
 
 export type ProjectIntake = typeof projectIntakes.$inferSelect;
 export type InsertProjectIntake = z.infer<typeof insertProjectIntakeSchema>;
+export type IntakeType = typeof intakeTypes.$inferSelect;
+export type InsertIntakeType = z.infer<typeof insertIntakeTypeSchema>;
 
 export type MppImport = typeof mppImports.$inferSelect;
 export type InsertMppImport = z.infer<typeof insertMppImportSchema>;
@@ -2381,15 +2369,6 @@ export type InsertStatusReportHistory = z.infer<typeof insertStatusReportHistory
 
 export type IntakeWorkflowStep = typeof intakeWorkflowSteps.$inferSelect;
 export type InsertIntakeWorkflowStep = z.infer<typeof insertIntakeWorkflowStepSchema>;
-
-export type IntakeWorkflow = typeof intakeWorkflows.$inferSelect;
-export type InsertIntakeWorkflow = z.infer<typeof insertIntakeWorkflowSchema>;
-
-export type ProjectWorkflow = typeof projectWorkflows.$inferSelect;
-export type InsertProjectWorkflow = z.infer<typeof insertProjectWorkflowSchema>;
-
-export type ProjectWorkflowStep = typeof projectWorkflowSteps.$inferSelect;
-export type InsertProjectWorkflowStep = z.infer<typeof insertProjectWorkflowStepSchema>;
 
 // API Request/Response Types
 export type CreatePortfolioRequest = InsertPortfolio;
@@ -2616,16 +2595,7 @@ export const customFieldDefinitions = pgTable("custom_field_definitions", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => [
-  // Plain-column partial unique index. Case-insensitive uniqueness is enforced at the
-  // application layer (see storage.assertCustomFieldDefinitionNameUnique). A SQL
-  // expression like `lower(name)` was previously included here, but drizzle-kit and the
-  // Replit deploy migration generator emit malformed operator classes when a partial
-  // unique index mixes mixed-type columns with an expression — see commit history.
-  uniqueIndex("cfd_org_entity_name_active_idx")
-    .on(table.organizationId, table.entityType, table.name)
-    .where(sql`${table.isActive} = true`),
-]);
+});
 
 export const insertCustomFieldDefinitionSchema = createInsertSchema(customFieldDefinitions).omit({
   id: true,
@@ -3631,6 +3601,1179 @@ export const projectAgentLogs = pgTable("project_agent_logs", {
 
 export type ProjectAgentLog = typeof projectAgentLogs.$inferSelect;
 export type InsertProjectAgentLog = typeof projectAgentLogs.$inferInsert;
+
+// === DAILY LOGS (Field Management) ===
+
+export const dailyLogs = pgTable("daily_logs", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  logDate: date("log_date").notNull(),
+  weatherCondition: text("weather_condition"),
+  temperature: text("temperature"),
+  windSpeed: text("wind_speed"),
+  precipitation: text("precipitation"),
+  visitors: text("visitors"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("daily_logs_project_id_idx").on(table.projectId),
+  index("daily_logs_org_id_idx").on(table.organizationId),
+  index("daily_logs_log_date_idx").on(table.logDate),
+  uniqueIndex("daily_logs_project_date_unique").on(table.projectId, table.logDate).where(sql`deleted_at IS NULL`),
+]);
+
+export const insertDailyLogSchema = createInsertSchema(dailyLogs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  deletedBy: true,
+});
+export type DailyLog = typeof dailyLogs.$inferSelect;
+export type InsertDailyLog = z.infer<typeof insertDailyLogSchema>;
+
+export const dailyLogLabor = pgTable("daily_log_labor", {
+  id: serial("id").primaryKey(),
+  dailyLogId: integer("daily_log_id").references(() => dailyLogs.id).notNull(),
+  company: text("company"),
+  trade: text("trade"),
+  headcount: integer("headcount").default(0),
+  hoursWorked: numeric("hours_worked"),
+  notes: text("notes"),
+}, (table) => [
+  index("daily_log_labor_log_id_idx").on(table.dailyLogId),
+]);
+
+export const insertDailyLogLaborSchema = createInsertSchema(dailyLogLabor).omit({
+  id: true,
+});
+export type DailyLogLabor = typeof dailyLogLabor.$inferSelect;
+export type InsertDailyLogLabor = z.infer<typeof insertDailyLogLaborSchema>;
+
+export const dailyLogEquipment = pgTable("daily_log_equipment", {
+  id: serial("id").primaryKey(),
+  dailyLogId: integer("daily_log_id").references(() => dailyLogs.id).notNull(),
+  equipmentName: text("equipment_name").notNull(),
+  quantity: integer("quantity").default(1),
+  hoursUsed: numeric("hours_used"),
+  status: text("status").default("Active"),
+  notes: text("notes"),
+}, (table) => [
+  index("daily_log_equipment_log_id_idx").on(table.dailyLogId),
+]);
+
+export const insertDailyLogEquipmentSchema = createInsertSchema(dailyLogEquipment).omit({
+  id: true,
+});
+export type DailyLogEquipment = typeof dailyLogEquipment.$inferSelect;
+export type InsertDailyLogEquipment = z.infer<typeof insertDailyLogEquipmentSchema>;
+
+// === RFIs (Requests for Information) ===
+export const rfis = pgTable("rfis", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  rfiNumber: text("rfi_number").notNull(),
+  subject: text("subject").notNull(),
+  question: text("question").notNull(),
+  status: text("status").notNull().default("Open"),
+  priority: text("priority").default("Medium"),
+  category: text("category"),
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  assignedToName: text("assigned_to_name"),
+  dueDate: date("due_date"),
+  distributionList: text("distribution_list"),
+  costImpact: text("cost_impact"),
+  scheduleImpact: text("schedule_impact"),
+  references: text("references"),
+  attachments: jsonb("attachments").$type<Array<{ name: string; url: string; size?: number; type?: string }>>(),
+  closedAt: timestamp("closed_at"),
+  closedBy: varchar("closed_by").references(() => users.id),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("rfis_project_id_idx").on(table.projectId),
+  index("rfis_org_id_idx").on(table.organizationId),
+  index("rfis_assigned_to_idx").on(table.assignedTo),
+  index("rfis_status_idx").on(table.status),
+  uniqueIndex("rfis_project_number_unique").on(table.projectId, table.rfiNumber).where(sql`deleted_at IS NULL`),
+]);
+
+export const insertRfiSchema = createInsertSchema(rfis).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  deletedBy: true,
+  closedAt: true,
+  closedBy: true,
+});
+export type Rfi = typeof rfis.$inferSelect;
+export type InsertRfi = z.infer<typeof insertRfiSchema>;
+
+// === RFI Responses ===
+export const rfiResponses = pgTable("rfi_responses", {
+  id: serial("id").primaryKey(),
+  rfiId: integer("rfi_id").references(() => rfis.id).notNull(),
+  responseText: text("response_text").notNull(),
+  isOfficial: boolean("is_official").default(false),
+  attachments: jsonb("attachments").$type<Array<{ name: string; url: string; size?: number; type?: string }>>(),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("rfi_responses_rfi_id_idx").on(table.rfiId),
+]);
+
+export const insertRfiResponseSchema = createInsertSchema(rfiResponses).omit({
+  id: true,
+  createdAt: true,
+});
+export type RfiResponse = typeof rfiResponses.$inferSelect;
+export type InsertRfiResponse = z.infer<typeof insertRfiResponseSchema>;
+
+// === Submittals ===
+export const submittals = pgTable("submittals", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  submittalNumber: text("submittal_number").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  specSection: text("spec_section"),
+  type: text("type").default("Product Data"),
+  status: text("status").notNull().default("Pending"),
+  priority: text("priority").default("Medium"),
+  submittedBy: varchar("submitted_by").references(() => users.id),
+  submittedByName: text("submitted_by_name"),
+  reviewerId: varchar("reviewer_id").references(() => users.id),
+  reviewerName: text("reviewer_name"),
+  submitDate: date("submit_date"),
+  requiredDate: date("required_date"),
+  receivedDate: date("received_date"),
+  reviewedDate: date("reviewed_date"),
+  leadTime: integer("lead_time"),
+  costImpact: text("cost_impact"),
+  scheduleImpact: text("schedule_impact"),
+  attachments: jsonb("attachments").$type<Array<{ name: string; url: string; size?: number; type?: string }>>(),
+  currentRevision: integer("current_revision").default(1),
+  closedAt: timestamp("closed_at"),
+  closedBy: varchar("closed_by").references(() => users.id),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("submittals_project_id_idx").on(table.projectId),
+  index("submittals_org_id_idx").on(table.organizationId),
+  index("submittals_reviewer_id_idx").on(table.reviewerId),
+  index("submittals_status_idx").on(table.status),
+  uniqueIndex("submittals_project_number_unique").on(table.projectId, table.submittalNumber).where(sql`deleted_at IS NULL`),
+]);
+
+export const insertSubmittalSchema = createInsertSchema(submittals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  deletedBy: true,
+  closedAt: true,
+  closedBy: true,
+});
+export type Submittal = typeof submittals.$inferSelect;
+export type InsertSubmittal = z.infer<typeof insertSubmittalSchema>;
+
+// === Submittal Revisions ===
+export const submittalRevisions = pgTable("submittal_revisions", {
+  id: serial("id").primaryKey(),
+  submittalId: integer("submittal_id").references(() => submittals.id).notNull(),
+  revisionNumber: integer("revision_number").notNull(),
+  status: text("status").notNull().default("Pending"),
+  notes: text("notes"),
+  attachments: jsonb("attachments").$type<Array<{ name: string; url: string; size?: number; type?: string }>>(),
+  reviewNotes: text("review_notes"),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedByName: text("reviewed_by_name"),
+  reviewedAt: timestamp("reviewed_at"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("submittal_revisions_submittal_id_idx").on(table.submittalId),
+]);
+
+export const insertSubmittalRevisionSchema = createInsertSchema(submittalRevisions).omit({
+  id: true,
+  createdAt: true,
+  reviewedAt: true,
+});
+export type SubmittalRevision = typeof submittalRevisions.$inferSelect;
+export type InsertSubmittalRevision = z.infer<typeof insertSubmittalRevisionSchema>;
+
+// === Drawing Sets ===
+export const drawingSets = pgTable("drawing_sets", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  discipline: text("discipline").default("General"),
+  description: text("description"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("drawing_sets_project_id_idx").on(table.projectId),
+  index("drawing_sets_org_id_idx").on(table.organizationId),
+  uniqueIndex("drawing_sets_project_name_unique").on(table.projectId, table.name).where(sql`deleted_at IS NULL`),
+]);
+
+export const insertDrawingSetSchema = createInsertSchema(drawingSets).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  deletedBy: true,
+});
+export type DrawingSet = typeof drawingSets.$inferSelect;
+export type InsertDrawingSet = z.infer<typeof insertDrawingSetSchema>;
+
+// === Drawings ===
+export const drawings = pgTable("drawings", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  drawingSetId: integer("drawing_set_id").references(() => drawingSets.id),
+  drawingNumber: text("drawing_number").notNull(),
+  title: text("title").notNull(),
+  discipline: text("discipline").default("General"),
+  status: text("status").notNull().default("Current"),
+  description: text("description"),
+  currentRevisionNumber: integer("current_revision_number").default(0),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("drawings_project_id_idx").on(table.projectId),
+  index("drawings_org_id_idx").on(table.organizationId),
+  index("drawings_discipline_idx").on(table.discipline),
+  index("drawings_status_idx").on(table.status),
+  uniqueIndex("drawings_project_number_unique").on(table.projectId, table.drawingNumber).where(sql`deleted_at IS NULL`),
+]);
+
+export const insertDrawingSchema = createInsertSchema(drawings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  deletedBy: true,
+});
+export type Drawing = typeof drawings.$inferSelect;
+export type InsertDrawing = z.infer<typeof insertDrawingSchema>;
+
+// === Drawing Revisions ===
+export const drawingRevisions = pgTable("drawing_revisions", {
+  id: serial("id").primaryKey(),
+  drawingId: integer("drawing_id").references(() => drawings.id).notNull(),
+  revisionNumber: integer("revision_number").notNull(),
+  version: text("version"),
+  fileUrl: text("file_url").notNull(),
+  fileName: text("file_name").notNull(),
+  fileSize: integer("file_size"),
+  fileType: text("file_type"),
+  thumbnailUrl: text("thumbnail_url"),
+  notes: text("notes"),
+  uploadedBy: varchar("uploaded_by").references(() => users.id),
+  uploadedByName: text("uploaded_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("drawing_revisions_drawing_id_idx").on(table.drawingId),
+  uniqueIndex("drawing_revisions_drawing_rev_unique").on(table.drawingId, table.revisionNumber),
+]);
+
+export const insertDrawingRevisionSchema = createInsertSchema(drawingRevisions).omit({
+  id: true,
+  createdAt: true,
+});
+export type DrawingRevision = typeof drawingRevisions.$inferSelect;
+export type InsertDrawingRevision = z.infer<typeof insertDrawingRevisionSchema>;
+
+// === Drawing Markups ===
+export const drawingMarkups = pgTable("drawing_markups", {
+  id: serial("id").primaryKey(),
+  revisionId: integer("revision_id").references(() => drawingRevisions.id).notNull(),
+  drawingId: integer("drawing_id").references(() => drawings.id).notNull(),
+  label: text("label"),
+  markupData: jsonb("markup_data").$type<Array<{
+    type: string;
+    x: number;
+    y: number;
+    width?: number;
+    height?: number;
+    points?: Array<{ x: number; y: number }>;
+    text?: string;
+    color?: string;
+    strokeWidth?: number;
+  }>>().notNull(),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("drawing_markups_revision_id_idx").on(table.revisionId),
+  index("drawing_markups_drawing_id_idx").on(table.drawingId),
+]);
+
+export const insertDrawingMarkupSchema = createInsertSchema(drawingMarkups).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type DrawingMarkup = typeof drawingMarkups.$inferSelect;
+export type InsertDrawingMarkup = z.infer<typeof insertDrawingMarkupSchema>;
+
+// === Punch List Items ===
+export const punchItems = pgTable("punch_items", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  number: text("number").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  location: text("location"),
+  category: text("category"),
+  priority: text("priority").notNull().default("Medium"),
+  status: text("status").notNull().default("Open"),
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  assignedToName: text("assigned_to_name"),
+  dueDate: date("due_date"),
+  closedAt: timestamp("closed_at"),
+  closedBy: varchar("closed_by").references(() => users.id),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("punch_items_project_id_idx").on(table.projectId),
+  index("punch_items_org_id_idx").on(table.organizationId),
+  index("punch_items_status_idx").on(table.status),
+  index("punch_items_assigned_to_idx").on(table.assignedTo),
+  index("punch_items_category_idx").on(table.category),
+  index("punch_items_priority_idx").on(table.priority),
+  uniqueIndex("punch_items_project_number_uniq").on(table.projectId, table.number),
+]);
+
+export const insertPunchItemSchema = createInsertSchema(punchItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  deletedAt: true,
+  deletedBy: true,
+  closedAt: true,
+  closedBy: true,
+});
+export type PunchItem = typeof punchItems.$inferSelect;
+export type InsertPunchItem = z.infer<typeof insertPunchItemSchema>;
+
+// === Punch Item Status History ===
+export const punchItemStatusHistory = pgTable("punch_item_status_history", {
+  id: serial("id").primaryKey(),
+  punchItemId: integer("punch_item_id").references(() => punchItems.id).notNull(),
+  fromStatus: text("from_status"),
+  toStatus: text("to_status").notNull(),
+  changedBy: varchar("changed_by").references(() => users.id),
+  changedByName: text("changed_by_name"),
+  changedAt: timestamp("changed_at").defaultNow(),
+}, (table) => [
+  index("punch_item_status_history_item_id_idx").on(table.punchItemId),
+]);
+
+export type PunchItemStatusHistory = typeof punchItemStatusHistory.$inferSelect;
+
+// === Punch Item Photos ===
+export const punchItemPhotos = pgTable("punch_item_photos", {
+  id: serial("id").primaryKey(),
+  punchItemId: integer("punch_item_id").references(() => punchItems.id).notNull(),
+  fileUrl: text("file_url").notNull(),
+  fileName: text("file_name"),
+  fileSize: integer("file_size"),
+  photoType: text("photo_type").default("general"),
+  caption: text("caption"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("punch_item_photos_item_id_idx").on(table.punchItemId),
+]);
+
+export const insertPunchItemPhotoSchema = createInsertSchema(punchItemPhotos).omit({
+  id: true,
+  createdAt: true,
+});
+export type PunchItemPhoto = typeof punchItemPhotos.$inferSelect;
+export type InsertPunchItemPhoto = z.infer<typeof insertPunchItemPhotoSchema>;
+
+// === Quality & Safety Module ===
+
+export const inspectionTemplates = pgTable("inspection_templates", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category"),
+  version: integer("version").default(1),
+  isActive: boolean("is_active").default(true),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("inspection_templates_project_id_idx").on(table.projectId),
+  index("inspection_templates_org_id_idx").on(table.organizationId),
+]);
+
+export const insertInspectionTemplateSchema = createInsertSchema(inspectionTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InspectionTemplate = typeof inspectionTemplates.$inferSelect;
+export type InsertInspectionTemplate = z.infer<typeof insertInspectionTemplateSchema>;
+
+export const inspectionTemplateItems = pgTable("inspection_template_items", {
+  id: serial("id").primaryKey(),
+  templateId: integer("template_id").references(() => inspectionTemplates.id).notNull(),
+  section: text("section"),
+  itemText: text("item_text").notNull(),
+  itemType: text("item_type").default("pass_fail"),
+  sortOrder: integer("sort_order").default(0),
+  isRequired: boolean("is_required").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("inspection_template_items_template_id_idx").on(table.templateId),
+]);
+
+export const insertInspectionTemplateItemSchema = createInsertSchema(inspectionTemplateItems).omit({
+  id: true,
+  createdAt: true,
+});
+export type InspectionTemplateItem = typeof inspectionTemplateItems.$inferSelect;
+export type InsertInspectionTemplateItem = z.infer<typeof insertInspectionTemplateItemSchema>;
+
+export const inspections = pgTable("inspections", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  templateId: integer("template_id").references(() => inspectionTemplates.id),
+  number: text("number").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  inspectionType: text("inspection_type"),
+  location: text("location"),
+  status: text("status").notNull().default("Scheduled"),
+  scheduledDate: date("scheduled_date"),
+  completedDate: date("completed_date"),
+  inspectorId: varchar("inspector_id").references(() => users.id),
+  inspectorName: text("inspector_name"),
+  overallResult: text("overall_result"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("inspections_project_id_idx").on(table.projectId),
+  index("inspections_org_id_idx").on(table.organizationId),
+  index("inspections_template_id_idx").on(table.templateId),
+  index("inspections_status_idx").on(table.status),
+  uniqueIndex("inspections_project_number_uniq").on(table.projectId, table.number),
+]);
+
+export const insertInspectionSchema = createInsertSchema(inspections).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type Inspection = typeof inspections.$inferSelect;
+export type InsertInspection = z.infer<typeof insertInspectionSchema>;
+
+export const inspectionResults = pgTable("inspection_results", {
+  id: serial("id").primaryKey(),
+  inspectionId: integer("inspection_id").references(() => inspections.id).notNull(),
+  templateItemId: integer("template_item_id").references(() => inspectionTemplateItems.id),
+  itemText: text("item_text").notNull(),
+  section: text("section"),
+  result: text("result"),
+  notes: text("notes"),
+  photoUrl: text("photo_url"),
+  deficiencyDescription: text("deficiency_description"),
+  correctiveAction: text("corrective_action"),
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  assignedToName: text("assigned_to_name"),
+  dueDate: date("due_date"),
+  resolvedAt: timestamp("resolved_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("inspection_results_inspection_id_idx").on(table.inspectionId),
+]);
+
+export const insertInspectionResultSchema = createInsertSchema(inspectionResults).omit({
+  id: true,
+  createdAt: true,
+});
+export type InspectionResult = typeof inspectionResults.$inferSelect;
+export type InsertInspectionResult = z.infer<typeof insertInspectionResultSchema>;
+
+export const incidents = pgTable("incidents", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  number: text("number").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  incidentDate: timestamp("incident_date"),
+  incidentTime: text("incident_time"),
+  location: text("location"),
+  category: text("category"),
+  severity: text("severity").notNull().default("Minor"),
+  status: text("status").notNull().default("Reported"),
+  injuredParties: text("injured_parties"),
+  witnesses: text("witnesses"),
+  rootCause: text("root_cause"),
+  immediateActions: text("immediate_actions"),
+  investigationNotes: text("investigation_notes"),
+  investigationStatus: text("investigation_status").default("Pending"),
+  reportedBy: varchar("reported_by").references(() => users.id),
+  reportedByName: text("reported_by_name"),
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  assignedToName: text("assigned_to_name"),
+  closedAt: timestamp("closed_at"),
+  closedBy: varchar("closed_by").references(() => users.id),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("incidents_project_id_idx").on(table.projectId),
+  index("incidents_org_id_idx").on(table.organizationId),
+  index("incidents_status_idx").on(table.status),
+  index("incidents_severity_idx").on(table.severity),
+  uniqueIndex("incidents_project_number_uniq").on(table.projectId, table.number),
+]);
+
+export const insertIncidentSchema = createInsertSchema(incidents).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type Incident = typeof incidents.$inferSelect;
+export type InsertIncident = z.infer<typeof insertIncidentSchema>;
+
+export const incidentActions = pgTable("incident_actions", {
+  id: serial("id").primaryKey(),
+  incidentId: integer("incident_id").references(() => incidents.id).notNull(),
+  actionType: text("action_type").notNull().default("Corrective"),
+  description: text("description").notNull(),
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  assignedToName: text("assigned_to_name"),
+  dueDate: date("due_date"),
+  status: text("status").notNull().default("Open"),
+  completedAt: timestamp("completed_at"),
+  completedBy: varchar("completed_by").references(() => users.id),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("incident_actions_incident_id_idx").on(table.incidentId),
+  index("incident_actions_status_idx").on(table.status),
+]);
+
+export const insertIncidentActionSchema = createInsertSchema(incidentActions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type IncidentAction = typeof incidentActions.$inferSelect;
+export type InsertIncidentAction = z.infer<typeof insertIncidentActionSchema>;
+
+export const observations = pgTable("observations", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  number: text("number").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category").notNull().default("Safety"),
+  observationType: text("observation_type").notNull().default("Negative"),
+  location: text("location"),
+  severity: text("severity").default("Low"),
+  status: text("status").notNull().default("Open"),
+  photoUrl: text("photo_url"),
+  correctiveAction: text("corrective_action"),
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  assignedToName: text("assigned_to_name"),
+  dueDate: date("due_date"),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: varchar("resolved_by").references(() => users.id),
+  observedBy: varchar("observed_by").references(() => users.id),
+  observedByName: text("observed_by_name"),
+  observedDate: date("observed_date"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("observations_project_id_idx").on(table.projectId),
+  index("observations_org_id_idx").on(table.organizationId),
+  index("observations_category_idx").on(table.category),
+  index("observations_status_idx").on(table.status),
+  uniqueIndex("observations_project_number_uniq").on(table.projectId, table.number),
+]);
+
+export const insertObservationSchema = createInsertSchema(observations).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type Observation = typeof observations.$inferSelect;
+export type InsertObservation = z.infer<typeof insertObservationSchema>;
+
+export const observationActions = pgTable("observation_actions", {
+  id: serial("id").primaryKey(),
+  observationId: integer("observation_id").references(() => observations.id).notNull(),
+  actionType: text("action_type").notNull().default("Corrective"),
+  description: text("description").notNull(),
+  assignedTo: varchar("assigned_to").references(() => users.id),
+  assignedToName: text("assigned_to_name"),
+  dueDate: date("due_date"),
+  status: text("status").notNull().default("Open"),
+  completedAt: timestamp("completed_at"),
+  completedBy: varchar("completed_by").references(() => users.id),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("observation_actions_observation_id_idx").on(table.observationId),
+  index("observation_actions_status_idx").on(table.status),
+]);
+
+export const insertObservationActionSchema = createInsertSchema(observationActions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type ObservationAction = typeof observationActions.$inferSelect;
+export type InsertObservationAction = z.infer<typeof insertObservationActionSchema>;
+
+// ===================== BIDDING & PRECONSTRUCTION =====================
+
+export const vendors = pgTable("vendors", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  companyName: text("company_name").notNull(),
+  contactName: text("contact_name"),
+  email: text("email"),
+  phone: text("phone"),
+  address: text("address"),
+  city: text("city"),
+  state: text("state"),
+  zipCode: text("zip_code"),
+  website: text("website"),
+  tradeSpecialty: text("trade_specialty"),
+  licenseNumber: text("license_number"),
+  insuranceExpiry: date("insurance_expiry"),
+  bondingCapacity: text("bonding_capacity"),
+  status: text("status").notNull().default("Active"),
+  rating: integer("rating"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("vendors_organization_id_idx").on(table.organizationId),
+  index("vendors_status_idx").on(table.status),
+  index("vendors_trade_specialty_idx").on(table.tradeSpecialty),
+]);
+
+export const insertVendorSchema = createInsertSchema(vendors).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type Vendor = typeof vendors.$inferSelect;
+export type InsertVendor = z.infer<typeof insertVendorSchema>;
+
+export const vendorPrequalifications = pgTable("vendor_prequalifications", {
+  id: serial("id").primaryKey(),
+  vendorId: integer("vendor_id").references(() => vendors.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  safetyRating: integer("safety_rating"),
+  financialRating: integer("financial_rating"),
+  qualityRating: integer("quality_rating"),
+  experienceYears: integer("experience_years"),
+  emrRate: text("emr_rate"),
+  osha300Log: boolean("osha_300_log").default(false),
+  insuranceCertificate: boolean("insurance_certificate").default(false),
+  bondingLetter: boolean("bonding_letter").default(false),
+  references: jsonb("references"),
+  overallScore: integer("overall_score"),
+  qualificationStatus: text("qualification_status").notNull().default("Pending"),
+  reviewedBy: varchar("reviewed_by").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("vendor_prequalifications_vendor_id_idx").on(table.vendorId),
+  index("vendor_prequalifications_org_id_idx").on(table.organizationId),
+  index("vendor_prequalifications_status_idx").on(table.qualificationStatus),
+]);
+
+export const insertVendorPrequalificationSchema = createInsertSchema(vendorPrequalifications).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type VendorPrequalification = typeof vendorPrequalifications.$inferSelect;
+export type InsertVendorPrequalification = z.infer<typeof insertVendorPrequalificationSchema>;
+export type VendorWithPrequalification = Vendor & { latestPrequalification: VendorPrequalification | null };
+
+export const bidPackages = pgTable("bid_packages", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  number: text("number").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  tradeCategory: text("trade_category"),
+  scope: text("scope"),
+  estimatedBudget: text("estimated_budget"),
+  dueDate: date("due_date"),
+  prebidDate: date("prebid_date"),
+  status: text("status").notNull().default("Draft"),
+  awardedVendorId: integer("awarded_vendor_id").references(() => vendors.id),
+  awardedAmount: text("awarded_amount"),
+  awardedDate: date("awarded_date"),
+  documents: text("documents"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+}, (table) => [
+  index("bid_packages_project_id_idx").on(table.projectId),
+  index("bid_packages_org_id_idx").on(table.organizationId),
+  index("bid_packages_status_idx").on(table.status),
+  uniqueIndex("bid_packages_project_number_uniq").on(table.projectId, table.number),
+]);
+
+export const insertBidPackageSchema = createInsertSchema(bidPackages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type BidPackage = typeof bidPackages.$inferSelect;
+export type InsertBidPackage = z.infer<typeof insertBidPackageSchema>;
+
+export const bidInvitations = pgTable("bid_invitations", {
+  id: serial("id").primaryKey(),
+  bidPackageId: integer("bid_package_id").references(() => bidPackages.id).notNull(),
+  vendorId: integer("vendor_id").references(() => vendors.id).notNull(),
+  status: text("status").notNull().default("Invited"),
+  invitedAt: timestamp("invited_at").defaultNow(),
+  respondedAt: timestamp("responded_at"),
+  declineReason: text("decline_reason"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("bid_invitations_bid_package_id_idx").on(table.bidPackageId),
+  index("bid_invitations_vendor_id_idx").on(table.vendorId),
+  uniqueIndex("bid_invitations_package_vendor_uniq").on(table.bidPackageId, table.vendorId),
+]);
+
+export const insertBidInvitationSchema = createInsertSchema(bidInvitations).omit({
+  id: true,
+  createdAt: true,
+  invitedAt: true,
+});
+export type BidInvitation = typeof bidInvitations.$inferSelect;
+export type InsertBidInvitation = z.infer<typeof insertBidInvitationSchema>;
+
+export const bids = pgTable("bids", {
+  id: serial("id").primaryKey(),
+  bidPackageId: integer("bid_package_id").references(() => bidPackages.id).notNull(),
+  vendorId: integer("vendor_id").references(() => vendors.id).notNull(),
+  totalAmount: text("total_amount").notNull(),
+  alternateAmount: text("alternate_amount"),
+  bondIncluded: boolean("bond_included").default(false),
+  submittedAt: timestamp("submitted_at").defaultNow(),
+  notes: text("notes"),
+  exclusions: text("exclusions"),
+  clarifications: text("clarifications"),
+  validUntil: date("valid_until"),
+  status: text("status").notNull().default("Submitted"),
+  evaluationScore: integer("evaluation_score"),
+  evaluationNotes: text("evaluation_notes"),
+  isRecommended: boolean("is_recommended").default(false),
+  attachments: text("attachments"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("bids_bid_package_id_idx").on(table.bidPackageId),
+  index("bids_vendor_id_idx").on(table.vendorId),
+  index("bids_status_idx").on(table.status),
+  uniqueIndex("bids_package_vendor_uniq").on(table.bidPackageId, table.vendorId),
+]);
+
+export const insertBidSchema = createInsertSchema(bids).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  submittedAt: true,
+});
+export type Bid = typeof bids.$inferSelect;
+export type InsertBid = z.infer<typeof insertBidSchema>;
+
+export const bidLineItems = pgTable("bid_line_items", {
+  id: serial("id").primaryKey(),
+  bidId: integer("bid_id").references(() => bids.id).notNull(),
+  bidPackageId: integer("bid_package_id").references(() => bidPackages.id).notNull(),
+  description: text("description").notNull(),
+  quantity: text("quantity"),
+  unit: text("unit"),
+  unitPrice: text("unit_price"),
+  totalPrice: text("total_price"),
+  category: text("category"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("bid_line_items_bid_id_idx").on(table.bidId),
+  index("bid_line_items_bid_package_id_idx").on(table.bidPackageId),
+]);
+
+export const insertBidLineItemSchema = createInsertSchema(bidLineItems).omit({
+  id: true,
+  createdAt: true,
+});
+export type BidLineItem = typeof bidLineItems.$inferSelect;
+export type InsertBidLineItem = z.infer<typeof insertBidLineItemSchema>;
+
+// ============ CHANGE ORDERS (Construction Financial Management) ============
+
+export const changeOrders = pgTable("change_orders", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  changeOrderNumber: text("change_order_number"),
+  title: text("title").notNull(),
+  description: text("description"),
+  tier: text("tier").default("PCO").notNull(),
+  status: text("status").default("Draft").notNull(),
+  reasonCode: text("reason_code"),
+  costImpact: numeric("cost_impact").default("0"),
+  scheduleImpactDays: integer("schedule_impact_days").default(0),
+  originalContractAmount: numeric("original_contract_amount").default("0"),
+  revisedContractAmount: numeric("revised_contract_amount").default("0"),
+  requestedBy: text("requested_by"),
+  requestedDate: date("requested_date"),
+  reviewedBy: text("reviewed_by"),
+  reviewedDate: date("reviewed_date"),
+  approvedBy: text("approved_by"),
+  approvedDate: date("approved_date"),
+  promotedFrom: integer("promoted_from"),
+  notes: text("notes"),
+  documents: text("documents"),
+  attachments: text("attachments"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
+}, (table) => [
+  index("change_orders_project_id_idx").on(table.projectId),
+  index("change_orders_tier_idx").on(table.tier),
+  index("change_orders_status_idx").on(table.status),
+]);
+
+export const changeOrderLineItems = pgTable("change_order_line_items", {
+  id: serial("id").primaryKey(),
+  changeOrderId: integer("change_order_id").references(() => changeOrders.id).notNull(),
+  costCode: text("cost_code"),
+  description: text("description").notNull(),
+  quantity: numeric("quantity").default("1"),
+  unitPrice: numeric("unit_price").default("0"),
+  totalPrice: numeric("total_price").default("0"),
+  category: text("category"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("change_order_line_items_co_id_idx").on(table.changeOrderId),
+]);
+
+export const insertChangeOrderSchema = createInsertSchema(changeOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type ChangeOrder = typeof changeOrders.$inferSelect;
+export type InsertChangeOrder = z.infer<typeof insertChangeOrderSchema>;
+
+export const insertChangeOrderLineItemSchema = createInsertSchema(changeOrderLineItems).omit({
+  id: true,
+  createdAt: true,
+});
+export type ChangeOrderLineItem = typeof changeOrderLineItems.$inferSelect;
+export type InsertChangeOrderLineItem = z.infer<typeof insertChangeOrderLineItemSchema>;
+
+// ============ CONSTRUCTION INVOICES (Payment Applications) ============
+
+export const constructionInvoices = pgTable("construction_invoices", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  invoiceNumber: text("invoice_number"),
+  title: text("title").notNull(),
+  description: text("description"),
+  contractAmount: numeric("contract_amount").default("0"),
+  totalAmount: numeric("total_amount").default("0"),
+  previousBilled: numeric("previous_billed").default("0"),
+  currentBilled: numeric("current_billed").default("0"),
+  balanceToFinish: numeric("balance_to_finish").default("0"),
+  retainage: numeric("retainage").default("0"),
+  status: text("status").default("Draft").notNull(),
+  periodFrom: date("period_from"),
+  periodTo: date("period_to"),
+  submittedDate: date("submitted_date"),
+  approvedDate: date("approved_date"),
+  paidDate: date("paid_date"),
+  paidAmount: numeric("paid_amount"),
+  vendorName: text("vendor_name"),
+  vendorEmail: text("vendor_email"),
+  notes: text("notes"),
+  documents: text("documents"),
+  attachments: text("attachments"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
+}, (table) => [
+  index("construction_invoices_project_id_idx").on(table.projectId),
+  index("construction_invoices_status_idx").on(table.status),
+]);
+
+export const constructionInvoiceLineItems = pgTable("construction_invoice_line_items", {
+  id: serial("id").primaryKey(),
+  invoiceId: integer("invoice_id").references(() => constructionInvoices.id).notNull(),
+  costCode: text("cost_code"),
+  description: text("description").notNull(),
+  scheduledValue: numeric("scheduled_value").default("0"),
+  previousBilled: numeric("previous_billed").default("0"),
+  currentBilled: numeric("current_billed").default("0"),
+  balanceToFinish: numeric("balance_to_finish").default("0"),
+  percentComplete: numeric("percent_complete").default("0"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("construction_invoice_line_items_inv_id_idx").on(table.invoiceId),
+]);
+
+export const insertConstructionInvoiceSchema = createInsertSchema(constructionInvoices).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type ConstructionInvoice = typeof constructionInvoices.$inferSelect;
+export type InsertConstructionInvoice = z.infer<typeof insertConstructionInvoiceSchema>;
+
+export const insertConstructionInvoiceLineItemSchema = createInsertSchema(constructionInvoiceLineItems).omit({
+  id: true,
+  createdAt: true,
+});
+export type ConstructionInvoiceLineItem = typeof constructionInvoiceLineItems.$inferSelect;
+export type InsertConstructionInvoiceLineItem = z.infer<typeof insertConstructionInvoiceLineItemSchema>;
+
+// === MEETINGS MODULE ===
+
+export const meetings = pgTable("meetings", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  meetingNumber: text("meeting_number"),
+  title: text("title").notNull(),
+  description: text("description"),
+  meetingType: text("meeting_type").default("General"),
+  status: text("status").default("Scheduled").notNull(),
+  date: date("date").notNull(),
+  startTime: text("start_time"),
+  endTime: text("end_time"),
+  location: text("location"),
+  attendees: text("attendees"),
+  minutesNotes: text("minutes_notes"),
+  minutesRecordedAt: timestamp("minutes_recorded_at"),
+  minutesRecordedBy: varchar("minutes_recorded_by").references(() => users.id),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
+}, (table) => [
+  index("meetings_project_id_idx").on(table.projectId),
+  index("meetings_date_idx").on(table.date),
+  uniqueIndex("meetings_project_number_unique").on(table.projectId, table.meetingNumber),
+]);
+
+export const meetingAgendaItems = pgTable("meeting_agenda_items", {
+  id: serial("id").primaryKey(),
+  meetingId: integer("meeting_id").references(() => meetings.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  presenter: text("presenter"),
+  duration: integer("duration"),
+  notes: text("notes"),
+  sortOrder: integer("sort_order").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("meeting_agenda_items_meeting_id_idx").on(table.meetingId),
+]);
+
+export const meetingActionItems = pgTable("meeting_action_items", {
+  id: serial("id").primaryKey(),
+  meetingId: integer("meeting_id").references(() => meetings.id).notNull(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  assignee: text("assignee"),
+  assigneeId: varchar("assignee_id").references(() => users.id),
+  dueDate: date("due_date"),
+  status: text("status").default("Open").notNull(),
+  priority: text("priority").default("Medium"),
+  completedAt: timestamp("completed_at"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("meeting_action_items_meeting_id_idx").on(table.meetingId),
+  index("meeting_action_items_project_id_idx").on(table.projectId),
+  index("meeting_action_items_status_idx").on(table.status),
+]);
+
+export const insertMeetingSchema = createInsertSchema(meetings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type Meeting = typeof meetings.$inferSelect;
+export type InsertMeeting = z.infer<typeof insertMeetingSchema>;
+
+export const insertMeetingAgendaItemSchema = createInsertSchema(meetingAgendaItems).omit({
+  id: true,
+  createdAt: true,
+});
+export type MeetingAgendaItem = typeof meetingAgendaItems.$inferSelect;
+export type InsertMeetingAgendaItem = z.infer<typeof insertMeetingAgendaItemSchema>;
+
+export const insertMeetingActionItemSchema = createInsertSchema(meetingActionItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type MeetingActionItem = typeof meetingActionItems.$inferSelect;
+export type InsertMeetingActionItem = z.infer<typeof insertMeetingActionItemSchema>;
+
+export const meetingMinutes = pgTable("meeting_minutes", {
+  id: serial("id").primaryKey(),
+  meetingId: integer("meeting_id").references(() => meetings.id).notNull(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  content: text("content"),
+  recordedBy: varchar("recorded_by").references(() => users.id),
+  recordedByName: text("recorded_by_name"),
+  distributedAt: timestamp("distributed_at"),
+  distributedTo: text("distributed_to"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("meeting_minutes_meeting_id_idx").on(table.meetingId),
+  uniqueIndex("meeting_minutes_meeting_unique").on(table.meetingId),
+]);
+
+export const insertMeetingMinutesSchema = createInsertSchema(meetingMinutes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type MeetingMinutes = typeof meetingMinutes.$inferSelect;
+export type InsertMeetingMinutes = z.infer<typeof insertMeetingMinutesSchema>;
+
+// === CORRESPONDENCE MODULE ===
+
+export const correspondence = pgTable("correspondence", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  correspondenceNumber: text("correspondence_number"),
+  type: text("type").default("Letter").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body"),
+  fromName: text("from_name"),
+  fromEmail: text("from_email"),
+  toName: text("to_name"),
+  toEmail: text("to_email"),
+  date: date("date").notNull(),
+  status: text("status").default("Draft").notNull(),
+  priority: text("priority").default("Normal"),
+  attachments: text("attachments"),
+  notes: text("notes"),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
+}, (table) => [
+  index("correspondence_project_id_idx").on(table.projectId),
+  index("correspondence_type_idx").on(table.type),
+  index("correspondence_date_idx").on(table.date),
+  uniqueIndex("correspondence_project_number_unique").on(table.projectId, table.correspondenceNumber),
+]);
+
+export const insertCorrespondenceSchema = createInsertSchema(correspondence).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type Correspondence = typeof correspondence.$inferSelect;
+export type InsertCorrespondence = z.infer<typeof insertCorrespondenceSchema>;
 
 export const blogPosts = pgTable("blog_posts", {
   id: serial("id").primaryKey(),

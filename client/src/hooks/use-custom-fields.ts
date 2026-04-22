@@ -1,19 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { CustomFieldDefinition, ProjectCustomFieldValue, TaskCustomFieldValue, ResourceCustomFieldValue, InsertCustomFieldDefinition } from "@shared/schema";
 
-async function throwServerError(res: Response, fallback: string): Promise<never> {
-  let message = fallback;
-  try {
-    const body = await res.json();
-    if (body && typeof body.message === 'string' && body.message.trim()) {
-      message = body.message;
-    }
-  } catch {
-    // Response was not JSON; keep fallback message.
-  }
-  throw new Error(message);
-}
-
 export function useCustomFieldDefinitions(organizationId: number | undefined | null) {
   return useQuery<CustomFieldDefinition[]>({
     queryKey: [`/api/organizations/${organizationId}/custom-fields`],
@@ -31,7 +18,7 @@ export function useCreateCustomFieldDefinition() {
         body: JSON.stringify(data),
         credentials: "include",
       });
-      if (!res.ok) await throwServerError(res, "Failed to create custom field");
+      if (!res.ok) throw new Error("Failed to create custom field");
       return res.json() as Promise<CustomFieldDefinition>;
     },
     onSuccess: (_, variables) => {
@@ -50,7 +37,7 @@ export function useUpdateCustomFieldDefinition() {
         body: JSON.stringify(data),
         credentials: "include",
       });
-      if (!res.ok) await throwServerError(res, "Failed to update custom field");
+      if (!res.ok) throw new Error("Failed to update custom field");
       return res.json() as Promise<CustomFieldDefinition>;
     },
     onSuccess: (_, variables) => {
@@ -67,7 +54,7 @@ export function useDeleteCustomFieldDefinition() {
         method: "DELETE",
         credentials: "include",
       });
-      if (!res.ok) await throwServerError(res, "Failed to delete custom field");
+      if (!res.ok) throw new Error("Failed to delete custom field");
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [`/api/organizations/${variables.organizationId}/custom-fields`] });

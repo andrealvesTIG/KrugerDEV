@@ -13,7 +13,6 @@ import {
   timesheetEntries, resourceSkills, resourceAvailability,
   portfolioRiskAssessments, portfolioKeyDates,
   legacyRisks, legacyRiskChangeLogs, legacyRiskResourceAssignments,
-  projectWorkflows,
   type Project, type InsertProject, type UpdateProjectRequest,
   type Risk, type InsertRisk, type UpdateRiskRequest,
   type Milestone, type InsertMilestone, type UpdateMilestoneRequest,
@@ -22,24 +21,6 @@ import {
   type RecycleBinItem, type RecycleBinItemType,
 } from "@shared/schema";
 import { eq, and, desc, or, isNull, isNotNull, inArray, sql } from "drizzle-orm";
-
-// Map legacy milestone status vocabulary ("Backlog"/"Done"/"Delayed") onto the canonical
-// TASK_STATUSES vocabulary used by the underlying `tasks` table.
-function normalizeMilestoneStatus(
-  status: string | null | undefined,
-  completed: boolean,
-): string {
-  if (!status) return completed ? 'Completed' : 'Not Started';
-  // Only normalize the legacy vocabulary that is incompatible with TASK_STATUSES.
-  // "Delayed" (and any other user-chosen value) is intentionally passed through so
-  // explicit user intent is never silently overwritten.
-  const map: Record<string, string> = {
-    'Done': 'Completed',
-    'Backlog': 'Not Started',
-    'To Do': 'Not Started',
-  };
-  return map[status] ?? status;
-}
 
 export async function getProjects(organizationId?: number, portfolioId?: number, isInternal?: boolean, options?: { limit?: number; offset?: number }): Promise<Project[]> {
   const conditions = [isNull(projects.deletedAt)];
@@ -64,25 +45,9 @@ export async function getProject(id: number): Promise<Project | undefined> {
 }
 
 export async function createProject(project: InsertProject): Promise<Project> {
-  let workflowId: number | null = project.workflowId ?? null;
-  if (project.organizationId) {
-    if (workflowId != null) {
-      const [wf] = await db.select().from(projectWorkflows)
-        .where(and(eq(projectWorkflows.id, workflowId), eq(projectWorkflows.organizationId, project.organizationId)));
-      if (!wf) {
-        throw new Error("Invalid workflowId for this organization");
-      }
-    } else {
-      const { ensureDefaultProjectWorkflow } = await import("./intakeStorage");
-      const def = await ensureDefaultProjectWorkflow(project.organizationId);
-      workflowId = def.id;
-    }
-  }
-
   const [newProject] = await db.insert(projects).values({
     ...project,
     portfolioId: project.portfolioId || null,
-    workflowId,
   }).returning();
   return newProject;
 }
@@ -224,7 +189,7 @@ export async function createMilestone(milestone: InsertMilestone): Promise<Miles
     endDate: milestone.dueDate,
     baselineEndDate: milestone.baselineDueDate ?? null,
     actualEndDate: milestone.actualCompletionDate ?? null,
-    status: normalizeMilestoneStatus(milestone.status, milestone.completed ?? false),
+    status: milestone.status ?? (milestone.completed ? 'Done' : 'Not Started'),
     progress: milestone.completed ? 100 : 0,
     assignee: milestone.assignee ?? null,
     ownerId: milestone.ownerId ?? null,
@@ -251,7 +216,7 @@ export async function updateMilestone(id: number, updates: UpdateMilestoneReques
   if (updates.baselineDueDate !== undefined) taskUpdates.baselineEndDate = updates.baselineDueDate;
   if (updates.actualCompletionDate !== undefined) taskUpdates.actualEndDate = updates.actualCompletionDate;
   if (updates.startDate !== undefined) taskUpdates.startDate = updates.startDate;
-  if (updates.status !== undefined) taskUpdates.status = normalizeMilestoneStatus(updates.status, updates.completed ?? false);
+  if (updates.status !== undefined) taskUpdates.status = updates.status;
   if (updates.priority !== undefined) taskUpdates.priority = updates.priority;
   if (updates.assignee !== undefined) taskUpdates.assignee = updates.assignee;
   if (updates.ownerId !== undefined) taskUpdates.ownerId = updates.ownerId;
@@ -266,7 +231,7 @@ export async function updateMilestone(id: number, updates: UpdateMilestoneReques
   if (updates.completed !== undefined) {
     taskUpdates.progress = updates.completed ? 100 : 0;
     if (updates.status === undefined) {
-      taskUpdates.status = updates.completed ? 'Completed' : 'Not Started';
+      taskUpdates.status = updates.completed ? 'Done' : 'Not Started';
     }
     if (updates.completed && updates.actualCompletionDate === undefined) {
       taskUpdates.actualEndDate = new Date();

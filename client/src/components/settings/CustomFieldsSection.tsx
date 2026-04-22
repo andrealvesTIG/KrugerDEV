@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Loader2, Trash2, FileText, Pencil, Plus, Check, FolderKanban, ListTodo, Users, X } from "lucide-react";
+import { Loader2, Trash2, FileText, Pencil, Plus, Check, FolderKanban, ListTodo, Users } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -48,8 +48,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
   const [entityType, setEntityType] = useState<string>("project");
   const [description, setDescription] = useState("");
   const [isRequired, setIsRequired] = useState(false);
-  const [optionsList, setOptionsList] = useState<string[]>([]);
-  const [optionDraft, setOptionDraft] = useState("");
+  const [options, setOptions] = useState("");
 
   const filteredFields = useMemo(() =>
     fields.filter(f => (f.entityType || 'project') === activeEntityTab),
@@ -62,8 +61,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
     setEntityType(activeEntityTab);
     setDescription("");
     setIsRequired(false);
-    setOptionsList([]);
-    setOptionDraft("");
+    setOptions("");
     setEditingField(null);
   };
 
@@ -74,24 +72,8 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
     setEntityType(field.entityType || 'project');
     setDescription(field.description || "");
     setIsRequired(field.isRequired ?? false);
-    setOptionsList(Array.isArray(field.options) ? (field.options as string[]) : []);
-    setOptionDraft("");
+    setOptions(field.options ? (field.options as string[]).join(", ") : "");
     setShowAddDialog(true);
-  };
-
-  const addOption = () => {
-    const trimmed = optionDraft.trim();
-    if (!trimmed) return;
-    if (optionsList.some(o => o.toLowerCase() === trimmed.toLowerCase())) {
-      toast({ title: "Duplicate", description: "That option already exists", variant: "destructive" });
-      return;
-    }
-    setOptionsList([...optionsList, trimmed]);
-    setOptionDraft("");
-  };
-
-  const removeOption = (index: number) => {
-    setOptionsList(optionsList.filter((_, i) => i !== index));
   };
 
   const handleSave = async () => {
@@ -100,12 +82,9 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
       return;
     }
 
-    const isOptionType = fieldType === "select" || fieldType === "multiselect";
-    if (isOptionType && optionsList.length === 0) {
-      toast({ title: "Error", description: "Add at least one option", variant: "destructive" });
-      return;
-    }
-    const optionsArray = isOptionType ? optionsList : null;
+    const optionsArray = (fieldType === "select" || fieldType === "multiselect") && options.trim()
+      ? options.split(",").map(o => o.trim()).filter(Boolean)
+      : null;
 
     try {
       if (editingField) {
@@ -136,10 +115,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
       setShowAddDialog(false);
       resetForm();
     } catch (error) {
-      const message = error instanceof Error && error.message
-        ? error.message
-        : "Failed to save custom field";
-      toast({ title: "Error", description: message, variant: "destructive" });
+      toast({ title: "Error", description: "Failed to save custom field", variant: "destructive" });
     }
   };
 
@@ -150,10 +126,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
       toast({ title: "Deleted", description: "Custom field removed" });
       setDeleteField(null);
     } catch (error) {
-      const message = error instanceof Error && error.message
-        ? error.message
-        : "Failed to delete custom field";
-      toast({ title: "Error", description: message, variant: "destructive" });
+      toast({ title: "Error", description: "Failed to delete custom field", variant: "destructive" });
     }
   };
 
@@ -334,57 +307,14 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
             </div>
             {(fieldType === "select" || fieldType === "multiselect") && (
               <div className="space-y-2">
-                <Label htmlFor="field-options">Options</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="field-options"
-                    value={optionDraft}
-                    onChange={(e) => setOptionDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addOption();
-                      }
-                    }}
-                    placeholder="Type an option and press Enter"
-                    data-testid="input-field-option-draft"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={addOption}
-                    disabled={!optionDraft.trim()}
-                    data-testid="button-add-option"
-                  >
-                    Add
-                  </Button>
-                </div>
-                {optionsList.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-1" data-testid="list-field-options">
-                    {optionsList.map((opt, idx) => (
-                      <Badge
-                        key={`${opt}-${idx}`}
-                        variant="secondary"
-                        className="pl-2 pr-1 py-1 gap-1"
-                        data-testid={`option-chip-${idx}`}
-                      >
-                        <span className="break-all">{opt}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeOption(idx)}
-                          className="rounded-sm hover:bg-muted-foreground/20 p-0.5"
-                          aria-label={`Remove ${opt}`}
-                          data-testid={`button-remove-option-${idx}`}
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Options can contain commas and other punctuation.
-                </p>
+                <Label htmlFor="field-options">Options (comma-separated)</Label>
+                <Input
+                  id="field-options"
+                  value={options}
+                  onChange={(e) => setOptions(e.target.value)}
+                  placeholder="Option 1, Option 2, Option 3"
+                  data-testid="input-field-options"
+                />
               </div>
             )}
             <div className="space-y-2">

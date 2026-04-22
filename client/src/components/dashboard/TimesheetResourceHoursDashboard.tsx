@@ -14,7 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Loader2, Clock, Users, TrendingUp, Target, BarChart3, AlertCircle, CheckCircle2, Eye } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, CartesianGrid, PieChart, Pie, Cell } from "recharts";
-import { format, subMonths, startOfMonth, endOfMonth, isWeekend } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth } from "date-fns";
 
 const COLORS = {
   Green: "#10b981",
@@ -64,6 +64,9 @@ export function TimesheetResourceHoursDashboard() {
   const startDate = rangeStart.toISOString().split('T')[0];
   const endDate = rangeEnd.toISOString().split('T')[0];
 
+  const expectedHoursPerMonth = 160;
+  const monthsInRange = dateRange === 'month' ? 1 : dateRange === 'quarter' ? 3 : 12;
+  const expectedHours = expectedHoursPerMonth * monthsInRange;
 
   const { data: teamEntries = [], isLoading: teamLoading } = useTeamTimesheetEntries(
     canViewTeam ? (currentOrganization?.id ?? null) : null,
@@ -128,36 +131,8 @@ export function TimesheetResourceHoursDashboard() {
     return num;
   };
 
-  const parseRate = (v: any): number => {
-    const num = Number(v ?? 0);
-    if (!isFinite(num) || isNaN(num) || num < 0) return 0;
-    return num;
-  };
-
-  // Working days (Mon–Fri) in the selected date range
-  const workingDaysInRange = (() => {
-    let count = 0;
-    const d = new Date(rangeStart);
-    d.setHours(0, 0, 0, 0);
-    const end = new Date(rangeEnd);
-    end.setHours(0, 0, 0, 0);
-    while (d <= end) {
-      if (!isWeekend(d)) count++;
-      d.setDate(d.getDate() + 1);
-    }
-    return count;
-  })();
-
-  // Per-resource expected hours over the selected range:
-  // dailyCapacity = (weeklyCapacity / 5) * (availability%) * actual working days in the date range.
-  const expectedHoursForResource = (r: any): number => {
-    const weekly = parseRate(r.weeklyCapacity ?? 40) || 40;
-    const avail = ((r.availability ?? 100) as number) / 100;
-    return (weekly / 5) * avail * workingDaysInRange;
-  };
-
   const totalHours = entries.reduce((sum, e) => sum + parseHoursSafe(e.hours), 0);
-  const totalExpectedHours = activeResources.reduce((s, r) => s + expectedHoursForResource(r), 0);
+  const totalExpectedHours = activeResources.length * expectedHours;
   const overallCompliance = totalExpectedHours > 0 ? Math.round((totalHours / totalExpectedHours) * 100) : 0;
   const avgHoursPerResource = activeResources.length > 0 ? Math.round(totalHours / activeResources.length) : 0;
 
@@ -167,16 +142,15 @@ export function TimesheetResourceHoursDashboard() {
     const projectsWorked = new Set(resourceEntries.map(e => e.projectId)).size;
     const approvedEntries = resourceEntries.filter(e => e.status === "Approved").length;
     const pendingEntries = resourceEntries.filter(e => e.status === "Draft" || e.status === "Submitted").length;
-    const expected = expectedHoursForResource(resource);
-
+    
     return {
       id: resource.id,
       name: resource.displayName,
       email: resource.email,
       department: resource.department,
       hours: Math.round(hours * 10) / 10,
-      expected: Math.round(expected * 10) / 10,
-      compliance: expected > 0 ? Math.round((hours / expected) * 100) : 0,
+      expected: expectedHours,
+      compliance: Math.round((hours / expectedHours) * 100),
       projectsWorked,
       entries: resourceEntries.length,
       approved: approvedEntries,
