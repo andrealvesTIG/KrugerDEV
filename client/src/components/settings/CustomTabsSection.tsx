@@ -30,12 +30,19 @@ const INDUSTRY_CHIPS = [
   { value: 'services', label: 'Services' },
 ];
 
-function TemplatePreviewBody({ templateId }: { templateId: number }) {
-  const { data, isLoading } = useFullProjectTabTemplate(templateId);
-  if (isLoading || !data) {
+function TemplatePreviewBody({ templateId, organizationId }: { templateId: number; organizationId: number }) {
+  const { data, isLoading, error } = useFullProjectTabTemplate(templateId, organizationId);
+  if (isLoading) {
     return (
       <div className="mt-3 flex items-center justify-center py-4 border-t">
         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (error || !data) {
+    return (
+      <div className="mt-3 pt-3 border-t text-sm text-destructive">
+        Could not load template preview{error instanceof Error && error.message ? `: ${error.message}` : '.'}
       </div>
     );
   }
@@ -542,7 +549,7 @@ export function CustomTabsSection({ organizationId }: { organizationId: number }
                     </div>
                   </div>
                   {previewTemplateId === tpl.id && (
-                    <TemplatePreviewBody templateId={tpl.id} />
+                    <TemplatePreviewBody templateId={tpl.id} organizationId={organizationId} />
                   )}
                 </div>
               ))}
