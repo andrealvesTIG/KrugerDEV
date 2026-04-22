@@ -3,6 +3,7 @@ import {
   applyTemplateToOrganization,
   getTemplateBySlug,
   listOrgsMissingDefaultTemplate,
+  propagateTemplateToAppliedOrgs,
   type TemplateBlueprint,
 } from "../storage/projectTabTemplateStorage";
 import { PROJECT_FIELD_DEFINITIONS } from "@shared/schema";
@@ -511,6 +512,17 @@ export async function ensureDefaultTemplateRegistry(): Promise<void> {
       templateId: generic.id,
       appliedAt: new Date(),
     }).onConflictDoNothing();
+  }
+  // Now that the registry is healed, push the current Generic PMO layout
+  // (including canonical tab visibility/order) to those newly-registered orgs.
+  try {
+    const result = await propagateTemplateToAppliedOrgs({
+      templateId: generic.id,
+      validFieldKeys: VALID_FIELD_KEYS,
+    });
+    console.log(`[project-tab-templates] Propagated Generic PMO to ${orphans.length} org(s); tabsCreated=${result.tabsCreated}`);
+  } catch (err) {
+    console.error('[project-tab-templates] Propagation after registry heal failed:', err);
   }
 }
 
