@@ -16,6 +16,9 @@ import {
   useFullProjectTabTemplate,
   useUpdateProjectTabTemplate,
   useDeleteProjectTabTemplate,
+  type FullTemplateTab,
+  type FullTemplateSection,
+  type FullTemplateField,
 } from "@/hooks/use-project-tab-templates";
 import type { ProjectTabTemplate } from "@shared/schema";
 
@@ -183,21 +186,21 @@ function PreviewDialog({ id, onClose }: { id: number; onClose: () => void }) {
           </div>
         ) : (
           <div className="space-y-4">
-            {(data.tabs ?? []).map((tab: any) => (
-              <div key={tab.id ?? tab.name} className="border rounded-md p-3" data-testid={`preview-tab-${tab.id ?? tab.name}`}>
+            {(data.tabs ?? []).map((tab: FullTemplateTab) => (
+              <div key={tab.id} className="border rounded-md p-3" data-testid={`preview-tab-${tab.id}`}>
                 <h4 className="font-semibold">{tab.name}</h4>
                 {tab.description && <p className="text-xs text-muted-foreground">{tab.description}</p>}
                 <div className="mt-2 space-y-2">
-                  {(tab.sections ?? []).map((section: any) => (
-                    <div key={section.id ?? section.name} className="pl-3 border-l-2 border-border">
+                  {(tab.sections ?? []).map((section: FullTemplateSection) => (
+                    <div key={section.id} className="pl-3 border-l-2 border-border">
                       <p className="text-sm font-medium">{section.name}</p>
                       {section.description && (
                         <p className="text-xs text-muted-foreground">{section.description}</p>
                       )}
                       {(section.fields ?? []).length > 0 && (
                         <ul className="mt-1 ml-2 text-xs text-muted-foreground list-disc list-inside">
-                          {(section.fields ?? []).map((f: any) => (
-                            <li key={f.id ?? f.fieldKey}>{f.label ?? f.fieldKey}</li>
+                          {(section.fields ?? []).map((f: FullTemplateField) => (
+                            <li key={f.id}>{f.label ?? f.fieldKey}</li>
                           ))}
                         </ul>
                       )}

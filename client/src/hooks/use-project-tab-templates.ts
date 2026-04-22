@@ -1,6 +1,16 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { ProjectTabTemplate } from "@shared/schema";
+import type {
+  ProjectTabTemplate,
+  ProjectTabTemplateTab,
+  ProjectTabTemplateSection,
+  ProjectTabTemplateField,
+} from "@shared/schema";
+
+export type FullTemplateField = ProjectTabTemplateField;
+export type FullTemplateSection = ProjectTabTemplateSection & { fields: FullTemplateField[] };
+export type FullTemplateTab = ProjectTabTemplateTab & { sections: FullTemplateSection[] };
+export type FullProjectTabTemplate = { template: ProjectTabTemplate; tabs: FullTemplateTab[] };
 
 export function useProjectTabTemplates(organizationId: number | undefined) {
   return useQuery<ProjectTabTemplate[]>({
@@ -28,7 +38,7 @@ export function useSystemProjectTabTemplates(enabled: boolean = true) {
 }
 
 export function useFullProjectTabTemplate(id: number | undefined, organizationId?: number) {
-  return useQuery<{ template: ProjectTabTemplate; tabs: any[] }>({
+  return useQuery<FullProjectTabTemplate>({
     queryKey: ['/api/project-tab-templates', id, 'full', organizationId],
     queryFn: async () => {
       const url = organizationId
