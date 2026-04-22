@@ -16,6 +16,43 @@ export function useProjectTabTemplates(organizationId: number | undefined) {
   });
 }
 
+export function useSystemProjectTabTemplates(enabled: boolean = true) {
+  return useQuery<ProjectTabTemplate[]>({
+    queryKey: ['/api/project-tab-templates', 'system'],
+    queryFn: async () => {
+      const res = await apiRequest('GET', '/api/project-tab-templates');
+      return res.json();
+    },
+    enabled,
+  });
+}
+
+export function useFullProjectTabTemplate(id: number | undefined, organizationId?: number) {
+  return useQuery<{ template: ProjectTabTemplate; tabs: any[] }>({
+    queryKey: ['/api/project-tab-templates', id, 'full', organizationId],
+    queryFn: async () => {
+      const url = organizationId
+        ? `/api/project-tab-templates/${id}/full?organizationId=${organizationId}`
+        : `/api/project-tab-templates/${id}/full`;
+      const res = await apiRequest('GET', url);
+      return res.json();
+    },
+    enabled: !!id,
+  });
+}
+
+export function useUpdateProjectTabTemplate() {
+  return useMutation({
+    mutationFn: async ({ id, ...body }: { id: number; name?: string; description?: string; industry?: string; icon?: string; isPublished?: boolean }) => {
+      const res = await apiRequest('PUT', `/api/project-tab-templates/${id}`, body);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/project-tab-templates'] });
+    },
+  });
+}
+
 export function useApplyTemplate() {
   return useMutation({
     mutationFn: async ({ templateId, organizationId, mode }: { templateId: number; organizationId: number; mode: 'append' | 'replace' }) => {
