@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserPlus, Trash2, Users, ShieldAlert, X, Check, Building2, Mail, Clock, RefreshCw, ArrowUpCircle } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Users, ShieldAlert, X, Check, Building2, Mail, Clock, RefreshCw, ArrowUpCircle, KeyRound } from "lucide-react";
 import { format } from "date-fns";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import type { OrganizationMember, User } from "@shared/schema";
@@ -255,6 +255,19 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
     }
   });
 
+  const sendPasswordReset = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await apiRequest('POST', `/api/organizations/${organizationId}/members/${userId}/send-password-reset`);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Password reset link sent", description: "The member has been emailed a temporary link to set a new password." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Could not send reset link", description: error.message || "Please try again.", variant: "destructive" });
+    }
+  });
+
   const removeMember = useMutation({
     mutationFn: async (userId: string) => {
       return apiRequest('DELETE', `/api/organizations/${organizationId}/members/${userId}`);
@@ -385,7 +398,7 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
               <TableHead>Email</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Added</TableHead>
-              <TableHead className="w-[100px]">Actions</TableHead>
+              <TableHead className="w-[140px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -415,14 +428,31 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
                   {member.createdAt ? format(new Date(member.createdAt), 'MMM d, yyyy') : 'N/A'}
                 </TableCell>
                 <TableCell>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={() => setRemoveMemberId(member.userId)}
-                    data-testid={`button-remove-member-${member.id}`}
-                  >
-                    <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => sendPasswordReset.mutate(member.userId)}
+                      disabled={sendPasswordReset.isPending || !member.user?.email}
+                      title="Email a temporary password reset link"
+                      data-testid={`button-send-reset-${member.id}`}
+                    >
+                      {sendPasswordReset.isPending && sendPasswordReset.variables === member.userId ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                      ) : (
+                        <KeyRound className="h-4 w-4 text-slate-400 hover:text-orange-500" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setRemoveMemberId(member.userId)}
+                      title="Remove member"
+                      data-testid={`button-remove-member-${member.id}`}
+                    >
+                      <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
