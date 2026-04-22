@@ -474,6 +474,11 @@ export function CustomTabsSection({ organizationId }: { organizationId: number }
                 </SelectContent>
               </Select>
             </div>
+            {applyMode === 'replace' && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+                <strong>Heads up:</strong> Replace will hide all of your current custom tabs and replace them with the template's tabs. Project data is never modified, but your existing custom-tab layout will no longer be visible.
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowApplyConfirm(false)}>Cancel</Button>

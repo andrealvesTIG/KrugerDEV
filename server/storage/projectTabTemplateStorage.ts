@@ -26,6 +26,7 @@ export type FullTemplate = {
 export type ApplyResult = {
   tabsCreated: number;
   fieldsSkipped: number;
+  skippedFieldKeys: string[];
 };
 
 export async function listTemplatesForOrg(organizationId: number | null): Promise<ProjectTabTemplate[]> {
@@ -123,6 +124,10 @@ export async function upsertTemplateBlueprint(blueprint: TemplateBlueprint): Pro
       .where(eq(projectTabTemplates.slug, blueprint.slug));
     let template: ProjectTabTemplate;
     if (existing.length > 0) {
+      // Refresh metadata only — DO NOT wipe the nested structure on existing
+      // templates. Once seeded, admins may have edited the layout (or future
+      // versions of the seeder may regress fields), so we preserve it. To
+      // intentionally re-seed structure, delete the template first.
       const [updated] = await tx.update(projectTabTemplates)
         .set({
           name: blueprint.name,
@@ -133,13 +138,7 @@ export async function upsertTemplateBlueprint(blueprint: TemplateBlueprint): Pro
         })
         .where(eq(projectTabTemplates.id, existing[0].id))
         .returning();
-      template = updated;
-      // Wipe nested for a clean re-seed
-      const oldTabs = await tx.select().from(projectTabTemplateTabs)
-        .where(eq(projectTabTemplateTabs.templateId, template.id));
-      for (const t of oldTabs) {
-        await tx.delete(projectTabTemplateTabs).where(eq(projectTabTemplateTabs.id, t.id));
-      }
+      return updated;
     } else {
       const [created] = await tx.insert(projectTabTemplates).values({
         slug: blueprint.slug,
@@ -221,11 +220,12 @@ export async function applyTemplateToOrganization(opts: {
       const [orgRow] = await tx.select({ marker: organizations.defaultTemplateAppliedAt })
         .from(organizations).where(eq(organizations.id, opts.organizationId));
       if (orgRow?.marker) {
-        return { tabsCreated: 0, fieldsSkipped: 0 };
+        return { tabsCreated: 0, fieldsSkipped: 0, skippedFieldKeys: [] };
       }
     }
     let tabsCreated = 0;
     let fieldsSkipped = 0;
+    const skippedFieldKeys: string[] = [];
 
     if (mode === 'replace') {
       const existingTabs = await tx.select().from(customProjectTabs)
@@ -272,6 +272,7 @@ export async function applyTemplateToOrganization(opts: {
         for (const field of section.fields) {
           if (opts.validFieldKeys && !field.fieldKey.startsWith('customField:') && !opts.validFieldKeys.has(field.fieldKey)) {
             fieldsSkipped++;
+            skippedFieldKeys.push(field.fieldKey);
             continue;
           }
           await tx.insert(customTabFields).values({
@@ -293,7 +294,7 @@ export async function applyTemplateToOrganization(opts: {
         .where(eq(organizations.id, opts.organizationId));
     }
 
-    return { tabsCreated, fieldsSkipped };
+    return { tabsCreated, fieldsSkipped, skippedFieldKeys };
   });
 }
 

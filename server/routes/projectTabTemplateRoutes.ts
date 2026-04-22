@@ -45,9 +45,19 @@ export function registerProjectTabTemplateRoutes(app: Express) {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
       const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
-      if (organizationId != null) {
+      const user = await storage.getUser(userId);
+      // Browsing templates is an admin action — restrict to super-admin
+      // (any context) or org-admin within the requested organization.
+      if (organizationId == null) {
+        if (!hasAdminAccess(user)) {
+          return res.status(403).json({ message: 'Super-admin access required to browse system templates' });
+        }
+      } else {
         if (!await userHasOrgAccess(userId, organizationId)) {
           return res.status(403).json({ message: 'Access denied to this organization' });
+        }
+        if (!await isOrgAdmin(userId, organizationId)) {
+          return res.status(403).json({ message: 'Organization admin access required' });
         }
       }
       const templates = await listTemplatesForOrg(organizationId);
