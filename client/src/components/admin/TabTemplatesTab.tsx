@@ -10,17 +10,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Library, Eye, Pencil, Trash2 } from "lucide-react";
+import { Loader2, Library, Eye, Pencil, Trash2, Plus, Wrench } from "lucide-react";
 import {
   useSystemProjectTabTemplates,
   useFullProjectTabTemplate,
   useUpdateProjectTabTemplate,
   useDeleteProjectTabTemplate,
+  useCreateProjectTabTemplate,
   type FullTemplateTab,
   type FullTemplateSection,
   type FullTemplateField,
 } from "@/hooks/use-project-tab-templates";
 import type { ProjectTabTemplate } from "@shared/schema";
+import { TemplateBuilderDialog } from "./TemplateBuilderDialog";
 
 const INDUSTRY_OPTIONS = [
   { value: "all", label: "All" },
@@ -38,11 +40,14 @@ export function TabTemplatesTab() {
   const { data: templates = [], isLoading } = useSystemProjectTabTemplates();
   const updateTemplate = useUpdateProjectTabTemplate();
   const deleteTemplate = useDeleteProjectTabTemplate();
+  const createTemplate = useCreateProjectTabTemplate();
 
   const [industry, setIndustry] = useState<string>("all");
   const [previewId, setPreviewId] = useState<number | null>(null);
+  const [builderId, setBuilderId] = useState<number | null>(null);
   const [editing, setEditing] = useState<ProjectTabTemplate | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
 
   const filtered = useMemo(() => {
     return templates.filter(t => industry === "all" || (t.industry ?? "generic") === industry);
@@ -50,14 +55,19 @@ export function TabTemplatesTab() {
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Library className="h-5 w-5 text-primary" />
-          <CardTitle>Project Tab Templates</CardTitle>
+      <CardHeader className="flex flex-row items-start justify-between gap-2">
+        <div>
+          <div className="flex items-center gap-2">
+            <Library className="h-5 w-5 text-primary" />
+            <CardTitle>Project Tab Templates</CardTitle>
+          </div>
+          <CardDescription>
+            Manage industry templates that organization admins can apply to their projects. Structural changes auto-propagate to every organization that has applied a template.
+          </CardDescription>
         </div>
-        <CardDescription>
-          Manage industry templates that organization admins can apply to their projects.
-        </CardDescription>
+        <Button onClick={() => setShowCreate(true)} data-testid="button-create-template">
+          <Plus className="h-4 w-4 mr-2" /> New template
+        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2" data-testid="industry-filter-chips">
@@ -100,7 +110,10 @@ export function TabTemplatesTab() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 pt-2">
+                  <div className="flex items-center gap-1 pt-2 flex-wrap">
+                    <Button size="sm" variant="ghost" onClick={() => setBuilderId(t.id)} data-testid={`button-builder-${t.id}`}>
+                      <Wrench className="h-3.5 w-3.5 mr-1" /> Builder
+                    </Button>
                     <Button size="sm" variant="ghost" onClick={() => setPreviewId(t.id)} data-testid={`button-preview-${t.id}`}>
                       <Eye className="h-3.5 w-3.5 mr-1" /> Preview
                     </Button>
@@ -126,6 +139,22 @@ export function TabTemplatesTab() {
 
       {previewId !== null && (
         <PreviewDialog id={previewId} onClose={() => setPreviewId(null)} />
+      )}
+
+      {builderId !== null && (
+        <TemplateBuilderDialog templateId={builderId} onClose={() => setBuilderId(null)} />
+      )}
+
+      {showCreate && (
+        <CreateTemplateDialog
+          onClose={() => setShowCreate(false)}
+          onSubmit={async (v) => {
+            const created = await createTemplate.mutateAsync(v);
+            toast({ title: "Template created" });
+            setShowCreate(false);
+            setBuilderId(created.id);
+          }}
+        />
       )}
 
       {editing && (
@@ -166,6 +195,70 @@ export function TabTemplatesTab() {
         </AlertDialogContent>
       </AlertDialog>
     </Card>
+  );
+}
+
+function CreateTemplateDialog({ onClose, onSubmit }: {
+  onClose: () => void;
+  onSubmit: (v: { name: string; description?: string; industry?: string; icon?: string; scope: 'system'; isPublished: boolean }) => Promise<void>;
+}) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [industry, setIndustry] = useState("generic");
+  const [icon, setIcon] = useState("");
+  const [isPublished, setIsPublished] = useState(false);
+  const [saving, setSaving] = useState(false);
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>New project tab template</DialogTitle>
+          <DialogDescription>Create a blank system template, then add tabs, sections and fields in the builder.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} data-testid="input-new-template-name" /></div>
+          <div><Label>Description</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} /></div>
+          <div>
+            <Label>Industry</Label>
+            <Select value={industry} onValueChange={setIndustry}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {INDUSTRY_OPTIONS.filter(o => o.value !== "all").map(o => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div><Label>Icon (lucide name)</Label><Input value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="e.g. layers" /></div>
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div>
+              <p className="text-sm font-medium">Publish immediately</p>
+              <p className="text-xs text-muted-foreground">If off, only super-admins can see and apply this template.</p>
+            </div>
+            <Switch checked={isPublished} onCheckedChange={setIsPublished} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button disabled={saving || !name.trim()} onClick={async () => {
+            setSaving(true);
+            try {
+              await onSubmit({
+                name: name.trim(),
+                description: description.trim() || undefined,
+                industry,
+                icon: icon.trim() || undefined,
+                scope: 'system',
+                isPublished,
+              });
+            } finally { setSaving(false); }
+          }} data-testid="button-confirm-create-template">
+            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Create
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

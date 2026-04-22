@@ -4,6 +4,7 @@ import {
   projectTabTemplateTabs,
   projectTabTemplateSections,
   projectTabTemplateFields,
+  organizationAppliedTemplates,
   customProjectTabs,
   customTabSections,
   customTabFields,
@@ -254,6 +255,7 @@ export async function applyTemplateToOrganization(opts: {
         icon: tab.icon ?? null,
         displayOrder: nextOrder++,
         isActive: true,
+        sourceTemplateId: opts.templateId,
         createdBy: opts.createdBy ?? null,
       }).returning();
       tabsCreated++;
@@ -293,6 +295,17 @@ export async function applyTemplateToOrganization(opts: {
         .set({ defaultTemplateAppliedAt: new Date() })
         .where(eq(organizations.id, opts.organizationId));
     }
+
+    // Track that this org has applied this template (for auto-propagation
+    // when the template structure is later edited).
+    await tx.insert(organizationAppliedTemplates).values({
+      organizationId: opts.organizationId,
+      templateId: opts.templateId,
+      appliedAt: new Date(),
+    }).onConflictDoUpdate({
+      target: [organizationAppliedTemplates.organizationId, organizationAppliedTemplates.templateId],
+      set: { appliedAt: new Date() },
+    });
 
     return { tabsCreated, fieldsSkipped, skippedFieldKeys };
   });
@@ -378,6 +391,260 @@ export async function saveOrgTabsAsTemplate(opts: {
     createdBy: opts.createdBy,
     tabs: blueprintTabs,
   });
+}
+
+// ---------- Structural CRUD (super admin / template-owner builder) ----------
+
+export type CreateTemplateInput = {
+  name: string;
+  description?: string;
+  industry?: string;
+  icon?: string;
+  scope: 'system' | 'org';
+  organizationId?: number | null;
+  createdBy: string;
+  isPublished?: boolean;
+};
+
+function slugify(input: string): string {
+  return input.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'template';
+}
+
+export async function createTemplate(input: CreateTemplateInput): Promise<ProjectTabTemplate> {
+  const base = slugify(input.name);
+  const slugSeed = input.scope === 'system'
+    ? `system-${base}-${Date.now()}`
+    : `org-${input.organizationId ?? 0}-${base}-${Date.now()}`;
+  let slug = slugSeed;
+  let suffix = 0;
+  while (true) {
+    const existing = await db.select({ id: projectTabTemplates.id }).from(projectTabTemplates).where(eq(projectTabTemplates.slug, slug));
+    if (existing.length === 0) break;
+    suffix++;
+    slug = `${slugSeed}-${suffix}`;
+  }
+  const [created] = await db.insert(projectTabTemplates).values({
+    slug,
+    name: input.name,
+    description: input.description,
+    industry: input.industry,
+    icon: input.icon,
+    scope: input.scope,
+    organizationId: input.scope === 'org' ? input.organizationId ?? null : null,
+    createdBy: input.createdBy,
+    isPublished: input.isPublished ?? false,
+  }).returning();
+  return created;
+}
+
+export async function createTemplateTab(templateId: number, data: { name: string; description?: string; icon?: string }): Promise<ProjectTabTemplateTab> {
+  const [{ max }] = await db.select({ max: sql<number>`coalesce(max(${projectTabTemplateTabs.displayOrder}), -1)::int` })
+    .from(projectTabTemplateTabs).where(eq(projectTabTemplateTabs.templateId, templateId));
+  const [created] = await db.insert(projectTabTemplateTabs).values({
+    templateId,
+    name: data.name,
+    description: data.description,
+    icon: data.icon,
+    displayOrder: (max ?? -1) + 1,
+  }).returning();
+  return created;
+}
+
+export async function updateTemplateTab(tabId: number, updates: Partial<{ name: string; description: string | null; icon: string | null; displayOrder: number }>): Promise<ProjectTabTemplateTab> {
+  const [updated] = await db.update(projectTabTemplateTabs)
+    .set(updates)
+    .where(eq(projectTabTemplateTabs.id, tabId))
+    .returning();
+  return updated;
+}
+
+export async function deleteTemplateTab(tabId: number): Promise<void> {
+  await db.delete(projectTabTemplateTabs).where(eq(projectTabTemplateTabs.id, tabId));
+}
+
+export async function getTemplateTab(tabId: number): Promise<ProjectTabTemplateTab | undefined> {
+  const [t] = await db.select().from(projectTabTemplateTabs).where(eq(projectTabTemplateTabs.id, tabId));
+  return t;
+}
+
+export async function createTemplateSection(tabId: number, data: { name: string; description?: string; columns?: number }): Promise<ProjectTabTemplateSection> {
+  const [{ max }] = await db.select({ max: sql<number>`coalesce(max(${projectTabTemplateSections.displayOrder}), -1)::int` })
+    .from(projectTabTemplateSections).where(eq(projectTabTemplateSections.templateTabId, tabId));
+  const [created] = await db.insert(projectTabTemplateSections).values({
+    templateTabId: tabId,
+    name: data.name,
+    description: data.description,
+    columns: data.columns ?? 2,
+    displayOrder: (max ?? -1) + 1,
+  }).returning();
+  return created;
+}
+
+export async function updateTemplateSection(sectionId: number, updates: Partial<{ name: string; description: string | null; columns: number; displayOrder: number }>): Promise<ProjectTabTemplateSection> {
+  const [updated] = await db.update(projectTabTemplateSections)
+    .set(updates)
+    .where(eq(projectTabTemplateSections.id, sectionId))
+    .returning();
+  return updated;
+}
+
+export async function deleteTemplateSection(sectionId: number): Promise<void> {
+  await db.delete(projectTabTemplateSections).where(eq(projectTabTemplateSections.id, sectionId));
+}
+
+export async function getTemplateSection(sectionId: number): Promise<ProjectTabTemplateSection | undefined> {
+  const [s] = await db.select().from(projectTabTemplateSections).where(eq(projectTabTemplateSections.id, sectionId));
+  return s;
+}
+
+export async function createTemplateField(sectionId: number, data: { fieldKey: string; fieldType?: string; label?: string; span?: number; isRequired?: boolean }): Promise<ProjectTabTemplateField> {
+  const [{ max }] = await db.select({ max: sql<number>`coalesce(max(${projectTabTemplateFields.displayOrder}), -1)::int` })
+    .from(projectTabTemplateFields).where(eq(projectTabTemplateFields.templateSectionId, sectionId));
+  const [created] = await db.insert(projectTabTemplateFields).values({
+    templateSectionId: sectionId,
+    fieldKey: data.fieldKey,
+    fieldType: data.fieldType ?? 'text',
+    label: data.label,
+    displayOrder: (max ?? -1) + 1,
+    span: data.span ?? 1,
+    isRequired: data.isRequired ?? false,
+  }).returning();
+  return created;
+}
+
+export async function updateTemplateField(fieldId: number, updates: Partial<{ fieldKey: string; fieldType: string; label: string | null; span: number; isRequired: boolean; displayOrder: number }>): Promise<ProjectTabTemplateField> {
+  const [updated] = await db.update(projectTabTemplateFields)
+    .set(updates)
+    .where(eq(projectTabTemplateFields.id, fieldId))
+    .returning();
+  return updated;
+}
+
+export async function deleteTemplateField(fieldId: number): Promise<void> {
+  await db.delete(projectTabTemplateFields).where(eq(projectTabTemplateFields.id, fieldId));
+}
+
+export async function getTemplateField(fieldId: number): Promise<ProjectTabTemplateField | undefined> {
+  const [f] = await db.select().from(projectTabTemplateFields).where(eq(projectTabTemplateFields.id, fieldId));
+  return f;
+}
+
+export async function getTemplateIdForTab(tabId: number): Promise<number | undefined> {
+  const [row] = await db.select({ templateId: projectTabTemplateTabs.templateId })
+    .from(projectTabTemplateTabs).where(eq(projectTabTemplateTabs.id, tabId));
+  return row?.templateId;
+}
+
+export async function getTemplateIdForSection(sectionId: number): Promise<number | undefined> {
+  const [row] = await db.select({ templateId: projectTabTemplateTabs.templateId })
+    .from(projectTabTemplateSections)
+    .innerJoin(projectTabTemplateTabs, eq(projectTabTemplateSections.templateTabId, projectTabTemplateTabs.id))
+    .where(eq(projectTabTemplateSections.id, sectionId));
+  return row?.templateId;
+}
+
+export async function getTemplateIdForField(fieldId: number): Promise<number | undefined> {
+  const [row] = await db.select({ templateId: projectTabTemplateTabs.templateId })
+    .from(projectTabTemplateFields)
+    .innerJoin(projectTabTemplateSections, eq(projectTabTemplateFields.templateSectionId, projectTabTemplateSections.id))
+    .innerJoin(projectTabTemplateTabs, eq(projectTabTemplateSections.templateTabId, projectTabTemplateTabs.id))
+    .where(eq(projectTabTemplateFields.id, fieldId));
+  return row?.templateId;
+}
+
+// ---------- Propagation to organizations that previously applied a template ----------
+
+export async function listAppliedOrganizations(templateId: number): Promise<number[]> {
+  const rows = await db.select({ organizationId: organizationAppliedTemplates.organizationId })
+    .from(organizationAppliedTemplates)
+    .where(eq(organizationAppliedTemplates.templateId, templateId));
+  return rows.map(r => r.organizationId);
+}
+
+/**
+ * Re-applies the current structure of a template to every organization that
+ * previously applied it. Only tabs created from THIS template (matched via
+ * sourceTemplateId) are removed and recreated; unrelated custom tabs are left
+ * intact. Returns per-org counts.
+ */
+export async function propagateTemplateToAppliedOrgs(opts: {
+  templateId: number;
+  validFieldKeys?: Set<string>;
+  createdBy?: string | null;
+}): Promise<{ organizationsUpdated: number; tabsCreated: number; fieldsSkipped: number }> {
+  const orgIds = await listAppliedOrganizations(opts.templateId);
+  if (orgIds.length === 0) return { organizationsUpdated: 0, tabsCreated: 0, fieldsSkipped: 0 };
+  const full = await getFullTemplate(opts.templateId);
+  if (!full) return { organizationsUpdated: 0, tabsCreated: 0, fieldsSkipped: 0 };
+
+  let tabsCreated = 0;
+  let fieldsSkipped = 0;
+
+  for (const orgId of orgIds) {
+    await db.transaction(async (tx) => {
+      // Soft-delete tabs sourced from this template
+      const existing = await tx.select().from(customProjectTabs)
+        .where(and(
+          eq(customProjectTabs.organizationId, orgId),
+          eq(customProjectTabs.sourceTemplateId, opts.templateId),
+          eq(customProjectTabs.isActive, true),
+        ));
+      for (const t of existing) {
+        await tx.update(customProjectTabs)
+          .set({ isActive: false, updatedAt: new Date() })
+          .where(eq(customProjectTabs.id, t.id));
+      }
+      const [{ max }] = await tx.select({ max: sql<number>`coalesce(max(${customProjectTabs.displayOrder}), -1)::int` })
+        .from(customProjectTabs).where(eq(customProjectTabs.organizationId, orgId));
+      let nextOrder = (max ?? -1) + 1;
+      for (const tab of full.tabs) {
+        const [createdTab] = await tx.insert(customProjectTabs).values({
+          organizationId: orgId,
+          name: tab.name,
+          description: tab.description ?? null,
+          icon: tab.icon ?? null,
+          displayOrder: nextOrder++,
+          isActive: true,
+          sourceTemplateId: opts.templateId,
+          createdBy: opts.createdBy ?? null,
+        }).returning();
+        tabsCreated++;
+        for (const section of tab.sections) {
+          const [createdSection] = await tx.insert(customTabSections).values({
+            tabId: createdTab.id,
+            name: section.name,
+            description: section.description ?? null,
+            columns: section.columns ?? 2,
+            displayOrder: section.displayOrder ?? 0,
+            isCollapsible: section.isCollapsible ?? true,
+            isCollapsedByDefault: section.isCollapsedByDefault ?? false,
+          }).returning();
+          for (const field of section.fields) {
+            if (opts.validFieldKeys && !field.fieldKey.startsWith('customField:') && !opts.validFieldKeys.has(field.fieldKey)) {
+              fieldsSkipped++;
+              continue;
+            }
+            await tx.insert(customTabFields).values({
+              sectionId: createdSection.id,
+              fieldKey: field.fieldKey,
+              fieldType: field.fieldType,
+              label: field.label ?? null,
+              displayOrder: field.displayOrder ?? 0,
+              span: field.span ?? 1,
+              isRequired: field.isRequired ?? false,
+            });
+          }
+        }
+      }
+      await tx.update(organizationAppliedTemplates)
+        .set({ appliedAt: new Date() })
+        .where(and(
+          eq(organizationAppliedTemplates.organizationId, orgId),
+          eq(organizationAppliedTemplates.templateId, opts.templateId),
+        ));
+    });
+  }
+  return { organizationsUpdated: orgIds.length, tabsCreated, fieldsSkipped };
 }
 
 export async function listOrgsMissingDefaultTemplate(): Promise<{ id: number }[]> {

@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, date, varchar, jsonb, uniqueIndex, index, customType } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, date, varchar, jsonb, uniqueIndex, index, customType, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations, sql } from "drizzle-orm";
@@ -2294,6 +2294,7 @@ export const customProjectTabs = pgTable("custom_project_tabs", {
   icon: text("icon"), // Lucide icon name
   displayOrder: integer("display_order").default(0),
   isActive: boolean("is_active").default(true),
+  sourceTemplateId: integer("source_template_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   createdBy: varchar("created_by").references(() => users.id),
@@ -2451,6 +2452,17 @@ export type InsertProjectTabTemplate = z.infer<typeof insertProjectTabTemplateSc
 export type ProjectTabTemplateTab = typeof projectTabTemplateTabs.$inferSelect;
 export type ProjectTabTemplateSection = typeof projectTabTemplateSections.$inferSelect;
 export type ProjectTabTemplateField = typeof projectTabTemplateFields.$inferSelect;
+
+// Tracks which organizations have applied which templates so structural
+// edits to a template can be propagated automatically.
+export const organizationAppliedTemplates = pgTable("organization_applied_templates", {
+  organizationId: integer("organization_id").references(() => organizations.id, { onDelete: 'cascade' }).notNull(),
+  templateId: integer("template_id").references(() => projectTabTemplates.id, { onDelete: 'cascade' }).notNull(),
+  appliedAt: timestamp("applied_at").defaultNow().notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.organizationId, t.templateId] }),
+}));
+export type OrganizationAppliedTemplate = typeof organizationAppliedTemplates.$inferSelect;
 
 // Portfolio Scoring Criteria - defines scoring dimensions with weights
 // Project Scoring Criteria - organization-level criteria for scoring projects

@@ -87,13 +87,121 @@ export function useSaveOrgAsTemplate() {
   });
 }
 
+export function useCreateProjectTabTemplate() {
+  return useMutation({
+    mutationFn: async (body: { name: string; description?: string; industry?: string; icon?: string; scope?: 'system' | 'org'; organizationId?: number; isPublished?: boolean }) => {
+      const res = await apiRequest('POST', '/api/project-tab-templates', body);
+      return res.json() as Promise<ProjectTabTemplate>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/project-tab-templates'] });
+    },
+  });
+}
+
+function invalidateAll(templateId?: number) {
+  queryClient.invalidateQueries({ queryKey: ['/api/project-tab-templates'] });
+  if (templateId) queryClient.invalidateQueries({ queryKey: ['/api/project-tab-templates', templateId, 'full'] });
+}
+
+export function useCreateTemplateTab() {
+  return useMutation({
+    mutationFn: async ({ templateId, ...body }: { templateId: number; name: string; description?: string; icon?: string }) => {
+      const res = await apiRequest('POST', `/api/project-tab-templates/${templateId}/tabs`, body);
+      return res.json();
+    },
+    onSuccess: (_d, v) => invalidateAll(v.templateId),
+  });
+}
+
+export function useUpdateTemplateTab() {
+  return useMutation({
+    mutationFn: async ({ tabId, templateId, ...body }: { tabId: number; templateId: number; name?: string; description?: string | null; icon?: string | null; displayOrder?: number }) => {
+      const res = await apiRequest('PUT', `/api/project-tab-templates/tabs/${tabId}`, body);
+      return res.json();
+    },
+    onSuccess: (_d, v) => invalidateAll(v.templateId),
+  });
+}
+
+export function useDeleteTemplateTab() {
+  return useMutation({
+    mutationFn: async ({ tabId }: { tabId: number; templateId: number }) => {
+      await apiRequest('DELETE', `/api/project-tab-templates/tabs/${tabId}`);
+    },
+    onSuccess: (_d, v) => invalidateAll(v.templateId),
+  });
+}
+
+export function useCreateTemplateSection() {
+  return useMutation({
+    mutationFn: async ({ tabId, templateId, ...body }: { tabId: number; templateId: number; name: string; description?: string; columns?: number }) => {
+      const res = await apiRequest('POST', `/api/project-tab-templates/tabs/${tabId}/sections`, body);
+      return res.json();
+    },
+    onSuccess: (_d, v) => invalidateAll(v.templateId),
+  });
+}
+
+export function useUpdateTemplateSection() {
+  return useMutation({
+    mutationFn: async ({ sectionId, templateId, ...body }: { sectionId: number; templateId: number; name?: string; description?: string | null; columns?: number; displayOrder?: number }) => {
+      const res = await apiRequest('PUT', `/api/project-tab-templates/sections/${sectionId}`, body);
+      return res.json();
+    },
+    onSuccess: (_d, v) => invalidateAll(v.templateId),
+  });
+}
+
+export function useDeleteTemplateSection() {
+  return useMutation({
+    mutationFn: async ({ sectionId }: { sectionId: number; templateId: number }) => {
+      await apiRequest('DELETE', `/api/project-tab-templates/sections/${sectionId}`);
+    },
+    onSuccess: (_d, v) => invalidateAll(v.templateId),
+  });
+}
+
+export function useCreateTemplateField() {
+  return useMutation({
+    mutationFn: async ({ sectionId, templateId, ...body }: { sectionId: number; templateId: number; fieldKey: string; fieldType?: string; label?: string; span?: number; isRequired?: boolean }) => {
+      const res = await apiRequest('POST', `/api/project-tab-templates/sections/${sectionId}/fields`, body);
+      return res.json();
+    },
+    onSuccess: (_d, v) => invalidateAll(v.templateId),
+  });
+}
+
+export function useUpdateTemplateField() {
+  return useMutation({
+    mutationFn: async ({ fieldId, templateId, ...body }: { fieldId: number; templateId: number; fieldKey?: string; fieldType?: string; label?: string | null; span?: number; isRequired?: boolean; displayOrder?: number }) => {
+      const res = await apiRequest('PUT', `/api/project-tab-templates/fields/${fieldId}`, body);
+      return res.json();
+    },
+    onSuccess: (_d, v) => invalidateAll(v.templateId),
+  });
+}
+
+export function useDeleteTemplateField() {
+  return useMutation({
+    mutationFn: async ({ fieldId }: { fieldId: number; templateId: number }) => {
+      await apiRequest('DELETE', `/api/project-tab-templates/fields/${fieldId}`);
+    },
+    onSuccess: (_d, v) => invalidateAll(v.templateId),
+  });
+}
+
 export function useDeleteProjectTabTemplate() {
   return useMutation({
     mutationFn: async ({ id }: { id: number; organizationId?: number }) => {
       await apiRequest('DELETE', `/api/project-tab-templates/${id}`);
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/project-tab-templates', variables.organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/project-tab-templates'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/project-tab-templates', 'system'] });
+      if (variables.organizationId !== undefined) {
+        queryClient.invalidateQueries({ queryKey: ['/api/project-tab-templates', variables.organizationId] });
+      }
     },
   });
 }
