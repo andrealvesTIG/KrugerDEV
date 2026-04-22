@@ -101,6 +101,7 @@ export function useApplyTemplate() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: [`/api/organizations/${variables.organizationId}/custom-tabs`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${variables.organizationId}/project-tab-settings`] });
     },
   });
 }
