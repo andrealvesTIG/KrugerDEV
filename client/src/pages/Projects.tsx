@@ -38,15 +38,14 @@ import { useSortable, SortableContext, horizontalListSortingStrategy, arrayMove 
 import { CSS } from "@dnd-kit/utilities";
 import { useAuth } from "@/hooks/use-auth";
 import { CreateProjectDialog } from "@/components/CreateProjectDialog";
-import { ProjectsMapView } from "@/components/ProjectsMapView";
-import { Map as MapIcon } from "lucide-react";
 import ExcelJS from "exceljs";
 import { ViewsDropdown, type ProjectFilterView } from "@/components/ViewsDropdown";
 import { useColumnState, sortData, type SortDirection } from "@/hooks/use-column-state";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
 import { PageTransition, FadeIn } from "@/components/ui/page-transition";
 import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues, useBulkUpdateProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
-import type { CustomFieldDefinition, ProjectCustomFieldValue } from "@shared/schema";
+import { useProjectWorkflows } from "@/hooks/use-project-workflows";
+import type { CustomFieldDefinition, ProjectCustomFieldValue, ProjectWorkflow } from "@shared/schema";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 
@@ -195,6 +194,7 @@ const LIST_COLUMNS: ListColumn[] = [
   { id: "startDate", label: "Start Date", width: "100px", align: "right", defaultVisible: false },
   { id: "projectType", label: "Type", width: "100px", defaultVisible: false },
   { id: "methodology", label: "Methodology", width: "100px", defaultVisible: false },
+  { id: "workflow", label: "Workflow", width: "120px", defaultVisible: true },
   { id: "createdAt", label: "Created", width: "100px", align: "right", defaultVisible: false },
   { id: "updatedAt", label: "Updated", width: "100px", align: "right", defaultVisible: false },
   { id: "actions", label: "", width: "40px", alwaysVisible: true, defaultVisible: true },
@@ -204,28 +204,32 @@ const LIST_COLUMNS_STORAGE_KEY = "project-list-visible-columns";
 const LIST_COLUMN_ORDER_KEY = "project-list-column-order";
 const LIST_SORT_STORAGE_KEY = "project-list-sort";
 
-function loadVisibleColumns(): string[] {
+function scopedKey(base: string, scope?: string | null): string {
+  return scope ? `${base}:${scope}` : base;
+}
+
+function loadVisibleColumns(scope?: string | null): string[] {
   try {
-    const stored = localStorage.getItem(LIST_COLUMNS_STORAGE_KEY);
+    const stored = localStorage.getItem(scopedKey(LIST_COLUMNS_STORAGE_KEY, scope));
     if (stored) return JSON.parse(stored);
   } catch {}
   return LIST_COLUMNS.filter(c => c.defaultVisible).map(c => c.id);
 }
 
-function saveVisibleColumns(cols: string[]) {
-  try { localStorage.setItem(LIST_COLUMNS_STORAGE_KEY, JSON.stringify(cols)); } catch {}
+function saveVisibleColumns(cols: string[], scope?: string | null) {
+  try { localStorage.setItem(scopedKey(LIST_COLUMNS_STORAGE_KEY, scope), JSON.stringify(cols)); } catch {}
 }
 
-function loadListColumnOrder(): string[] {
+function loadListColumnOrder(scope?: string | null): string[] {
   try {
-    const stored = localStorage.getItem(LIST_COLUMN_ORDER_KEY);
+    const stored = localStorage.getItem(scopedKey(LIST_COLUMN_ORDER_KEY, scope));
     if (stored) return JSON.parse(stored);
   } catch {}
   return LIST_COLUMNS.map(c => c.id);
 }
 
-function saveListColumnOrder(order: string[]) {
-  try { localStorage.setItem(LIST_COLUMN_ORDER_KEY, JSON.stringify(order)); } catch {}
+function saveListColumnOrder(order: string[], scope?: string | null) {
+  try { localStorage.setItem(scopedKey(LIST_COLUMN_ORDER_KEY, scope), JSON.stringify(order)); } catch {}
 }
 
 interface ListSortState {
@@ -233,19 +237,19 @@ interface ListSortState {
   direction: "asc" | "desc";
 }
 
-function loadListSort(): ListSortState | null {
+function loadListSort(scope?: string | null): ListSortState | null {
   try {
-    const stored = localStorage.getItem(LIST_SORT_STORAGE_KEY);
+    const stored = localStorage.getItem(scopedKey(LIST_SORT_STORAGE_KEY, scope));
     if (stored) return JSON.parse(stored);
   } catch {}
   return null;
 }
 
-function saveListSort(sort: ListSortState | null) {
-  try { localStorage.setItem(LIST_SORT_STORAGE_KEY, JSON.stringify(sort)); } catch {}
+function saveListSort(sort: ListSortState | null, scope?: string | null) {
+  try { localStorage.setItem(scopedKey(LIST_SORT_STORAGE_KEY, scope), JSON.stringify(sort)); } catch {}
 }
 
-type GroupByOption = "none" | "portfolio" | "status" | "priority" | "health" | "projectType" | "methodology" | `cf_${number}`;
+export type GroupByOption = "none" | "portfolio" | "status" | "priority" | "health" | "projectType" | "methodology" | "workflow" | `cf_${number}`;
 
 const GROUP_BY_STANDARD: { value: GroupByOption; label: string }[] = [
   { value: "none", label: "None" },
@@ -255,6 +259,7 @@ const GROUP_BY_STANDARD: { value: GroupByOption; label: string }[] = [
   { value: "health", label: "Health" },
   { value: "projectType", label: "Project Type" },
   { value: "methodology", label: "Methodology" },
+  { value: "workflow", label: "Workflow" },
 ];
 
 interface ProjectsListViewProps {
@@ -282,9 +287,10 @@ interface ProjectsListViewProps {
   onFilterViewChange?: (filterView: ProjectFilterView) => void;
   organizationId?: number | null;
   statusList?: string[];
+  portfolioId?: number | null;
 }
 
-function ProjectsListView({
+export function ProjectsListView({
   projects,
   filteredProjects,
   portfolios,
@@ -309,13 +315,35 @@ function ProjectsListView({
   onFilterViewChange,
   organizationId,
   statusList = DEFAULT_PROJECT_STATUS_LIST,
+  portfolioId = null,
 }: ProjectsListViewProps) {
   const PROJECT_STATUS_LIST = statusList;
+  const { workflows: projectWorkflowsList } = useProjectWorkflows();
+  const workflowsById = useMemo(() => {
+    const map = new Map<number, ProjectWorkflow>();
+    (projectWorkflowsList || []).forEach(w => map.set(w.id, w));
+    return map;
+  }, [projectWorkflowsList]);
+  const defaultWorkflowName = useMemo(() => {
+    const def = (projectWorkflowsList || []).find(w => w.isDefault);
+    return def?.name || "Default";
+  }, [projectWorkflowsList]);
+  const getWorkflowName = useCallback((workflowId: number | null | undefined) => {
+    if (workflowId == null) return defaultWorkflowName;
+    return workflowsById.get(workflowId)?.name || defaultWorkflowName;
+  }, [workflowsById, defaultWorkflowName]);
+  const storageScope = portfolioId !== null ? `portfolio-${portfolioId}` : null;
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
-  const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(loadVisibleColumns);
-  const [listColumnOrder, setListColumnOrder] = useState<string[]>(loadListColumnOrder);
-  const [listSort, setListSort] = useState<ListSortState | null>(loadListSort);
+  const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(() => loadVisibleColumns(storageScope));
+  const [listColumnOrder, setListColumnOrder] = useState<string[]>(() => loadListColumnOrder(storageScope));
+  const [listSort, setListSort] = useState<ListSortState | null>(() => loadListSort(storageScope));
   const [manageColumnsOpen, setManageColumnsOpen] = useState(false);
+
+  useEffect(() => {
+    setVisibleColumnIds(loadVisibleColumns(storageScope));
+    setListColumnOrder(loadListColumnOrder(storageScope));
+    setListSort(loadListSort(storageScope));
+  }, [storageScope]);
 
   const toggleGroup = useCallback((groupKey: string) => {
     setCollapsedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
@@ -324,19 +352,19 @@ function ProjectsListView({
   const toggleColumn = useCallback((colId: string) => {
     setVisibleColumnIds(prev => {
       const next = prev.includes(colId) ? prev.filter(id => id !== colId) : [...prev, colId];
-      saveVisibleColumns(next);
+      saveVisibleColumns(next, storageScope);
       return next;
     });
-  }, []);
+  }, [storageScope]);
 
   const resetColumns = useCallback(() => {
     const defaults = LIST_COLUMNS.filter(c => c.defaultVisible).map(c => c.id);
     setVisibleColumnIds(defaults);
-    saveVisibleColumns(defaults);
+    saveVisibleColumns(defaults, storageScope);
     const defaultOrder = LIST_COLUMNS.map(c => c.id);
     setListColumnOrder(defaultOrder);
-    saveListColumnOrder(defaultOrder);
-  }, []);
+    saveListColumnOrder(defaultOrder, storageScope);
+  }, [storageScope]);
 
   const handleSort = useCallback((columnId: string) => {
     if (columnId === "actions" || columnId === "progress") return;
@@ -349,10 +377,10 @@ function ProjectsListView({
       } else {
         next = null;
       }
-      saveListSort(next);
+      saveListSort(next, storageScope);
       return next;
     });
-  }, []);
+  }, [storageScope]);
 
   const allListColumns = useMemo(() => LIST_COLUMNS.map(c => ({ id: c.id, label: c.label })), []);
   const defaultListColumns = useMemo(() => LIST_COLUMNS.filter(c => c.defaultVisible).map(c => c.id), []);
@@ -360,10 +388,10 @@ function ProjectsListView({
 
   const handleApplyView = useCallback((view: { visibleColumns: string[]; columnOrder: string[] }) => {
     setVisibleColumnIds(view.visibleColumns);
-    saveVisibleColumns(view.visibleColumns);
+    saveVisibleColumns(view.visibleColumns, storageScope);
     setListColumnOrder(view.columnOrder);
-    saveListColumnOrder(view.columnOrder);
-  }, []);
+    saveListColumnOrder(view.columnOrder, storageScope);
+  }, [storageScope]);
 
   const visibleColumns = useMemo(() => {
     const cols = LIST_COLUMNS.filter(c => c.alwaysVisible || visibleColumnIds.includes(c.id));
@@ -392,11 +420,12 @@ function ProjectsListView({
       case "startDate": return project.startDate ? new Date(project.startDate) : null;
       case "projectType": return (project as any).projectType || "";
       case "methodology": return (project as any).methodology || "";
+      case "workflow": return getWorkflowName(project.workflowId);
       case "createdAt": return project.createdAt ? new Date(project.createdAt) : null;
       case "updatedAt": return (project as any).updatedAt ? new Date((project as any).updatedAt) : null;
       default: return "";
     }
-  }, []);
+  }, [getWorkflowName]);
 
   const sortedProjects = useMemo(() => {
     if (!listSort) return projects;
@@ -412,14 +441,17 @@ function ProjectsListView({
   }, [customFieldValues]);
 
   const groupByOptions = useMemo(() => {
-    const options = [...GROUP_BY_STANDARD];
+    const base = portfolioId !== null
+      ? GROUP_BY_STANDARD.filter(o => o.value !== "portfolio")
+      : GROUP_BY_STANDARD;
+    const options = [...base];
     (customFieldDefs || []).forEach(def => {
       if (def.entityType === "project" && def.isActive) {
         options.push({ value: `cf_${def.id}` as GroupByOption, label: def.name });
       }
     });
     return options;
-  }, [customFieldDefs]);
+  }, [customFieldDefs, portfolioId]);
 
   useEffect(() => {
     if (groupBy !== "none" && !groupByOptions.some(o => o.value === groupBy)) {
@@ -470,6 +502,10 @@ function ProjectsListView({
           if (!m) return { key: "method-unset", label: "No Methodology", sortOrder: 999 };
           return { key: `method-${m}`, label: m, sortOrder: 0 };
         }
+        case "workflow": {
+          const wfName = getWorkflowName(project.workflowId);
+          return { key: `workflow-${project.workflowId ?? "default"}`, label: wfName, sortOrder: 0 };
+        }
         default: {
           if (groupBy.startsWith("cf_")) {
             const defId = parseInt(groupBy.slice(3));
@@ -505,7 +541,7 @@ function ProjectsListView({
         return a.label.localeCompare(b.label);
       })
       .map(([key, val]) => ({ key, label: val.label, projects: val.projects, meta: val.portfolio }));
-  }, [sortedProjects, portfolios, groupBy, cfValuesMap, customFieldDefs]);
+  }, [sortedProjects, portfolios, groupBy, cfValuesMap, customFieldDefs, getWorkflowName]);
 
   const allCollapsed = groupedProjects.length > 0 && groupedProjects.every(g => collapsedGroups[g.key] === true);
 
@@ -666,6 +702,12 @@ function ProjectsListView({
             {(project as any).methodology || '\u2014'}
           </span>
         );
+      case "workflow":
+        return (
+          <Badge variant="outline" className="text-[11px] font-medium px-2 py-0.5 rounded-md max-w-full" title={getWorkflowName(project.workflowId)}>
+            <span className="truncate">{getWorkflowName(project.workflowId)}</span>
+          </Badge>
+        );
       case "createdAt":
         return (
           <span className="text-xs text-muted-foreground tabular-nums">
@@ -694,14 +736,16 @@ function ProjectsListView({
                     View Details
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={(e) => { e.preventDefault(); setRiskAssessProjectId(project.id); }}>
-                  <Shield className="h-4 w-4 mr-2" />
-                  AI Risk Assessment
-                </DropdownMenuItem>
+                {portfolioId === null && (
+                  <DropdownMenuItem onClick={(e) => { e.preventDefault(); setRiskAssessProjectId(project.id); }}>
+                    <Shield className="h-4 w-4 mr-2" />
+                    AI Risk Assessment
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={(e) => { e.preventDefault(); setDeleteProjectId(project.id); }} className="text-red-600 focus:text-red-600">
                   <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
+                  {portfolioId !== null ? "Remove from Portfolio" : "Delete"}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -745,6 +789,7 @@ function ProjectsListView({
           <ViewsDropdown
             mode="list"
             organizationId={organizationId ?? null}
+            portfolioId={portfolioId}
             allColumns={allListColumns}
             visibleColumns={visibleColumnIds}
             columnOrder={listColumnOrder}
@@ -806,7 +851,7 @@ function ProjectsListView({
               variant="ghost"
               size="sm"
               className="h-6 text-[11px] px-2 text-muted-foreground hover:text-foreground gap-1"
-              onClick={() => { setListSort(null); saveListSort(null); }}
+              onClick={() => { setListSort(null); saveListSort(null, storageScope); }}
             >
               <X className="h-3 w-3" />
               Clear sort
@@ -974,6 +1019,8 @@ export default function Projects() {
   const { user } = useAuth();
   const [selectedPortfolio, setSelectedPortfolio] = useState<string>("all");
   const [sourceFilter, setSourceFilter] = useState<string>("all");
+  const [workflowFilter, setWorkflowFilter] = useState<string>("all");
+  const { workflows: outerProjectWorkflows } = useProjectWorkflows();
   const [filterView, setFilterView] = useState<ProjectFilterView>("active");
   const [sortBy, setSortBy] = useState<"createdAt" | "startDate" | "updatedAt">("updatedAt");
   const [listGroupBy, setListGroupBy] = useState<GroupByOption>("portfolio");
@@ -1036,6 +1083,18 @@ export default function Projects() {
   };
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [pendingWorkflowId, setPendingWorkflowId] = useState<number | null>(null);
+  const openCreateProject = (workflowId: number | null) => {
+    const wf = workflowId != null
+      ? (outerProjectWorkflows || []).find(w => w.id === workflowId)
+      : ((outerProjectWorkflows || []).find(w => w.isDefault) || (outerProjectWorkflows || [])[0]);
+    if (wf && wf.creationMode === 'url' && wf.creationUrl) {
+      window.open(wf.creationUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    setPendingWorkflowId(workflowId);
+    setIsDialogOpen(true);
+  };
   const [search, setSearch] = useState("");
   
   // Check if user is admin for current organization
@@ -1043,15 +1102,15 @@ export default function Projects() {
   const isOrgAdmin = user?.role === 'super_admin' || 
     currentMembership?.role === 'org_admin' || 
     currentOrganization?.ownerId === user?.id;
-  const [view, setView] = useState<"list" | "grid" | "kanban" | "gantt" | "map">(() => {
+  const [view, setView] = useState<"list" | "grid" | "kanban" | "gantt">(() => {
     const saved = localStorage.getItem("projects-view-preference");
-    if (saved && ["list", "grid", "kanban", "gantt", "map"].includes(saved)) {
-      return saved as "list" | "grid" | "kanban" | "gantt" | "map";
+    if (saved && ["list", "grid", "kanban", "gantt"].includes(saved)) {
+      return saved as "list" | "grid" | "kanban" | "gantt";
     }
     return "grid";
   });
 
-  const handleViewChange = (newView: "list" | "grid" | "kanban" | "gantt" | "map") => {
+  const handleViewChange = (newView: "list" | "grid" | "kanban" | "gantt") => {
     setView(newView);
     localStorage.setItem("projects-view-preference", newView);
   };
@@ -1399,6 +1458,9 @@ export default function Projects() {
       // If portfolio is selected, only show org projects from that portfolio
       const matchesPortfolio = selectedPortfolio === "all" || 
         (!(p as any).isExternal && p.portfolioId === parseInt(selectedPortfolio));
+      const matchesWorkflow = workflowFilter === "all" ||
+        (workflowFilter === "default" && (p as any).workflowId == null) ||
+        ((p as any).workflowId != null && (p as any).workflowId === parseInt(workflowFilter));
       
       // Filter view logic - "Closed" is the terminal locked state (not "Closing" which is still active)
       const isClosed = p.status === "Closed";
@@ -1429,7 +1491,7 @@ export default function Projects() {
           break;
       }
       
-      return matchesSearch && matchesSource && matchesPortfolio && matchesFilterView;
+      return matchesSearch && matchesSource && matchesPortfolio && matchesWorkflow && matchesFilterView;
     });
     
     // Then sort (most recent first for all date-based sorts)
@@ -1450,7 +1512,7 @@ export default function Projects() {
       }
       return 0;
     });
-  }, [projects, externalProjects, search, sourceFilter, sortBy, selectedPortfolio, filterView, user?.id]);
+  }, [projects, externalProjects, search, sourceFilter, workflowFilter, sortBy, selectedPortfolio, filterView, user?.id]);
 
   useEffect(() => {
     setListCurrentPage(1);
@@ -1606,19 +1668,57 @@ export default function Projects() {
             <Download className="mr-2 h-4 w-4" />
             Export
           </Button>
-          <Button
-            className="shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all"
-            onClick={() => setIsDialogOpen(true)}
-            data-testid="button-new-project"
-          >
-            <Plus className="mr-2 h-4 w-4" /> New Project
-          </Button>
+          {outerProjectWorkflows.length > 1 ? (
+            <div className="flex">
+              <Button
+                className="shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all rounded-r-none"
+                onClick={() => openCreateProject(null)}
+                data-testid="button-new-project"
+              >
+                <Plus className="mr-2 h-4 w-4" /> New Project
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    className="shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all rounded-l-none border-l border-primary-foreground/20 px-2"
+                    data-testid="button-new-project-workflow-menu"
+                    aria-label="Choose workflow"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {outerProjectWorkflows.filter(w => w.isActive !== false).map(w => (
+                    <DropdownMenuItem
+                      key={w.id}
+                      onSelect={() => openCreateProject(w.id)}
+                      data-testid={`menu-new-project-workflow-${w.id}`}
+                    >
+                      {w.name}{w.isDefault ? " (Default)" : ""}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ) : (
+            <Button
+              className="shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all"
+              onClick={() => openCreateProject(null)}
+              data-testid="button-new-project"
+            >
+              <Plus className="mr-2 h-4 w-4" /> New Project
+            </Button>
+          )}
           <CreateProjectDialog
             open={isDialogOpen}
-            onOpenChange={setIsDialogOpen}
+            onOpenChange={(o) => {
+              setIsDialogOpen(o);
+              if (!o) setPendingWorkflowId(null);
+            }}
             portfolios={portfolios || []}
             organizationId={currentOrganization?.id}
             onProjectCreated={(projectId) => navigate(`/projects/${projectId}`)}
+            initialWorkflowId={pendingWorkflowId}
           />
         </div>
       </FadeIn>
@@ -1677,6 +1777,22 @@ export default function Projects() {
                       External
                     </span>
                   </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-full sm:w-[180px]">
+              <Select value={workflowFilter} onValueChange={setWorkflowFilter}>
+                <SelectTrigger data-testid="select-workflow-filter">
+                  <SelectValue placeholder="Filter by Workflow" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Workflows</SelectItem>
+                  <SelectItem value="default">Default Workflow</SelectItem>
+                  {(outerProjectWorkflows || []).map(w => (
+                    <SelectItem key={w.id} value={w.id.toString()}>
+                      <div className="truncate max-w-[200px]" title={w.name}>{w.name}</div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1750,16 +1866,6 @@ export default function Projects() {
             >
               <GanttChart className="h-4 w-4 mr-2" />
               Gantt
-            </Button>
-            <Button
-              variant={view === "map" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => handleViewChange("map")}
-              className="rounded-none"
-              data-testid="button-view-map"
-            >
-              <MapIcon className="h-4 w-4 mr-2" />
-              Map
             </Button>
           </div>
           <div className="flex-1" />
@@ -1855,8 +1961,6 @@ export default function Projects() {
                 cfValues={exportCfValues || []}
                 onCustomFieldChange={handleKanbanCfChange}
               />
-            ) : view === "map" ? (
-              <ProjectsMapView projects={filteredProjects || []} portfolios={portfolios || []} />
             ) : (
               <ProjectsGanttView projects={filteredProjects || []} organizationId={currentOrganization?.id || null} />
             )}
@@ -1916,8 +2020,6 @@ export default function Projects() {
           cfValues={exportCfValues || []}
           onCustomFieldChange={handleKanbanCfChange}
         />
-      ) : !isFullscreen && view === "map" ? (
-        <ProjectsMapView projects={filteredProjects || []} portfolios={portfolios || []} />
       ) : !isFullscreen ? (
         <ProjectsGanttView projects={filteredProjects || []} organizationId={currentOrganization?.id || null} />
       ) : null}
@@ -2036,6 +2138,7 @@ const ALL_GRID_COLUMNS: GridColumn[] = [
   { id: "completion", label: "Progress %", defaultVisible: true },
   { id: "projectType", label: "Project Type", defaultVisible: false },
   { id: "methodology", label: "Methodology", defaultVisible: false },
+  { id: "workflow", label: "Workflow", defaultVisible: true },
   { id: "department", label: "Department", defaultVisible: false },
   { id: "category", label: "Category", defaultVisible: false },
   { id: "businessValue", label: "Business Value", defaultVisible: false },
@@ -2209,7 +2312,7 @@ function SortableColumnHeader({ column, children, isFullscreen }: { column: Grid
   );
 }
 
-function ProjectsGridView({ 
+export function ProjectsGridView({ 
   projects, 
   portfolios,
   onStatusChange,
@@ -2238,6 +2341,20 @@ function ProjectsGridView({
 }) {
   const PROJECT_STATUS_LIST = statusList;
   const { toast } = useToast();
+  const { workflows: projectWorkflowsList } = useProjectWorkflows();
+  const workflowsById = useMemo(() => {
+    const map = new Map<number, ProjectWorkflow>();
+    (projectWorkflowsList || []).forEach(w => map.set(w.id, w));
+    return map;
+  }, [projectWorkflowsList]);
+  const defaultWorkflowName = useMemo(() => {
+    const def = (projectWorkflowsList || []).find(w => w.isDefault);
+    return def?.name || "Default";
+  }, [projectWorkflowsList]);
+  const getWorkflowName = useCallback((workflowId: number | null | undefined) => {
+    if (workflowId == null) return defaultWorkflowName;
+    return workflowsById.get(workflowId)?.name || defaultWorkflowName;
+  }, [workflowsById, defaultWorkflowName]);
   const [visibleColumns, setVisibleColumns] = useState<string[]>(getStoredColumns);
   const [columnOrder, setColumnOrder] = useState<string[]>(getStoredColumnOrder);
   const [selectedProjects, setSelectedProjects] = useState<Set<number>>(new Set());
@@ -2496,6 +2613,10 @@ function ProjectsGridView({
           if (!m) return { key: "method-unset", label: "No Methodology", sortOrder: 999 };
           return { key: `method-${m}`, label: m, sortOrder: 0 };
         }
+        case "workflow": {
+          const wfName = getWorkflowName(project.workflowId);
+          return { key: `workflow-${project.workflowId ?? "default"}`, label: wfName, sortOrder: 0 };
+        }
         default: {
           if (gridGroupBy.startsWith("cf_")) {
             const defId = parseInt(gridGroupBy.slice(3));
@@ -2532,7 +2653,7 @@ function ProjectsGridView({
         return a.label.localeCompare(b.label);
       })
       .map(([key, val]) => ({ key, label: val.label, projects: val.projects, meta: val.portfolio }));
-  }, [displayedProjects, portfolios, gridGroupBy, cfValuesMap, projectCustomFields]);
+  }, [displayedProjects, portfolios, gridGroupBy, cfValuesMap, projectCustomFields, getWorkflowName]);
 
   const gridAllGroupsCollapsed = gridGroupedProjects.length > 0 && gridGroupedProjects.every(g => gridCollapsedGroups[g.key] === true);
 
@@ -3009,6 +3130,12 @@ function ProjectsGridView({
         return <span className="text-sm">{project.projectType || "-"}</span>;
       case "methodology":
         return <span className="text-sm">{project.methodology || "-"}</span>;
+      case "workflow":
+        return (
+          <Badge variant="outline" className="text-[11px] font-medium px-2 py-0.5 rounded-md max-w-full" title={getWorkflowName(project.workflowId)}>
+            <span className="truncate">{getWorkflowName(project.workflowId)}</span>
+          </Badge>
+        );
       case "department":
         return <span className="text-sm">{project.department || "-"}</span>;
       case "category":
@@ -3366,10 +3493,10 @@ function ProjectsGridView({
                   const priorityColor = gridGroupBy === "priority" ? (PRIORITY_COLORS[group.label] || "") : "";
                   const healthConfig = gridGroupBy === "health" ? (Object.values(HEALTH_CONFIG).find(h => h.label === group.label) || null) : null;
 
-                  return (
-                    <Fragment key={group.key}>
-                      {showGroupHeader && (
-                        <TableRow className="bg-gradient-to-r from-muted/60 to-muted/30 hover:from-muted/80 hover:to-muted/50 cursor-pointer border-b-2 border-border/60" onClick={() => toggleGridGroup(group.key)}>
+                  const rows: JSX.Element[] = [];
+                  if (showGroupHeader) {
+                    rows.push(
+                        <TableRow key={`${group.key}-header`} className="bg-gradient-to-r from-muted/60 to-muted/30 hover:from-muted/80 hover:to-muted/50 cursor-pointer border-b-2 border-border/60" onClick={() => toggleGridGroup(group.key)}>
                           <TableCell colSpan={orderedVisibleColumns.length + 2} className="py-2.5 px-4">
                             <div className="flex items-center gap-3">
                               <ChevronRight className={cn("h-4 w-4 text-muted-foreground shrink-0 transition-transform duration-200", isGroupCollapsed ? "" : "rotate-90")} />
@@ -3412,8 +3539,11 @@ function ProjectsGridView({
                             </div>
                           </TableCell>
                         </TableRow>
-                      )}
-                      {!isGroupCollapsed && group.projects.map(project => (
+                    );
+                  }
+                  if (!isGroupCollapsed) {
+                    group.projects.forEach(project => {
+                      rows.push(
                         <TableRow 
                           key={project.id} 
                           data-testid={`grid-row-${project.id}`}
@@ -3472,9 +3602,10 @@ function ProjectsGridView({
                             </DropdownMenu>
                           </TableCell>
                         </TableRow>
-                      ))}
-                    </Fragment>
-                  );
+                      );
+                    });
+                  }
+                  return rows;
                 })
               )}
             </TableBody>
@@ -3573,7 +3704,7 @@ const KANBAN_GROUP_BY_OPTIONS: { value: KanbanGroupBy; label: string }[] = [
 
 const DRAGGABLE_GROUPS = new Set<string>(["status", "portfolio", "priority", "health"]);
 
-function ProjectsKanbanView({ 
+export function ProjectsKanbanView({ 
   projects, 
   portfolios,
   onStatusChange,
@@ -3892,6 +4023,7 @@ function ProjectKanbanColumn({
 }
 
 function DraggableProjectCard({ project, isDraggable = true }: { project: Project; isDraggable?: boolean }) {
+  const [, navigate] = useLocation();
   const {
     attributes,
     listeners,
@@ -3907,19 +4039,35 @@ function DraggableProjectCard({ project, isDraggable = true }: { project: Projec
     transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
   } : undefined;
 
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...(isDraggable ? { ...attributes, ...listeners } : {})}
-      className={cn(isDragging && "opacity-50")}
-    >
-      <Link href={`/projects/${project.id}`}>
-        <Card 
-          className="cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing"
-          data-testid={`kanban-project-${project.id}`}
-        >
-          <CardContent className="p-4">
+  const dragMovedRef = useRef(false);
+  useEffect(() => {
+    if (isDragging) {
+      dragMovedRef.current = true;
+    } else if (dragMovedRef.current) {
+      const t = setTimeout(() => { dragMovedRef.current = false; }, 250);
+      return () => clearTimeout(t);
+    }
+  }, [isDragging]);
+
+  const handlePointerDownReset = () => {
+    if (!isDragging) dragMovedRef.current = false;
+  };
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (dragMovedRef.current) {
+      dragMovedRef.current = false;
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    const target = e.target as HTMLElement;
+    const interactive = target.closest('button, a');
+    if (interactive && e.currentTarget.contains(interactive)) return;
+    navigate(`/projects/${project.id}`);
+  };
+
+  const cardBody = (
+        <CardContent className="p-4">
             <div className="flex items-center gap-2">
               <div className="font-medium text-sm line-clamp-2 flex-1">{project.name}</div>
               {(project as any).isInternal && (
@@ -4036,8 +4184,34 @@ function DraggableProjectCard({ project, isDraggable = true }: { project: Projec
               )}
             </div>
           </CardContent>
+  );
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...(isDraggable ? { ...attributes, ...listeners } : {})}
+      className={cn(isDragging && "opacity-50")}
+      onClick={isDraggable ? handleCardClick : undefined}
+      onPointerDownCapture={isDraggable ? handlePointerDownReset : undefined}
+    >
+      {isDraggable ? (
+        <Card
+          className="cursor-grab hover:shadow-md transition-shadow active:cursor-grabbing select-none"
+          data-testid={`kanban-project-${project.id}`}
+        >
+          {cardBody}
         </Card>
-      </Link>
+      ) : (
+        <Link href={`/projects/${project.id}`}>
+          <Card
+            className="cursor-pointer hover:shadow-md transition-shadow"
+            data-testid={`kanban-project-${project.id}`}
+          >
+            {cardBody}
+          </Card>
+        </Link>
+      )}
     </div>
   );
 }
@@ -4064,7 +4238,7 @@ const GANTT_COLUMNS: GridColumn[] = [
   { id: "completion", label: "%", defaultVisible: false },
 ];
 
-function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; organizationId: number | null }) {
+export function ProjectsGanttView({ projects, organizationId }: { projects: Project[]; organizationId: number | null }) {
   const [zoomDays, setZoomDays] = useState<ZoomLevel>(90);
   const [rangePreset, setRangePreset] = useState<RangePreset>("custom");
   const [isResizing, setIsResizing] = useState(false);

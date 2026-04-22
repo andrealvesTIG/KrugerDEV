@@ -155,28 +155,51 @@ export function AnalyticsTab() {
     }
   };
 
+  // Parse createdAt deterministically: strings without an explicit timezone offset
+  // are treated as UTC, so the NY-date bucket is the same regardless of viewer TZ.
+  const parseCreatedAt = (value: string | Date | null | undefined): Date | null => {
+    if (!value) return null;
+    if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
+    const hasTz = /(?:Z|[+-]\d{2}:?\d{2})$/.test(value);
+    const normalized = hasTz ? value : value.includes('T') ? `${value}Z` : `${value.replace(' ', 'T')}Z`;
+    const d = new Date(normalized);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  const toNYDate = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  const subtractDays = (dateStr: string, days: number) => {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d - days));
+    return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+  };
+
+  // Shared filter pipeline: returns the users that belong to the given time bucket
+  // after the email-domain exclusion is applied. Used by BOTH the metric cards
+  // and the filtered list so they cannot drift.
+  const bucketUsers = useMemo(() => {
+    const todayNY = toNYDate(new Date());
+    const weekCutoff = subtractDays(todayNY, 7);
+    const monthCutoff = subtractDays(todayNY, 30);
+    const nonExcluded = allUsers.filter(u => !isExcludedEmail(u.email));
+    const usersWithNYDate = nonExcluded.map(u => {
+      const parsed = parseCreatedAt(u.createdAt);
+      return { user: u, nyDate: parsed ? toNYDate(parsed) : null };
+    });
+    return {
+      total: nonExcluded,
+      today: usersWithNYDate.filter(x => x.nyDate === todayNY).map(x => x.user),
+      week: usersWithNYDate.filter(x => x.nyDate !== null && x.nyDate >= weekCutoff).map(x => x.user),
+      month: usersWithNYDate.filter(x => x.nyDate !== null && x.nyDate >= monthCutoff).map(x => x.user),
+    };
+  }, [allUsers, excludedDomainSet]);
+
   const filteredUsers = useMemo(() => {
     if (allUsers.length === 0) return [];
-    let filtered = allUsers.filter(u => !isExcludedEmail(u.email));
-
-    const toNYDate = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-    const todayNY = toNYDate(new Date());
-
-    const subtractDays = (dateStr: string, days: number) => {
-      const [y, m, d] = dateStr.split('-').map(Number);
-      const dt = new Date(y, m - 1, d - days);
-      return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-    };
-
-    if (userFilter === 'today') {
-      filtered = filtered.filter(u => toNYDate(new Date(u.createdAt)) === todayNY);
-    } else if (userFilter === 'week') {
-      const cutoff = subtractDays(todayNY, 7);
-      filtered = filtered.filter(u => toNYDate(new Date(u.createdAt)) >= cutoff);
-    } else if (userFilter === 'month') {
-      const cutoff = subtractDays(todayNY, 30);
-      filtered = filtered.filter(u => toNYDate(new Date(u.createdAt)) >= cutoff);
-    }
+    const base = userFilter === 'today' ? bucketUsers.today
+      : userFilter === 'week' ? bucketUsers.week
+      : userFilter === 'month' ? bucketUsers.month
+      : bucketUsers.total;
+    let filtered = [...base];
 
     if (userSearch.trim()) {
       const q = normalizeSearch(userSearch);
@@ -224,24 +247,38 @@ export function AnalyticsTab() {
 
   const filterLabel = userFilter === 'total' ? 'All Users' : userFilter === 'today' ? 'New Users Today' : userFilter === 'week' ? 'New Users This Week' : userFilter === 'month' ? 'New Users This Month' : 'All Users';
 
-  const userMetricCounts = useMemo(() => {
-    const nonExcluded = allUsers.filter(u => !isExcludedEmail(u.email));
-    const toNYDate = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-    const todayNY = toNYDate(new Date());
-    const subtractDays = (dateStr: string, days: number) => {
-      const [y, m, d] = dateStr.split('-').map(Number);
-      const dt = new Date(y, m - 1, d - days);
-      return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
-    };
-    const weekCutoff = subtractDays(todayNY, 7);
-    const monthCutoff = subtractDays(todayNY, 30);
-    return {
-      total: nonExcluded.length,
-      today: nonExcluded.filter(u => toNYDate(new Date(u.createdAt)) === todayNY).length,
-      week: nonExcluded.filter(u => toNYDate(new Date(u.createdAt)) >= weekCutoff).length,
-      month: nonExcluded.filter(u => toNYDate(new Date(u.createdAt)) >= monthCutoff).length,
-    };
-  }, [allUsers, excludedDomainSet]);
+  const userMetricCounts = useMemo(() => ({
+    total: bucketUsers.total.length,
+    today: bucketUsers.today.length,
+    week: bucketUsers.week.length,
+    month: bucketUsers.month.length,
+  }), [bucketUsers]);
+
+  // Dev-only consistency probe: warn if the active card count and the actually
+  // rendered list count diverge (when no search is active). Reports set
+  // differences so a regression in the display pipeline is actionable.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    if (!userFilter || userSearch.trim()) return;
+    const cardCount = userMetricCounts[userFilter];
+    const listCount = filteredUsers.length;
+    if (cardCount === listCount) return;
+    const bucket = userFilter === 'today' ? bucketUsers.today
+      : userFilter === 'week' ? bucketUsers.week
+      : userFilter === 'month' ? bucketUsers.month
+      : bucketUsers.total;
+    const cardIds = new Set(bucket.map(u => u.id));
+    const listIds = new Set(filteredUsers.map(u => u.id));
+    const onlyInCard: string[] = [];
+    const onlyInList: string[] = [];
+    cardIds.forEach(id => { if (!listIds.has(id)) onlyInCard.push(id); });
+    listIds.forEach(id => { if (!cardIds.has(id)) onlyInList.push(id); });
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[AnalyticsTab] count mismatch for filter "${userFilter}": card=${cardCount} list=${listCount}`,
+      { onlyInCard, onlyInList },
+    );
+  }, [userFilter, userSearch, userMetricCounts, bucketUsers, filteredUsers]);
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
