@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { PROJECT_TAB_DEFINITIONS } from "@shared/projectTabs";
 import {
   useFullProjectTabTemplate,
   useCreateTemplateTab,
@@ -172,6 +173,7 @@ export function TemplateBuilderDialog({ templateId, onClose }: { templateId: num
       {editingTab && (
         <TabFormDialog
           title="Edit tab"
+          isEdit
           initial={{ name: editingTab.name, description: editingTab.description ?? '', icon: editingTab.icon ?? '' }}
           onClose={() => setEditingTab(null)}
           onSubmit={async (v) => {
@@ -266,32 +268,86 @@ export function TemplateBuilderDialog({ templateId, onClose }: { templateId: num
   );
 }
 
-function TabFormDialog({ title, initial, onClose, onSubmit }: {
+function TabFormDialog({ title, initial, isEdit, onClose, onSubmit }: {
   title: string;
   initial?: { name: string; description: string; icon: string };
+  isEdit?: boolean;
   onClose: () => void;
   onSubmit: (v: { name: string; description?: string; icon?: string }) => Promise<void>;
 }) {
+  const matchInitial = !isEdit && initial?.name
+    ? PROJECT_TAB_DEFINITIONS.find(d => d.label === initial.name)?.id
+    : undefined;
+  const [mode, setMode] = useState<'builtin' | 'custom'>(isEdit ? 'custom' : 'builtin');
+  const [builtinId, setBuiltinId] = useState<string>(matchInitial ?? PROJECT_TAB_DEFINITIONS[0].id);
   const [name, setName] = useState(initial?.name ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [icon, setIcon] = useState(initial?.icon ?? '');
   const [saving, setSaving] = useState(false);
+
+  const canSubmit = mode === 'builtin' ? !!builtinId : !!name.trim();
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <div><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} data-testid="input-tab-name" /></div>
-          <div><Label>Description</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} /></div>
-          <div><Label>Icon (lucide name)</Label><Input value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="e.g. layers" /></div>
+          {!isEdit && (
+            <div className="flex gap-2">
+              <Button size="sm" variant={mode === 'builtin' ? 'default' : 'outline'} onClick={() => setMode('builtin')} data-testid="button-mode-builtin">
+                Standard project tab
+              </Button>
+              <Button size="sm" variant={mode === 'custom' ? 'default' : 'outline'} onClick={() => setMode('custom')} data-testid="button-mode-custom">
+                Custom tab
+              </Button>
+            </div>
+          )}
+
+          {mode === 'builtin' && !isEdit ? (
+            <div>
+              <Label>Project tab</Label>
+              <Select value={builtinId} onValueChange={setBuiltinId}>
+                <SelectTrigger data-testid="select-builtin-tab"><SelectValue /></SelectTrigger>
+                <SelectContent className="max-h-72">
+                  {PROJECT_TAB_DEFINITIONS.map(d => (
+                    <SelectItem key={d.id} value={d.id}>
+                      {d.label} <span className="text-muted-foreground text-xs">({d.id})</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Pick a built-in tab (Summary, Tasks, Daily Logs, RFIs…). Sections and fields you add below will populate that tab when this template is applied.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div><Label>Name</Label><Input value={name} onChange={(e) => setName(e.target.value)} data-testid="input-tab-name" /></div>
+              <div><Label>Description</Label><Textarea value={description} onChange={(e) => setDescription(e.target.value)} /></div>
+              <div><Label>Icon (lucide name)</Label><Input value={icon} onChange={(e) => setIcon(e.target.value)} placeholder="e.g. layers" /></div>
+            </>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button disabled={saving || !name.trim()} onClick={async () => {
+          <Button disabled={saving || !canSubmit} onClick={async () => {
             setSaving(true);
-            try { await onSubmit({ name: name.trim(), description: description.trim() || undefined, icon: icon.trim() || undefined }); }
-            finally { setSaving(false); }
-          }}>{saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save</Button>
+            try {
+              if (mode === 'builtin' && !isEdit) {
+                const def = PROJECT_TAB_DEFINITIONS.find(d => d.id === builtinId);
+                if (!def) return;
+                await onSubmit({ name: def.label });
+              } else {
+                await onSubmit({
+                  name: name.trim(),
+                  description: description.trim() || undefined,
+                  icon: icon.trim() || undefined,
+                });
+              }
+            } finally { setSaving(false); }
+          }} data-testid="button-save-tab">
+            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
