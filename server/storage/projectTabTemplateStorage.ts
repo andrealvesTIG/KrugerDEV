@@ -30,17 +30,25 @@ export type ApplyResult = {
   skippedFieldKeys: string[];
 };
 
-export async function listTemplatesForOrg(organizationId: number | null): Promise<ProjectTabTemplate[]> {
+export async function listTemplatesForOrg(organizationId: number | null, industry?: string | null): Promise<ProjectTabTemplate[]> {
+  const industryFilter = industry && industry !== 'all'
+    ? eq(projectTabTemplates.industry, industry)
+    : undefined;
   if (organizationId == null) {
+    const where = industryFilter
+      ? and(eq(projectTabTemplates.scope, 'system'), industryFilter)
+      : eq(projectTabTemplates.scope, 'system');
     return await db.select().from(projectTabTemplates)
-      .where(eq(projectTabTemplates.scope, 'system'))
+      .where(where)
       .orderBy(asc(projectTabTemplates.name));
   }
+  const scopeWhere = or(
+    eq(projectTabTemplates.scope, 'system'),
+    and(eq(projectTabTemplates.scope, 'org'), eq(projectTabTemplates.organizationId, organizationId))
+  );
+  const where = industryFilter ? and(scopeWhere, industryFilter) : scopeWhere;
   return await db.select().from(projectTabTemplates)
-    .where(or(
-      eq(projectTabTemplates.scope, 'system'),
-      and(eq(projectTabTemplates.scope, 'org'), eq(projectTabTemplates.organizationId, organizationId))
-    ))
+    .where(where)
     .orderBy(asc(projectTabTemplates.scope), asc(projectTabTemplates.name));
 }
 

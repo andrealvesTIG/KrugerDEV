@@ -12,14 +12,15 @@ export type FullTemplateSection = ProjectTabTemplateSection & { fields: FullTemp
 export type FullTemplateTab = ProjectTabTemplateTab & { sections: FullTemplateSection[] };
 export type FullProjectTabTemplate = { template: ProjectTabTemplate; tabs: FullTemplateTab[] };
 
-export function useProjectTabTemplates(organizationId: number | undefined) {
+export function useProjectTabTemplates(organizationId: number | undefined, industry?: string) {
   return useQuery<ProjectTabTemplate[]>({
-    queryKey: ['/api/project-tab-templates', organizationId],
+    queryKey: ['/api/project-tab-templates', organizationId, industry ?? 'all'],
     queryFn: async () => {
-      const url = organizationId
-        ? `/api/project-tab-templates?organizationId=${organizationId}`
-        : '/api/project-tab-templates';
-      const res = await apiRequest('GET', url);
+      const params = new URLSearchParams();
+      if (organizationId) params.set('organizationId', String(organizationId));
+      if (industry && industry !== 'all') params.set('industry', industry);
+      const qs = params.toString();
+      const res = await apiRequest('GET', `/api/project-tab-templates${qs ? `?${qs}` : ''}`);
       return res.json();
     },
     enabled: !!organizationId,

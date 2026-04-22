@@ -13,10 +13,72 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCustomProjectTabs, useCreateCustomTab, useUpdateCustomTab, useDeleteCustomTab, useFullCustomTab, useCreateCustomTabSection, useUpdateCustomTabSection, useDeleteCustomTabSection, useCreateCustomTabField, useDeleteCustomTabField, useProjectFieldDefinitions } from "@/hooks/use-custom-tabs";
 import { useCustomFieldDefinitions } from "@/hooks/use-custom-fields";
-import { useProjectTabTemplates, useApplyTemplate, useSaveOrgAsTemplate, useDeleteProjectTabTemplate } from "@/hooks/use-project-tab-templates";
+import { useProjectTabTemplates, useApplyTemplate, useSaveOrgAsTemplate, useDeleteProjectTabTemplate, useFullProjectTabTemplate } from "@/hooks/use-project-tab-templates";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import type { CustomProjectTab, ProjectTabTemplate, User } from "@shared/schema";
+
+const INDUSTRY_CHIPS = [
+  { value: 'all', label: 'All' },
+  { value: 'generic', label: 'Generic' },
+  { value: 'construction', label: 'Construction' },
+  { value: 'it', label: 'IT' },
+  { value: 'marketing', label: 'Marketing' },
+  { value: 'rd', label: 'R&D' },
+  { value: 'healthcare', label: 'Healthcare' },
+  { value: 'services', label: 'Services' },
+];
+
+function TemplatePreviewBody({ templateId }: { templateId: number }) {
+  const { data, isLoading } = useFullProjectTabTemplate(templateId);
+  if (isLoading || !data) {
+    return (
+      <div className="mt-3 flex items-center justify-center py-4 border-t">
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  const tabs = data.tabs ?? [];
+  if (tabs.length === 0) {
+    return <div className="mt-3 pt-3 border-t text-sm text-muted-foreground">This template has no tabs yet.</div>;
+  }
+  return (
+    <div className="mt-3 pt-3 border-t space-y-3" data-testid={`template-preview-${templateId}`}>
+      {tabs.map(tab => (
+        <div key={tab.id} className="space-y-2">
+          <div className="text-sm font-semibold flex items-center gap-2">
+            <LayoutGrid className="h-3.5 w-3.5 text-muted-foreground" />
+            {tab.name}
+          </div>
+          <div className="ml-5 space-y-2">
+            {(tab.sections ?? []).map(section => (
+              <div key={section.id} className="rounded-md border bg-muted/30 p-2">
+                <div className="text-xs font-medium flex items-center gap-2">
+                  <Columns className="h-3 w-3 text-muted-foreground" />
+                  {section.name}
+                  <Badge variant="outline" className="text-[10px]">{section.columns ?? 2} cols</Badge>
+                </div>
+                {(section.fields ?? []).length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {section.fields.map(f => (
+                      <Badge key={f.id} variant="secondary" className="text-[10px]">
+                        {f.label || f.fieldKey}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {(tab.sections ?? []).length === 0 && (
+              <div className="text-xs text-muted-foreground">No sections</div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function CustomTabsSection({ organizationId }: { organizationId: number }) {
   const { toast } = useToast();
@@ -53,7 +115,9 @@ export function CustomTabsSection({ organizationId }: { organizationId: number }
   const isOrgAdminOrOwner = isSuperAdmin
     || currentMembership?.role === 'org_admin'
     || currentMembership?.role === 'owner';
-  const { data: templates = [] } = useProjectTabTemplates(isOrgAdminOrOwner ? organizationId : undefined);
+  const [templateIndustry, setTemplateIndustry] = useState<string>('all');
+  const [previewTemplateId, setPreviewTemplateId] = useState<number | null>(null);
+  const { data: templates = [] } = useProjectTabTemplates(isOrgAdminOrOwner ? organizationId : undefined, templateIndustry);
   const applyTemplate = useApplyTemplate();
   const saveAsTemplate = useSaveOrgAsTemplate();
   const deleteTemplate = useDeleteProjectTabTemplate();
@@ -424,12 +488,27 @@ export function CustomTabsSection({ organizationId }: { organizationId: number }
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showTemplatesDialog} onOpenChange={setShowTemplatesDialog}>
+      <Dialog open={showTemplatesDialog} onOpenChange={(open) => { setShowTemplatesDialog(open); if (!open) setPreviewTemplateId(null); }}>
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto" data-testid="dialog-templates">
           <DialogHeader>
             <DialogTitle>Project Tab Templates</DialogTitle>
             <DialogDescription>Apply an industry-flavored layout, or pick one of your saved templates. Applying never changes existing project data.</DialogDescription>
           </DialogHeader>
+
+          <div className="flex flex-wrap gap-2 mb-3" data-testid="template-industry-chips">
+            {INDUSTRY_CHIPS.map(opt => (
+              <Button
+                key={opt.value}
+                size="sm"
+                variant={templateIndustry === opt.value ? 'default' : 'outline'}
+                onClick={() => setTemplateIndustry(opt.value)}
+                data-testid={`chip-industry-${opt.value}`}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
+
           {templates.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">No templates available.</div>
           ) : (
@@ -448,6 +527,10 @@ export function CustomTabsSection({ organizationId }: { organizationId: number }
                       {tpl.description && <p className="text-sm text-muted-foreground mt-1">{tpl.description}</p>}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      <Button size="sm" variant="outline" onClick={() => setPreviewTemplateId(previewTemplateId === tpl.id ? null : tpl.id)} data-testid={`button-preview-template-${tpl.id}`}>
+                        {previewTemplateId === tpl.id ? <ChevronDown className="h-4 w-4 mr-1" /> : <ChevronRight className="h-4 w-4 mr-1" />}
+                        Preview
+                      </Button>
                       <Button size="sm" onClick={() => { setPendingTemplateId(tpl.id); setApplyMode('append'); setShowApplyConfirm(true); }} data-testid={`button-apply-template-${tpl.id}`}>
                         Apply
                       </Button>
@@ -458,6 +541,9 @@ export function CustomTabsSection({ organizationId }: { organizationId: number }
                       )}
                     </div>
                   </div>
+                  {previewTemplateId === tpl.id && (
+                    <TemplatePreviewBody templateId={tpl.id} />
+                  )}
                 </div>
               ))}
             </div>

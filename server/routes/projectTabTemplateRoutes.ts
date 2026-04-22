@@ -77,7 +77,10 @@ export function registerProjectTabTemplateRoutes(app: Express) {
   apiRoute(app, 'get', '/api/project-tab-templates', {
     tag: 'Project Tab Templates',
     summary: 'List project tab templates',
-    parameters: [qInt('organizationId', false, 'Organization ID for org-scoped templates')],
+    parameters: [
+      qInt('organizationId', false, 'Organization ID for org-scoped templates'),
+      qStr('industry', false, 'Filter by industry (e.g. construction, generic)'),
+    ],
     responses: { ...r200('Templates list', { type: 'array', items: { type: 'object' } }), ...authRes },
   }, async (req, res) => {
     try {
@@ -99,7 +102,8 @@ export function registerProjectTabTemplateRoutes(app: Express) {
           return res.status(403).json({ message: 'Organization admin access required' });
         }
       }
-      const templates = await listTemplatesForOrg(organizationId);
+      const industry = typeof req.query.industry === 'string' ? req.query.industry : null;
+      const templates = await listTemplatesForOrg(organizationId, industry);
       // Non-super-admins only see published templates
       const visible = hasAdminAccess(user)
         ? templates
@@ -199,6 +203,12 @@ export function registerProjectTabTemplateRoutes(app: Express) {
       const c = classifyError(err);
       res.status(c.status).json({ message: c.status === 500 ? 'Failed to apply template' : c.message });
     }
+  });
+
+  // Alias path matching the documented spec
+  app.post('/api/organizations/:id/project-tabs/save-as-template', (req, res, next) => {
+    req.url = `/api/organizations/${req.params.id}/save-tabs-as-template`;
+    next();
   });
 
   // Save the org's current custom tabs as a new template
