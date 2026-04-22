@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useCustomProjectTabs, useCreateCustomTab, useUpdateCustomTab, useDeleteCustomTab, useFullCustomTab, useCreateCustomTabSection, useUpdateCustomTabSection, useDeleteCustomTabSection, useCreateCustomTabField, useDeleteCustomTabField, useProjectFieldDefinitions } from "@/hooks/use-custom-tabs";
 import { useCustomFieldDefinitions } from "@/hooks/use-custom-fields";
 import { useProjectTabTemplates, useApplyTemplate, useSaveOrgAsTemplate, useDeleteProjectTabTemplate } from "@/hooks/use-project-tab-templates";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import type { CustomProjectTab, ProjectTabTemplate, User } from "@shared/schema";
 
