@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import type { ProjectChangeLog, InsertProject, Project } from "@shared/schema";
+import { trackChecklistEvent } from "@/hooks/use-user-journey";
 
 export interface PaginatedProjects {
   projects: Project[];
@@ -78,6 +79,7 @@ export function useCreateProject() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.projects.list.path] });
+      trackChecklistEvent("create_project");
     },
   });
 }

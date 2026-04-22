@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useInfiniteQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Task, InsertTask, UpdateTaskRequest, TaskChangeLog, TaskNotesHistoryEntry, TaskDependency } from "@shared/schema";
+import { trackChecklistEvent } from "@/hooks/use-user-journey";
 import { format } from "date-fns";
 
 export interface TaskFilterParams {
@@ -121,6 +122,8 @@ export function useCreateTask() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
       queryClient.invalidateQueries({ queryKey: ['/api/tasks'], exact: false });
+      trackChecklistEvent('add_task');
+      if ((variables as any)?.assigneeId) trackChecklistEvent('assign_member');
     },
   });
 }
