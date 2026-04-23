@@ -15,7 +15,7 @@ import {
   type ProjectTabTemplateSection,
   type ProjectTabTemplateField,
 } from "@shared/schema";
-import { eq, and, or, asc, isNull, sql } from "drizzle-orm";
+import { eq, and, or, asc, isNull, sql, inArray } from "drizzle-orm";
 import {
   PROJECT_TAB_IDS,
   PROJECT_TAB_ID_SET,
@@ -765,6 +765,38 @@ export async function propagateTemplateToAppliedOrgs(opts: {
     });
   }
   return { organizationsUpdated: orgIds.length, tabsCreated, fieldsSkipped };
+}
+
+/**
+ * Lightweight propagation used after canonical-layout-only changes (the
+ * super-admin "Template builder" Save Changes button). It updates each
+ * applied org's projectTabSettings (a single bulk UPDATE) without touching
+ * custom tabs/sections/fields, which is what the heavier
+ * propagateTemplateToAppliedOrgs does.
+ */
+export async function propagateLayoutToAppliedOrgs(
+  templateId: number,
+): Promise<{ organizationsUpdated: number }> {
+  const orgIds = await listAppliedOrganizations(templateId);
+  if (orgIds.length === 0) return { organizationsUpdated: 0 };
+  // Mirror the heavy `propagateTemplateToAppliedOrgs` semantics: only push a
+  // canonical layout to applied orgs when the template actually contains
+  // canonical-tab directive rows (a row whose `name` is a PROJECT_TAB_ID).
+  // Templates that only define legacy custom-tab blueprints (no canonical
+  // rows at all) must NOT overwrite each org's projectTabSettings.
+  const tabRows = await db.select({ name: projectTabTemplateTabs.name })
+    .from(projectTabTemplateTabs)
+    .where(eq(projectTabTemplateTabs.templateId, templateId))
+    .orderBy(asc(projectTabTemplateTabs.displayOrder));
+  const canonicalVisible = tabRows
+    .map((r) => r.name)
+    .filter((n) => PROJECT_TAB_ID_SET.has(n));
+  if (canonicalVisible.length === 0) return { organizationsUpdated: 0 };
+  const settings = computeProjectTabSettings(canonicalVisible);
+  await db.update(organizations)
+    .set({ projectTabSettings: settings })
+    .where(inArray(organizations.id, orgIds));
+  return { organizationsUpdated: orgIds.length };
 }
 
 export async function listOrgsMissingDefaultTemplate(): Promise<{ id: number }[]> {

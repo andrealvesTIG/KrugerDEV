@@ -35,6 +35,7 @@ import {
   getTemplateIdForSection,
   getTemplateIdForField,
   propagateTemplateToAppliedOrgs,
+  propagateLayoutToAppliedOrgs,
   getTemplateCanonicalLayout,
   setTemplateCanonicalLayout,
 } from "../storage/projectTabTemplateStorage";
@@ -219,7 +220,15 @@ export function registerProjectTabTemplateRoutes(app: Express) {
       const order = Array.isArray(req.body?.order) ? req.body.order.filter((s: unknown): s is string => typeof s === 'string' && PROJECT_TAB_ID_SET.has(s)) : [];
       const hidden = Array.isArray(req.body?.hidden) ? req.body.hidden.filter((s: unknown): s is string => typeof s === 'string' && PROJECT_TAB_ID_SET.has(s)) : [];
       const layout = await setTemplateCanonicalLayout(id, { order, hidden });
-      await propagate(id, userId);
+      // Canonical layout changes only affect each org's projectTabSettings —
+      // no need to soft-delete & rebuild every custom tab/section/field per org
+      // (the heavy `propagate` here used to make this Save button take many
+      // seconds on production templates with several applied orgs). Run the
+      // lightweight bulk update inline (single SQL UPDATE), and don't block
+      // the response on it failing for a single org.
+      propagateLayoutToAppliedOrgs(id).catch((err) => {
+        console.error('[template-layout] propagate failed', { templateId: id, err });
+      });
       res.json(layout);
     } catch (err) {
       const c = classifyError(err);
