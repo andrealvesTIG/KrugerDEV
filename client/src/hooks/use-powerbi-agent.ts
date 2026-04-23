@@ -1,67 +1,192 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useOrganization } from "./use-organization";
 
+export type PowerBIAgentModel = "fast" | "smart" | "claude";
+
+export interface PowerBIAttachment {
+  name: string;
+  objectPath: string;
+  contentType: string;
+  size: number;
+}
+
 export interface PowerBIAgentMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  attachments?: PowerBIAttachment[];
   timestamp: Date;
 }
 
-const STORAGE_KEY_PREFIX = "powerbi_agent_messages_";
-const MAX_STORED_MESSAGES = 100;
-
-function getStorageKey(orgId: number | undefined): string {
-  return `${STORAGE_KEY_PREFIX}${orgId || "unknown"}`;
+export interface PowerBIAgentConversation {
+  id: number;
+  title: string | null;
+  model: string | null;
+  lastMessageAt: string | null;
+  submittedIntakeId: number | null;
 }
 
-function loadPersistedMessages(orgId: number | undefined): PowerBIAgentMessage[] {
-  try {
-    const stored = sessionStorage.getItem(getStorageKey(orgId));
-    if (!stored) return [];
-    return JSON.parse(stored).map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }));
-  } catch {
-    return [];
-  }
+export interface ProviderInfo {
+  id: PowerBIAgentModel;
+  label: string;
+  available: boolean;
 }
 
-function persistMessages(messages: PowerBIAgentMessage[], orgId: number | undefined) {
+const MODEL_PREF_KEY = "powerbi_agent_model";
+
+function loadModelPref(): PowerBIAgentModel {
   try {
-    sessionStorage.setItem(getStorageKey(orgId), JSON.stringify(messages.slice(-MAX_STORED_MESSAGES)));
+    const v = localStorage.getItem(MODEL_PREF_KEY);
+    if (v === "fast" || v === "smart" || v === "claude") return v;
   } catch {}
+  return "fast";
 }
 
 export function usePowerBIAgent() {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
-  const [messages, setMessages] = useState<PowerBIAgentMessage[]>(() => loadPersistedMessages(orgId));
+
+  const [messages, setMessages] = useState<PowerBIAgentMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [conversationId, setConversationId] = useState<number | null>(null);
+  const [conversations, setConversations] = useState<PowerBIAgentConversation[]>([]);
+  const [providers, setProviders] = useState<ProviderInfo[]>([]);
+  const [model, setModelState] = useState<PowerBIAgentModel>(() => loadModelPref());
+
   const abortRef = useRef<AbortController | null>(null);
-  const prevOrgIdRef = useRef(orgId);
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+  const conversationIdRef = useRef<number | null>(null);
+  conversationIdRef.current = conversationId;
 
+  const setModel = useCallback((m: PowerBIAgentModel) => {
+    setModelState(m);
+    try { localStorage.setItem(MODEL_PREF_KEY, m); } catch {}
+  }, []);
+
+  // Load providers once
   useEffect(() => {
-    if (prevOrgIdRef.current !== orgId) {
-      setMessages(loadPersistedMessages(orgId));
-      prevOrgIdRef.current = orgId;
-    }
+    fetch("/api/powerbi-agent/providers", { credentials: "include" })
+      .then(r => r.ok ? r.json() : [])
+      .then((p: ProviderInfo[]) => {
+        setProviders(p);
+        // Fallback if previously selected model is now unavailable
+        const cur = loadModelPref();
+        const match = p.find(x => x.id === cur);
+        if (!match || !match.available) {
+          const firstAvail = p.find(x => x.available);
+          if (firstAvail) setModel(firstAvail.id);
+        }
+      })
+      .catch(() => {});
+  }, [setModel]);
+
+  const refreshConversations = useCallback(async () => {
+    if (!orgId) return;
+    try {
+      const r = await fetch(`/api/powerbi-agent/conversations?organizationId=${orgId}`, { credentials: "include" });
+      if (r.ok) setConversations(await r.json());
+    } catch {}
   }, [orgId]);
 
   useEffect(() => {
-    persistMessages(messages, orgId);
-  }, [messages, orgId]);
+    if (orgId) {
+      refreshConversations();
+      // When org changes, drop in-memory chat
+      setMessages([]);
+      setConversationId(null);
+    }
+  }, [orgId, refreshConversations]);
 
-  const sendMessage = useCallback(async (content: string) => {
+  const startNewConversation = useCallback(() => {
+    if (abortRef.current) abortRef.current.abort();
+    setMessages([]);
+    setConversationId(null);
+    setIsLoading(false);
+  }, []);
+
+  const loadConversation = useCallback(async (id: number) => {
+    if (!orgId) return;
+    try {
+      const r = await fetch(`/api/powerbi-agent/conversations/${id}?organizationId=${orgId}`, { credentials: "include" });
+      if (!r.ok) return;
+      const data = await r.json();
+      setConversationId(data.conversation.id);
+      if (data.conversation.model) setModel(data.conversation.model as PowerBIAgentModel);
+      setMessages((data.messages || []).map((m: any) => ({
+        id: `m-${m.id}`,
+        role: m.role,
+        content: m.content,
+        attachments: m.attachments || undefined,
+        timestamp: new Date(m.createdAt),
+      })));
+    } catch {}
+  }, [orgId, setModel]);
+
+  const renameConversation = useCallback(async (id: number, title: string) => {
+    if (!orgId) return;
+    await fetch(`/api/powerbi-agent/conversations/${id}?organizationId=${orgId}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title }),
+    });
+    refreshConversations();
+  }, [orgId, refreshConversations]);
+
+  const deleteConversation = useCallback(async (id: number) => {
+    if (!orgId) return;
+    await fetch(`/api/powerbi-agent/conversations/${id}?organizationId=${orgId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (conversationIdRef.current === id) startNewConversation();
+    refreshConversations();
+  }, [orgId, refreshConversations, startNewConversation]);
+
+  const uploadAttachment = useCallback(async (file: File): Promise<PowerBIAttachment | null> => {
+    try {
+      const r = await fetch("/api/uploads/request-url", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: file.name,
+          size: file.size,
+          contentType: file.type || "application/octet-stream",
+        }),
+      });
+      if (!r.ok) return null;
+      const { uploadURL, objectPath: serverObjectPath } = await r.json();
+      const put = await fetch(uploadURL, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!put.ok) return null;
+      const objectPath: string = serverObjectPath || new URL(uploadURL).pathname;
+      return {
+        name: file.name,
+        objectPath,
+        contentType: file.type || "application/octet-stream",
+        size: file.size,
+      };
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const sendMessage = useCallback(async (content: string, attachments?: PowerBIAttachment[]) => {
     if (!currentOrganization?.id || isLoading) return;
+    if (!content.trim() && !(attachments && attachments.length)) return;
 
     const userMessage: PowerBIAgentMessage = {
       id: `user-${Date.now()}`,
       role: "user",
       content,
+      attachments,
       timestamp: new Date(),
     };
-
     const assistantMessage: PowerBIAgentMessage = {
       id: `assistant-${Date.now()}`,
       role: "assistant",
@@ -72,10 +197,10 @@ export function usePowerBIAgent() {
     setMessages(prev => [...prev, userMessage, assistantMessage]);
     setIsLoading(true);
 
-    const currentMessages = messagesRef.current;
-    const allMessages = [...currentMessages, userMessage].slice(-40).map(m => ({
+    const allMessages = [...messagesRef.current, userMessage].slice(-40).map(m => ({
       role: m.role,
       content: m.content,
+      attachments: m.attachments,
     }));
 
     try {
@@ -87,6 +212,8 @@ export function usePowerBIAgent() {
         body: JSON.stringify({
           messages: allMessages,
           organizationId: currentOrganization.id,
+          model,
+          conversationId: conversationIdRef.current,
         }),
         signal: abortRef.current.signal,
       });
@@ -98,80 +225,66 @@ export function usePowerBIAgent() {
 
       const reader = response.body?.getReader();
       if (!reader) throw new Error("No response stream");
-
       const decoder = new TextDecoder();
       let buffer = "";
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() || "";
-
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           try {
             const data = JSON.parse(line.slice(6));
+            if (data.conversationId && !conversationIdRef.current) {
+              setConversationId(data.conversationId);
+              conversationIdRef.current = data.conversationId;
+            }
             if (data.error) {
               setMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last.role === "assistant") {
-                  last.content = `Error: ${data.error}`;
-                }
-                return updated;
+                const u = [...prev];
+                const last = u[u.length - 1];
+                if (last.role === "assistant") last.content = `Error: ${data.error}`;
+                return u;
               });
               break;
             }
             if (data.done) break;
             if (data.content) {
               setMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last.role === "assistant") {
-                  last.content += data.content;
-                }
-                return updated;
+                const u = [...prev];
+                const last = u[u.length - 1];
+                if (last.role === "assistant") last.content += data.content;
+                return u;
               });
             }
           } catch {}
         }
       }
+      refreshConversations();
     } catch (err: any) {
       if (err.name === "AbortError") {
         setMessages(prev => {
-          const updated = [...prev];
-          const last = updated[updated.length - 1];
-          if (last?.role === "assistant" && !last.content) {
-            last.content = "*(Response stopped)*";
-          }
-          return updated;
+          const u = [...prev];
+          const last = u[u.length - 1];
+          if (last?.role === "assistant" && !last.content) last.content = "*(Response stopped)*";
+          return u;
         });
         return;
       }
       setMessages(prev => {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last?.role === "assistant" && !last.content) {
-          last.content = `Sorry, I encountered an error: ${err.message}. Please try again.`;
-        }
-        return updated;
+        const u = [...prev];
+        const last = u[u.length - 1];
+        if (last?.role === "assistant" && !last.content) last.content = `Sorry, I encountered an error: ${err.message}. Please try again.`;
+        return u;
       });
     } finally {
       setIsLoading(false);
       abortRef.current = null;
     }
-  }, [currentOrganization?.id, isLoading]);
-
-  const clearMessages = useCallback(() => {
-    if (abortRef.current) {
-      abortRef.current.abort();
-    }
-    setMessages([]);
-    setIsLoading(false);
-  }, []);
+  }, [currentOrganization?.id, isLoading, model, refreshConversations]);
 
   const stopGeneration = useCallback(() => {
     if (abortRef.current) {
@@ -184,7 +297,20 @@ export function usePowerBIAgent() {
     messages,
     isLoading,
     sendMessage,
-    clearMessages,
+    startNewConversation,
     stopGeneration,
+    // history
+    conversationId,
+    conversations,
+    refreshConversations,
+    loadConversation,
+    renameConversation,
+    deleteConversation,
+    // models
+    model,
+    setModel,
+    providers,
+    // attachments
+    uploadAttachment,
   };
 }

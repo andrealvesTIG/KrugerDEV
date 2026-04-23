@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.90.0",
     "@asteasolutions/zod-to-openapi": "^7.3.4",
     "@azure/msal-browser": "^4.27.0",
     "@azure/msal-node": "^3.8.4",

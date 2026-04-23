@@ -1514,6 +1514,34 @@ export const powerbiIntakeRequests = pgTable("powerbi_intake_requests", {
   uniqueIndex("powerbi_intake_request_number_idx").on(table.requestNumber),
 ]);
 
+// Power BI Agent Conversations - persistent chat history per user
+export const powerbiAgentConversations = pgTable("powerbi_agent_conversations", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  title: text("title"),
+  model: text("model").default("fast"),
+  submittedIntakeId: integer("submitted_intake_id"),
+  archivedAt: timestamp("archived_at"),
+  lastMessageAt: timestamp("last_message_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("pbi_agent_conv_user_idx").on(table.userId, table.lastMessageAt),
+  index("pbi_agent_conv_org_idx").on(table.organizationId),
+]);
+
+export const powerbiAgentMessages = pgTable("powerbi_agent_messages", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id").references(() => powerbiAgentConversations.id, { onDelete: "cascade" }).notNull(),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  attachments: jsonb("attachments").$type<Array<{ name: string; objectPath: string; contentType: string; size: number }>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("pbi_agent_msg_conv_idx").on(table.conversationId, table.createdAt),
+]);
+
 // MPP Imports - Store imported Microsoft Project data
 export const mppImports = pgTable("mpp_imports", {
   id: serial("id").primaryKey(),
