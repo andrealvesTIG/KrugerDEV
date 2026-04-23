@@ -20,7 +20,16 @@ import {
   updateConversationTitle,
   updateConversationModel,
   deleteConversation,
+  updateConversationIntakeState,
+  getConversationIntakeState,
 } from "../storage/powerbiAgentStorage";
+import {
+  extractIntakeState,
+  emptyIntakeState,
+  countCaptured,
+  PBI_INTAKE_FIELDS,
+  PBI_INTAKE_SECTIONS,
+} from "../services/powerbiIntakeExtraction";
 import {
   getUserIdFromRequest,
   getUserOrgIds,
@@ -128,11 +137,54 @@ export function registerPowerBIAgentRoutes(app: Express) {
       const conv = await getConversation(id, orgId, userId);
       if (!conv) return res.status(404).json({ message: "Not found" });
       const msgs = await getMessages(id);
-      res.json({ conversation: conv, messages: msgs });
+      const intakeState = (conv.intakeState as any) ?? emptyIntakeState();
+      const counts = countCaptured(intakeState);
+      res.json({
+        conversation: conv,
+        messages: msgs,
+        intakeState,
+        intakeProgress: { ...counts, fields: PBI_INTAKE_FIELDS, sections: PBI_INTAKE_SECTIONS },
+      });
     } catch (e: any) {
       console.error("[PBI Agent] Get conversation:", e.message);
       res.status(500).json({ message: "Internal server error" });
     }
+  });
+
+  apiRoute(app, 'get', '/api/powerbi-agent/conversations/:id/intake-state', {
+    tag: 'AI', summary: 'Get the persisted intake-state snapshot for a conversation',
+    responses: { ...r200('IntakeState', { type: 'object' }), ...authRes, ...stdRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgId = Number(req.query.organizationId);
+      const id = Number(req.params.id);
+      if (!orgId || !id) return res.status(400).json({ message: "organizationId and id required" });
+      const orgIds = await getUserOrgIds(userId);
+      if (!orgIds.includes(orgId)) return res.status(403).json({ message: "Access denied" });
+      const conv = await getConversation(id, orgId, userId);
+      if (!conv) return res.status(404).json({ message: "Not found" });
+      const intakeState = (conv.intakeState as any) ?? emptyIntakeState();
+      const counts = countCaptured(intakeState);
+      res.json({
+        intakeState,
+        counts,
+        fields: PBI_INTAKE_FIELDS,
+        sections: PBI_INTAKE_SECTIONS,
+        submitted: !!conv.submittedIntakeId,
+      });
+    } catch (e: any) {
+      console.error("[PBI Agent] Get intake state:", e.message);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  apiRoute(app, 'get', '/api/powerbi-agent/intake-fields', {
+    tag: 'AI', summary: 'Static metadata: list of intake fields & section grouping for the progress panel',
+    responses: { ...r200('Fields', { type: 'object' }), ...stdRes },
+  }, async (_req, res) => {
+    res.json({ fields: PBI_INTAKE_FIELDS, sections: PBI_INTAKE_SECTIONS });
   });
 
   apiRoute(app, 'patch', '/api/powerbi-agent/conversations/:id', {
@@ -273,18 +325,43 @@ export function registerPowerBIAgentRoutes(app: Express) {
       // Tell client the conversationId we're using
       sendSSE({ conversationId: convId });
 
+      const finalConvId = convId;
+      const transcript = messages.map(m => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        attachments: m.attachments ?? null,
+      }));
+
+      let assistantBuffer = "";
       await streamPowerBIAgentResponse(
         organizationId,
         userId,
-        messages.map(m => ({
-          role: m.role as "user" | "assistant",
-          content: m.content,
-          attachments: m.attachments,
-        })),
+        transcript,
         modelTier,
         convId,
-        (content) => sendSSE({ content }),
-        (_full) => { sendSSE({ done: true }); res.end(); },
+        (content) => { assistantBuffer += content; sendSSE({ content }); },
+        async (_full) => {
+          // Re-extract intake state now that the assistant turn is complete.
+          // Done before sending `done` so the client's follow-up fetch sees fresh data.
+          try {
+            if (finalConvId) {
+              const previous = await getConversationIntakeState(finalConvId);
+              const fullTranscript = [...transcript, { role: "assistant" as const, content: assistantBuffer, attachments: null }];
+              const newState = await extractIntakeState(fullTranscript, previous);
+              const conv = await getConversation(finalConvId, organizationId, userId);
+              if (conv?.submittedIntakeId) {
+                newState.submittedRequestNumber = previous?.submittedRequestNumber ?? null;
+                newState.submittedIntakeNumber = previous?.submittedIntakeNumber ?? null;
+              }
+              await updateConversationIntakeState(finalConvId, newState);
+              sendSSE({ intakeState: newState, intakeCounts: countCaptured(newState) });
+            }
+          } catch (e: any) {
+            console.error("[PBI Agent] intake extraction failed:", e.message);
+          }
+          sendSSE({ done: true });
+          res.end();
+        },
         (error) => {
           console.error("[PowerBI Agent] Stream error:", error.message);
           sendSSE({ error: "An error occurred. Please try again." });

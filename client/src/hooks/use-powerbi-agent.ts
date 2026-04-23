@@ -1,7 +1,15 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useOrganization } from "./use-organization";
+import type { PbiIntakeState } from "@shared/schema";
 
 export type PowerBIAgentModel = "fast" | "smart" | "claude";
+
+export interface PbiIntakeFieldMeta {
+  key: keyof PbiIntakeState;
+  label: string;
+  section: string;
+  type: "string" | "number";
+}
 
 export interface PowerBIAttachment {
   name: string;
@@ -65,6 +73,11 @@ export function usePowerBIAgent() {
   const [isReadOnly, setIsReadOnly] = useState(false);
   // Intake the active conversation has produced (if any). Drives the "Open intake" link.
   const [submittedIntakeId, setSubmittedIntakeId] = useState<number | null>(null);
+  const [intakeState, setIntakeState] = useState<PbiIntakeState | null>(null);
+  const [intakeFields, setIntakeFields] = useState<PbiIntakeFieldMeta[]>([]);
+  const [intakeSections, setIntakeSections] = useState<string[]>([]);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef(messages);
@@ -75,6 +88,19 @@ export function usePowerBIAgent() {
   const setModel = useCallback((m: PowerBIAgentModel) => {
     setModelState(m);
     try { localStorage.setItem(MODEL_PREF_KEY, m); } catch {}
+  }, []);
+
+  // Load static intake field metadata (labels + grouping) once
+  useEffect(() => {
+    fetch("/api/powerbi-agent/intake-fields", { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then((d) => {
+        if (d) {
+          setIntakeFields(d.fields || []);
+          setIntakeSections(d.sections || []);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Load providers once
@@ -115,6 +141,8 @@ export function usePowerBIAgent() {
     setConversationId(null);
     setIsReadOnly(false);
     setSubmittedIntakeId(null);
+    setIntakeState(null);
+    setIsSubmitted(false);
     // One-time migration: import any sessionStorage-cached chat from the legacy
     // client-only implementation into a server-backed conversation, then delete the key.
     void (async () => {
@@ -159,6 +187,8 @@ export function usePowerBIAgent() {
     setIsLoading(false);
     setIsReadOnly(false);
     setSubmittedIntakeId(null);
+    setIntakeState(null);
+    setIsSubmitted(false);
   }, []);
 
   const continueConversation = useCallback(() => {
@@ -198,10 +228,26 @@ export function usePowerBIAgent() {
       }
       setMessages(loaded);
       setSubmittedIntakeId(intakeId);
+      setIntakeState(data.intakeState || null);
+      setIsSubmitted(!!intakeId);
       // Resumed conversations land in read-only mode until the user clicks "Continue".
       setIsReadOnly(true);
     } catch {}
   }, [orgId, setModel]);
+
+  const refreshIntakeState = useCallback(async () => {
+    const id = conversationIdRef.current;
+    if (!orgId || !id) return;
+    try {
+      const r = await fetch(`/api/powerbi-agent/conversations/${id}/intake-state?organizationId=${orgId}`, {
+        credentials: "include",
+      });
+      if (!r.ok) return;
+      const d = await r.json();
+      setIntakeState(d.intakeState || null);
+      setIsSubmitted(!!d.submitted);
+    } catch {}
+  }, [orgId]);
 
   const renameConversation = useCallback(async (id: number, title: string) => {
     if (!orgId) return;
@@ -276,6 +322,7 @@ export function usePowerBIAgent() {
 
     setMessages(prev => [...prev, userMessage, assistantMessage]);
     setIsLoading(true);
+    setIsExtracting(true);
 
     const allMessages = [...messagesRef.current, userMessage].slice(-40).map(m => ({
       role: m.role,
@@ -340,10 +387,18 @@ export function usePowerBIAgent() {
                 return u;
               });
               setSubmittedIntakeId(info.intakeId);
+              setIsSubmitted(true);
               // Update conversation list so submitted state is reflected immediately.
               setConversations(prev => prev.map(c =>
                 c.id === conversationIdRef.current ? { ...c, submittedIntakeId: info.intakeId } : c
               ));
+            }
+            if (data.intakeState) {
+              setIntakeState(data.intakeState);
+              setIsExtracting(false);
+              if (data.intakeState.submittedRequestNumber || data.intakeState.submittedIntakeNumber) {
+                setIsSubmitted(true);
+              }
             }
             if (data.done) break;
             if (data.content) {
@@ -376,6 +431,7 @@ export function usePowerBIAgent() {
       });
     } finally {
       setIsLoading(false);
+      setIsExtracting(false);
       abortRef.current = null;
     }
   }, [currentOrganization?.id, isLoading, model, refreshConversations]);
@@ -410,5 +466,12 @@ export function usePowerBIAgent() {
     providers,
     // attachments
     uploadAttachment,
+    // intake state
+    intakeState,
+    intakeFields,
+    intakeSections,
+    isExtracting,
+    isSubmitted,
+    refreshIntakeState,
   };
 }

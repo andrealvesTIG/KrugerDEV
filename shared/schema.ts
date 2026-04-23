@@ -1514,6 +1514,29 @@ export const powerbiIntakeRequests = pgTable("powerbi_intake_requests", {
   uniqueIndex("powerbi_intake_request_number_idx").on(table.requestNumber),
 ]);
 
+// Snapshot of intake fields extracted live from the Power BI Agent conversation.
+// Each value is the model's current best-known capture (string for free-text, number
+// for numeric counts) or null if not yet captured.
+export type PbiIntakeState = {
+  reportName: string | null;
+  reportType: string | null;
+  description: string | null;
+  numberOfPages: number | null;
+  numberOfDrillDownPages: number | null;
+  dataSources: string | null;
+  integrations: string | null;
+  calculationComplexity: string | null;
+  refreshFrequency: string | null;
+  filtersAndSlicers: string | null;
+  visualRequirements: string | null;
+  securityRequirements: string | null;
+  targetDeliveryDate: string | null;
+  additionalNotes: string | null;
+  submittedRequestNumber?: string | null;
+  submittedIntakeNumber?: string | null;
+  updatedAt?: string;
+};
+
 // Power BI Agent Conversations - persistent chat history per user
 export const powerbiAgentConversations = pgTable("powerbi_agent_conversations", {
   id: serial("id").primaryKey(),
@@ -1522,6 +1545,7 @@ export const powerbiAgentConversations = pgTable("powerbi_agent_conversations", 
   title: text("title"),
   model: text("model").default("fast"),
   submittedIntakeId: integer("submitted_intake_id"),
+  intakeState: jsonb("intake_state").$type<PbiIntakeState>(),
   archivedAt: timestamp("archived_at"),
   lastMessageAt: timestamp("last_message_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),

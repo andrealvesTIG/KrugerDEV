@@ -8,7 +8,9 @@ import {
   Send, Square, Trash2, BarChart3, User, Sparkles,
   FileBarChart, Database, Shield, Clock, Filter, Palette, CalendarDays,
   HelpCircle, Mic, MicOff, Paperclip, X, History, Plus, Pencil, Image as ImageIcon, FileText,
+  ClipboardList,
 } from "lucide-react";
+import { RequestSummaryPanel } from "@/components/powerbi/RequestSummaryPanel";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -342,7 +344,9 @@ export default function PowerBIAgent() {
     conversationId, conversations, loadConversation, renameConversation, deleteConversation,
     isReadOnly, continueConversation,
     model, setModel, providers, uploadAttachment,
+    intakeState, intakeFields, intakeSections, isExtracting, isSubmitted,
   } = usePowerBIAgent();
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const { toast } = useToast();
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
@@ -489,7 +493,8 @@ export default function PowerBIAgent() {
   ]).filter(p => p.available);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)]">
+    <div className="flex h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)]">
+    <div className="flex flex-col h-full flex-1 min-w-0">
       <div className="border-b bg-background/95 backdrop-blur-sm px-6 py-4 flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-md">
@@ -500,6 +505,15 @@ export default function PowerBIAgent() {
             <p className="text-xs text-muted-foreground">AI-guided intake for new report requests</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="lg:hidden"
+              onClick={() => setSummaryOpen(true)}
+              data-testid="button-open-summary"
+            >
+              <ClipboardList className="w-3.5 h-3.5 mr-1.5" /> Summary
+            </Button>
             <Select value={model} onValueChange={(v) => setModel(v as PowerBIAgentModel)} disabled={isLoading}>
               <SelectTrigger className="h-8 w-[110px] text-xs" data-testid="select-model">
                 <SelectValue />
@@ -766,6 +780,35 @@ export default function PowerBIAgent() {
             : "This agent captures your requirements — the team will follow up with a quote and timeline."}
         </p>
       </div>
+    </div>
+    {/* Right side: Request Summary panel (visible >= lg) */}
+    <aside
+      className="hidden lg:flex flex-col w-[320px] xl:w-[360px] border-l bg-muted/20 flex-shrink-0"
+      data-testid="summary-panel-desktop"
+    >
+      <RequestSummaryPanel
+        fields={intakeFields}
+        sections={intakeSections}
+        state={intakeState}
+        isExtracting={isExtracting}
+        isSubmitted={isSubmitted}
+      />
+    </aside>
+    {/* Mobile/tablet: drawer */}
+    <Sheet open={summaryOpen} onOpenChange={setSummaryOpen}>
+      <SheetContent side="right" className="w-[340px] sm:w-[380px] p-0 lg:hidden">
+        <SheetHeader className="sr-only">
+          <SheetTitle>Request Summary</SheetTitle>
+        </SheetHeader>
+        <RequestSummaryPanel
+          fields={intakeFields}
+          sections={intakeSections}
+          state={intakeState}
+          isExtracting={isExtracting}
+          isSubmitted={isSubmitted}
+        />
+      </SheetContent>
+    </Sheet>
     </div>
   );
 }

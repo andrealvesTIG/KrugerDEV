@@ -250,7 +250,12 @@ async function handleSubmitTool(
   });
 
   if (conversationDbId) {
-    try { await setSubmittedIntake(conversationDbId, result.projectIntake.id); } catch {}
+    try {
+      await setSubmittedIntake(conversationDbId, result.projectIntake.id, {
+        requestNumber,
+        intakeNumber: result.projectIntake.intakeNumber,
+      });
+    } catch {}
   }
 
   console.log(`[PowerBI Agent] Created intake ${result.projectIntake.intakeNumber} + PBI ${requestNumber}`);

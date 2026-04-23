@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { powerbiAgentConversations, powerbiAgentMessages } from "@shared/schema";
+import { powerbiAgentConversations, powerbiAgentMessages, type PbiIntakeState } from "@shared/schema";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 
 export type PbiAttachment = { name: string; objectPath: string; contentType: string; size: number };
@@ -98,10 +98,43 @@ export async function updateConversationModel(id: number, model: string) {
     .where(eq(powerbiAgentConversations.id, id));
 }
 
-export async function setSubmittedIntake(id: number, intakeId: number) {
+export async function setSubmittedIntake(
+  id: number,
+  intakeId: number,
+  meta?: { requestNumber?: string | null; intakeNumber?: string | null },
+) {
   await db.update(powerbiAgentConversations)
     .set({ submittedIntakeId: intakeId, updatedAt: new Date() })
     .where(eq(powerbiAgentConversations.id, id));
+  if (meta) {
+    const [row] = await db.select({ intakeState: powerbiAgentConversations.intakeState })
+      .from(powerbiAgentConversations)
+      .where(eq(powerbiAgentConversations.id, id));
+    const current = (row?.intakeState as PbiIntakeState | null) ?? null;
+    if (current) {
+      const next: PbiIntakeState = {
+        ...current,
+        submittedRequestNumber: meta.requestNumber ?? current.submittedRequestNumber ?? null,
+        submittedIntakeNumber: meta.intakeNumber ?? current.submittedIntakeNumber ?? null,
+      };
+      await db.update(powerbiAgentConversations)
+        .set({ intakeState: next, updatedAt: new Date() })
+        .where(eq(powerbiAgentConversations.id, id));
+    }
+  }
+}
+
+export async function updateConversationIntakeState(id: number, state: PbiIntakeState) {
+  await db.update(powerbiAgentConversations)
+    .set({ intakeState: state, updatedAt: new Date() })
+    .where(eq(powerbiAgentConversations.id, id));
+}
+
+export async function getConversationIntakeState(id: number): Promise<PbiIntakeState | null> {
+  const [row] = await db.select({ intakeState: powerbiAgentConversations.intakeState })
+    .from(powerbiAgentConversations)
+    .where(eq(powerbiAgentConversations.id, id));
+  return (row?.intakeState as PbiIntakeState | null) ?? null;
 }
 
 export async function deleteConversation(id: number, orgId: number, userId: string) {
