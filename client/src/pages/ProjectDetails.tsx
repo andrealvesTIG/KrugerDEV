@@ -494,16 +494,17 @@ export default function ProjectDetails() {
       .map(id => byId.get(id))
       .filter((t): t is ProjectTabDefinition => {
         if (!t) return false;
-        // Custom tabs hidden by an org admin should be removed entirely; only
-        // built-in tabs get the "demote to More" treatment so they remain
-        // pinnable per project.
-        if (isCustomProjectTabId(t.id) && orgHiddenTabs.has(t.id)) return false;
+        // Tabs hidden by the org admin via the project tab template builder
+        // are removed entirely — they are NOT available in the More menu and
+        // cannot be pinned individually. Applies to both built-in and custom
+        // tabs.
+        if (orgHiddenTabs.has(t.id)) return false;
         return isTabAllowed(t.id);
       })
       .map(t => {
         const moduleKey = moduleGatedTabs[t.id];
         const moduleDemoted = moduleKey ? isModuleHidden(moduleKey) : false;
-        if (orgHiddenTabs.has(t.id) || moduleDemoted) {
+        if (moduleDemoted) {
           return { ...t, placement: "more" as const };
         }
         return t;
