@@ -77,6 +77,18 @@ export function useUpdateTemplateLayout() {
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['/api/project-tab-templates', vars.id, 'layout'] });
       queryClient.invalidateQueries({ queryKey: ['/api/project-tab-templates', vars.id, 'full'] });
+      // The server propagates the new canonical layout to every applied org's
+      // projectTabSettings (in the background). Invalidate any cached
+      // project-tab-settings / custom-tabs queries so currently-open project
+      // views pick up the change without a hard refresh. Predicate-based to
+      // catch all `/api/organizations/:orgId/...` keys without knowing the ids.
+      queryClient.invalidateQueries({
+        predicate: (q) => {
+          const k = q.queryKey?.[0];
+          return typeof k === 'string'
+            && (k.endsWith('/project-tab-settings') || k.endsWith('/custom-tabs'));
+        },
+      });
     },
   });
 }
