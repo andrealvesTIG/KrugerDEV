@@ -42,11 +42,15 @@ export function isModelAvailable(tier: PbiModelTier): boolean {
 }
 
 export function availableProviders(): { id: PbiModelTier; label: string; available: boolean }[] {
-  return (Object.keys(PBI_MODELS) as PbiModelTier[]).map(t => ({
-    id: t,
-    label: PBI_MODELS[t].label,
-    available: isModelAvailable(t),
-  }));
+  // Only return models whose credentials are actually configured. The UI hides
+  // un-configured providers entirely (Claude only appears when ANTHROPIC_API_KEY is set).
+  return (Object.keys(PBI_MODELS) as PbiModelTier[])
+    .filter(t => isModelAvailable(t))
+    .map(t => ({
+      id: t,
+      label: PBI_MODELS[t].label,
+      available: true,
+    }));
 }
 
 const SYSTEM_PROMPT = `You are the Power BI Report Request Agent for FridayReport.AI. You guide clients through a structured intake conversation for new Power BI report requests. Be professional, friendly, and concise.
@@ -504,7 +508,14 @@ export async function streamPowerBIAgentResponse(
     if (!isModelAvailable(modelTier)) {
       modelTier = "fast";
     }
-    const conversationLog = messages.map(m => `${m.role}: ${m.content}`).join("\n\n");
+    // Include attachment references in the persisted intake conversation log so the
+    // internal team can trace back which files the client supplied during intake.
+    const conversationLog = messages.map(m => {
+      const attLine = m.attachments && m.attachments.length
+        ? `\n[attachments: ${m.attachments.map(a => `${a.name} (${a.contentType}, ${Math.round((a.size || 0) / 1024)}KB) -> ${a.objectPath}`).join("; ")}]`
+        : "";
+      return `${m.role}: ${m.content}${attLine}`;
+    }).join("\n\n");
 
     let final: string;
     if (modelTier === "claude") {

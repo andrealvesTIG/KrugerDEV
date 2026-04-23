@@ -43,6 +43,17 @@ const FEATURE_CARDS = [
 
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+const MAX_TOTAL_ATTACHMENT_BYTES = 50 * 1024 * 1024;
+// Mirrors server-side ALLOWED_ATTACHMENT_TYPES so users get pre-send feedback.
+const ALLOWED_ATTACHMENT_MIME = new Set<string>([
+  "image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp",
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/csv", "text/plain", "text/markdown", "application/json",
+]);
 
 function renderInlineMarkdown(text: string): (string | JSX.Element)[] {
   const parts: (string | JSX.Element)[] = [];
@@ -382,14 +393,36 @@ export default function PowerBIAgent() {
     }
     setIsUploading(true);
     const uploaded: PowerBIAttachment[] = [];
+    let runningTotal = pendingAttachments.reduce((s, a) => s + (a.size || 0), 0);
     for (const f of files) {
       if (f.size > MAX_ATTACHMENT_BYTES) {
         toast({ title: `${f.name} is too large`, description: "Max 20 MB per file.", variant: "destructive" });
         continue;
       }
+      const ct = (f.type || "").toLowerCase();
+      if (!ct || !ALLOWED_ATTACHMENT_MIME.has(ct)) {
+        toast({
+          title: `${f.name} is an unsupported file type`,
+          description: "Allowed: images, PDF, Word, Excel, CSV, TXT, Markdown, JSON.",
+          variant: "destructive",
+        });
+        continue;
+      }
+      if (runningTotal + f.size > MAX_TOTAL_ATTACHMENT_BYTES) {
+        toast({
+          title: "Attachment total too large",
+          description: `Combined attachments must stay under ${Math.round(MAX_TOTAL_ATTACHMENT_BYTES / (1024 * 1024))} MB.`,
+          variant: "destructive",
+        });
+        break;
+      }
       const att = await uploadAttachment(f);
-      if (att) uploaded.push(att);
-      else toast({ title: `Failed to upload ${f.name}`, variant: "destructive" });
+      if (att) {
+        uploaded.push(att);
+        runningTotal += f.size;
+      } else {
+        toast({ title: `Failed to upload ${f.name}`, variant: "destructive" });
+      }
     }
     if (uploaded.length) setPendingAttachments(prev => [...prev, ...uploaded]);
     setIsUploading(false);
@@ -423,10 +456,12 @@ export default function PowerBIAgent() {
   const GENERIC_FALLBACK_OPTIONS = ["Yes", "No", "Tell me more"];
   const effectiveOptions = parsedOptions.length > 0 ? parsedOptions : GENERIC_FALLBACK_OPTIONS;
 
-  const availableProviders = providers.length > 0 ? providers : [
+  // Hide unavailable providers entirely (e.g. Claude only appears when the
+  // server confirms credentials are configured).
+  const availableProviders = (providers.length > 0 ? providers : [
     { id: "fast" as const, label: "Fast", available: true },
     { id: "smart" as const, label: "Smart", available: true },
-  ];
+  ]).filter(p => p.available);
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)]">
@@ -465,27 +500,41 @@ export default function PowerBIAgent() {
                 <Square className="w-3.5 h-3.5 mr-1.5" /> Stop
               </Button>
             )}
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="sm" data-testid="button-reset" disabled={isLoading}>
-                  <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Reset
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Start a new request?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Your current chat will be saved to history. You can pick it back up any time.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => startNewConversation()} data-testid="button-reset-confirm">
-                    Start new
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            {/* Confirm only when there is real progress to discard. Empty/read-only
+                conversations reset immediately without a dialog. */}
+            {hasMessages && !isReadOnly ? (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="sm" data-testid="button-reset" disabled={isLoading}>
+                    <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Reset
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Start a new request?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Your current chat will be saved to history. You can pick it back up any time.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => startNewConversation()} data-testid="button-reset-confirm">
+                      Start new
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                data-testid="button-reset"
+                disabled={isLoading}
+                onClick={() => startNewConversation()}
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Reset
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -635,7 +684,7 @@ export default function PowerBIAgent() {
               multiple
               hidden
               onChange={handleFileSelect}
-              accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.json"
+              accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.md,.json"
               data-testid="input-file"
             />
             <Button
