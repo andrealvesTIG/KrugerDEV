@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Link, useLocation } from "wouter";
 import { useIntakeWorkflows } from "@/hooks/use-intake-workflow";
-import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen, ChevronsUpDown, BarChart3, Timer } from "lucide-react";
+import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, ChevronDown, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen, ChevronsUpDown, BarChart3, Timer } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -814,10 +814,45 @@ export default function ProjectIntakes() {
           <p className="mt-1 text-muted-foreground">Submit and track new requests through the approval workflow.</p>
         </div>
         {activeTab === "project" ? (
-          <Button onClick={() => openCreateIntake()} data-testid="button-new-intake">
-            <Plus className="h-4 w-4 mr-2" />
-            New Intake
-          </Button>
+          (outerIntakeWorkflows || []).length > 1 ? (
+            <div className="flex">
+              <Button
+                className="rounded-r-none"
+                onClick={() => openCreateIntake(null)}
+                data-testid="button-new-intake"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                New Intake
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    className="rounded-l-none border-l border-primary-foreground/20 px-2"
+                    data-testid="button-new-intake-workflow-menu"
+                    aria-label="Choose workflow"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {(outerIntakeWorkflows || []).filter(w => w.isActive !== false).map(w => (
+                    <DropdownMenuItem
+                      key={w.id}
+                      onSelect={() => openCreateIntake(w.id)}
+                      data-testid={`menu-new-intake-workflow-${w.id}`}
+                    >
+                      {w.name}{w.isDefault ? " (Default)" : ""}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ) : (
+            <Button onClick={() => openCreateIntake()} data-testid="button-new-intake">
+              <Plus className="h-4 w-4 mr-2" />
+              New Intake
+            </Button>
+          )
         ) : (
           <Link href="/powerbi-agent">
             <Button>
