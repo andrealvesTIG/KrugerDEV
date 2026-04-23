@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from "react";
+import { Link } from "wouter";
 import { usePowerBIAgent, type PowerBIAgentMessage, type PowerBIAttachment, type PowerBIAgentModel } from "@/hooks/use-powerbi-agent";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -177,6 +178,30 @@ function MessageBubble({ message }: { message: PowerBIAgentMessage }) {
                   <span className="w-2 h-2 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                 </div>
                 <span className="text-xs">Thinking...</span>
+              </div>
+            )}
+            {message.intake && (
+              <div className="mt-3 rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-3" data-testid="intake-link-card">
+                {(message.intake.intakeNumber || message.intake.requestNumber) && (
+                  <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                    Submitted{message.intake.intakeNumber ? `: ${message.intake.intakeNumber}` : ""}
+                    {message.intake.requestNumber ? ` · ${message.intake.requestNumber}` : ""}
+                  </p>
+                )}
+                {message.intake.reportName && (
+                  <p className="text-xs text-muted-foreground mt-0.5 mb-2 truncate">
+                    {message.intake.reportName}
+                  </p>
+                )}
+                <Link href={`/intakes/${message.intake.intakeId}`}>
+                  <Button
+                    size="sm"
+                    className="bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
+                    data-testid="button-open-intake"
+                  >
+                    Open intake
+                  </Button>
+                </Link>
               </div>
             )}
           </div>

@@ -166,12 +166,20 @@ async function generateRequestNumber(orgId: number): Promise<string> {
   return `PBI-${year}-${String((c?.count || 0) + 1).padStart(3, "0")}`;
 }
 
+export type IntakeSubmittedInfo = {
+  intakeId: number;
+  intakeNumber: string;
+  requestNumber: string;
+  reportName: string;
+};
+
 async function handleSubmitTool(
   orgId: number,
   userId: string,
   args: Record<string, any>,
   conversationLog: string,
   conversationDbId: number | null,
+  onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
 ): Promise<string> {
   const requestNumber = await generateRequestNumber(orgId);
   const effort = calculateEffortEstimate(args);
@@ -247,11 +255,27 @@ async function handleSubmitTool(
 
   console.log(`[PowerBI Agent] Created intake ${result.projectIntake.intakeNumber} + PBI ${requestNumber}`);
 
+  if (onIntakeSubmitted) {
+    try {
+      onIntakeSubmitted({
+        intakeId: result.projectIntake.id,
+        intakeNumber: result.projectIntake.intakeNumber,
+        requestNumber,
+        reportName: result.pbiRecord.reportName,
+      });
+    } catch {}
+  }
+
+  // Encourage the model to surface a clickable link to the new intake in its
+  // user-facing reply. The client also renders a dedicated "Open intake" button.
+  const intakeUrl = `/intakes/${result.projectIntake.id}`;
   return JSON.stringify({
     success: true,
-    message: `Power BI report request "${result.pbiRecord.reportName}" submitted with reference ${requestNumber}. Project intake ${result.projectIntake.intakeNumber} created.`,
+    message: `Power BI report request "${result.pbiRecord.reportName}" submitted with reference ${requestNumber}. Project intake ${result.projectIntake.intakeNumber} created. View it at ${intakeUrl}.`,
     requestNumber,
     intakeNumber: result.projectIntake.intakeNumber,
+    intakeId: result.projectIntake.id,
+    intakeUrl,
   });
 }
 
@@ -331,6 +355,7 @@ async function streamWithOpenAI(
   conversationLog: string,
   conversationDbId: number | null,
   onChunk: (s: string) => void,
+  onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
 ): Promise<string> {
   const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: "system", content: SYSTEM_PROMPT },
@@ -400,7 +425,7 @@ async function streamWithOpenAI(
     for (const [, tc] of toolCalls) {
       try {
         const args = JSON.parse(tc.arguments);
-        const result = await handleSubmitTool(orgId, userId, args, conversationLog, conversationDbId);
+        const result = await handleSubmitTool(orgId, userId, args, conversationLog, conversationDbId, onIntakeSubmitted);
         apiMessages.push({ role: "tool", tool_call_id: tc.id, content: result });
       } catch (err: any) {
         apiMessages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ success: false, message: err.message || "Tool failed" }) });
@@ -423,6 +448,7 @@ async function streamWithAnthropic(
   conversationLog: string,
   conversationDbId: number | null,
   onChunk: (s: string) => void,
+  onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
 ): Promise<string> {
   if (!anthropic) throw new Error("Claude is not configured");
 
@@ -472,7 +498,7 @@ async function streamWithAnthropic(
     const toolResults: any[] = [];
     for (const tu of toolUses) {
       try {
-        const result = await handleSubmitTool(orgId, userId, tu.input as any, conversationLog, conversationDbId);
+        const result = await handleSubmitTool(orgId, userId, tu.input as any, conversationLog, conversationDbId, onIntakeSubmitted);
         toolResults.push({ type: "tool_result", tool_use_id: tu.id, content: result });
       } catch (err: any) {
         toolResults.push({ type: "tool_result", tool_use_id: tu.id, content: JSON.stringify({ success: false, message: err.message || "Tool failed" }), is_error: true });
@@ -503,6 +529,7 @@ export async function streamPowerBIAgentResponse(
   onChunk: (content: string) => void,
   onDone: (fullResponse: string) => void,
   onError: (error: Error) => void,
+  onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
 ) {
   try {
     if (!isModelAvailable(modelTier)) {
@@ -519,9 +546,9 @@ export async function streamPowerBIAgentResponse(
 
     let final: string;
     if (modelTier === "claude") {
-      final = await streamWithAnthropic(orgId, userId, messages, conversationLog, conversationDbId, onChunk);
+      final = await streamWithAnthropic(orgId, userId, messages, conversationLog, conversationDbId, onChunk, onIntakeSubmitted);
     } else {
-      final = await streamWithOpenAI(modelTier, orgId, userId, messages, conversationLog, conversationDbId, onChunk);
+      final = await streamWithOpenAI(modelTier, orgId, userId, messages, conversationLog, conversationDbId, onChunk, onIntakeSubmitted);
     }
 
     if (conversationDbId && final) {

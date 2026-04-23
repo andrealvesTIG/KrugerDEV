@@ -10,11 +10,19 @@ export interface PowerBIAttachment {
   size: number;
 }
 
+export interface PowerBIIntakeRef {
+  intakeId: number;
+  intakeNumber: string;
+  requestNumber: string;
+  reportName: string;
+}
+
 export interface PowerBIAgentMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   attachments?: PowerBIAttachment[];
+  intake?: PowerBIIntakeRef;
   timestamp: Date;
 }
 
@@ -55,6 +63,8 @@ export function usePowerBIAgent() {
   const [model, setModelState] = useState<PowerBIAgentModel>(() => loadModelPref());
   // Resumed history starts read-only; user clicks "Continue" to participate again.
   const [isReadOnly, setIsReadOnly] = useState(false);
+  // Intake the active conversation has produced (if any). Drives the "Open intake" link.
+  const [submittedIntakeId, setSubmittedIntakeId] = useState<number | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef(messages);
@@ -104,6 +114,7 @@ export function usePowerBIAgent() {
     setMessages([]);
     setConversationId(null);
     setIsReadOnly(false);
+    setSubmittedIntakeId(null);
     // One-time migration: import any sessionStorage-cached chat from the legacy
     // client-only implementation into a server-backed conversation, then delete the key.
     void (async () => {
@@ -147,6 +158,7 @@ export function usePowerBIAgent() {
     setConversationId(null);
     setIsLoading(false);
     setIsReadOnly(false);
+    setSubmittedIntakeId(null);
   }, []);
 
   const continueConversation = useCallback(() => {
@@ -161,13 +173,31 @@ export function usePowerBIAgent() {
       const data = await r.json();
       setConversationId(data.conversation.id);
       if (data.conversation.model) setModel(data.conversation.model as PowerBIAgentModel);
-      setMessages((data.messages || []).map((m: any) => ({
+      const loaded: PowerBIAgentMessage[] = (data.messages || []).map((m: any) => ({
         id: `m-${m.id}`,
         role: m.role,
         content: m.content,
         attachments: m.attachments || undefined,
         timestamp: new Date(m.createdAt),
-      })));
+      }));
+      // If this conversation already produced an intake, surface the "Open intake"
+      // link on the last assistant turn so resumed history shows the action too.
+      const intakeId = data.conversation.submittedIntakeId ?? null;
+      if (intakeId) {
+        for (let i = loaded.length - 1; i >= 0; i--) {
+          if (loaded[i].role === "assistant") {
+            loaded[i].intake = {
+              intakeId,
+              intakeNumber: "",
+              requestNumber: "",
+              reportName: data.conversation.title || "",
+            };
+            break;
+          }
+        }
+      }
+      setMessages(loaded);
+      setSubmittedIntakeId(intakeId);
       // Resumed conversations land in read-only mode until the user clicks "Continue".
       setIsReadOnly(true);
     } catch {}
@@ -301,6 +331,20 @@ export function usePowerBIAgent() {
               });
               break;
             }
+            if (data.intake) {
+              const info = data.intake as PowerBIIntakeRef;
+              setMessages(prev => {
+                const u = [...prev];
+                const last = u[u.length - 1];
+                if (last?.role === "assistant") last.intake = info;
+                return u;
+              });
+              setSubmittedIntakeId(info.intakeId);
+              // Update conversation list so submitted state is reflected immediately.
+              setConversations(prev => prev.map(c =>
+                c.id === conversationIdRef.current ? { ...c, submittedIntakeId: info.intakeId } : c
+              ));
+            }
             if (data.done) break;
             if (data.content) {
               setMessages(prev => {
@@ -359,6 +403,7 @@ export function usePowerBIAgent() {
     // resume
     isReadOnly,
     continueConversation,
+    submittedIntakeId,
     // models
     model,
     setModel,

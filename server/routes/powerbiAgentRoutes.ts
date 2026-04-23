@@ -290,6 +290,7 @@ export function registerPowerBIAgentRoutes(app: Express) {
           sendSSE({ error: "An error occurred. Please try again." });
           res.end();
         },
+        (info) => sendSSE({ intake: info }),
       );
 
       logUserActivity(userId, "powerbi_agent_chat", "powerbi_agent_conversation", convId ?? undefined, { organizationId });
