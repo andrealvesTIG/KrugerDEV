@@ -8,6 +8,7 @@ import {
   deletePowerBIIntakeRequest,
   availableProviders,
   isModelAvailable,
+  ALLOWED_ATTACHMENT_TYPES,
   type PbiModelTier,
 } from "../services/powerbiAgentService";
 import {
@@ -39,7 +40,10 @@ const OBJECT_PATH_RE = /^\/objects\/uploads\/[A-Za-z0-9._-]{1,128}$/;
 const attachmentSchema = z.object({
   name: z.string().min(1).max(300),
   objectPath: z.string().max(300).regex(OBJECT_PATH_RE, "Invalid objectPath"),
-  contentType: z.string().min(1).max(200),
+  contentType: z.string().min(1).max(200).refine(
+    (t) => ALLOWED_ATTACHMENT_TYPES.has(t.toLowerCase()),
+    { message: "Unsupported attachment type" },
+  ),
   size: z.number().int().nonnegative().max(20 * 1024 * 1024),
 });
 
@@ -83,6 +87,28 @@ export function registerPowerBIAgentRoutes(app: Express) {
       res.json(rows);
     } catch (e: any) {
       console.error("[PBI Agent] List conversations:", e.message);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  apiRoute(app, 'post', '/api/powerbi-agent/conversations', {
+    tag: 'AI', summary: 'Create a new (empty) Power BI agent conversation',
+    responses: { ...r200('Conversation', { type: 'object' }), ...authRes, ...stdRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgId = Number(req.query.organizationId || req.body?.organizationId);
+      if (!orgId) return res.status(400).json({ message: "organizationId required" });
+      const orgIds = await getUserOrgIds(userId);
+      if (!orgIds.includes(orgId)) return res.status(403).json({ message: "Access denied" });
+      const rawModel = String(req.body?.model || "fast");
+      const modelTier: PbiModelTier = (["fast", "smart", "claude"].includes(rawModel) ? rawModel : "fast") as PbiModelTier;
+      const title = req.body?.title ? String(req.body.title).slice(0, 200) : null;
+      const created = await createConversation(orgId, userId, modelTier, title);
+      res.json(created);
+    } catch (e: any) {
+      console.error("[PBI Agent] Create conversation:", e.message);
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -147,6 +173,34 @@ export function registerPowerBIAgentRoutes(app: Express) {
       res.json({ success: true });
     } catch (e: any) {
       console.error("[PBI Agent] Delete:", e.message);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  apiRoute(app, 'post', '/api/powerbi-agent/conversations/:id/messages', {
+    tag: 'AI', summary: 'Append a single message to a conversation (legacy migration only)',
+    responses: { ...r200('Inserted', { type: 'object' }), ...authRes, ...stdRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgId = Number(req.query.organizationId || req.body?.organizationId);
+      const id = Number(req.params.id);
+      if (!orgId || !id) return res.status(400).json({ message: "organizationId and id required" });
+      const orgIds = await getUserOrgIds(userId);
+      if (!orgIds.includes(orgId)) return res.status(403).json({ message: "Access denied" });
+      const conv = await getConversation(id, orgId, userId);
+      if (!conv) return res.status(404).json({ message: "Not found" });
+
+      const role = req.body?.role;
+      const content = String(req.body?.content || "").slice(0, MAX_MESSAGE_LENGTH);
+      if ((role !== "user" && role !== "assistant") || !content) {
+        return res.status(400).json({ message: "role (user|assistant) and content required" });
+      }
+      const row = await addMessage(id, role, content, null, null);
+      res.json(row);
+    } catch (e: any) {
+      console.error("[PBI Agent] Append message:", e.message);
       res.status(500).json({ message: "Internal server error" });
     }
   });

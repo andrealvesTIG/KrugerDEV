@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { powerbiAgentConversations, powerbiAgentMessages } from "@shared/schema";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 
 export type PbiAttachment = { name: string; objectPath: string; contentType: string; size: number };
 
@@ -15,13 +15,33 @@ export async function createConversation(orgId: number, userId: string, model: s
 }
 
 export async function listConversations(orgId: number, userId: string) {
-  return db.select().from(powerbiAgentConversations)
+  // Include latest message snippet for richer history list
+  const rows = await db.select({
+    id: powerbiAgentConversations.id,
+    organizationId: powerbiAgentConversations.organizationId,
+    userId: powerbiAgentConversations.userId,
+    title: powerbiAgentConversations.title,
+    model: powerbiAgentConversations.model,
+    submittedIntakeId: powerbiAgentConversations.submittedIntakeId,
+    archivedAt: powerbiAgentConversations.archivedAt,
+    lastMessageAt: powerbiAgentConversations.lastMessageAt,
+    createdAt: powerbiAgentConversations.createdAt,
+    updatedAt: powerbiAgentConversations.updatedAt,
+    snippet: sql<string | null>`(
+      SELECT substring(content from 1 for 140)
+      FROM ${powerbiAgentMessages}
+      WHERE ${powerbiAgentMessages.conversationId} = ${powerbiAgentConversations.id}
+      ORDER BY ${powerbiAgentMessages.createdAt} DESC
+      LIMIT 1
+    )`,
+  }).from(powerbiAgentConversations)
     .where(and(
       eq(powerbiAgentConversations.organizationId, orgId),
       eq(powerbiAgentConversations.userId, userId),
       isNull(powerbiAgentConversations.archivedAt),
     ))
     .orderBy(desc(powerbiAgentConversations.lastMessageAt));
+  return rows;
 }
 
 export async function getConversation(id: number, orgId: number, userId: string) {
@@ -40,12 +60,19 @@ export async function getMessages(conversationId: number) {
     .orderBy(powerbiAgentMessages.createdAt);
 }
 
-export async function addMessage(conversationId: number, role: "user" | "assistant", content: string, attachments: PbiAttachment[] | null = null) {
+export async function addMessage(
+  conversationId: number,
+  role: "user" | "assistant",
+  content: string,
+  attachments: PbiAttachment[] | null = null,
+  options: string[] | null = null,
+) {
   const [row] = await db.insert(powerbiAgentMessages).values({
     conversationId,
     role,
     content,
     attachments: attachments ?? null,
+    options: options ?? null,
   }).returning();
   await db.update(powerbiAgentConversations)
     .set({ lastMessageAt: new Date(), updatedAt: new Date() })

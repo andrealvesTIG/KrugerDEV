@@ -1537,6 +1537,7 @@ export const powerbiAgentMessages = pgTable("powerbi_agent_messages", {
   role: text("role").notNull(),
   content: text("content").notNull(),
   attachments: jsonb("attachments").$type<Array<{ name: string; objectPath: string; contentType: string; size: number }>>(),
+  options: jsonb("options").$type<string[]>(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("pbi_agent_msg_conv_idx").on(table.conversationId, table.createdAt),

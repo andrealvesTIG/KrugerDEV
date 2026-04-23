@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from "react";
-import { usePowerBIAgent, type PowerBIAgentMessage, type PowerBIAttachment } from "@/hooks/use-powerbi-agent";
+import { usePowerBIAgent, type PowerBIAgentMessage, type PowerBIAttachment, type PowerBIAgentModel } from "@/hooks/use-powerbi-agent";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
@@ -258,10 +258,20 @@ function HistoryDrawer({
                   <div className="flex items-start gap-2">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{c.title || "Untitled request"}</p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
-                        {c.lastMessageAt ? formatDistanceToNow(new Date(c.lastMessageAt), { addSuffix: true }) : ""}
-                        {c.submittedIntakeId && <span className="ml-1.5 text-emerald-600">• submitted</span>}
-                      </p>
+                      {c.snippet && (
+                        <p className="text-[11px] text-muted-foreground/90 mt-0.5 line-clamp-2">
+                          {c.snippet}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                          {c.model || "fast"}
+                        </span>
+                        <p className="text-[10px] text-muted-foreground">
+                          {c.lastMessageAt ? formatDistanceToNow(new Date(c.lastMessageAt), { addSuffix: true }) : ""}
+                          {c.submittedIntakeId && <span className="ml-1.5 text-emerald-600">• submitted</span>}
+                        </p>
+                      </div>
                     </div>
                     <div className="opacity-0 group-hover:opacity-100 flex gap-0.5">
                       <button
@@ -294,6 +304,7 @@ export default function PowerBIAgent() {
   const {
     messages, isLoading, sendMessage, startNewConversation, stopGeneration,
     conversationId, conversations, loadConversation, renameConversation, deleteConversation,
+    isReadOnly, continueConversation,
     model, setModel, providers, uploadAttachment,
   } = usePowerBIAgent();
   const { toast } = useToast();
@@ -406,7 +417,11 @@ export default function PowerBIAgent() {
   const { options: parsedOptions, cleanContent: lastCleanContent } = lastIsAssistant
     ? extractOptions(lastMsg!.content) : { options: [] as string[], cleanContent: "" };
   // Always offer reply chips on a terminal assistant turn unless the request was just submitted.
-  const shouldOfferQuickReplies = lastIsAssistant && !looksSubmitted(lastCleanContent);
+  // Suppress entirely while resuming a past conversation in read-only mode.
+  const shouldOfferQuickReplies = lastIsAssistant && !looksSubmitted(lastCleanContent) && !isReadOnly;
+  // When the model didn't supply options, fall back to generic conversational chips so the user always has chips.
+  const GENERIC_FALLBACK_OPTIONS = ["Yes", "No", "Tell me more"];
+  const effectiveOptions = parsedOptions.length > 0 ? parsedOptions : GENERIC_FALLBACK_OPTIONS;
 
   const availableProviders = providers.length > 0 ? providers : [
     { id: "fast" as const, label: "Fast", available: true },
@@ -425,7 +440,7 @@ export default function PowerBIAgent() {
             <p className="text-xs text-muted-foreground">AI-guided intake for new report requests</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <Select value={model} onValueChange={(v) => setModel(v as any)} disabled={isLoading}>
+            <Select value={model} onValueChange={(v) => setModel(v as PowerBIAgentModel)} disabled={isLoading}>
               <SelectTrigger className="h-8 w-[110px] text-xs" data-testid="select-model">
                 <SelectValue />
               </SelectTrigger>
@@ -536,7 +551,7 @@ export default function PowerBIAgent() {
                 className="ml-11 mb-4 flex flex-wrap gap-2"
                 data-testid="answer-options"
               >
-                {parsedOptions.map((opt) => (
+                {effectiveOptions.map((opt) => (
                   <Card
                     key={opt}
                     className="cursor-pointer border-border/60 hover:border-orange-500/50 hover:bg-orange-500/5 transition-colors"
@@ -577,6 +592,31 @@ export default function PowerBIAgent() {
 
       <div className="border-t bg-background/95 backdrop-blur-sm px-6 py-3 flex-shrink-0">
         <div className="max-w-3xl mx-auto">
+          {isReadOnly && (
+            <div className="mb-3 flex items-center justify-between rounded-lg border border-border/60 bg-muted/40 px-3 py-2">
+              <p className="text-xs text-muted-foreground">
+                You're viewing a past conversation. Continue to send a new message.
+              </p>
+              <div className="flex gap-1.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={continueConversation}
+                  data-testid="button-continue-conversation"
+                >
+                  Continue conversation
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={startNewConversation}
+                  data-testid="button-new-from-readonly"
+                >
+                  New request
+                </Button>
+              </div>
+            </div>
+          )}
           {pendingAttachments.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-2" data-testid="pending-attachments">
               {pendingAttachments.map((att, i) => (
@@ -600,7 +640,7 @@ export default function PowerBIAgent() {
             />
             <Button
               onClick={() => fileInputRef.current?.click()}
-              disabled={isLoading || isUploading || pendingAttachments.length >= MAX_ATTACHMENTS}
+              disabled={isLoading || isReadOnly || isUploading || pendingAttachments.length >= MAX_ATTACHMENTS}
               size="icon"
               variant="outline"
               className="h-11 w-11 rounded-xl flex-shrink-0"
@@ -621,7 +661,7 @@ export default function PowerBIAgent() {
               placeholder={isListening ? "Listening… speak now" : "Describe the Power BI report you need..."}
               className="resize-none min-h-[44px] max-h-[120px] rounded-xl"
               rows={1}
-              disabled={isLoading}
+              disabled={isLoading || isReadOnly}
             />
             <Button
               onClick={toggleVoiceInput}
@@ -637,7 +677,7 @@ export default function PowerBIAgent() {
             </Button>
             <Button
               onClick={handleSend}
-              disabled={(!input.trim() && pendingAttachments.length === 0) || isLoading}
+              disabled={(!input.trim() && pendingAttachments.length === 0) || isLoading || isReadOnly}
               size="icon"
               className="h-11 w-11 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 flex-shrink-0"
               data-testid="button-send"

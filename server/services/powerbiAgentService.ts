@@ -2,9 +2,23 @@ import { db } from "../db";
 import { powerbiIntakeRequests, projectIntakes } from "@shared/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import OpenAI from "openai";
+import type { ChatCompletionTool } from "openai/resources/chat/completions";
 import Anthropic from "@anthropic-ai/sdk";
 import { addMessage, setSubmittedIntake, type PbiAttachment } from "../storage/powerbiAgentStorage";
 import { ObjectStorageService } from "../replit_integrations/object_storage/objectStorage";
+
+export const ALLOWED_ATTACHMENT_TYPES = new Set<string>([
+  "image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp",
+  "application/pdf",
+  "text/plain", "text/csv", "text/markdown",
+  "application/json",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/msword",
+]);
+const TEXT_EXTRACTABLE = new Set<string>(["text/plain", "text/csv", "text/markdown", "application/json"]);
+const MAX_EXTRACTED_CHARS = 4000;
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -72,7 +86,7 @@ export interface PowerBIAgentMessage {
   attachments?: PbiAttachment[];
 }
 
-const powerbiTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+const powerbiTools: ChatCompletionTool[] = [
   {
     type: "function",
     function: {
@@ -103,10 +117,12 @@ const powerbiTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   },
 ];
 
+const firstTool = powerbiTools[0];
+const submitToolFn = firstTool.type === "function" ? firstTool.function : (firstTool as any).function;
 const anthropicTools: Anthropic.Tool[] = [{
-  name: "submit_powerbi_request",
-  description: (powerbiTools[0] as any).function.description!,
-  input_schema: (powerbiTools[0] as any).function.parameters as any,
+  name: submitToolFn.name,
+  description: submitToolFn.description!,
+  input_schema: submitToolFn.parameters as Anthropic.Tool.InputSchema,
 }];
 
 function calculateEffortEstimate(args: Record<string, any>): { totalHours: number; breakdown: Record<string, number> } {
@@ -253,6 +269,15 @@ async function buildOpenAIUserContent(text: string, attachments?: PbiAttachment[
       } catch (e: any) {
         parts.push({ type: "text", text: `[Attached image: ${att.name} (${att.size} bytes) — could not load]` });
       }
+    } else if (TEXT_EXTRACTABLE.has(att.contentType)) {
+      try {
+        const file = await objStorage.getObjectEntityFile("/" + att.objectPath.replace(/^\/+/, ""));
+        const [buf] = await file.download();
+        const txt = buf.toString("utf-8").slice(0, MAX_EXTRACTED_CHARS);
+        parts.push({ type: "text", text: `[Attached file ${att.name}]\n${txt}${buf.length > MAX_EXTRACTED_CHARS ? "\n…(truncated)" : ""}` });
+      } catch {
+        parts.push({ type: "text", text: `[Attached file: ${att.name} (${att.contentType}, ${att.size} bytes) — could not read]` });
+      }
     } else {
       parts.push({ type: "text", text: `[Attached file: ${att.name} (${att.contentType}, ${att.size} bytes)]` });
     }
@@ -275,6 +300,15 @@ async function buildAnthropicUserContent(text: string, attachments?: PbiAttachme
         });
       } catch (e: any) {
         parts.push({ type: "text", text: `[Attached image: ${att.name} — could not load]` });
+      }
+    } else if (TEXT_EXTRACTABLE.has(att.contentType)) {
+      try {
+        const file = await objStorage.getObjectEntityFile("/" + att.objectPath.replace(/^\/+/, ""));
+        const [buf] = await file.download();
+        const txt = buf.toString("utf-8").slice(0, MAX_EXTRACTED_CHARS);
+        parts.push({ type: "text", text: `[Attached file ${att.name}]\n${txt}${buf.length > MAX_EXTRACTED_CHARS ? "\n…(truncated)" : ""}` });
+      } catch {
+        parts.push({ type: "text", text: `[Attached file: ${att.name} (${att.contentType}, ${att.size} bytes) — could not read]` });
       }
     } else {
       parts.push({ type: "text", text: `[Attached file: ${att.name} (${att.contentType}, ${att.size} bytes)]` });
@@ -448,6 +482,14 @@ async function streamWithAnthropic(
   return allStreamedText.trim() || fullResponse;
 }
 
+const OPTIONS_RE = /\[OPTIONS\]([\s\S]*?)\[\/OPTIONS\]/i;
+function extractOptionsFromText(text: string): string[] | null {
+  const m = text.match(OPTIONS_RE);
+  if (!m) return null;
+  const opts = m[1].split("|").map(s => s.trim()).filter(Boolean);
+  return opts.length ? opts : null;
+}
+
 export async function streamPowerBIAgentResponse(
   orgId: number,
   userId: string,
@@ -472,7 +514,10 @@ export async function streamPowerBIAgentResponse(
     }
 
     if (conversationDbId && final) {
-      try { await addMessage(conversationDbId, "assistant", final); } catch (e) { console.error("[PBI] persist assistant failed", e); }
+      try {
+        const opts = extractOptionsFromText(final);
+        await addMessage(conversationDbId, "assistant", final, null, opts);
+      } catch (e) { console.error("[PBI] persist assistant failed", e); }
     }
 
     onDone(final);

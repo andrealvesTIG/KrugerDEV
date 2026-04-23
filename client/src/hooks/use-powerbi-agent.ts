@@ -24,6 +24,7 @@ export interface PowerBIAgentConversation {
   model: string | null;
   lastMessageAt: string | null;
   submittedIntakeId: number | null;
+  snippet?: string | null;
 }
 
 export interface ProviderInfo {
@@ -52,6 +53,8 @@ export function usePowerBIAgent() {
   const [conversations, setConversations] = useState<PowerBIAgentConversation[]>([]);
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [model, setModelState] = useState<PowerBIAgentModel>(() => loadModelPref());
+  // Resumed history starts read-only; user clicks "Continue" to participate again.
+  const [isReadOnly, setIsReadOnly] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const messagesRef = useRef(messages);
@@ -89,13 +92,53 @@ export function usePowerBIAgent() {
     } catch {}
   }, [orgId]);
 
+  // Read the *current* model preference inside the migration without making the
+  // org-change effect depend on `model` (which would wipe chat on model switch).
+  const modelRef = useRef(model);
+  modelRef.current = model;
+
   useEffect(() => {
-    if (orgId) {
-      refreshConversations();
-      // When org changes, drop in-memory chat
-      setMessages([]);
-      setConversationId(null);
-    }
+    if (!orgId) return;
+    refreshConversations();
+    // When org changes, drop in-memory chat
+    setMessages([]);
+    setConversationId(null);
+    setIsReadOnly(false);
+    // One-time migration: import any sessionStorage-cached chat from the legacy
+    // client-only implementation into a server-backed conversation, then delete the key.
+    void (async () => {
+      try {
+        const legacyKey = `powerbi_agent_messages_${orgId}`;
+        const raw = sessionStorage.getItem(legacyKey);
+        if (!raw) return;
+        const legacy = JSON.parse(raw) as Array<{ role?: string; content?: string; timestamp?: string }>;
+        if (!Array.isArray(legacy) || legacy.length === 0) {
+          sessionStorage.removeItem(legacyKey);
+          return;
+        }
+        const createRes = await fetch(`/api/powerbi-agent/conversations?organizationId=${orgId}`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ model: modelRef.current, title: "Imported chat" }),
+        });
+        if (!createRes.ok) return;
+        const conv = await createRes.json();
+        for (const m of legacy) {
+          if ((m.role !== "user" && m.role !== "assistant") || !m.content) continue;
+          await fetch(`/api/powerbi-agent/conversations/${conv.id}/messages?organizationId=${orgId}`, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ role: m.role, content: m.content }),
+          }).catch(() => {});
+        }
+        sessionStorage.removeItem(legacyKey);
+        await refreshConversations();
+      } catch {
+        // best-effort migration; swallow errors
+      }
+    })();
   }, [orgId, refreshConversations]);
 
   const startNewConversation = useCallback(() => {
@@ -103,6 +146,11 @@ export function usePowerBIAgent() {
     setMessages([]);
     setConversationId(null);
     setIsLoading(false);
+    setIsReadOnly(false);
+  }, []);
+
+  const continueConversation = useCallback(() => {
+    setIsReadOnly(false);
   }, []);
 
   const loadConversation = useCallback(async (id: number) => {
@@ -120,6 +168,8 @@ export function usePowerBIAgent() {
         attachments: m.attachments || undefined,
         timestamp: new Date(m.createdAt),
       })));
+      // Resumed conversations land in read-only mode until the user clicks "Continue".
+      setIsReadOnly(true);
     } catch {}
   }, [orgId, setModel]);
 
@@ -306,6 +356,9 @@ export function usePowerBIAgent() {
     loadConversation,
     renameConversation,
     deleteConversation,
+    // resume
+    isReadOnly,
+    continueConversation,
     // models
     model,
     setModel,
