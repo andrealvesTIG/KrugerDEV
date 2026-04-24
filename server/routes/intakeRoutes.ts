@@ -12,6 +12,82 @@ import {
 } from "./helpers";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400 } from "../route-registry";
 
+function dispatchIntakeStepTransitionEmails(args: {
+  intakeId: number;
+  intakeNumber: string | null;
+  projectName: string;
+  organizationId: number | null;
+  workflowId: number | null;
+  previousStep: string | null;
+  nextStep: string | null;
+  actorUserId: string;
+}): void {
+  const { intakeId, intakeNumber, projectName, organizationId, workflowId, previousStep, nextStep, actorUserId } = args;
+  if (!organizationId) return;
+  if (previousStep === nextStep) return;
+
+  void (async () => {
+    try {
+      const steps = await storage.getIntakeWorkflowSteps(organizationId, workflowId ?? null);
+      const fromStep = previousStep ? steps.find(s => s.stepKey === previousStep) : undefined;
+      const toStep = nextStep ? steps.find(s => s.stepKey === nextStep) : undefined;
+      const fromEmails = (fromStep?.notifyOnExit || []) as string[];
+      const toEmails = (toStep?.notifyOnEntry || []) as string[];
+      if (fromEmails.length === 0 && toEmails.length === 0) return;
+
+      const { sendIntakeStepTransitionEmail } = await import("../services/email");
+      const appUrl = process.env.REPLIT_DEV_DOMAIN
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : process.env.APP_URL || 'https://fridayreport.ai';
+
+      let actorName: string | null = null;
+      try {
+        const actor = await storage.getUser(actorUserId);
+        actorName = actor ? (`${actor.firstName || ''} ${actor.lastName || ''}`.trim() || actor.email || null) : null;
+      } catch (lookupErr) {
+        console.error("Failed to look up actor for intake step transition email:", lookupErr);
+      }
+      let organizationName: string | undefined;
+      try {
+        const org = await storage.getOrganization(organizationId);
+        organizationName = org?.name;
+      } catch (lookupErr) {
+        console.error("Failed to look up organization for intake step transition email:", lookupErr);
+      }
+
+      const exitTasks = fromEmails.map(email =>
+        sendIntakeStepTransitionEmail(email, {
+          intakeId,
+          intakeNumber,
+          projectName,
+          organizationName,
+          stepLabel: fromStep?.label || previousStep || 'Step',
+          transition: 'exit',
+          toStepLabel: toStep?.label || nextStep || null,
+          actorName,
+          appUrl,
+        }).catch(err => { console.error(`Failed to send intake step exit email to ${email}:`, err); return false; })
+      );
+      const entryTasks = toEmails.map(email =>
+        sendIntakeStepTransitionEmail(email, {
+          intakeId,
+          intakeNumber,
+          projectName,
+          organizationName,
+          stepLabel: toStep?.label || nextStep || 'Step',
+          transition: 'entry',
+          fromStepLabel: fromStep?.label || previousStep || null,
+          actorName,
+          appUrl,
+        }).catch(err => { console.error(`Failed to send intake step entry email to ${email}:`, err); return false; })
+      );
+      await Promise.allSettled([...exitTasks, ...entryTasks]);
+    } catch (err) {
+      console.error("Error sending intake step transition emails:", err);
+    }
+  })();
+}
+
 export function registerIntakeRoutes(app: Express) {
 
   apiRoute(app, 'get', '/api/project-intakes', {
@@ -157,68 +233,16 @@ export function registerIntakeRoutes(app: Express) {
       const previousStep = existing.currentStep;
       const updated = await storage.updateProjectIntake(id, req.body);
 
-      if (previousStep !== updated.currentStep && existing.organizationId) {
-        // Fire-and-forget email notifications for entry/exit on workflow step transition
-        (async () => {
-          try {
-            const steps = await storage.getIntakeWorkflowSteps(existing.organizationId!, updated.workflowId ?? null);
-            const fromStep = steps.find(s => s.stepKey === previousStep);
-            const toStep = steps.find(s => s.stepKey === updated.currentStep);
-            const fromEmails = (fromStep?.notifyOnExit || []) as string[];
-            const toEmails = (toStep?.notifyOnEntry || []) as string[];
-            if (fromEmails.length === 0 && toEmails.length === 0) return;
-
-            const { sendIntakeStepTransitionEmail } = await import("../services/email");
-            const appUrl = process.env.REPLIT_DEV_DOMAIN
-              ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-              : process.env.APP_URL || 'https://fridayreport.ai';
-            let actorName: string | null = null;
-            try {
-              const actor = await storage.getUser(userId);
-              actorName = actor ? (`${actor.firstName || ''} ${actor.lastName || ''}`.trim() || actor.email || null) : null;
-            } catch (lookupErr) {
-              console.error("Failed to look up actor for intake step transition email:", lookupErr);
-            }
-            let organizationName: string | undefined;
-            try {
-              const org = await storage.getOrganization(existing.organizationId!);
-              organizationName = org?.name;
-            } catch (lookupErr) {
-              console.error("Failed to look up organization for intake step transition email:", lookupErr);
-            }
-
-            const exitTasks = fromEmails.map(email =>
-              sendIntakeStepTransitionEmail(email, {
-                intakeId: id,
-                intakeNumber: updated.intakeNumber,
-                projectName: updated.projectName,
-                organizationName,
-                stepLabel: fromStep?.label || previousStep || 'Step',
-                transition: 'exit',
-                toStepLabel: toStep?.label || updated.currentStep || null,
-                actorName,
-                appUrl,
-              }).catch(err => { console.error(`Failed to send intake step exit email to ${email}:`, err); return false; })
-            );
-            const entryTasks = toEmails.map(email =>
-              sendIntakeStepTransitionEmail(email, {
-                intakeId: id,
-                intakeNumber: updated.intakeNumber,
-                projectName: updated.projectName,
-                organizationName,
-                stepLabel: toStep?.label || updated.currentStep || 'Step',
-                transition: 'entry',
-                fromStepLabel: fromStep?.label || previousStep || null,
-                actorName,
-                appUrl,
-              }).catch(err => { console.error(`Failed to send intake step entry email to ${email}:`, err); return false; })
-            );
-            await Promise.allSettled([...exitTasks, ...entryTasks]);
-          } catch (err) {
-            console.error("Error sending intake step transition emails:", err);
-          }
-        })();
-      }
+      dispatchIntakeStepTransitionEmails({
+        intakeId: id,
+        intakeNumber: updated.intakeNumber ?? null,
+        projectName: updated.projectName,
+        organizationId: existing.organizationId,
+        workflowId: updated.workflowId ?? null,
+        previousStep,
+        nextStep: updated.currentStep,
+        actorUserId: userId,
+      });
 
       res.json(updated);
     } catch (err) {
@@ -358,7 +382,20 @@ export function registerIntakeRoutes(app: Express) {
         }
       }
 
+      const previousStepBeforeApproval = existing.currentStep;
       const project = await storage.approveProjectIntake(id, userId);
+
+      dispatchIntakeStepTransitionEmails({
+        intakeId: id,
+        intakeNumber: existing.intakeNumber ?? null,
+        projectName: existing.projectName,
+        organizationId: existing.organizationId,
+        workflowId: existing.workflowId ?? null,
+        previousStep: previousStepBeforeApproval,
+        nextStep: 'submit_to_pmo',
+        actorUserId: userId,
+      });
+
       res.json({ 
         message: "Project intake approved and project created",
         project 
@@ -506,7 +543,9 @@ export function registerIntakeRoutes(app: Express) {
       const sanitizeEmails = (raw: unknown): string[] | undefined => {
         if (raw === undefined) return undefined;
         if (raw === null) return [];
-        if (!Array.isArray(raw)) return [];
+        if (!Array.isArray(raw)) {
+          throw new Error("notifyOnEntry/notifyOnExit must be an array of email addresses");
+        }
         const seen = new Set<string>();
         const out: string[] = [];
         for (const v of raw) {
