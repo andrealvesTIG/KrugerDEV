@@ -45,6 +45,7 @@ import { registerConstructionInvoiceRoutes } from "./routes/constructionInvoiceR
 import { registerMeetingRoutes } from "./routes/meetingRoutes";
 import { registerCorrespondenceRoutes } from "./routes/correspondenceRoutes";
 import { registerBlogRoutes } from "./routes/blogRoutes";
+import { registerSystemEmailRoutes } from "./routes/systemEmailRoutes";
 import { registerPowerBIAgentRoutes } from "./routes/powerbiAgentRoutes";
 import { registerLocationRoutes } from "./routes/locationRoutes";
 import { registerProjectTabTemplateRoutes } from "./routes/projectTabTemplateRoutes";
@@ -136,6 +137,7 @@ export async function registerRoutes(
   registerMeetingRoutes(app);
   registerCorrespondenceRoutes(app);
   registerBlogRoutes(app);
+  registerSystemEmailRoutes(app);
   registerPowerBIAgentRoutes(app);
   registerLocationRoutes(app);
   registerProjectTabTemplateRoutes(app);

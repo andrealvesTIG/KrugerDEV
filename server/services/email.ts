@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { sendViaSmtp, getActiveSmtpSettings } from "./smtpEmailSender";
 
 let resend: Resend | null = null;
 
@@ -39,6 +40,14 @@ export async function sendEmail({
   cc?: string[];
   attachments?: EmailAttachment[];
 }): Promise<boolean> {
+  // Prefer system-configured SMTP (e.g. Office 365) when enabled.
+  const smtpSettings = await getActiveSmtpSettings();
+  if (smtpSettings) {
+    const ok = await sendViaSmtp({ to, subject, text, html, cc, from, attachments });
+    if (ok) return true;
+    console.warn("SMTP send failed; falling back to Resend if available");
+  }
+
   const client = getResendClient();
   
   if (!client) {

@@ -2152,6 +2152,33 @@ export const insertOrganizationIntegrationSchema = createInsertSchema(organizati
 export type InsertOrganizationIntegration = z.infer<typeof insertOrganizationIntegrationSchema>;
 export type OrganizationIntegration = typeof organizationIntegrations.$inferSelect;
 
+// System-wide email delivery settings (singleton row managed by super admins).
+// SMTP password is encrypted at rest via server/lib/tokenEncryption.ts.
+export const systemEmailSettings = pgTable("system_email_settings", {
+  id: serial("id").primaryKey(),
+  provider: text("provider").notNull().default("resend"), // 'resend' | 'smtp'
+  smtpHost: text("smtp_host"),
+  smtpPort: integer("smtp_port"),
+  smtpSecure: boolean("smtp_secure").default(false), // true for 465 SSL, false for 587 STARTTLS
+  smtpUser: text("smtp_user"),
+  smtpPasswordEncrypted: text("smtp_password_encrypted"),
+  fromAddress: text("from_address"),
+  fromName: text("from_name"),
+  isEnabled: boolean("is_enabled").notNull().default(false),
+  lastTestedAt: timestamp("last_tested_at"),
+  lastTestStatus: text("last_test_status"), // 'success' | 'failed' | null
+  lastTestError: text("last_test_error"),
+  updatedBy: text("updated_by"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSystemEmailSettingsSchema = createInsertSchema(systemEmailSettings).omit({
+  id: true,
+  updatedAt: true,
+});
+export type InsertSystemEmailSettings = z.infer<typeof insertSystemEmailSettingsSchema>;
+export type SystemEmailSettings = typeof systemEmailSettings.$inferSelect;
+
 // Custom Dashboards - AI-generated dashboards saved by users
 export const customDashboards = pgTable("custom_dashboards", {
   id: serial("id").primaryKey(),

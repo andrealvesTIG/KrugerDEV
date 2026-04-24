@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Building2, Users, CreditCard, Wallet, FileCheck, Activity, BarChart3, HelpCircle, ShieldAlert, Crown, GraduationCap, MousePointerClick, Newspaper, Library } from "lucide-react";
+import { Loader2, Building2, Users, CreditCard, Wallet, FileCheck, Activity, BarChart3, HelpCircle, ShieldAlert, Crown, GraduationCap, MousePointerClick, Newspaper, Library, Mail } from "lucide-react";
 import { OrganizationsTab } from "@/components/admin/OrganizationsTab";
 import { AllUsersTab } from "@/components/admin/AllUsersTab";
 import { PlansTab } from "@/components/admin/PlansTab";
@@ -16,10 +16,11 @@ import { TrainingManagementTab } from "@/components/TrainingManagementTab";
 import { UserActivityTab } from "@/components/admin/UserActivityTab";
 import { BlogManagementTab } from "@/components/admin/BlogManagementTab";
 import { TabTemplatesTab } from "@/components/admin/TabTemplatesTab";
+import { EmailSettingsTab } from "@/components/admin/EmailSettingsTab";
 
 const VALID_TABS = new Set([
   'monitoring', 'organizations', 'users', 'plans', 'credits',
-  'consents', 'help-tickets', 'feature-comparison', 'training', 'user-activity', 'media', 'tab-templates',
+  'consents', 'help-tickets', 'feature-comparison', 'training', 'user-activity', 'media', 'tab-templates', 'email',
 ]);
 
 function readInitialTab(): string {
@@ -138,6 +139,10 @@ export default function SuperAdmin() {
               <Library className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Tab Templates
             </TabsTrigger>
+            <TabsTrigger value="email" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-sm gap-1.5 whitespace-nowrap text-xs sm:text-sm sm:gap-2" data-testid="tab-email">
+              <Mail className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              Email
+            </TabsTrigger>
           </TabsList>
         </div>
         <div className="mt-6">
@@ -176,6 +181,9 @@ export default function SuperAdmin() {
           </TabsContent>
           <TabsContent value="tab-templates">
             <TabTemplatesTab />
+          </TabsContent>
+          <TabsContent value="email">
+            <EmailSettingsTab />
           </TabsContent>
         </div>
       </Tabs>
