@@ -529,7 +529,7 @@ export default function PowerBIAgent() {
   ]).filter(p => p.available);
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)]">
+    <div className="flex h-full min-h-0 w-full">
     <div className="flex flex-col h-full flex-1 min-w-0">
       <div className="border-b bg-background/95 backdrop-blur-sm px-6 py-4 flex-shrink-0">
         <div className="flex items-center gap-3">
