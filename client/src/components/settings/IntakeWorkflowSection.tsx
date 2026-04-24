@@ -67,12 +67,21 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
   const [newStepDescription, setNewStepDescription] = useState("");
   const [stepToDelete, setStepToDelete] = useState<IntakeWorkflowStep | null>(null);
 
-  const { data: workflowSteps, isLoading } = useQuery<IntakeWorkflowStep[]>({
+  const { data: workflowSteps, isLoading, isError, error: stepsError, refetch: refetchSteps } = useQuery<IntakeWorkflowStep[]>({
     queryKey: wfQueryKey,
     enabled: !!selectedWorkflowId,
     queryFn: async () => {
       const res = await fetch(`/api/organizations/${organizationId}/intake-workflow${wfQuery}`);
-      if (!res.ok) return [];
+      if (!res.ok) {
+        let message = `Failed to load workflow steps (${res.status})`;
+        try {
+          const body = await res.json();
+          if (body?.message) message = body.message;
+        } catch {
+          /* response had no JSON body */
+        }
+        throw new Error(message);
+      }
       return res.json();
     }
   });
@@ -336,6 +345,9 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
   }
 
   const sortedSteps = [...(workflowSteps || [])].sort((a, b) => a.position - b.position);
+  const stepsErrorMessage = isError
+    ? (stepsError instanceof Error ? stepsError.message : 'Failed to load workflow steps')
+    : null;
 
   return (
     <Card>
@@ -446,6 +458,26 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
             ) : (
               <p>This workflow opens an external URL: <code className="text-xs">{selectedWorkflow.creationUrl}</code></p>
             )}
+          </div>
+        )}
+        {stepsErrorMessage && (
+          <div
+            className="mb-4 p-3 rounded-md border border-destructive/40 bg-destructive/10 text-sm flex items-start justify-between gap-3"
+            data-testid="error-workflow-steps"
+          >
+            <div>
+              <div className="font-medium text-destructive">Couldn't load workflow steps</div>
+              <div className="text-destructive/80">{stepsErrorMessage}</div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetchSteps()}
+              data-testid="button-retry-workflow-steps"
+            >
+              <RotateCw className="h-4 w-4 mr-2" />
+              Retry
+            </Button>
           </div>
         )}
         <div className="space-y-3">
