@@ -349,6 +349,16 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     ? (stepsError instanceof Error ? stepsError.message : 'Failed to load workflow steps')
     : null;
 
+  useEffect(() => {
+    if (stepsErrorMessage) {
+      toast({
+        title: "Couldn't load workflow steps",
+        description: stepsErrorMessage,
+        variant: "destructive",
+      });
+    }
+  }, [stepsErrorMessage, toast]);
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4 flex-wrap">
