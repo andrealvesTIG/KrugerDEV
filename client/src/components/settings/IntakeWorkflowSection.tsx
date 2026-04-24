@@ -436,7 +436,10 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
               )}
             </>
           )}
-          {selectedWorkflow && selectedWorkflow.creationMode === 'dialog' && !selectedWorkflow.agentTarget && (
+          {selectedWorkflow && (
+            (selectedWorkflow.creationMode === 'dialog' && !selectedWorkflow.agentTarget) ||
+            sortedSteps.length > 0
+          ) && (
             <>
               <Button
                 variant="default"
@@ -447,15 +450,17 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
                 <Plus className="h-4 w-4 mr-2" />
                 Add Step
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowResetConfirm(true)}
-                data-testid="button-reset-workflow"
-              >
-                <RotateCw className="h-4 w-4 mr-2" />
-                Reset to Defaults
-              </Button>
+              {selectedWorkflow.creationMode === 'dialog' && !selectedWorkflow.agentTarget && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowResetConfirm(true)}
+                  data-testid="button-reset-workflow"
+                >
+                  <RotateCw className="h-4 w-4 mr-2" />
+                  Reset to Defaults
+                </Button>
+              )}
             </>
           )}
         </div>
