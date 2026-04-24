@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  Send, Square, Trash2, BarChart3, User, Sparkles,
+  Send, Square, Trash2, User, Sparkles,
   FileBarChart, Database, Shield, Clock, Filter, Palette, CalendarDays,
   HelpCircle, Mic, MicOff, Paperclip, X, History, Plus, Pencil, Image as ImageIcon, FileText,
   ClipboardList,
@@ -25,6 +25,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { formatDistanceToNow } from "date-fns";
+import logoIcon from "@assets/FridayReportAI_logo_F-symbol_1770231051194.png";
 
 const SUGGESTED_PROMPTS = [
   "I need a new Power BI report",
@@ -170,8 +171,8 @@ function MessageBubble({ message }: { message: PowerBIAgentMessage }) {
       className={cn("flex gap-3 mb-4", isUser ? "justify-end" : "justify-start")}
     >
       {!isUser && (
-        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-sm">
-          <BarChart3 className="w-4 h-4 text-white" />
+        <div className="flex-shrink-0 w-8 h-8 rounded-md bg-white flex items-center justify-center shadow-sm border border-border/50 overflow-hidden">
+          <img src={logoIcon} alt="Friday Report" className="w-full h-full object-contain" />
         </div>
       )}
       <div className={cn(
