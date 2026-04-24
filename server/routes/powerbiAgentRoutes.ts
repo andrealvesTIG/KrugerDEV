@@ -27,9 +27,11 @@ import {
   extractIntakeState,
   emptyIntakeState,
   countCaptured,
+  computeAttachmentSourcedFields,
   PBI_INTAKE_FIELDS,
   PBI_INTAKE_SECTIONS,
 } from "../services/powerbiIntakeExtraction";
+import type { PbiIntakeState } from "@shared/schema";
 import {
   getUserIdFromRequest,
   getUserOrgIds,
@@ -138,6 +140,13 @@ export function registerPowerBIAgentRoutes(app: Express) {
       if (!conv) return res.status(404).json({ message: "Not found" });
       const msgs = await getMessages(id);
       const intakeState = (conv.intakeState as any) ?? emptyIntakeState();
+      // Recompute source map at read time so it stays accurate even if the
+      // analysis or edits changed since the last extraction.
+      intakeState.attachmentSourcedFields = computeAttachmentSourcedFields(
+        intakeState,
+        (conv.attachmentAnalysis as any) ?? null,
+        Array.isArray(intakeState.editedFields) ? intakeState.editedFields : [],
+      );
       const counts = countCaptured(intakeState);
       res.json({
         conversation: conv,
@@ -166,6 +175,11 @@ export function registerPowerBIAgentRoutes(app: Express) {
       const conv = await getConversation(id, orgId, userId);
       if (!conv) return res.status(404).json({ message: "Not found" });
       const intakeState = (conv.intakeState as any) ?? emptyIntakeState();
+      intakeState.attachmentSourcedFields = computeAttachmentSourcedFields(
+        intakeState,
+        (conv.attachmentAnalysis as any) ?? null,
+        Array.isArray(intakeState.editedFields) ? intakeState.editedFields : [],
+      );
       const counts = countCaptured(intakeState);
       res.json({
         intakeState,
@@ -176,6 +190,66 @@ export function registerPowerBIAgentRoutes(app: Express) {
       });
     } catch (e: any) {
       console.error("[PBI Agent] Get intake state:", e.message);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  apiRoute(app, 'patch', '/api/powerbi-agent/conversations/:id/intake-state', {
+    tag: 'AI', summary: 'Override a single captured intake field from the side panel',
+    responses: { ...r200('IntakeState', { type: 'object' }), ...authRes, ...inputRes, ...stdRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgId = Number(req.query.organizationId || req.body?.organizationId);
+      const id = Number(req.params.id);
+      if (!orgId || !id) return res.status(400).json({ message: "organizationId and id required" });
+      const orgIds = await getUserOrgIds(userId);
+      if (!orgIds.includes(orgId)) return res.status(403).json({ message: "Access denied" });
+      const conv = await getConversation(id, orgId, userId);
+      if (!conv) return res.status(404).json({ message: "Not found" });
+      if (conv.submittedIntakeId) {
+        return res.status(409).json({ message: "Intake already submitted; cannot edit" });
+      }
+
+      const fieldKey = String(req.body?.field || "");
+      const allowedKeys = new Set(PBI_INTAKE_FIELDS.map(f => String(f.key)));
+      if (!allowedKeys.has(fieldKey)) {
+        return res.status(400).json({ message: "Invalid field" });
+      }
+      const meta = PBI_INTAKE_FIELDS.find(f => String(f.key) === fieldKey)!;
+      let raw = req.body?.value;
+
+      let value: string | number | null;
+      if (raw === null || raw === undefined || (typeof raw === "string" && raw.trim() === "")) {
+        value = null;
+      } else if (meta.type === "number") {
+        const n = typeof raw === "number" ? raw : Number(String(raw).trim());
+        if (!Number.isFinite(n)) return res.status(400).json({ message: "Value must be a number" });
+        value = Math.trunc(n);
+      } else {
+        value = String(raw).slice(0, 5000);
+      }
+
+      const current: PbiIntakeState = (conv.intakeState as any) ?? emptyIntakeState();
+      const editedSet = new Set(Array.isArray(current.editedFields) ? current.editedFields : []);
+      editedSet.add(fieldKey);
+      const next: PbiIntakeState = {
+        ...current,
+        [fieldKey]: value,
+        editedFields: Array.from(editedSet),
+        updatedAt: new Date().toISOString(),
+      } as PbiIntakeState;
+      next.attachmentSourcedFields = computeAttachmentSourcedFields(
+        next,
+        (conv.attachmentAnalysis as any) ?? null,
+        Array.from(editedSet),
+      );
+      await updateConversationIntakeState(id, next);
+      const counts = countCaptured(next);
+      res.json({ intakeState: next, counts });
+    } catch (e: any) {
+      console.error("[PBI Agent] Patch intake state:", e.message);
       res.status(500).json({ message: "Internal server error" });
     }
   });
@@ -347,8 +421,9 @@ export function registerPowerBIAgentRoutes(app: Express) {
             if (finalConvId) {
               const previous = await getConversationIntakeState(finalConvId);
               const fullTranscript = [...transcript, { role: "assistant" as const, content: assistantBuffer, attachments: null }];
-              const newState = await extractIntakeState(fullTranscript, previous);
               const conv = await getConversation(finalConvId, organizationId, userId);
+              const analysis = (conv?.attachmentAnalysis as any) ?? null;
+              const newState = await extractIntakeState(fullTranscript, previous, analysis);
               if (conv?.submittedIntakeId) {
                 newState.submittedRequestNumber = previous?.submittedRequestNumber ?? null;
                 newState.submittedIntakeNumber = previous?.submittedIntakeNumber ?? null;

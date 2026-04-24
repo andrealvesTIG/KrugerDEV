@@ -203,32 +203,57 @@ async function handleSubmitTool(
   // If the conversation produced an attachment analysis, surface its derived
   // fields without overwriting anything the user explicitly typed.
   let analysis: PbiAttachmentAnalysis | null = null;
+  let editedFields: string[] = [];
+  let intakeState: any = null;
   if (conversationDbId) {
     try {
-      const [row] = await db.select({ analysis: powerbiAgentConversations.attachmentAnalysis })
+      const [row] = await db.select({
+        analysis: powerbiAgentConversations.attachmentAnalysis,
+        intakeState: powerbiAgentConversations.intakeState,
+      })
         .from(powerbiAgentConversations)
         .where(eq(powerbiAgentConversations.id, conversationDbId));
       if (row?.analysis) analysis = row.analysis as PbiAttachmentAnalysis;
+      if (row?.intakeState) {
+        intakeState = row.intakeState as any;
+        if (Array.isArray(intakeState.editedFields)) editedFields = intakeState.editedFields;
+      }
     } catch {}
   }
+  // User edits from the side panel always win over what the LLM produced.
+  if (intakeState && editedFields.length) {
+    for (const k of editedFields) {
+      const v = intakeState[k];
+      if (v !== undefined && v !== null && !(typeof v === "string" && v.trim() === "")) {
+        args[k] = v;
+      } else {
+        delete args[k];
+      }
+    }
+  }
+  const editedSet = new Set(editedFields);
   if (analysis) {
-    if (!args.dataSources && analysis.suggestedDataSources.length) {
+    // Skip analysis-derived enrichment for any field the user explicitly edited
+    // in the side panel — even when they cleared it, that null is intentional.
+    if (!editedSet.has("dataSources") && !args.dataSources && analysis.suggestedDataSources.length) {
       args.dataSources = analysis.suggestedDataSources.join(", ");
     }
-    if (!args.refreshFrequency && analysis.suggestedRefreshCadence && analysis.suggestedRefreshCadence !== "Unknown") {
+    if (!editedSet.has("refreshFrequency") && !args.refreshFrequency && analysis.suggestedRefreshCadence && analysis.suggestedRefreshCadence !== "Unknown") {
       args.refreshFrequency = analysis.suggestedRefreshCadence;
     }
-    const derivedNotes: string[] = [];
-    if (analysis.audienceTier && analysis.audienceTier !== "unknown") {
-      derivedNotes.push(`Derived audience tier (from attachments): ${analysis.audienceTier} (confidence ${analysis.confidence})${analysis.audienceEvidence ? ` — "${analysis.audienceEvidence}"` : ""}`);
-    }
-    if (analysis.suggestedMetrics.length) derivedNotes.push(`Suggested KPIs: ${analysis.suggestedMetrics.join(", ")}`);
-    if (analysis.suggestedDimensions.length) derivedNotes.push(`Suggested dimensions: ${analysis.suggestedDimensions.join(", ")}`);
-    if (analysis.suggestedTimeGrain && analysis.suggestedTimeGrain !== "Unknown") derivedNotes.push(`Suggested time grain: ${analysis.suggestedTimeGrain}`);
-    if (analysis.sourceFiles.length) derivedNotes.push(`Source attachments: ${analysis.sourceFiles.join(", ")}`);
-    if (derivedNotes.length) {
-      const block = derivedNotes.join("\n");
-      args.additionalNotes = args.additionalNotes ? `${args.additionalNotes}\n\n${block}` : block;
+    if (!editedSet.has("additionalNotes")) {
+      const derivedNotes: string[] = [];
+      if (analysis.audienceTier && analysis.audienceTier !== "unknown") {
+        derivedNotes.push(`Derived audience tier (from attachments): ${analysis.audienceTier} (confidence ${analysis.confidence})${analysis.audienceEvidence ? ` — "${analysis.audienceEvidence}"` : ""}`);
+      }
+      if (analysis.suggestedMetrics.length) derivedNotes.push(`Suggested KPIs: ${analysis.suggestedMetrics.join(", ")}`);
+      if (analysis.suggestedDimensions.length) derivedNotes.push(`Suggested dimensions: ${analysis.suggestedDimensions.join(", ")}`);
+      if (analysis.suggestedTimeGrain && analysis.suggestedTimeGrain !== "Unknown") derivedNotes.push(`Suggested time grain: ${analysis.suggestedTimeGrain}`);
+      if (analysis.sourceFiles.length) derivedNotes.push(`Source attachments: ${analysis.sourceFiles.join(", ")}`);
+      if (derivedNotes.length) {
+        const block = derivedNotes.join("\n");
+        args.additionalNotes = args.additionalNotes ? `${args.additionalNotes}\n\n${block}` : block;
+      }
     }
   }
 

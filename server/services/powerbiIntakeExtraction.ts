@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { PbiIntakeState } from "@shared/schema";
+import type { PbiIntakeState, PbiAttachmentAnalysis } from "@shared/schema";
 import type { PbiAttachment } from "../storage/powerbiAgentStorage";
 
 const openai = new OpenAI({
@@ -102,8 +102,10 @@ function formatTranscript(messages: ExtractionMessage[]): string {
 export async function extractIntakeState(
   messages: ExtractionMessage[],
   previous?: PbiIntakeState | null,
+  analysis?: PbiAttachmentAnalysis | null,
 ): Promise<PbiIntakeState> {
   const base = previous && typeof previous === "object" ? { ...emptyIntakeState(), ...previous } : emptyIntakeState();
+  const editedFields = Array.isArray(base.editedFields) ? base.editedFields : [];
   const hasUser = messages.some(m => m.role === "user" && (m.content || (m.attachments?.length ?? 0) > 0));
   if (!hasUser) {
     return { ...base, updatedAt: new Date().toISOString() };
@@ -111,6 +113,7 @@ export async function extractIntakeState(
 
   const transcript = formatTranscript(messages.slice(-30));
 
+  let extracted: Partial<PbiIntakeState> = {};
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -126,20 +129,80 @@ export async function extractIntakeState(
       ],
     });
     const raw = completion.choices[0]?.message?.content;
-    if (!raw) return { ...base, updatedAt: new Date().toISOString() };
-    const parsed = JSON.parse(raw) as Partial<PbiIntakeState>;
-    return {
-      ...base,
-      ...parsed,
-      // preserve submitted markers from the previous snapshot (not extracted by LLM)
-      submittedRequestNumber: base.submittedRequestNumber ?? null,
-      submittedIntakeNumber: base.submittedIntakeNumber ?? null,
-      updatedAt: new Date().toISOString(),
-    };
+    if (raw) extracted = JSON.parse(raw) as Partial<PbiIntakeState>;
   } catch (e: any) {
     console.error("[PBI Extract] failed:", e.message);
-    return { ...base, updatedAt: new Date().toISOString() };
   }
+
+  // Re-apply user edits — they always win over LLM extraction.
+  const next: PbiIntakeState = {
+    ...base,
+    ...extracted,
+    submittedRequestNumber: base.submittedRequestNumber ?? null,
+    submittedIntakeNumber: base.submittedIntakeNumber ?? null,
+    editedFields,
+    updatedAt: new Date().toISOString(),
+  };
+  for (const k of editedFields) {
+    (next as any)[k] = (base as any)[k] ?? null;
+  }
+
+  next.attachmentSourcedFields = computeAttachmentSourcedFields(next, analysis ?? null, editedFields);
+  return next;
+}
+
+function normalize(s: unknown): string {
+  return String(s ?? "").trim().toLowerCase();
+}
+
+// Determine which currently-captured fields trace back to attachment analysis
+// rather than to the chat transcript. Mirrors the field-derivation logic in
+// handleSubmitTool so the side-panel source labels stay consistent with what
+// would actually be submitted.
+export function computeAttachmentSourcedFields(
+  state: PbiIntakeState,
+  analysis: PbiAttachmentAnalysis | null,
+  editedFields: string[],
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!analysis) return out;
+  const fileLabel = (analysis.sourceFiles || []).filter(Boolean).join(", ") || "uploaded file";
+  const edited = new Set(editedFields);
+
+  // dataSources: comma/and joined list
+  if (!edited.has("dataSources") && state.dataSources) {
+    const v = normalize(state.dataSources);
+    const tokens = (analysis.suggestedDataSources || []).map(normalize).filter(Boolean);
+    if (tokens.length && tokens.some(t => v.includes(t))) {
+      out.dataSources = fileLabel;
+    }
+  }
+
+  // refreshFrequency: single value
+  if (!edited.has("refreshFrequency") && state.refreshFrequency && analysis.suggestedRefreshCadence) {
+    if (normalize(state.refreshFrequency) === normalize(analysis.suggestedRefreshCadence)) {
+      out.refreshFrequency = fileLabel;
+    }
+  }
+
+  // additionalNotes: handleSubmitTool appends derived notes; if the captured
+  // notes mention a derived marker we treat them as attachment-sourced.
+  if (!edited.has("additionalNotes") && state.additionalNotes) {
+    const v = String(state.additionalNotes);
+    if (/Derived audience tier|Suggested KPIs|Suggested dimensions|Source attachments/i.test(v)) {
+      out.additionalNotes = fileLabel;
+    }
+  }
+
+  // reportType (audience tier) — when user accepted the SUGGESTED chip from
+  // the attachment-analysis-aware question.
+  if (!edited.has("reportType") && state.reportType && analysis.audienceTier && analysis.audienceTier !== "unknown") {
+    if (normalize(state.reportType).includes(normalize(analysis.audienceTier))) {
+      out.reportType = fileLabel;
+    }
+  }
+
+  return out;
 }
 
 export function countCaptured(state: PbiIntakeState | null | undefined): { captured: number; total: number } {

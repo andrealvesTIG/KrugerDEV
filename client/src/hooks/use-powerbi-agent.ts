@@ -252,6 +252,25 @@ export function usePowerBIAgent() {
     } catch {}
   }, [orgId, setModel]);
 
+  const editIntakeField = useCallback(async (field: string, value: string | number | null) => {
+    const id = conversationIdRef.current;
+    if (!orgId || !id) return false;
+    try {
+      const r = await fetch(`/api/powerbi-agent/conversations/${id}/intake-state?organizationId=${orgId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field, value }),
+      });
+      if (!r.ok) return false;
+      const d = await r.json();
+      if (d?.intakeState) setIntakeState(d.intakeState);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [orgId]);
+
   const refreshIntakeState = useCallback(async () => {
     const id = conversationIdRef.current;
     if (!orgId || !id) return;
@@ -508,5 +527,6 @@ export function usePowerBIAgent() {
     isExtracting,
     isSubmitted,
     refreshIntakeState,
+    editIntakeField,
   };
 }

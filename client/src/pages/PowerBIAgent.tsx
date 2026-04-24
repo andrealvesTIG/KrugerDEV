@@ -365,6 +365,7 @@ export default function PowerBIAgent() {
     isReadOnly, continueConversation,
     model, setModel, providers, uploadAttachment,
     intakeState, intakeFields, intakeSections, isExtracting, isSubmitted,
+    editIntakeField,
   } = usePowerBIAgent();
   const [summaryOpen, setSummaryOpen] = useState(false);
   const { toast } = useToast();
@@ -830,6 +831,7 @@ export default function PowerBIAgent() {
         state={intakeState}
         isExtracting={isExtracting}
         isSubmitted={isSubmitted}
+        onEditField={editIntakeField}
       />
     </aside>
     {/* Mobile/tablet: drawer */}
@@ -844,6 +846,7 @@ export default function PowerBIAgent() {
           state={intakeState}
           isExtracting={isExtracting}
           isSubmitted={isSubmitted}
+          onEditField={editIntakeField}
         />
       </SheetContent>
     </Sheet>

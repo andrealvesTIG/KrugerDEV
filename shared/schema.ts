@@ -1535,6 +1535,12 @@ export type PbiIntakeState = {
   submittedRequestNumber?: string | null;
   submittedIntakeNumber?: string | null;
   updatedAt?: string;
+  // Field keys the user has manually edited in the side panel.
+  // The extractor must not overwrite these on subsequent turns.
+  editedFields?: string[];
+  // Field keys whose current value originated from attachment analysis,
+  // along with the source filename(s) to display ("from file: X").
+  attachmentSourcedFields?: Record<string, string>;
 };
 
 // Structured analysis derived from documents the user attached to the agent chat.
