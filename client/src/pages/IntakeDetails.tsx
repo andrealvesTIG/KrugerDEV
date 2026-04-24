@@ -57,8 +57,6 @@ export default function IntakeDetails() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
-  const { steps: workflowSteps, isLoading: workflowLoading, getStepByKey, getStepIndex, isFieldRequired } = useIntakeWorkflow();
-  
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [activeTab, setActiveTab] = useState("details");
@@ -90,6 +88,8 @@ export default function IntakeDetails() {
     },
     enabled: !!id && !!currentOrganization?.id,
   });
+
+  const { steps: workflowSteps, isLoading: workflowLoading, getStepByKey, getStepIndex, isFieldRequired } = useIntakeWorkflow(intake?.workflowId ?? null);
 
   const [formData, setFormData] = useState<Partial<ProjectIntake>>({});
 
