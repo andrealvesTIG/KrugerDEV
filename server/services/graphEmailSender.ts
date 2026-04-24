@@ -151,11 +151,19 @@ async function postSendMail(senderAddress: string, accessToken: string, payload:
   let detail = `HTTP ${res.status}`;
   try {
     const json = await res.json();
-    detail = json?.error?.message || JSON.stringify(json);
+    const code = json?.error?.code;
+    const message = json?.error?.message;
+    if (code && message) {
+      detail = `${code}: ${message}`;
+    } else if (message) {
+      detail = message;
+    } else {
+      detail = JSON.stringify(json);
+    }
   } catch {
     try { detail = await res.text(); } catch { /* ignore */ }
   }
-  throw new Error(`Microsoft Graph sendMail failed: ${detail}`);
+  throw new Error(`Microsoft Graph sendMail failed (HTTP ${res.status}): ${detail}`);
 }
 
 export async function sendViaGraph(input: GraphSendInput): Promise<boolean> {
