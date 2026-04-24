@@ -27,6 +27,7 @@ import {
   AlertTriangle,
   Target,
   ChevronRight,
+  ChevronDown,
   Calendar,
   CheckCircle2,
   AlertCircle,
@@ -49,6 +50,7 @@ import {
   History,
 } from "lucide-react";
 import { Link } from "wouter";
+import { motion, AnimatePresence } from "framer-motion";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { format, startOfWeek, endOfWeek, addDays, isAfter, isBefore, parseISO, differenceInDays, formatDistanceToNow } from "date-fns";
 import type { Task, Issue, Project, Milestone } from "@shared/schema";
@@ -143,6 +145,7 @@ export default function Home() {
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [showCreateIssue, setShowCreateIssue] = useState(false);
   const [isGeneratingDemo, setIsGeneratingDemo] = useState(false);
+  const [expandedOverdueId, setExpandedOverdueId] = useState<string | null>(null);
 
   const generateDemoMutation = useMutation({
     mutationFn: async () => {
@@ -595,9 +598,22 @@ export default function Home() {
             <div className="grid gap-2 sm:grid-cols-2">
               {overdueTasks.map((item) => {
                 const endDate = item.task.endDate ? (typeof item.task.endDate === "string" ? parseISO(item.task.endDate) : item.task.endDate) : null;
+                const expandKey = `task-${item.task.id}`;
+                const isExpanded = expandedOverdueId === expandKey;
+                const taskHref = `/projects/${item.task.projectId}?tab=tasks&taskId=${item.task.id}`;
                 return (
-                  <Link key={item.task.id} href={`/projects/${item.task.projectId}?tab=tasks&taskId=${item.task.id}`}>
+                  <div key={item.task.id} className="flex flex-col">
                     <div
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={isExpanded}
+                      onClick={() => setExpandedOverdueId(isExpanded ? null : expandKey)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setExpandedOverdueId(isExpanded ? null : expandKey);
+                        }
+                      }}
                       className="group relative flex items-center gap-3 overflow-hidden rounded-lg border border-border/60 bg-card/80 backdrop-blur-sm pl-3 pr-2.5 py-2.5 hover-elevate cursor-pointer transition-all"
                       data-testid={`link-overdue-task-${item.task.id}`}
                     >
@@ -613,18 +629,90 @@ export default function Home() {
                           </div>
                         )}
                       </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground/60 group-hover:text-foreground group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground/60 group-hover:text-foreground transition-transform flex-shrink-0 ${isExpanded ? "rotate-180" : ""}`} />
                     </div>
-                  </Link>
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.18 }}
+                          className="overflow-hidden"
+                        >
+                          <div
+                            className="mt-1.5 rounded-lg border border-border/60 bg-muted/30 p-3 space-y-2"
+                            data-testid={`expanded-overdue-task-${item.task.id}`}
+                          >
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                              <div>
+                                <div className="text-muted-foreground">Project</div>
+                                <div className="font-medium text-foreground truncate">{item.project?.name || "—"}</div>
+                              </div>
+                              {endDate && (
+                                <div>
+                                  <div className="text-muted-foreground">Due Date</div>
+                                  <div className="font-medium text-foreground">{format(endDate, "MMM d, yyyy")}</div>
+                                </div>
+                              )}
+                              {item.task.status && (
+                                <div>
+                                  <div className="text-muted-foreground">Status</div>
+                                  <div className="font-medium text-foreground truncate">{item.task.status}</div>
+                                </div>
+                              )}
+                              {item.task.priority && (
+                                <div>
+                                  <div className="text-muted-foreground">Priority</div>
+                                  <div className="font-medium text-foreground truncate">{item.task.priority}</div>
+                                </div>
+                              )}
+                            </div>
+                            {item.task.description && (
+                              <div className="text-xs text-muted-foreground line-clamp-3 pt-1.5 border-t border-border/40">
+                                {item.task.description}
+                              </div>
+                            )}
+                            <div className="flex justify-end pt-1">
+                              <Link href={taskHref}>
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-xs gap-1"
+                                  data-testid={`button-open-overdue-task-${item.task.id}`}
+                                >
+                                  Open Task <ChevronRight className="h-3.5 w-3.5" />
+                                </Button>
+                              </Link>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 );
               })}
               {overdueIssues.map((issue: Issue) => {
                 const resDate = issue.targetResolutionDate
                   ? (typeof issue.targetResolutionDate === "string" ? parseISO(issue.targetResolutionDate) : issue.targetResolutionDate)
                   : null;
+                const expandKey = `issue-${issue.id}`;
+                const isExpanded = expandedOverdueId === expandKey;
+                const issueProject = allProjects?.find((p: Project) => p.id === issue.projectId);
+                const issueHref = `/projects/${issue.projectId}?tab=issues&issueId=${issue.id}`;
+                const itemLabel = issue.itemType === "risk" ? "Risk" : "Issue";
                 return (
-                  <Link key={issue.id} href={`/projects/${issue.projectId}?tab=issues&issueId=${issue.id}`}>
+                  <div key={issue.id} className="flex flex-col">
                     <div
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={isExpanded}
+                      onClick={() => setExpandedOverdueId(isExpanded ? null : expandKey)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setExpandedOverdueId(isExpanded ? null : expandKey);
+                        }
+                      }}
                       className="group relative flex items-center gap-3 overflow-hidden rounded-lg border border-border/60 bg-card/80 backdrop-blur-sm pl-3 pr-2.5 py-2.5 hover-elevate cursor-pointer transition-all"
                       data-testid={`link-overdue-issue-${issue.id}`}
                     >
@@ -640,9 +728,70 @@ export default function Home() {
                           </div>
                         )}
                       </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground/60 group-hover:text-foreground group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                      <ChevronDown className={`h-4 w-4 text-muted-foreground/60 group-hover:text-foreground transition-transform flex-shrink-0 ${isExpanded ? "rotate-180" : ""}`} />
                     </div>
-                  </Link>
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.18 }}
+                          className="overflow-hidden"
+                        >
+                          <div
+                            className="mt-1.5 rounded-lg border border-border/60 bg-muted/30 p-3 space-y-2"
+                            data-testid={`expanded-overdue-issue-${issue.id}`}
+                          >
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                              <div>
+                                <div className="text-muted-foreground">Project</div>
+                                <div className="font-medium text-foreground truncate">{issueProject?.name || "—"}</div>
+                              </div>
+                              {resDate && (
+                                <div>
+                                  <div className="text-muted-foreground">Target Resolution</div>
+                                  <div className="font-medium text-foreground">{format(resDate, "MMM d, yyyy")}</div>
+                                </div>
+                              )}
+                              <div>
+                                <div className="text-muted-foreground">Type</div>
+                                <div className="font-medium text-foreground">{itemLabel}</div>
+                              </div>
+                              {issue.priority && (
+                                <div>
+                                  <div className="text-muted-foreground">Priority</div>
+                                  <div className="font-medium text-foreground truncate">{issue.priority}</div>
+                                </div>
+                              )}
+                              {issue.status && (
+                                <div>
+                                  <div className="text-muted-foreground">Status</div>
+                                  <div className="font-medium text-foreground truncate">{issue.status}</div>
+                                </div>
+                              )}
+                            </div>
+                            {issue.description && (
+                              <div className="text-xs text-muted-foreground line-clamp-3 pt-1.5 border-t border-border/40">
+                                {issue.description}
+                              </div>
+                            )}
+                            <div className="flex justify-end pt-1">
+                              <Link href={issueHref}>
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-xs gap-1"
+                                  data-testid={`button-open-overdue-issue-${issue.id}`}
+                                >
+                                  Open {itemLabel} <ChevronRight className="h-3.5 w-3.5" />
+                                </Button>
+                              </Link>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 );
               })}
             </div>
