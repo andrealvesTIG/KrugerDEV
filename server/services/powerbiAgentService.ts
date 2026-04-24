@@ -176,11 +176,33 @@ function calculateEffortEstimate(args: Record<string, any>): { totalHours: numbe
   return { totalHours, breakdown };
 }
 
-async function generateRequestNumber(orgId: number): Promise<string> {
-  const year = new Date().getFullYear();
-  const [c] = await db.select({ count: sql<number>`count(*)::int` })
-    .from(powerbiIntakeRequests).where(eq(powerbiIntakeRequests.organizationId, orgId));
-  return `PBI-${year}-${String((c?.count || 0) + 1).padStart(3, "0")}`;
+// Compute the next sequence number for a given prefix/year by parsing the
+// numeric suffix of any existing identifiers. We scan globally (not per-org)
+// because request_number has a global UNIQUE index, and intake_number is
+// presented to users as a global identifier as well.
+// Identifier format: `${prefix}-${YYYY}-${NNN}` (split_part index 3 = NNN).
+async function nextSequenceFor(
+  table: typeof powerbiIntakeRequests | typeof projectIntakes,
+  column: any,
+  prefix: string,
+  year: number,
+  executor: { execute: (q: any) => Promise<any> } = db,
+): Promise<number> {
+  const like = `${prefix}-${year}-%`;
+  // Guard against malformed legacy identifiers (e.g., 'PBI-2026-ABC'): only
+  // cast suffixes that are purely numeric, otherwise the ::int cast would throw.
+  const result: any = await executor.execute(sql`
+    SELECT COALESCE(MAX(split_part(${column}, '-', 3)::int), 0)::int AS max_seq
+    FROM ${table}
+    WHERE ${column} LIKE ${like}
+      AND split_part(${column}, '-', 3) ~ '^[0-9]+$'
+  `);
+  const rows: Array<{ max_seq: number }> = Array.isArray(result) ? result : (result?.rows ?? []);
+  return Number(rows[0]?.max_seq || 0) + 1;
+}
+
+function formatSeq(prefix: string, year: number, seq: number): string {
+  return `${prefix}-${year}-${String(seq).padStart(3, "0")}`;
 }
 
 export type IntakeSubmittedInfo = {
@@ -198,8 +220,6 @@ async function handleSubmitTool(
   conversationDbId: number | null,
   onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
 ): Promise<string> {
-  const requestNumber = await generateRequestNumber(orgId);
-
   // If the conversation produced an attachment analysis, surface its derived
   // fields without overwriting anything the user explicitly typed.
   let analysis: PbiAttachmentAnalysis | null = null;
@@ -259,70 +279,96 @@ async function handleSubmitTool(
 
   const effort = calculateEffortEstimate(args);
 
-  const descParts: string[] = [];
-  if (args.description) descParts.push(args.description);
-  descParts.push(`\n--- Power BI Scoping Details ---`);
-  descParts.push(`Report Type: ${args.reportType || "N/A"}`);
-  if (args.numberOfPages) descParts.push(`Pages: ${args.numberOfPages} main${args.numberOfDrillDownPages ? ` + ${args.numberOfDrillDownPages} drill-down` : ""}`);
-  if (args.numberOfDataSources) descParts.push(`Data Sources (${args.numberOfDataSources}): ${args.dataSources || "N/A"}`);
-  if (args.integrations) descParts.push(`Integrations: ${args.integrations}`);
-  if (args.calculationComplexity) descParts.push(`Calculation Complexity: ${args.calculationComplexity}`);
-  if (args.refreshFrequency) descParts.push(`Refresh Frequency: ${args.refreshFrequency}`);
-  if (args.filtersAndSlicers) descParts.push(`Filters & Slicers: ${args.filtersAndSlicers}`);
-  if (args.visualRequirements) descParts.push(`Visual/UX Requirements: ${args.visualRequirements}`);
-  if (args.securityRequirements) descParts.push(`Security / RLS: ${args.securityRequirements}`);
-  if (args.targetDeliveryDate) descParts.push(`Target Delivery: ${args.targetDeliveryDate}`);
-  if (args.additionalNotes) descParts.push(`Additional Notes: ${args.additionalNotes}`);
-  descParts.push(`\nPower BI Request Ref: ${requestNumber}`);
+  const buildDescription = (requestNumber: string): string => {
+    const descParts: string[] = [];
+    if (args.description) descParts.push(args.description);
+    descParts.push(`\n--- Power BI Scoping Details ---`);
+    descParts.push(`Report Type: ${args.reportType || "N/A"}`);
+    if (args.numberOfPages) descParts.push(`Pages: ${args.numberOfPages} main${args.numberOfDrillDownPages ? ` + ${args.numberOfDrillDownPages} drill-down` : ""}`);
+    if (args.numberOfDataSources) descParts.push(`Data Sources (${args.numberOfDataSources}): ${args.dataSources || "N/A"}`);
+    if (args.integrations) descParts.push(`Integrations: ${args.integrations}`);
+    if (args.calculationComplexity) descParts.push(`Calculation Complexity: ${args.calculationComplexity}`);
+    if (args.refreshFrequency) descParts.push(`Refresh Frequency: ${args.refreshFrequency}`);
+    if (args.filtersAndSlicers) descParts.push(`Filters & Slicers: ${args.filtersAndSlicers}`);
+    if (args.visualRequirements) descParts.push(`Visual/UX Requirements: ${args.visualRequirements}`);
+    if (args.securityRequirements) descParts.push(`Security / RLS: ${args.securityRequirements}`);
+    if (args.targetDeliveryDate) descParts.push(`Target Delivery: ${args.targetDeliveryDate}`);
+    if (args.additionalNotes) descParts.push(`Additional Notes: ${args.additionalNotes}`);
+    descParts.push(`\nPower BI Request Ref: ${requestNumber}`);
+    return descParts.join("\n");
+  };
 
-  const result = await db.transaction(async (tx) => {
-    const year = new Date().getFullYear();
-    const ec = await tx.select({ count: sql<number>`count(*)` })
-      .from(projectIntakes)
-      .where(sql`EXTRACT(YEAR FROM ${projectIntakes.createdAt}) = ${year}`);
-    const seq = Number(ec[0]?.count || 0) + 1;
-    const intakeNumber = `INT-${year}-${String(seq).padStart(3, '0')}`;
+  // Sequence numbers (INT-YYYY-NNN, PBI-YYYY-NNN) are globally unique. With
+  // concurrent submissions the SELECT-then-INSERT can race and hit a unique
+  // violation on request_number; on collision we recompute and retry.
+  let result: { pbiRecord: any; projectIntake: any; requestNumber: string } | null = null;
+  let lastErr: any = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      result = await db.transaction(async (tx) => {
+        const year = new Date().getFullYear();
+        const [pbiSeq, intakeSeq] = await Promise.all([
+          nextSequenceFor(powerbiIntakeRequests, powerbiIntakeRequests.requestNumber, "PBI", year, tx),
+          nextSequenceFor(projectIntakes, projectIntakes.intakeNumber, "INT", year, tx),
+        ]);
+        const requestNumber = formatSeq("PBI", year, pbiSeq);
+        const intakeNumber = formatSeq("INT", year, intakeSeq);
 
-    const [projectIntake] = await tx.insert(projectIntakes).values({
-      organizationId: orgId,
-      intakeNumber,
-      projectName: args.reportName || "Untitled Power BI Report",
-      submitterId: userId,
-      description: descParts.join("\n"),
-      status: "draft",
-      currentStep: "intake_capture",
-      resourceRequirements: `Estimated effort: ${effort.totalHours} hours\n${Object.entries(effort.breakdown).map(([k, v]) => `${k}: ${v}h`).join("\n")}`,
-      implementationTimeline: args.targetDeliveryDate || null,
-    }).returning();
+        const [projectIntake] = await tx.insert(projectIntakes).values({
+          organizationId: orgId,
+          intakeNumber,
+          projectName: args.reportName || "Untitled Power BI Report",
+          submitterId: userId,
+          description: buildDescription(requestNumber),
+          status: "draft",
+          currentStep: "intake_capture",
+          resourceRequirements: `Estimated effort: ${effort.totalHours} hours\n${Object.entries(effort.breakdown).map(([k, v]) => `${k}: ${v}h`).join("\n")}`,
+          implementationTimeline: args.targetDeliveryDate || null,
+        }).returning();
 
-    const [pbiRecord] = await tx.insert(powerbiIntakeRequests).values({
-      organizationId: orgId,
-      requestNumber,
-      submittedBy: userId,
-      status: "new",
-      reportType: args.reportType?.slice(0, 200) || null,
-      reportName: args.reportName?.slice(0, 500) || "Untitled Report",
-      description: args.description?.slice(0, 5000) || null,
-      numberOfPages: args.numberOfPages || null,
-      numberOfDrillDownPages: args.numberOfDrillDownPages || null,
-      numberOfDataSources: args.numberOfDataSources || null,
-      dataSources: args.dataSources?.slice(0, 2000) || null,
-      integrations: args.integrations?.slice(0, 2000) || null,
-      calculationComplexity: args.calculationComplexity || null,
-      refreshFrequency: args.refreshFrequency?.slice(0, 500) || null,
-      filtersAndSlicers: args.filtersAndSlicers?.slice(0, 2000) || null,
-      visualRequirements: args.visualRequirements?.slice(0, 2000) || null,
-      securityRequirements: args.securityRequirements?.slice(0, 2000) || null,
-      targetDeliveryDate: args.targetDeliveryDate?.slice(0, 200) || null,
-      additionalNotes: args.additionalNotes?.slice(0, 5000) || null,
-      conversationLog: conversationLog.slice(0, 50000),
-      estimatedEffortHours: effort.totalHours,
-      effortBreakdown: effort.breakdown,
-      projectIntakeId: projectIntake.id,
-    }).returning();
+        const [pbiRecord] = await tx.insert(powerbiIntakeRequests).values({
+          organizationId: orgId,
+          requestNumber,
+          submittedBy: userId,
+          status: "new",
+          reportType: args.reportType?.slice(0, 200) || null,
+          reportName: args.reportName?.slice(0, 500) || "Untitled Report",
+          description: args.description?.slice(0, 5000) || null,
+          numberOfPages: args.numberOfPages || null,
+          numberOfDrillDownPages: args.numberOfDrillDownPages || null,
+          numberOfDataSources: args.numberOfDataSources || null,
+          dataSources: args.dataSources?.slice(0, 2000) || null,
+          integrations: args.integrations?.slice(0, 2000) || null,
+          calculationComplexity: args.calculationComplexity || null,
+          refreshFrequency: args.refreshFrequency?.slice(0, 500) || null,
+          filtersAndSlicers: args.filtersAndSlicers?.slice(0, 2000) || null,
+          visualRequirements: args.visualRequirements?.slice(0, 2000) || null,
+          securityRequirements: args.securityRequirements?.slice(0, 2000) || null,
+          targetDeliveryDate: args.targetDeliveryDate?.slice(0, 200) || null,
+          additionalNotes: args.additionalNotes?.slice(0, 5000) || null,
+          conversationLog: conversationLog.slice(0, 50000),
+          estimatedEffortHours: effort.totalHours,
+          effortBreakdown: effort.breakdown,
+          projectIntakeId: projectIntake.id,
+        }).returning();
 
-    return { pbiRecord, projectIntake };
-  });
+        return { pbiRecord, projectIntake, requestNumber };
+      });
+      break;
+    } catch (err: any) {
+      lastErr = err;
+      const code = err?.cause?.code || err?.code || err?.original?.code;
+      const isUniqueViolation = code === "23505" || /duplicate key value/i.test(err?.message || "");
+      if (isUniqueViolation && attempt < 2) {
+        console.warn(`[PowerBI Agent] Unique violation generating intake/request number (attempt ${attempt + 1}/3), retrying:`, err?.message);
+        continue;
+      }
+      console.error("[PowerBI Agent] handleSubmitTool transaction failed:", err);
+      throw err;
+    }
+  }
+  if (!result) throw lastErr || new Error("Failed to create intake after retries");
+  const requestNumber = result.requestNumber;
 
   if (conversationDbId) {
     try {
