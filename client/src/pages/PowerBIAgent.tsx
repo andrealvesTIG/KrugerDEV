@@ -517,8 +517,8 @@ export default function PowerBIAgent() {
     <div className="flex flex-col h-full flex-1 min-w-0">
       <div className="border-b bg-background/95 backdrop-blur-sm px-6 py-4 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-md">
-            <BarChart3 className="w-5 h-5 text-white" />
+          <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-md border border-border/50 overflow-hidden">
+            <img src={logoIcon} alt="Friday Report" className="w-full h-full object-contain" />
           </div>
           <div className="min-w-0">
             <h1 className="text-lg font-semibold">Power BI Report Request</h1>
@@ -607,8 +607,8 @@ export default function PowerBIAgent() {
               transition={{ duration: 0.3 }}
               className="text-center mb-8"
             >
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center mx-auto mb-4 shadow-lg">
-                <BarChart3 className="w-8 h-8 text-white" />
+              <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center mx-auto mb-4 shadow-lg border border-border/50 overflow-hidden">
+                <img src={logoIcon} alt="Friday Report" className="w-full h-full object-contain" />
               </div>
               <h2 className="text-2xl font-bold mb-2">Power BI Report Request</h2>
               <p className="text-muted-foreground max-w-md">
