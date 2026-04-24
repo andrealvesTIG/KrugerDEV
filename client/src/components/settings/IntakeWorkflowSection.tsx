@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Trash2, GitBranch, Plus, Pencil, RotateCw, X, Mail } from "lucide-react";
 import { AVAILABLE_INTAKE_FIELDS, useIntakeWorkflows } from "@/hooks/use-intake-workflow";
@@ -510,6 +511,78 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
                     ) : (
                       <span className="text-xs text-muted-foreground">No required fields</span>
                     )}
+                    {(() => {
+                      const entryRecipients = step.notifyOnEntry || [];
+                      const exitRecipients = step.notifyOnExit || [];
+                      const totalRecipients = entryRecipients.length + exitRecipients.length;
+                      if (totalRecipients === 0) return null;
+                      return (
+                        <HoverCard openDelay={150} closeDelay={100}>
+                          <HoverCardTrigger asChild>
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1 rounded-md border bg-background px-1.5 py-0.5 text-xs text-muted-foreground hover-elevate focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              data-testid={`badge-notifications-${step.stepKey}`}
+                              aria-label={`${entryRecipients.length} entry, ${exitRecipients.length} exit notification recipients`}
+                            >
+                              <Mail className="h-3 w-3" />
+                              <span data-testid={`text-notifications-count-${step.stepKey}`}>
+                                {entryRecipients.length} entry / {exitRecipients.length} exit
+                              </span>
+                            </button>
+                          </HoverCardTrigger>
+                          <HoverCardContent
+                            side="top"
+                            align="start"
+                            className="w-72 p-3"
+                            data-testid={`popover-notifications-${step.stepKey}`}
+                          >
+                            <div className="space-y-3">
+                              <div>
+                                <div className="text-xs font-medium mb-1">
+                                  On entry ({entryRecipients.length})
+                                </div>
+                                {entryRecipients.length > 0 ? (
+                                  <ul className="space-y-0.5">
+                                    {entryRecipients.map((email, idx) => (
+                                      <li
+                                        key={`entry-${email}`}
+                                        className="text-xs text-muted-foreground break-all"
+                                        data-testid={`text-notify-entry-${step.stepKey}-${idx}`}
+                                      >
+                                        {email}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground">No recipients</p>
+                                )}
+                              </div>
+                              <div>
+                                <div className="text-xs font-medium mb-1">
+                                  On exit ({exitRecipients.length})
+                                </div>
+                                {exitRecipients.length > 0 ? (
+                                  <ul className="space-y-0.5">
+                                    {exitRecipients.map((email, idx) => (
+                                      <li
+                                        key={`exit-${email}`}
+                                        className="text-xs text-muted-foreground break-all"
+                                        data-testid={`text-notify-exit-${step.stepKey}-${idx}`}
+                                      >
+                                        {email}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground">No recipients</p>
+                                )}
+                              </div>
+                            </div>
+                          </HoverCardContent>
+                        </HoverCard>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
