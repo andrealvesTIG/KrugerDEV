@@ -1,7 +1,8 @@
 import type { Express } from "express";
 import { storage } from "../storage";
-import { and } from "drizzle-orm";
-import { resources, insertProjectIntakeSchema, type InsertIntakeWorkflow, type InsertProjectWorkflow, type IntakeWorkflow } from "@shared/schema";
+import { and, eq, asc } from "drizzle-orm";
+import { db } from "../db";
+import { resources, insertProjectIntakeSchema, powerbiIntakeRequests, powerbiAgentConversations, powerbiAgentMessages, type InsertIntakeWorkflow, type InsertProjectWorkflow, type IntakeWorkflow } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -340,6 +341,75 @@ export function registerIntakeRoutes(app: Express) {
       console.error("Error checking intake approval permission:", err);
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? "Error checking permission" : classified.message });
+    }
+  });
+
+  apiRoute(app, 'get', '/api/project-intakes/:id/source', {
+    tag: 'Project Intakes',
+    summary: 'Get the source PBI request and agent conversation that led to this intake',
+    parameters: [pathId()],
+    responses: { ...r200('Intake source', { type: 'object' }), ...fullRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const id = Number(req.params.id);
+      const existing = await storage.getProjectIntake(id);
+      if (!existing) return res.status(404).json({ message: "Project intake not found" });
+
+      if (existing.organizationId) {
+        const accessibleOrgIds = await getUserOrgIds(userId);
+        if (!accessibleOrgIds.includes(existing.organizationId)) {
+          return res.status(403).json({ message: "You don't have access to this organization" });
+        }
+      }
+
+      const [pbiRequest] = await db
+        .select()
+        .from(powerbiIntakeRequests)
+        .where(eq(powerbiIntakeRequests.projectIntakeId, id))
+        .limit(1);
+
+      const [conversation] = await db
+        .select()
+        .from(powerbiAgentConversations)
+        .where(eq(powerbiAgentConversations.submittedIntakeId, id))
+        .limit(1);
+
+      let messages: any[] = [];
+      if (conversation) {
+        messages = await db
+          .select({
+            id: powerbiAgentMessages.id,
+            role: powerbiAgentMessages.role,
+            content: powerbiAgentMessages.content,
+            attachments: powerbiAgentMessages.attachments,
+            createdAt: powerbiAgentMessages.createdAt,
+          })
+          .from(powerbiAgentMessages)
+          .where(eq(powerbiAgentMessages.conversationId, conversation.id))
+          .orderBy(asc(powerbiAgentMessages.createdAt));
+      }
+
+      const attachments: Array<{ name: string; objectPath: string; contentType: string; size: number; messageId: number; createdAt: Date | null }> = [];
+      for (const m of messages) {
+        const atts = (m.attachments || []) as Array<{ name: string; objectPath: string; contentType: string; size: number }>;
+        for (const a of atts) {
+          attachments.push({ ...a, messageId: m.id, createdAt: m.createdAt });
+        }
+      }
+
+      res.json({
+        pbiRequest: pbiRequest || null,
+        conversation: conversation || null,
+        messages,
+        attachments,
+      });
+    } catch (err) {
+      console.error("Error fetching intake source:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching intake source" : classified.message });
     }
   });
 
