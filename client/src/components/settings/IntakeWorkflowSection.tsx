@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Trash2, GitBranch, Plus, Pencil, RotateCw } from "lucide-react";
+import { Loader2, Trash2, GitBranch, Plus, Pencil, RotateCw, X, Mail } from "lucide-react";
 import { AVAILABLE_INTAKE_FIELDS, useIntakeWorkflows } from "@/hooks/use-intake-workflow";
 import type { IntakeWorkflow, IntakeWorkflowStep } from "@shared/schema";
 
@@ -54,6 +54,12 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
   const [editDescription, setEditDescription] = useState("");
   const [editHelpText, setEditHelpText] = useState("");
   const [editRequiredFields, setEditRequiredFields] = useState<string[]>([]);
+  const [editNotifyOnEntry, setEditNotifyOnEntry] = useState<string[]>([]);
+  const [editNotifyOnExit, setEditNotifyOnExit] = useState<string[]>([]);
+  const [entryEmailDraft, setEntryEmailDraft] = useState("");
+  const [exitEmailDraft, setExitEmailDraft] = useState("");
+  const [entryEmailError, setEntryEmailError] = useState<string | null>(null);
+  const [exitEmailError, setExitEmailError] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showAddStep, setShowAddStep] = useState(false);
   const [newStepKey, setNewStepKey] = useState("");
@@ -178,11 +184,52 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     setEditDescription(step.description || "");
     setEditHelpText(step.helpText || "");
     setEditRequiredFields(step.requiredFields || []);
+    setEditNotifyOnEntry(step.notifyOnEntry || []);
+    setEditNotifyOnExit(step.notifyOnExit || []);
+    setEntryEmailDraft("");
+    setExitEmailDraft("");
+    setEntryEmailError(null);
+    setExitEmailError(null);
   };
+
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const addEmailToList = (
+    raw: string,
+    list: string[],
+    setList: (v: string[]) => void,
+    setDraft: (v: string) => void,
+    setError: (v: string | null) => void,
+  ) => {
+    const trimmed = raw.trim().toLowerCase();
+    if (!trimmed) return;
+    if (!EMAIL_RE.test(trimmed)) {
+      setError("Enter a valid email address");
+      return;
+    }
+    if (list.map(e => e.toLowerCase()).includes(trimmed)) {
+      setError("Email is already in the list");
+      return;
+    }
+    setList([...list, trimmed]);
+    setDraft("");
+    setError(null);
+  };
+
+  const stepToPayload = (s: IntakeWorkflowStep) => ({
+    stepKey: s.stepKey,
+    position: s.position,
+    label: s.label,
+    description: s.description,
+    helpText: s.helpText,
+    requiredFields: s.requiredFields,
+    notifyOnEntry: s.notifyOnEntry || [],
+    notifyOnExit: s.notifyOnExit || [],
+    isActive: s.isActive,
+  });
 
   const handleSaveStep = () => {
     if (!editingStep || !workflowSteps) return;
-    
+
     const updatedSteps = workflowSteps.map(s => {
       if (s.stepKey === editingStep.stepKey) {
         return {
@@ -192,20 +239,14 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
           description: editDescription,
           helpText: editHelpText,
           requiredFields: editRequiredFields,
+          notifyOnEntry: editNotifyOnEntry,
+          notifyOnExit: editNotifyOnExit,
           isActive: s.isActive,
         };
       }
-      return {
-        stepKey: s.stepKey,
-        position: s.position,
-        label: s.label,
-        description: s.description,
-        helpText: s.helpText,
-        requiredFields: s.requiredFields,
-        isActive: s.isActive,
-      };
+      return stepToPayload(s);
     });
-    
+
     updateWorkflowMutation.mutate(updatedSteps);
   };
 
@@ -230,20 +271,14 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
       description: newStepDescription.trim() || undefined,
       helpText: undefined,
       requiredFields: [],
+      notifyOnEntry: [],
+      notifyOnExit: [],
       isActive: true,
     };
-    
+
     const updatedSteps = [
-      ...workflowSteps.map(s => ({
-        stepKey: s.stepKey,
-        position: s.position,
-        label: s.label,
-        description: s.description,
-        helpText: s.helpText,
-        requiredFields: s.requiredFields,
-        isActive: s.isActive,
-      })),
-      newStep
+      ...workflowSteps.map(stepToPayload),
+      newStep,
     ];
     
     updateWorkflowMutation.mutate(updatedSteps);
@@ -258,15 +293,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     
     const updatedSteps = workflowSteps
       .filter(s => s.stepKey !== stepToDelete.stepKey)
-      .map((s, idx) => ({
-        stepKey: s.stepKey,
-        position: idx,
-        label: s.label,
-        description: s.description,
-        helpText: s.helpText,
-        requiredFields: s.requiredFields,
-        isActive: s.isActive,
-      }));
+      .map((s, idx) => ({ ...stepToPayload(s), position: idx }));
     
     updateWorkflowMutation.mutate(updatedSteps);
     setStepToDelete(null);
@@ -276,15 +303,10 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     if (!workflowSteps) return;
     
     const updatedSteps = workflowSteps.map(s => ({
-      stepKey: s.stepKey,
-      position: s.position,
-      label: s.label,
-      description: s.description,
-      helpText: s.helpText,
-      requiredFields: s.requiredFields,
+      ...stepToPayload(s),
       isActive: s.stepKey === step.stepKey ? !s.isActive : s.isActive,
     }));
-    
+
     updateWorkflowMutation.mutate(updatedSteps);
   };
 
@@ -300,16 +322,8 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
     [sorted[currentIndex], sorted[swapIndex]] = [sorted[swapIndex], sorted[currentIndex]];
     
-    const updatedSteps = sorted.map((s, idx) => ({
-      stepKey: s.stepKey,
-      position: idx,
-      label: s.label,
-      description: s.description,
-      helpText: s.helpText,
-      requiredFields: s.requiredFields,
-      isActive: s.isActive,
-    }));
-    
+    const updatedSteps = sorted.map((s, idx) => ({ ...stepToPayload(s), position: idx }));
+
     updateWorkflowMutation.mutate(updatedSteps);
   };
 
@@ -567,6 +581,87 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
                 data-testid="input-step-helptext"
               />
             </div>
+            {(() => {
+              const renderEmailEditor = (
+                kind: 'entry' | 'exit',
+                list: string[],
+                setList: (v: string[]) => void,
+                draft: string,
+                setDraft: (v: string) => void,
+                error: string | null,
+                setError: (v: string | null) => void,
+              ) => {
+                const label = kind === 'entry' ? 'Notify on entry' : 'Notify on exit';
+                const helper = kind === 'entry'
+                  ? 'Send an email to these recipients when an intake enters this step.'
+                  : 'Send an email to these recipients when an intake leaves this step.';
+                const testidPrefix = kind === 'entry' ? 'notify-entry' : 'notify-exit';
+                return (
+                  <div className="space-y-2" data-testid={`section-${testidPrefix}`}>
+                    <Label className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                      {label}
+                    </Label>
+                    <p className="text-sm text-muted-foreground">{helper}</p>
+                    <div className="flex flex-wrap gap-2">
+                      {list.length === 0 && (
+                        <span className="text-xs text-muted-foreground italic">No recipients</span>
+                      )}
+                      {list.map(email => (
+                        <Badge
+                          key={email}
+                          variant="secondary"
+                          className="flex items-center gap-1 pl-2 pr-1 py-1 text-xs"
+                          data-testid={`chip-${testidPrefix}-${email}`}
+                        >
+                          <span className="truncate max-w-[200px]">{email}</span>
+                          <button
+                            type="button"
+                            onClick={() => setList(list.filter(e => e !== email))}
+                            className="hover:bg-muted-foreground/10 rounded-sm p-0.5"
+                            aria-label={`Remove ${email}`}
+                            data-testid={`button-remove-${testidPrefix}-${email}`}
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <Input
+                        type="email"
+                        value={draft}
+                        onChange={(e) => { setDraft(e.target.value); if (error) setError(null); }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ',') {
+                            e.preventDefault();
+                            addEmailToList(draft, list, setList, setDraft, setError);
+                          }
+                        }}
+                        placeholder="name@example.com"
+                        data-testid={`input-${testidPrefix}-email`}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => addEmailToList(draft, list, setList, setDraft, setError)}
+                        disabled={!draft.trim()}
+                        data-testid={`button-add-${testidPrefix}`}
+                      >
+                        Add
+                      </Button>
+                    </div>
+                    {error && <p className="text-xs text-destructive">{error}</p>}
+                  </div>
+                );
+              };
+              return (
+                <>
+                  {renderEmailEditor('entry', editNotifyOnEntry, setEditNotifyOnEntry, entryEmailDraft, setEntryEmailDraft, entryEmailError, setEntryEmailError)}
+                  {renderEmailEditor('exit', editNotifyOnExit, setEditNotifyOnExit, exitEmailDraft, setExitEmailDraft, exitEmailError, setExitEmailError)}
+                </>
+              );
+            })()}
             <div className="space-y-2">
               <Label>Required Fields</Label>
               <p className="text-sm text-muted-foreground mb-2">

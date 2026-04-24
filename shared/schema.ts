@@ -1440,6 +1440,8 @@ export const intakeWorkflowSteps = pgTable("intake_workflow_steps", {
   description: text("description"), // Short description
   helpText: text("help_text"), // Detailed help text shown during step
   requiredFields: text("required_fields").array(), // Array of field names required at this step
+  notifyOnEntry: text("notify_on_entry").array(), // Email recipients notified when an intake enters this step
+  notifyOnExit: text("notify_on_exit").array(), // Email recipients notified when an intake exits this step
   isActive: boolean("is_active").default(true), // Whether step is active
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

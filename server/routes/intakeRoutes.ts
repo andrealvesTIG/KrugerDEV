@@ -154,7 +154,66 @@ export function registerIntakeRoutes(app: Express) {
         }
       }
       
+      const previousStep = existing.currentStep;
       const updated = await storage.updateProjectIntake(id, req.body);
+
+      if (previousStep !== updated.currentStep && existing.organizationId) {
+        // Fire-and-forget email notifications for entry/exit on workflow step transition
+        (async () => {
+          try {
+            const steps = await storage.getIntakeWorkflowSteps(existing.organizationId!, updated.workflowId ?? null);
+            const fromStep = steps.find(s => s.stepKey === previousStep);
+            const toStep = steps.find(s => s.stepKey === updated.currentStep);
+            const fromEmails = (fromStep?.notifyOnExit || []) as string[];
+            const toEmails = (toStep?.notifyOnEntry || []) as string[];
+            if (fromEmails.length === 0 && toEmails.length === 0) return;
+
+            const { sendIntakeStepTransitionEmail } = await import("../services/email");
+            const appUrl = process.env.REPLIT_DEV_DOMAIN
+              ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+              : process.env.APP_URL || 'https://fridayreport.ai';
+            let actorName: string | null = null;
+            try {
+              const actor = await storage.getUser(userId);
+              actorName = actor ? (`${actor.firstName || ''} ${actor.lastName || ''}`.trim() || actor.email || null) : null;
+            } catch {}
+            let organizationName: string | undefined;
+            try {
+              const org = await storage.getOrganization(existing.organizationId!);
+              organizationName = org?.name;
+            } catch {}
+
+            const exitTasks = fromEmails.map(email =>
+              sendIntakeStepTransitionEmail(email, {
+                intakeId: id,
+                projectName: updated.projectName,
+                organizationName,
+                stepLabel: fromStep?.label || previousStep || 'Step',
+                transition: 'exit',
+                toStepLabel: toStep?.label || updated.currentStep || null,
+                actorName,
+                appUrl,
+              }).catch(err => { console.error(`Failed to send intake step exit email to ${email}:`, err); return false; })
+            );
+            const entryTasks = toEmails.map(email =>
+              sendIntakeStepTransitionEmail(email, {
+                intakeId: id,
+                projectName: updated.projectName,
+                organizationName,
+                stepLabel: toStep?.label || updated.currentStep || 'Step',
+                transition: 'entry',
+                fromStepLabel: fromStep?.label || previousStep || null,
+                actorName,
+                appUrl,
+              }).catch(err => { console.error(`Failed to send intake step entry email to ${email}:`, err); return false; })
+            );
+            await Promise.allSettled([...exitTasks, ...entryTasks]);
+          } catch (err) {
+            console.error("Error sending intake step transition emails:", err);
+          }
+        })();
+      }
+
       res.json(updated);
     } catch (err) {
       console.error("Error updating project intake:", err);
@@ -428,10 +487,40 @@ export function registerIntakeRoutes(app: Express) {
         return res.status(400).json({ message: "Steps must be an array" });
       }
 
-      for (const step of steps) {
-        if (!step.stepKey || !step.label || step.position === undefined) {
-          return res.status(400).json({ message: "Each step must have stepKey, label, and position" });
+      const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const sanitizeEmails = (raw: unknown): string[] | undefined => {
+        if (raw === undefined) return undefined;
+        if (raw === null) return [];
+        if (!Array.isArray(raw)) return [];
+        const seen = new Set<string>();
+        const out: string[] = [];
+        for (const v of raw) {
+          if (typeof v !== 'string') continue;
+          const trimmed = v.trim().toLowerCase();
+          if (!trimmed) continue;
+          if (!EMAIL_RE.test(trimmed)) {
+            throw new Error(`Invalid email address: ${v}`);
+          }
+          if (!seen.has(trimmed)) {
+            seen.add(trimmed);
+            out.push(trimmed);
+          }
         }
+        return out;
+      };
+
+      try {
+        for (const step of steps) {
+          if (!step.stepKey || !step.label || step.position === undefined) {
+            return res.status(400).json({ message: "Each step must have stepKey, label, and position" });
+          }
+          const entry = sanitizeEmails(step.notifyOnEntry);
+          if (entry !== undefined) step.notifyOnEntry = entry;
+          const exit = sanitizeEmails(step.notifyOnExit);
+          if (exit !== undefined) step.notifyOnExit = exit;
+        }
+      } catch (e: any) {
+        return res.status(400).json({ message: e?.message || "Invalid email address" });
       }
 
       const wfIdRaw = req.query.workflowId ?? req.body.workflowId;
