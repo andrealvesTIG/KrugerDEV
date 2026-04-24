@@ -86,6 +86,16 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     }
   });
 
+  useEffect(() => {
+    if (!isError) return;
+    const message = stepsError instanceof Error ? stepsError.message : 'Failed to load workflow steps';
+    toast({
+      title: "Couldn't load workflow steps",
+      description: message,
+      variant: "destructive",
+    });
+  }, [isError, stepsError, toast]);
+
   const updateWorkflowMutation = useMutation({
     mutationFn: async (steps: Partial<IntakeWorkflowStep>[]) => {
       return apiRequest('PUT', `/api/organizations/${organizationId}/intake-workflow${wfQuery}`, { steps });
@@ -348,16 +358,6 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
   const stepsErrorMessage = isError
     ? (stepsError instanceof Error ? stepsError.message : 'Failed to load workflow steps')
     : null;
-
-  useEffect(() => {
-    if (stepsErrorMessage) {
-      toast({
-        title: "Couldn't load workflow steps",
-        description: stepsErrorMessage,
-        variant: "destructive",
-      });
-    }
-  }, [stepsErrorMessage, toast]);
 
   return (
     <Card>
