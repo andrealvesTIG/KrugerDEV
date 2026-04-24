@@ -1,7 +1,49 @@
 import { differenceInDays, parseISO, addDays, format } from "date-fns";
 import { addWorkingDays, workingDaysBetween, isWorkingDay } from "./workingDays";
 
-export type DependencyType = "finish-to-start" | "start-to-start" | "finish-to-finish" | "start-to-finish" | "FS" | "SS" | "FF" | "SF";
+// Server / DB only persists the long-form values. The shorthand forms ("FS"
+// etc.) are accepted by the CPM engine for input convenience and normalized
+// by `normalizeDependencyType`, but must NOT be sent over the wire — anything
+// posted to /api/task-dependencies must use a `WireDependencyType`.
+export type WireDependencyType = "finish-to-start" | "start-to-start" | "finish-to-finish" | "start-to-finish";
+export type DependencyTypeShortform = "FS" | "SS" | "FF" | "SF";
+export type DependencyType = WireDependencyType | DependencyTypeShortform;
+
+const SHORT_TO_LONG: Record<DependencyTypeShortform, WireDependencyType> = {
+  FS: "finish-to-start",
+  SS: "start-to-start",
+  FF: "finish-to-finish",
+  SF: "start-to-finish",
+};
+
+const VALID_WIRE_TYPES: ReadonlySet<WireDependencyType> = new Set([
+  "finish-to-start",
+  "start-to-start",
+  "finish-to-finish",
+  "start-to-finish",
+]);
+
+/**
+ * Convert any DependencyType (long or short) to its wire-safe long form.
+ * Use this anywhere a CPM result is persisted via the API. Unknown / invalid
+ * inputs default to "finish-to-start" — never let a raw client string reach
+ * the server unchecked.
+ */
+export function toWireDependencyType(type: DependencyType | string | null | undefined): WireDependencyType {
+  if (!type) return "finish-to-start";
+  const short = (SHORT_TO_LONG as Record<string, WireDependencyType>)[type];
+  if (short) return short;
+  if (VALID_WIRE_TYPES.has(type as WireDependencyType)) {
+    return type as WireDependencyType;
+  }
+  // Tolerate alternative spellings ("FinishToStart", "finish_to_start", etc.)
+  const collapsed = String(type).toLowerCase().replace(/[-_\s]/g, "");
+  if (collapsed === "finishtostart" || collapsed === "fs") return "finish-to-start";
+  if (collapsed === "starttostart" || collapsed === "ss") return "start-to-start";
+  if (collapsed === "finishtofinish" || collapsed === "ff") return "finish-to-finish";
+  if (collapsed === "starttofinish" || collapsed === "sf") return "start-to-finish";
+  return "finish-to-start";
+}
 
 export interface CPMTask {
   id: number;

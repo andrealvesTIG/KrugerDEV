@@ -95,3 +95,7 @@ export const magicLinkTokens = pgTable("magic_link_tokens", {
 });
 
 export type MagicLinkToken = typeof magicLinkTokens.$inferSelect;
+
+// Canonical user roles (server-side; org-level roles live in organization_members)
+export const USER_ROLES = ["user", "super_admin", "marketing"] as const;
+export type UserRole = (typeof USER_ROLES)[number];

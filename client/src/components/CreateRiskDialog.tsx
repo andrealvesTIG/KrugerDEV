@@ -14,6 +14,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 
+// Form schema mirrors what the server's insertRiskSchema accepts. We keep a
+// local definition (rather than importing insertRiskSchema directly) because
+// the create-risk UI surfaces only a small subset of fields, but the field
+// names, types and nullability must match the server contract.
 const riskFormSchema = z.object({
   projectId: z.number().min(1, "Please select a project"),
   title: z.string().min(1, "Title is required"),
@@ -22,9 +26,22 @@ const riskFormSchema = z.object({
   impact: z.enum(["Low", "Medium", "High"]),
   status: z.string(),
   dueDate: z.string().optional(),
+  // costExposure is `numeric` server-side -> string in the wire format.
   costExposure: z.string().optional(),
-  riskScore: z.string().optional(),
+  // riskScore is `integer` server-side. Coerce empty string -> null and
+  // numeric strings -> number to avoid sending NaN from parseInt(undefined).
+  riskScore: z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((v) => {
+      if (v === undefined || v === null || v === "") return null;
+      const n = typeof v === "number" ? v : Number(v);
+      return Number.isFinite(n) ? n : null;
+    }),
   mitigationPlan: z.string().optional(),
+  // itemType has a server default of "risk", but we declare it explicitly so
+  // the UI never accidentally posts an issue/risk ambiguity if defaults change.
+  itemType: z.literal("risk").default("risk"),
 });
 
 interface CreateRiskDialogProps {
@@ -77,7 +94,13 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
   };
 
   const onSubmit = (data: any) => {
-    const payload = { ...data, dueDate: data.dueDate || null, costExposure: data.costExposure || null, riskScore: data.riskScore ? parseInt(data.riskScore) : null };
+    // riskScore is already coerced to number|null by the zod schema.
+    const payload = {
+      ...data,
+      dueDate: data.dueDate || null,
+      costExposure: data.costExposure || null,
+      itemType: "risk" as const,
+    };
     createRisk.mutate(payload, {
       onSuccess: () => {
         toast({ title: "Success", description: "Risk created successfully" });

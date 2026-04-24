@@ -10,8 +10,14 @@ const numeric = customType<{ data: number; driverData: string }>({
 });
 import { users } from "./models/auth";
 
-export const PROJECT_STATUSES = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"] as const;
-export const PROJECT_STATUSES_EXTENDED = [...PROJECT_STATUSES, "Billing", "Closed"] as const;
+// Core project lifecycle states (in-flight only). Use PROJECT_STATUSES_EXTENDED
+// for any UI dropdown that must also represent terminal states.
+export const PROJECT_STATUSES_CORE = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"] as const;
+export const PROJECT_STATUSES_EXTENDED = [...PROJECT_STATUSES_CORE, "Billing", "Closed"] as const;
+// Backwards-compatible alias: PROJECT_STATUSES historically referred to the
+// short list and silently truncated dropdowns. It now points at the extended
+// list so projects in "Billing"/"Closed" render correctly everywhere.
+export const PROJECT_STATUSES = PROJECT_STATUSES_EXTENDED;
 export const PROJECT_HEALTH_VALUES = ["Green", "Yellow", "Red"] as const;
 export const PROJECT_PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
 export const BILLABLE_STATUSES = ["N/A", "On Track", "Waiting for Approval", "Verbal Approval", "Email Approval", "SOW Signed", "PO Received", "Partially Invoiced", "At Risk", "Ready for Invoice", "Critical", "Invoiced"] as const;
@@ -35,6 +41,20 @@ export type TaskStatus = (typeof TASK_STATUSES)[number];
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 export const DEFAULT_TASK_STATUS: string = TASK_STATUS.NOT_STARTED;
 export const DEFAULT_TASK_PRIORITY: string = TASK_PRIORITY.MEDIUM;
+
+// Audit trail: fields tracked by the risk update history.
+// Names MUST match Drizzle camelCase column properties on the issues table
+// (e.g. mitigationPlan, ownerId — not "mitigation"/"owner").
+export const RISK_TRACKED_FIELDS = [
+  "title",
+  "description",
+  "probability",
+  "impact",
+  "status",
+  "mitigationPlan",
+  "ownerId",
+] as const;
+export type RiskTrackedField = (typeof RISK_TRACKED_FIELDS)[number];
 
 export const projectStatusEnum = z.enum(PROJECT_STATUSES_EXTENDED);
 export const issueTypeEnum = z.enum(ISSUE_TYPES);
@@ -1889,7 +1909,16 @@ export const insertRiskSchema = baseRiskSchema.extend({
   itemType: z.literal("risk").default("risk"),
 });
 /** @deprecated Renamed to Portfolio Key Dates. Schema kept for backward compatibility. */
-export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true });
+export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true }).extend({
+  // Normalize legacy 'Done' status (used by older clients & older demo data) to
+  // the canonical 'Completed' value used everywhere else in the codebase. This
+  // preserves backward compatibility with clients that were built before the
+  // milestoneStatus enum was unified.
+  status: z.preprocess(
+    (val) => (val === 'Done' ? 'Completed' : val),
+    z.string().nullable().optional(),
+  ),
+});
 export const insertPortfolioKeyDateSchema = createInsertSchema(portfolioKeyDates).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true, deletedBy: true, isDemo: true });
 export const updatePortfolioKeyDateSchema = insertPortfolioKeyDateSchema.pick({ title: true, description: true, keyDateType: true, date: true, status: true, completed: true, notes: true }).partial();
 // Extend to handle date strings for escalatedAt field

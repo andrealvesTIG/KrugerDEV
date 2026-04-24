@@ -8,7 +8,7 @@ import { z } from "zod";
 import { eq, and, desc, asc as ascOrder, sql, inArray } from "drizzle-orm";
 import multer from "multer";
 import { users, taskResourceAssignments, issues, resources, tasks, projects, portfolios, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, type Task, unconSelfieLeads } from "@shared/schema";
-import type { User } from "@shared/models/auth";
+import { USER_ROLES, type User } from "@shared/models/auth";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -125,10 +125,9 @@ export function registerUserRoutes(app: Express) {
       
       const { role } = req.body;
       
-      // Validate role is a valid value
-      const validRoles = ['user', 'super_admin', 'marketing'];
-      if (!role || !validRoles.includes(role)) {
-        return res.status(400).json({ message: 'Invalid role. Must be one of: ' + validRoles.join(', ') });
+      // Validate role is a valid value (canonical list lives in shared/models/auth.ts)
+      if (!role || !(USER_ROLES as readonly string[]).includes(role)) {
+        return res.status(400).json({ message: 'Invalid role. Must be one of: ' + USER_ROLES.join(', ') });
       }
       
       // Prevent self-demotion (super admin cannot remove their own super_admin role)

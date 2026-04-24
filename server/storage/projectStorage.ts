@@ -142,7 +142,7 @@ function taskToMilestone(task: Task): Milestone {
     baselineDueDate: task.baselineEndDate ?? null,
     actualCompletionDate: task.actualEndDate ?? null,
     startDate: task.startDate ?? null,
-    completed: task.status === 'Done' || task.status === 'Completed' || task.progress === 100,
+    completed: task.status === 'Completed' || task.progress === 100,
     status: task.status,
     priority: task.priority,
     ownerId: task.ownerId ?? null,
@@ -196,7 +196,7 @@ export async function createMilestone(milestone: InsertMilestone): Promise<Miles
     endDate: milestone.dueDate,
     baselineEndDate: milestone.baselineDueDate ?? null,
     actualEndDate: milestone.actualCompletionDate ?? null,
-    status: milestone.status ?? (milestone.completed ? 'Done' : 'Not Started'),
+    status: milestone.status ?? (milestone.completed ? 'Completed' : 'Not Started'),
     progress: milestone.completed ? 100 : 0,
     assignee: milestone.assignee ?? null,
     ownerId: milestone.ownerId ?? null,
@@ -238,7 +238,7 @@ export async function updateMilestone(id: number, updates: UpdateMilestoneReques
   if (updates.completed !== undefined) {
     taskUpdates.progress = updates.completed ? 100 : 0;
     if (updates.status === undefined) {
-      taskUpdates.status = updates.completed ? 'Done' : 'Not Started';
+      taskUpdates.status = updates.completed ? 'Completed' : 'Not Started';
     }
     if (updates.completed && updates.actualCompletionDate === undefined) {
       taskUpdates.actualEndDate = new Date();

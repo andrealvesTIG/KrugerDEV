@@ -5,7 +5,7 @@ import { db } from "../db";
 import { z } from "zod";
 import Papa from "papaparse";
 import { and, desc, asc, eq } from "drizzle-orm";
-import { issues, tasks, projects, portfolios, type Task } from "@shared/schema";
+import { issues, tasks, projects, portfolios, type Task, RISK_TRACKED_FIELDS } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -119,8 +119,8 @@ export function registerProjectItemRoutes(app: Express) {
       const input = api.risks.update.input.parse(req.body);
       const updated = await storage.updateRisk(riskId, input);
       
-      // Track changes
-      const trackedFields = ['title', 'description', 'probability', 'impact', 'status', 'mitigation', 'owner'];
+      // Track changes - field names MUST match Drizzle camelCase columns on issues
+      const trackedFields = RISK_TRACKED_FIELDS;
       const changes: string[] = [];
       const prevValues: Record<string, any> = {};
       const newValues: Record<string, any> = {};

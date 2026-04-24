@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useInfiniteQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Task, InsertTask, UpdateTaskRequest, TaskChangeLog, TaskNotesHistoryEntry, TaskDependency } from "@shared/schema";
+import { toWireDependencyType } from "@/lib/cpm";
 import { trackChecklistEvent } from "@/hooks/use-user-journey";
 import { format } from "date-fns";
 
@@ -270,7 +271,7 @@ export function useAddTaskDependency() {
     }) =>
       apiRequest('POST', `/api/tasks/${taskId}/dependencies`, { 
         dependsOnTaskId,
-        ...(dependencyType ? { dependencyType } : {}),
+        ...(dependencyType ? { dependencyType: toWireDependencyType(dependencyType) } : {}),
         ...(lagDays !== undefined ? { lagDays } : {}),
       }),
     onSuccess: (data: any, variables) => {
@@ -293,7 +294,7 @@ export function useUpdateTaskDependency() {
       projectId?: number;
     }) =>
       apiRequest('PUT', `/api/tasks/${taskId}/dependencies/${dependsOnTaskId}`, { 
-        ...(dependencyType ? { dependencyType } : {}),
+        ...(dependencyType ? { dependencyType: toWireDependencyType(dependencyType) } : {}),
         ...(lagDays !== undefined ? { lagDays } : {}),
       }),
     onSuccess: (data: any, variables) => {

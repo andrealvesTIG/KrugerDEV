@@ -439,7 +439,7 @@ export async function generateSampleDataForOrg(
         description: milestone.description,
         endDate: formatDate(addDays(today, startOffset + (j + 1) * 20)),
         startDate: formatDate(addDays(today, startOffset + j * 20)),
-        status: j === 0 ? 'Done' : j === 1 ? 'In Progress' : 'Backlog',
+        status: j === 0 ? 'Completed' : j === 1 ? 'In Progress' : 'Backlog',
         progress: j === 0 ? 100 : 0,
         priority: 'Medium',
         taskType: 'Milestone',

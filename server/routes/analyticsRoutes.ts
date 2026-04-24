@@ -382,7 +382,7 @@ export function registerAnalyticsRoutes(app: Express) {
             organizationId: orgId,
             organizationName: org?.name || null,
             taskCount: tasks.length,
-            completedTaskCount: tasks.filter(t => t.status === 'Done').length,
+            completedTaskCount: tasks.filter(t => t.status === 'Completed').length,
             riskCount: risks.length,
             openRiskCount: risks.filter(r => r.status === 'Open').length,
             highRiskCount: risks.filter(r => r.probability === 'High' || r.impact === 'High').length,
@@ -741,7 +741,7 @@ export function registerAnalyticsRoutes(app: Express) {
           totalMilestones += milestones.length;
           completedMilestones += milestones.filter(m => m.completed).length;
           totalTasks += tasks.length;
-          completedTasks += tasks.filter(t => t.status === 'Done').length;
+          completedTasks += tasks.filter(t => t.status === 'Completed').length;
         }
         
         const totalBudget = projects.reduce((sum, p) => sum + (Number(p.budget) || 0), 0);

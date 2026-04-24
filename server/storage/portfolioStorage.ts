@@ -157,7 +157,7 @@ export async function getPortfolioMilestones(portfolioId: number): Promise<(Mile
     baselineDueDate: t.baselineEndDate ?? null,
     actualCompletionDate: t.actualEndDate ?? null,
     startDate: t.startDate ?? null,
-    completed: t.status === 'Done' || t.status === 'Completed' || t.progress === 100,
+    completed: t.status === 'Completed' || t.progress === 100,
     status: t.status,
     priority: t.priority,
     ownerId: t.ownerId ?? null,
