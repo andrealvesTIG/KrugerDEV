@@ -8,7 +8,9 @@ import {
   type NotificationChannel,
   type NotificationDefinition,
   defaultPreferenceFor,
+  groupMasterFieldId,
   isAllEmailDisabled,
+  isGroupMasterDisabled,
   isRequiredNotification,
   preferenceFieldId,
   resolvePreference,
@@ -94,6 +96,14 @@ export async function getUserNotificationPreferences(userId: string): Promise<{
     }
   }
   resolved[`${ALL_EMAIL_MASTER_KEY}.email`] = !isAllEmailDisabled(stored);
+  for (const group of NOTIFICATION_GROUPS) {
+    const groupEntries = NOTIFICATION_CATALOG.filter((d) => d.groupId === group.id);
+    const channels = new Set<NotificationChannel>();
+    for (const e of groupEntries) for (const c of e.channels) channels.add(c);
+    for (const channel of channels) {
+      resolved[groupMasterFieldId(group.id, channel)] = !isGroupMasterDisabled(stored, group.id, channel);
+    }
+  }
   return {
     catalog: NOTIFICATION_CATALOG,
     groups: [...NOTIFICATION_GROUPS].sort((a, b) => a.sortOrder - b.sortOrder),

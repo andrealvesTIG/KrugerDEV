@@ -129,6 +129,11 @@ export function registerInvestorRoutes(app: Express) {
 
       const pdfBuffer = Buffer.from(pdfBase64, "base64");
 
+      const { shouldSendEmailToAddress } = await import("../services/userNotificationPreferences");
+      if (!(await shouldSendEmailToAddress(toEmail, "support.investorDeck"))) {
+        return res.json({ success: true, skipped: true, reason: "Recipient opted out" });
+      }
+
       const success = await sendEmail({
         to: toEmail,
         subject: "FridayReport.AI — Investor Deck",

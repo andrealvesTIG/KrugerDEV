@@ -10,6 +10,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   ALL_EMAIL_MASTER_KEY,
+  groupMasterFieldId,
   type NotificationChannel,
   type NotificationDefinition,
   type NotificationGroup,
@@ -134,6 +135,20 @@ export default function NotificationPreferences() {
     });
   };
 
+  const handleGroupMasterToggle = (groupId: string, channel: NotificationChannel, value: boolean) => {
+    const field = groupMasterFieldId(groupId, channel);
+    setPending((prev) => {
+      const next = { ...prev };
+      const baseline = data.resolved[field];
+      if (value === baseline) {
+        delete next[field];
+      } else {
+        next[field] = value;
+      }
+      return next;
+    });
+  };
+
   const groups = data.groups;
   const grouped = new Map<string, NotificationDefinition[]>();
   for (const def of data.catalog) {
@@ -177,6 +192,8 @@ export default function NotificationPreferences() {
         if (entries.length === 0) return null;
         const isCollapsed = !!collapsed[group.id];
         const summary = summarizeGroup(entries, merged);
+        const groupChannels = collectGroupChannels(entries);
+        const hasRequired = entries.some((e) => e.required);
         return (
           <Card key={group.id} data-testid={`notif-prefs-group-${group.id}`}>
             <CardHeader className="cursor-pointer" onClick={() => setCollapsed((c) => ({ ...c, [group.id]: !c[group.id] }))}>
@@ -195,17 +212,58 @@ export default function NotificationPreferences() {
             </CardHeader>
             {!isCollapsed && (
               <CardContent className="space-y-1 pt-0">
-                {entries.map((def, idx) => (
-                  <div key={def.key}>
-                    {idx > 0 && <Separator className="my-2" />}
-                    <PreferenceRow
-                      def={def}
-                      merged={merged}
-                      onToggle={(channel, value) => handleToggle(def.key, channel, def, value)}
-                      allEmailDisabled={!allEmailEnabled && !def.required}
-                    />
+                <div
+                  className="flex items-start justify-between gap-3 py-3 bg-muted/40 rounded-md px-3"
+                  data-testid={`notif-group-master-${group.id}`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm">All {group.label.toLowerCase()}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Master switch for this category. {hasRequired ? "Required messages stay on." : ""}
+                    </p>
                   </div>
-                ))}
+                  <div className="flex items-center gap-3 shrink-0">
+                    {groupChannels.map((channel) => {
+                      const field = groupMasterFieldId(group.id, channel);
+                      const checked = merged[field] !== false;
+                      const disabled = channel === "email" && !allEmailEnabled;
+                      return (
+                        <div key={channel} className="flex items-center gap-1.5" title={channel === "email" ? "Email" : "In-app"}>
+                          {channel === "email" ? (
+                            <Mail className={cn("h-3.5 w-3.5", checked && !disabled ? "text-primary" : "text-muted-foreground")} />
+                          ) : (
+                            <Bell className={cn("h-3.5 w-3.5", checked && !disabled ? "text-primary" : "text-muted-foreground")} />
+                          )}
+                          <Switch
+                            checked={checked}
+                            disabled={disabled}
+                            onCheckedChange={(v) => handleGroupMasterToggle(group.id, channel, v)}
+                            data-testid={`switch-group-${group.id}-${channel}`}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                {entries.map((def, idx) => {
+                  const groupEmailOff = merged[groupMasterFieldId(group.id, "email")] === false;
+                  const groupInAppOff = merged[groupMasterFieldId(group.id, "inApp")] === false;
+                  return (
+                    <div key={def.key}>
+                      {idx === 0 && <Separator className="my-2" />}
+                      {idx > 0 && <Separator className="my-2" />}
+                      <PreferenceRow
+                        def={def}
+                        merged={merged}
+                        onToggle={(channel, value) => handleToggle(def.key, channel, def, value)}
+                        allEmailDisabled={!allEmailEnabled && !def.required}
+                        groupEmailDisabled={groupEmailOff && !def.required}
+                        groupInAppDisabled={groupInAppOff && !def.required}
+                      />
+                    </div>
+                  );
+                })}
               </CardContent>
             )}
           </Card>
@@ -242,6 +300,13 @@ export default function NotificationPreferences() {
   );
 }
 
+function collectGroupChannels(entries: NotificationDefinition[]): NotificationChannel[] {
+  const set = new Set<NotificationChannel>();
+  for (const e of entries) for (const c of e.channels) set.add(c);
+  const order: NotificationChannel[] = ["email", "inApp"];
+  return order.filter((c) => set.has(c));
+}
+
 function summarizeGroup(entries: NotificationDefinition[], merged: Record<string, boolean>) {
   let enabled = 0;
   let total = 0;
@@ -260,11 +325,15 @@ function PreferenceRow({
   merged,
   onToggle,
   allEmailDisabled,
+  groupEmailDisabled,
+  groupInAppDisabled,
 }: {
   def: NotificationDefinition;
   merged: Record<string, boolean>;
   onToggle: (channel: NotificationChannel, value: boolean) => void;
   allEmailDisabled: boolean;
+  groupEmailDisabled: boolean;
+  groupInAppDisabled: boolean;
 }) {
   return (
     <div className="flex items-start justify-between gap-3 py-3" data-testid={`notif-row-${def.key}`}>
@@ -284,7 +353,8 @@ function PreferenceRow({
         {def.channels.map((channel) => {
           const field = preferenceFieldId(def.key, channel);
           const checked = merged[field] !== false;
-          const disabled = !!def.required || (channel === "email" && allEmailDisabled);
+          const groupOff = channel === "email" ? groupEmailDisabled : groupInAppDisabled;
+          const disabled = !!def.required || (channel === "email" && allEmailDisabled) || groupOff;
           return (
             <div key={channel} className="flex items-center gap-1.5" title={channel === "email" ? "Email" : "In-app"}>
               {channel === "email" ? (

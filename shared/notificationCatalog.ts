@@ -29,6 +29,11 @@ export const NOTIFICATION_GROUPS: NotificationGroup[] = [
 ];
 
 export const ALL_EMAIL_MASTER_KEY = "all.email";
+export const GROUP_MASTER_PREFIX = "group:";
+
+export function groupMasterFieldId(groupId: string, channel: NotificationChannel): string {
+  return `${GROUP_MASTER_PREFIX}${groupId}.${channel}`;
+}
 
 export const NOTIFICATION_CATALOG: NotificationDefinition[] = [
   {
@@ -409,6 +414,20 @@ export const NOTIFICATION_CATALOG: NotificationDefinition[] = [
     channels: ["email"],
   },
   {
+    key: "support.investorDeck",
+    groupId: "support",
+    label: "Investor deck delivery",
+    description: "Delivery emails for the investor deck PDF.",
+    channels: ["email"],
+  },
+  {
+    key: "support.adminMessage",
+    groupId: "support",
+    label: "Direct messages from FridayReport admins",
+    description: "Direct emails sent to you by a FridayReport.AI administrator.",
+    channels: ["email"],
+  },
+  {
     key: "support.enterpriseInquiry",
     groupId: "support",
     label: "Enterprise inquiry updates",
@@ -462,6 +481,15 @@ export function isAllEmailDisabled(prefs: Record<string, boolean> | null | undef
   return v === false;
 }
 
+export function isGroupMasterDisabled(
+  prefs: Record<string, boolean> | null | undefined,
+  groupId: string,
+  channel: NotificationChannel,
+): boolean {
+  if (!prefs) return false;
+  return prefs[groupMasterFieldId(groupId, channel)] === false;
+}
+
 export function resolvePreference(
   prefs: Record<string, boolean> | null | undefined,
   key: string,
@@ -470,6 +498,7 @@ export function resolvePreference(
   const def = CATALOG_BY_KEY.get(key);
   if (def?.required) return true;
   if (channel === "email" && isAllEmailDisabled(prefs) && !def?.required) return false;
+  if (def && isGroupMasterDisabled(prefs, def.groupId, channel) && !def.required) return false;
   if (!prefs) return defaultPreferenceFor(key, channel);
   const stored = prefs[preferenceFieldId(key, channel)];
   if (typeof stored === "boolean") return stored;
@@ -499,6 +528,20 @@ export function sanitizePreferenceUpdate(
     }
     if (key === ALL_EMAIL_MASTER_KEY) {
       if (channel !== "email") {
+        rejected.push(field);
+        continue;
+      }
+      sanitized[field] = value;
+      continue;
+    }
+    if (key.startsWith(GROUP_MASTER_PREFIX)) {
+      const groupId = key.slice(GROUP_MASTER_PREFIX.length);
+      const known = NOTIFICATION_GROUPS.some((g) => g.id === groupId);
+      if (!known) {
+        rejected.push(field);
+        continue;
+      }
+      if (channel !== "email" && channel !== "inApp") {
         rejected.push(field);
         continue;
       }
