@@ -487,7 +487,16 @@ export function registerIntakeRoutes(app: Express) {
       if (!accessibleOrgIds.includes(orgId)) {
         return res.status(403).json({ message: "You don't have access to this organization" });
       }
-      
+
+      const memberships = await storage.getOrganizationMembers(orgId);
+      const userMembership = memberships.find(m => m.userId === userId);
+      const isOrgAdmin = !!userMembership && (userMembership.role === 'org_admin' || userMembership.role === 'owner');
+      const user = await storage.getUser(userId);
+      const isSuperAdmin = hasAdminAccess(user);
+      if (!isOrgAdmin && !isSuperAdmin) {
+        return res.status(403).json({ message: "Only organization admins can modify intake workflow configuration" });
+      }
+
       const { steps } = req.body;
       if (!Array.isArray(steps)) {
         return res.status(400).json({ message: "Steps must be an array" });
@@ -567,7 +576,16 @@ export function registerIntakeRoutes(app: Express) {
       if (!accessibleOrgIds.includes(orgId)) {
         return res.status(403).json({ message: "You don't have access to this organization" });
       }
-      
+
+      const memberships = await storage.getOrganizationMembers(orgId);
+      const userMembership = memberships.find(m => m.userId === userId);
+      const isOrgAdmin = !!userMembership && (userMembership.role === 'org_admin' || userMembership.role === 'owner');
+      const user = await storage.getUser(userId);
+      const isSuperAdmin = hasAdminAccess(user);
+      if (!isOrgAdmin && !isSuperAdmin) {
+        return res.status(403).json({ message: "Only organization admins can reset the intake workflow" });
+      }
+
       const wfIdRaw = req.query.workflowId ?? req.body?.workflowId;
       let workflowId: number | null = null;
       if (wfIdRaw !== undefined && wfIdRaw !== null && wfIdRaw !== '') {
