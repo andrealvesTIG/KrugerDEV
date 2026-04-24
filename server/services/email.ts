@@ -1100,7 +1100,6 @@ This link will expire in 7 days.
 }
 
 export async function sendWelcomeEmail(email: string, firstName?: string | null): Promise<boolean> {
-  if (!(await shouldSendEmailToAddress(email, "account.welcome"))) return false;
   const subject = "Welcome to FridayReport.AI - Thank You for Signing Up!";
   const name = firstName || "there";
   

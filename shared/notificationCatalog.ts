@@ -72,8 +72,9 @@ export const NOTIFICATION_CATALOG: NotificationDefinition[] = [
     key: "account.welcome",
     groupId: "account",
     label: "Welcome email",
-    description: "One-time welcome message after you sign up.",
+    description: "One-time welcome message after you sign up. Always sent.",
     channels: ["email"],
+    required: true,
   },
 
   {
