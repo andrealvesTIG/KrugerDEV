@@ -50,8 +50,51 @@ export default function NotificationPreferences() {
 
   const merged = useMemo<Record<string, boolean>>(() => {
     if (!data) return {};
-    return { ...data.resolved, ...pending };
+    const base = { ...data.preferences, ...pending };
+    const next: Record<string, boolean> = {};
+    const allEmailOff = base[`${ALL_EMAIL_MASTER_KEY}.email`] === false;
+    next[`${ALL_EMAIL_MASTER_KEY}.email`] = !allEmailOff;
+    for (const def of data.catalog) {
+      for (const channel of def.channels) {
+        const groupOff = base[groupMasterFieldId(def.groupId, channel)] === false;
+        const rowField = preferenceFieldId(def.key, channel);
+        let effective: boolean;
+        if (def.required) {
+          effective = true;
+        } else if (channel === "email" && allEmailOff) {
+          effective = false;
+        } else if (groupOff) {
+          effective = false;
+        } else {
+          const stored = base[rowField];
+          effective = typeof stored === "boolean" ? stored : true;
+        }
+        next[rowField] = effective;
+      }
+    }
+    for (const group of data.groups) {
+      const channels = new Set<NotificationChannel>();
+      for (const def of data.catalog) if (def.groupId === group.id) for (const c of def.channels) channels.add(c);
+      for (const channel of channels) {
+        const f = groupMasterFieldId(group.id, channel);
+        next[f] = base[f] !== false;
+      }
+    }
+    return next;
   }, [data, pending]);
+
+  const globalSummary = useMemo(() => {
+    if (!data) return { enabled: 0, total: 0 };
+    let enabled = 0;
+    let total = 0;
+    for (const def of data.catalog) {
+      for (const channel of def.channels) {
+        total += 1;
+        if (merged[preferenceFieldId(def.key, channel)] !== false) enabled += 1;
+      }
+    }
+    return { enabled, total };
+  }, [data, merged]);
 
   const saveMutation = useMutation({
     mutationFn: async (overrides: { preferences?: Record<string, boolean>; reset?: boolean }) => {
@@ -161,14 +204,21 @@ export default function NotificationPreferences() {
     <div className="space-y-6">
       <Card data-testid="notif-prefs-master">
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Mail className="h-5 w-5" />
-            All email notifications
-          </CardTitle>
-          <CardDescription>
-            Master switch for every optional email. Required messages (sign-in, password reset, organization invites)
-            are always delivered.
-          </CardDescription>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                All email notifications
+              </CardTitle>
+              <CardDescription>
+                Master switch for every optional email. Required messages (sign-in, password reset, organization
+                invites) are always delivered.
+              </CardDescription>
+            </div>
+            <Badge variant="outline" className="shrink-0" data-testid="notif-prefs-global-summary">
+              {globalSummary.enabled} of {globalSummary.total} channels on
+            </Badge>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between">
