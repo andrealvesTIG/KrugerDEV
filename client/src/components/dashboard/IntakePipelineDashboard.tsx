@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { 
-  Workflow, ArrowRight, CheckCircle2, Clock, AlertTriangle, 
+  Workflow, ArrowRight, CheckCircle2, Clock,
   FileInput, Target, TrendingUp, Users, Calendar, BarChart3
 } from "lucide-react";
 import { 
@@ -127,22 +127,9 @@ export function IntakePipelineDashboard() {
     });
   }, [intakes]);
 
-  const priorityDistribution = useMemo(() => {
-    const priorityGroups: Record<string, number> = {};
-    intakes.forEach(i => {
-      const priority = i.priority || 'Medium';
-      priorityGroups[priority] = (priorityGroups[priority] || 0) + 1;
-    });
-    
-    const priorityOrder = ['Critical', 'High', 'Medium', 'Low'];
-    return priorityOrder
-      .filter(p => priorityGroups[p])
-      .map(name => ({
-        name,
-        count: priorityGroups[name],
-        color: name === 'Critical' ? '#ef4444' : name === 'High' ? '#f59e0b' : name === 'Medium' ? '#3b82f6' : '#10b981',
-      }));
-  }, [intakes]);
+  // Note: intake_records has no priority column today, so we skip the priority
+  // chart. If a priority field is added later, restore the priorityDistribution
+  // memo and the corresponding card below.
 
   return (
     <div className="space-y-6">
@@ -295,63 +282,32 @@ export function IntakePipelineDashboard() {
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card data-testid="chart-monthly-trend">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              Monthly Intake Trend
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Submissions vs approvals over time
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={monthlyTrend}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" fontSize={10} />
-                  <YAxis fontSize={10} />
-                  <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '11px' }} />
-                  <Legend wrapperStyle={{ fontSize: '10px' }} />
-                  <Area type="monotone" dataKey="submitted" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} name="Submitted" />
-                  <Area type="monotone" dataKey="approved" stroke="#10b981" fill="#10b981" fillOpacity={0.3} name="Approved" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card data-testid="chart-priority-distribution">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-              Priority Distribution
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Requests by priority level
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={priorityDistribution}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" fontSize={10} />
-                  <YAxis fontSize={10} />
-                  <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '11px' }} />
-                  <Bar dataKey="count" name="Requests" radius={[4, 4, 0, 0]}>
-                    {priorityDistribution.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Card data-testid="chart-monthly-trend">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            Monthly Intake Trend
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Submissions vs approvals over time
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[250px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={monthlyTrend}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" fontSize={10} />
+                <YAxis fontSize={10} />
+                <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '11px' }} />
+                <Legend wrapperStyle={{ fontSize: '10px' }} />
+                <Area type="monotone" dataKey="submitted" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} name="Submitted" />
+                <Area type="monotone" dataKey="approved" stroke="#10b981" fill="#10b981" fillOpacity={0.3} name="Approved" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

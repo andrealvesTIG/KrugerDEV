@@ -114,10 +114,10 @@ export async function runMeetingAgenda(agentId: number, projectId: number): Prom
   const contextSummary = `
 Project: ${ctx.project.name}
 Completion: ${ctx.completionPct}%
-Recently completed: ${ctx.completedTasks.map(t => `- ${t.title}`).join('\n') || 'None'}
-In progress: ${ctx.inProgressTasks.map(t => `- ${t.title} (${t.progress || 0}%)`).join('\n') || 'None'}
-Upcoming deadlines (7 days): ${ctx.upcomingDeadlines.map(t => `- ${t.title} (due ${t.endDate})`).join('\n') || 'None'}
-Overdue: ${ctx.overdueTasks.map(t => `- ${t.title} (was due ${t.endDate})`).join('\n') || 'None'}
+Recently completed: ${ctx.completedTasks.map(t => `- ${t.name}`).join('\n') || 'None'}
+In progress: ${ctx.inProgressTasks.map(t => `- ${t.name} (${t.progress || 0}%)`).join('\n') || 'None'}
+Upcoming deadlines (7 days): ${ctx.upcomingDeadlines.map(t => `- ${t.name} (due ${t.endDate})`).join('\n') || 'None'}
+Overdue: ${ctx.overdueTasks.map(t => `- ${t.name} (was due ${t.endDate})`).join('\n') || 'None'}
 Open issues: ${ctx.openIssues.map(i => `- [${i.priority || 'medium'}] ${i.title}`).join('\n') || 'None'}`;
 
   try {
@@ -172,9 +172,9 @@ export async function runTaskFollowUp(agentId: number, projectId: number): Promi
 
   if (stakeholders.managerEmail) {
     const allIncompleteTasks = ctx.allTasks.filter(t => t.status !== 'completed' && t.status !== 'cancelled');
-    const overdueSection = overdueTasks.map(t => `<li><strong>${t.title}</strong> — due ${t.endDate}</li>`).join('');
-    const inProgressSection = ctx.inProgressTasks.map(t => `<li>${t.title} (${t.progress || 0}%)</li>`).join('');
-    const notStartedSection = allIncompleteTasks.filter(t => t.status === 'not_started' || !t.status).map(t => `<li>${t.title}</li>`).join('');
+    const overdueSection = overdueTasks.map(t => `<li><strong>${t.name}</strong> — due ${t.endDate}</li>`).join('');
+    const inProgressSection = ctx.inProgressTasks.map(t => `<li>${t.name} (${t.progress || 0}%)</li>`).join('');
+    const notStartedSection = allIncompleteTasks.filter(t => t.status === 'not_started' || !t.status).map(t => `<li>${t.name}</li>`).join('');
 
     let digestHtml = `<h3>PM Digest: All Incomplete Tasks</h3>`;
     if (overdueSection) digestHtml += `<h4 style="color:#ef4444">Overdue (${overdueTasks.length})</h4><ul>${overdueSection}</ul>`;

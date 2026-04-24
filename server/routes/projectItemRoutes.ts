@@ -57,6 +57,7 @@ export function registerProjectItemRoutes(app: Express) {
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       
       // Require email verification before creating
       const emailCheck = await requireEmailVerified(userId);
@@ -65,12 +66,22 @@ export function registerProjectItemRoutes(app: Express) {
       }
       
       const input = api.risks.create.input.parse(req.body);
+
+      // Org access check via parent project (risks table has no org id).
+      const riskProject = input.projectId ? await storage.getProject(input.projectId) : null;
+      if (!riskProject) return res.status(404).json({ message: 'Project not found' });
+      if (!await userHasOrgAccess(userId, riskProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const role = await getUserOrgRole(userId, riskProject.organizationId);
+      if (role === 'viewer') {
+        return res.status(403).json({ message: 'Insufficient permissions to create risk' });
+      }
       
       // Check credit limit before creation (using org subscription from project)
-      if (userId) {
+      {
         const { checkAndEnforceLimit, METER_CODES } = await import("../services/billing");
-        const riskProject = input.projectId ? await storage.getProject(input.projectId) : null;
-        const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.RISKS, 1, riskProject?.organizationId);
+        const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.RISKS, 1, riskProject.organizationId);
         if (!limitCheck.allowed) {
           return res.status(403).json({ 
             message: limitCheck.error || "Credits limit reached. Please upgrade your plan.",
@@ -115,6 +126,17 @@ export function registerProjectItemRoutes(app: Express) {
       const riskId = Number(req.params.id);
       const existing = await storage.getRisk(riskId);
       if (!existing) return res.status(404).json({ message: "Risk not found" });
+
+      // Org access check via parent project (risks table has no org id).
+      const riskProject = await storage.getProject(existing.projectId);
+      if (!riskProject) return res.status(404).json({ message: 'Project not found' });
+      if (!await userHasOrgAccess(userId, riskProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const role = await getUserOrgRole(userId, riskProject.organizationId);
+      if (role === 'viewer') {
+        return res.status(403).json({ message: 'Insufficient permissions to update risk' });
+      }
       
       const input = api.risks.update.input.parse(req.body);
       const updated = await storage.updateRisk(riskId, input);
@@ -194,7 +216,14 @@ export function registerProjectItemRoutes(app: Express) {
       const riskId = Number(req.params.id);
       const risk = await storage.getRisk(riskId);
       if (!risk) return res.status(404).json({ message: "Risk not found" });
-      
+
+      // Verify org access via the parent project (risks/issues table has no org id).
+      const riskProject = await storage.getProject(risk.projectId);
+      if (!riskProject) return res.status(404).json({ message: 'Project not found' });
+      if (!await userHasOrgAccess(userId, riskProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
       const history = await storage.getRiskChangeLogs(riskId);
       res.json(history);
     } catch (err) {
@@ -547,6 +576,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       
       // Require email verification before creating
       const emailCheck = await requireEmailVerified(userId);
@@ -555,12 +585,22 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
       
       const input = api.issues.create.input.parse(req.body);
+
+      // Org access check via parent project (issues table has no org id).
+      const issueProject = input.projectId ? await storage.getProject(input.projectId) : null;
+      if (!issueProject) return res.status(404).json({ message: 'Project not found' });
+      if (!await userHasOrgAccess(userId, issueProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const role = await getUserOrgRole(userId, issueProject.organizationId);
+      if (role === 'viewer') {
+        return res.status(403).json({ message: 'Insufficient permissions to create issue' });
+      }
       
       // Check credit limit before creation (using org subscription from project)
-      if (userId) {
+      {
         const { checkAndEnforceLimit, METER_CODES } = await import("../services/billing");
-        const issueProject = input.projectId ? await storage.getProject(input.projectId) : null;
-        const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.ISSUES, 1, issueProject?.organizationId);
+        const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.ISSUES, 1, issueProject.organizationId);
         if (!limitCheck.allowed) {
           return res.status(403).json({ 
             message: limitCheck.error || "Credits limit reached. Please upgrade your plan.",
@@ -611,6 +651,17 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const issueId = Number(req.params.id);
       const existing = await storage.getIssue(issueId);
       if (!existing) return res.status(404).json({ message: "Issue not found" });
+
+      // Org access check via parent project (issues table has no org id).
+      const issueProject = await storage.getProject(existing.projectId);
+      if (!issueProject) return res.status(404).json({ message: 'Project not found' });
+      if (!await userHasOrgAccess(userId, issueProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const role = await getUserOrgRole(userId, issueProject.organizationId);
+      if (role === 'viewer') {
+        return res.status(403).json({ message: 'Insufficient permissions to update issue' });
+      }
       
       const input = api.issues.update.input.parse(req.body);
       const updated = await storage.updateIssue(issueId, input);
@@ -665,10 +716,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const issueId = Number(req.params.id);
       const issue = await storage.getIssue(issueId);
       if (!issue) return res.status(404).json({ message: 'Issue not found' });
-      if (!await userHasOrgAccess(userId, issue.organizationId)) {
+      // The issues table has no organizationId column — derive it via the parent project.
+      const issueProject = await storage.getProject(issue.projectId);
+      if (!issueProject) return res.status(404).json({ message: 'Project not found' });
+      if (!await userHasOrgAccess(userId, issueProject.organizationId)) {
         return res.status(403).json({ message: 'Access denied' });
       }
-      const role = await getUserOrgRole(userId, issue.organizationId);
+      const role = await getUserOrgRole(userId, issueProject.organizationId);
       if (role === 'viewer') {
         return res.status(403).json({ message: 'Insufficient permissions to delete issue' });
       }
@@ -693,7 +747,14 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const issueId = Number(req.params.id);
       const issue = await storage.getIssue(issueId);
       if (!issue) return res.status(404).json({ message: "Issue not found" });
-      
+
+      // Verify org access via the parent project (issues table has no org id).
+      const issueProject = await storage.getProject(issue.projectId);
+      if (!issueProject) return res.status(404).json({ message: 'Project not found' });
+      if (!await userHasOrgAccess(userId, issueProject.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
       const history = await storage.getIssueChangeLogs(issueId);
       res.json(history);
     } catch (err) {
@@ -711,17 +772,26 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     responses: { ...r200('Escalation updated', ref('Issue')), ...fullRes },
   }, async (req, res) => {
     try {
-      const issueId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const issueId = Number(req.params.id);
       const { escalate } = req.body; // true to escalate, false to de-escalate
-      
+
       const issue = await storage.getIssue(issueId);
       if (!issue) return res.status(404).json({ message: "Issue not found" });
-      
-      // Get project to check if it has a portfolio
+
+      // Get project to check org access AND whether it has a portfolio
       const project = await storage.getProject(issue.projectId);
       if (!project) return res.status(404).json({ message: "Project not found" });
-      
+
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      const role = await getUserOrgRole(userId, project.organizationId);
+      if (role === 'viewer') {
+        return res.status(403).json({ message: 'Insufficient permissions to escalate issue' });
+      }
+
       if (escalate && !project.portfolioId) {
         return res.status(400).json({ message: "Cannot escalate - project is not part of a portfolio" });
       }
