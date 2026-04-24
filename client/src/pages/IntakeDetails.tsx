@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, Shield, Calculator, Save, Lightbulb, Gavel, ChevronsUpDown, Paperclip, MessageSquare, Image as ImageIcon, Download, User as UserIcon, Bot } from "lucide-react";
@@ -505,40 +506,54 @@ export default function IntakeDetails() {
               const isCurrent = index === currentStepIndex && !isApproved && !isRejected;
               const isClickable = index <= currentStepIndex && !isLocked;
               const Icon = step.icon;
-              
+              const tooltipDetail = step.description || step.helpText;
+
               return (
                 <div key={step.stepKey} className="flex items-center flex-1">
-                  <div 
-                    className={cn(
-                      "flex flex-col items-center text-center min-w-[40px] sm:min-w-[80px]",
-                      isClickable ? "cursor-pointer" : "",
-                      isClickable ? "opacity-100" : "opacity-50"
-                    )}
-                    onClick={() => {
-                      if (isClickable) {
-                        updateIntake.mutate({ currentStep: step.stepKey });
-                      }
-                    }}
-                  >
-                    <div 
-                      className={cn(
-                        "flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full text-sm font-medium mb-1 sm:mb-2 transition-colors",
-                        isCompleted 
-                          ? "bg-primary text-primary-foreground" 
-                          : isCurrent 
-                            ? "border-2 border-primary text-primary bg-primary/10" 
-                            : "border border-muted-foreground/30 text-muted-foreground"
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label={step.label}
+                        data-testid={`detail-step-${step.stepKey}`}
+                        onClick={() => {
+                          if (isClickable) {
+                            updateIntake.mutate({ currentStep: step.stepKey });
+                          }
+                        }}
+                        className={cn(
+                          "flex flex-col items-center text-center min-w-[40px] sm:min-w-[80px] bg-transparent p-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+                          isClickable ? "cursor-pointer" : "cursor-default",
+                          isClickable ? "opacity-100" : "opacity-50"
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full text-sm font-medium mb-1 sm:mb-2 transition-colors",
+                            isCompleted
+                              ? "bg-primary text-primary-foreground"
+                              : isCurrent
+                                ? "border-2 border-primary text-primary bg-primary/10"
+                                : "border border-muted-foreground/30 text-muted-foreground"
+                          )}
+                        >
+                          {isCompleted ? <Check className="w-4 h-4 sm:w-5 sm:h-5" /> : <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                        </div>
+                        <span className={cn(
+                          "text-[10px] sm:text-xs leading-tight",
+                          isCurrent ? "font-medium text-foreground" : "text-muted-foreground"
+                        )}>
+                          {step.label}
+                        </span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <div className="font-medium text-xs">{step.label}</div>
+                      {tooltipDetail && (
+                        <div className="text-xs text-muted-foreground mt-0.5">{tooltipDetail}</div>
                       )}
-                    >
-                      {isCompleted ? <Check className="w-4 h-4 sm:w-5 sm:h-5" /> : <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-                    </div>
-                    <span className={cn(
-                      "text-[10px] sm:text-xs leading-tight",
-                      isCurrent ? "font-medium text-foreground" : "text-muted-foreground"
-                    )}>
-                      {step.label}
-                    </span>
-                  </div>
+                    </TooltipContent>
+                  </Tooltip>
                   {index < workflowSteps.length - 1 && (
                     <div className={cn(
                       "flex-1 h-0.5 mx-1 sm:mx-2 min-w-[12px] sm:min-w-[20px]",
