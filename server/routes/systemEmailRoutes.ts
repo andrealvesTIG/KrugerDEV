@@ -1,7 +1,14 @@
 import type { Express } from "express";
 import { db } from "../db";
-import { systemEmailSettings } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import {
+  systemEmailSettings,
+  emailDeliveryLog,
+  EMAIL_DELIVERY_PROVIDERS,
+  EMAIL_DELIVERY_STATUSES,
+  type EmailDeliveryProvider,
+  type EmailDeliveryStatus,
+} from "@shared/schema";
+import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import { storage } from "../storage";
 import { getUserIdFromRequest } from "./helpers";
 import { encryptToken, decryptToken, isEncryptedFormat } from "../lib/tokenEncryption";
@@ -291,6 +298,62 @@ export function registerSystemEmailRoutes(app: Express) {
     } catch (err: any) {
       console.error("Error testing email settings:", err);
       res.status(500).json({ message: err?.message || "Failed to send test email" });
+    }
+  });
+
+  app.get("/api/admin/email-log", async (req, res) => {
+    try {
+      const userId = await requireSuperAdmin(req, res);
+      if (!userId) return;
+
+      const providerParam = typeof req.query.provider === "string" ? req.query.provider.trim() : "";
+      const statusParam = typeof req.query.status === "string" ? req.query.status.trim() : "";
+      const limitRaw = Number(req.query.limit);
+      const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 500) : 100;
+
+      const validProvider: EmailDeliveryProvider | null =
+        providerParam && (EMAIL_DELIVERY_PROVIDERS as readonly string[]).includes(providerParam)
+          ? (providerParam as EmailDeliveryProvider)
+          : null;
+      const validStatus: EmailDeliveryStatus | null =
+        statusParam && (EMAIL_DELIVERY_STATUSES as readonly string[]).includes(statusParam)
+          ? (statusParam as EmailDeliveryStatus)
+          : null;
+
+      const conditions: SQL<unknown>[] = [];
+      if (validProvider) {
+        conditions.push(eq(emailDeliveryLog.provider, validProvider));
+      }
+      if (validStatus) {
+        conditions.push(eq(emailDeliveryLog.status, validStatus));
+      }
+
+      const where = conditions.length === 0 ? undefined : conditions.length === 1 ? conditions[0] : and(...conditions);
+      const rows = where
+        ? await db.select().from(emailDeliveryLog).where(where).orderBy(desc(emailDeliveryLog.createdAt)).limit(limit)
+        : await db.select().from(emailDeliveryLog).orderBy(desc(emailDeliveryLog.createdAt)).limit(limit);
+
+      const totalsRaw = await db
+        .select({
+          provider: emailDeliveryLog.provider,
+          status: emailDeliveryLog.status,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(emailDeliveryLog)
+        .groupBy(emailDeliveryLog.provider, emailDeliveryLog.status);
+
+      res.json({
+        entries: rows,
+        totals: totalsRaw,
+        limit,
+        filters: {
+          provider: validProvider,
+          status: validStatus,
+        },
+      });
+    } catch (err: any) {
+      console.error("Error loading email delivery log:", err);
+      res.status(500).json({ message: err?.message || "Failed to load email log" });
     }
   });
 }

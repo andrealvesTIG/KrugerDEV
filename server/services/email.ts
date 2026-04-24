@@ -1,6 +1,7 @@
 import { Resend } from "resend";
 import { sendViaSmtp, getActiveSmtpSettings } from "./smtpEmailSender";
 import { sendViaGraph, getActiveGraphSettings } from "./graphEmailSender";
+import { recordEmailAttempt } from "./emailDeliveryLog";
 
 let resend: Resend | null = null;
 
@@ -41,19 +42,41 @@ export async function sendEmail({
   cc?: string[];
   attachments?: EmailAttachment[];
 }): Promise<boolean> {
+  const ccCount = cc?.length || 0;
+  const hasAttachments = !!(attachments && attachments.length > 0);
+
   // Prefer system-configured Microsoft Graph (Entra ID) when enabled.
   const graphSettings = await getActiveGraphSettings();
   if (graphSettings) {
-    const ok = await sendViaGraph({ to, subject, text, html, cc, attachments });
-    if (ok) return true;
+    const result = await sendViaGraph({ to, subject, text, html, cc, attachments });
+    await recordEmailAttempt({
+      recipient: to,
+      subject,
+      provider: "graph",
+      status: result.ok ? "sent" : "failed",
+      errorMessage: result.ok ? null : result.error,
+      ccCount,
+      hasAttachments,
+    });
+    if (result.ok) return true;
     console.warn("Microsoft Graph send failed; trying SMTP/Resend fallback");
   }
 
   // Otherwise prefer system-configured SMTP (e.g. Office 365) when enabled.
   const smtpSettings = await getActiveSmtpSettings();
   if (smtpSettings) {
-    const ok = await sendViaSmtp({ to, subject, text, html, cc, from, attachments });
-    if (ok) return true;
+    const result = await sendViaSmtp({ to, subject, text, html, cc, from, attachments });
+    await recordEmailAttempt({
+      recipient: to,
+      subject,
+      provider: "smtp",
+      status: result.ok ? "sent" : "failed",
+      errorMessage: result.ok ? null : result.error,
+      messageId: result.messageId,
+      ccCount,
+      hasAttachments,
+    });
+    if (result.ok) return true;
     console.warn("SMTP send failed; falling back to Resend if available");
   }
 
@@ -69,6 +92,15 @@ export async function sendEmail({
     if (attachments) {
       console.log("Attachments:", attachments.map(a => a.filename).join(", "));
     }
+    await recordEmailAttempt({
+      recipient: to,
+      subject,
+      provider: "resend",
+      status: "failed",
+      errorMessage: "Resend not configured (RESEND_API_KEY missing)",
+      ccCount,
+      hasAttachments,
+    });
     return false;
   }
 
@@ -115,13 +147,40 @@ export async function sendEmail({
 
     if (error) {
       console.error("Failed to send email:", error);
+      await recordEmailAttempt({
+        recipient: to,
+        subject,
+        provider: "resend",
+        status: "failed",
+        errorMessage: typeof error === "string" ? error : (error as any)?.message || JSON.stringify(error),
+        ccCount,
+        hasAttachments,
+      });
       return false;
     }
 
     console.log(`Email sent successfully to ${to}, ID: ${data?.id}`);
+    await recordEmailAttempt({
+      recipient: to,
+      subject,
+      provider: "resend",
+      status: "sent",
+      messageId: data?.id || null,
+      ccCount,
+      hasAttachments,
+    });
     return true;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to send email:", error);
+    await recordEmailAttempt({
+      recipient: to,
+      subject,
+      provider: "resend",
+      status: "failed",
+      errorMessage: error?.message || String(error),
+      ccCount,
+      hasAttachments,
+    });
     return false;
   }
 }

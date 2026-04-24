@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Mail, Send, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, Mail, Send, CheckCircle2, AlertCircle, RefreshCw, ListChecks } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 type Provider = "resend" | "smtp" | "graph";
@@ -376,6 +376,246 @@ export function EmailSettingsTab() {
           </CardContent>
         </Card>
       )}
+
+      <EmailLogPanel />
     </div>
+  );
+}
+
+type LogProvider = "graph" | "smtp" | "resend";
+type LogStatus = "sent" | "failed";
+
+interface EmailLogEntry {
+  id: number;
+  recipient: string;
+  subject: string;
+  provider: LogProvider | string;
+  status: LogStatus | string;
+  errorMessage: string | null;
+  messageId: string | null;
+  ccCount: number;
+  hasAttachments: boolean;
+  createdAt: string;
+}
+
+interface EmailLogTotal {
+  provider: string;
+  status: string;
+  count: number;
+}
+
+interface EmailLogResponse {
+  entries: EmailLogEntry[];
+  totals: EmailLogTotal[];
+  limit: number;
+  filters: { provider: string | null; status: string | null };
+}
+
+const PROVIDER_LABEL: Record<string, string> = {
+  graph: "Microsoft Graph",
+  smtp: "SMTP",
+  resend: "Resend",
+};
+
+function providerBadgeClass(provider: string): string {
+  switch (provider) {
+    case "graph": return "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900";
+    case "smtp": return "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-300 dark:border-purple-900";
+    case "resend": return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-900";
+    default: return "";
+  }
+}
+
+type ProviderFilter = "all" | LogProvider;
+type StatusFilter = "all" | LogStatus;
+
+const PROVIDER_FILTER_VALUES: readonly ProviderFilter[] = ["all", "graph", "smtp", "resend"];
+const STATUS_FILTER_VALUES: readonly StatusFilter[] = ["all", "sent", "failed"];
+
+function isProviderFilter(v: string): v is ProviderFilter {
+  return (PROVIDER_FILTER_VALUES as readonly string[]).includes(v);
+}
+function isStatusFilter(v: string): v is StatusFilter {
+  return (STATUS_FILTER_VALUES as readonly string[]).includes(v);
+}
+
+function EmailLogPanel() {
+  const [providerFilter, setProviderFilter] = useState<ProviderFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [limit, setLimit] = useState<number>(100);
+
+  const queryString = useMemo(() => {
+    const params = new URLSearchParams();
+    if (providerFilter !== "all") params.set("provider", providerFilter);
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    params.set("limit", String(limit));
+    return params.toString();
+  }, [providerFilter, statusFilter, limit]);
+
+  const { data, isLoading, isFetching, refetch } = useQuery<EmailLogResponse>({
+    queryKey: ["/api/admin/email-log", providerFilter, statusFilter, limit],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/email-log?${queryString}`);
+      if (!res.ok) throw new Error("Failed to load email log");
+      return res.json();
+    },
+  });
+
+  const totals = data?.totals || [];
+  const totalSent = totals.filter((t) => t.status === "sent").reduce((acc, t) => acc + t.count, 0);
+  const totalFailed = totals.filter((t) => t.status === "failed").reduce((acc, t) => acc + t.count, 0);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <ListChecks className="h-4 w-4" /> Email log
+            </CardTitle>
+            <CardDescription>
+              Recent outbound notifications and which provider delivered them. Useful for diagnosing missing emails. Bodies and attachments are not stored.
+            </CardDescription>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            data-testid="button-refresh-email-log"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 mr-2 ${isFetching ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Provider</Label>
+            <Select value={providerFilter} onValueChange={(v) => { if (isProviderFilter(v)) setProviderFilter(v); }}>
+              <SelectTrigger data-testid="select-log-provider">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All providers</SelectItem>
+                <SelectItem value="graph">Microsoft Graph</SelectItem>
+                <SelectItem value="smtp">SMTP</SelectItem>
+                <SelectItem value="resend">Resend</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Status</Label>
+            <Select value={statusFilter} onValueChange={(v) => { if (isStatusFilter(v)) setStatusFilter(v); }}>
+              <SelectTrigger data-testid="select-log-status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="sent">Sent</SelectItem>
+                <SelectItem value="failed">Failed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Show last</Label>
+            <Select value={String(limit)} onValueChange={(v) => setLimit(Number(v))}>
+              <SelectTrigger data-testid="select-log-limit">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="50">50 entries</SelectItem>
+                <SelectItem value="100">100 entries</SelectItem>
+                <SelectItem value="250">250 entries</SelectItem>
+                <SelectItem value="500">500 entries</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2 text-xs text-muted-foreground" data-testid="email-log-totals">
+          <span className="inline-flex items-center gap-1.5 rounded-md border bg-muted/40 px-2 py-1">
+            <CheckCircle2 className="h-3 w-3 text-emerald-500" /> Sent (all time): <strong>{totalSent}</strong>
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-md border bg-muted/40 px-2 py-1">
+            <AlertCircle className="h-3 w-3 text-destructive" /> Failed (all time): <strong>{totalFailed}</strong>
+          </span>
+          {totals.map((t) => (
+            <span key={`${t.provider}-${t.status}`} className="inline-flex items-center gap-1.5 rounded-md border bg-muted/40 px-2 py-1">
+              {PROVIDER_LABEL[t.provider] || t.provider} · {t.status}: <strong>{t.count}</strong>
+            </span>
+          ))}
+        </div>
+
+        {isLoading ? (
+          <div className="flex h-32 items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          </div>
+        ) : !data || data.entries.length === 0 ? (
+          <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+            No email send attempts recorded yet for the selected filters.
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full text-sm" data-testid="table-email-log">
+              <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">When</th>
+                  <th className="px-3 py-2 text-left font-medium">Recipient</th>
+                  <th className="px-3 py-2 text-left font-medium">Provider</th>
+                  <th className="px-3 py-2 text-left font-medium">Status</th>
+                  <th className="px-3 py-2 text-left font-medium">Subject</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.entries.map((entry) => (
+                  <tr key={entry.id} className="border-t" data-testid={`row-email-log-${entry.id}`}>
+                    <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
+                      {new Date(entry.createdAt).toLocaleString()}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="font-medium">{entry.recipient}</div>
+                      {entry.ccCount > 0 && (
+                        <div className="text-xs text-muted-foreground">+ {entry.ccCount} cc</div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <Badge variant="outline" className={providerBadgeClass(entry.provider)}>
+                        {PROVIDER_LABEL[entry.provider] || entry.provider}
+                      </Badge>
+                    </td>
+                    <td className="px-3 py-2">
+                      {entry.status === "sent" ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Sent
+                        </span>
+                      ) : (
+                        <div className="space-y-0.5">
+                          <span className="inline-flex items-center gap-1 text-destructive">
+                            <AlertCircle className="h-3.5 w-3.5" /> Failed
+                          </span>
+                          {entry.errorMessage && (
+                            <div className="max-w-xs truncate text-xs text-muted-foreground" title={entry.errorMessage}>
+                              {entry.errorMessage}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="max-w-md truncate" title={entry.subject}>{entry.subject}</div>
+                      {entry.hasAttachments && (
+                        <div className="text-xs text-muted-foreground">with attachments</div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

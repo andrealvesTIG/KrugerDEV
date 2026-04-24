@@ -2184,6 +2184,34 @@ export const insertSystemEmailSettingsSchema = createInsertSchema(systemEmailSet
 export type InsertSystemEmailSettings = z.infer<typeof insertSystemEmailSettingsSchema>;
 export type SystemEmailSettings = typeof systemEmailSettings.$inferSelect;
 
+// Per-attempt log of outbound notification deliveries. Records which provider was
+// used (graph/smtp/resend), the result, and minimal metadata for diagnosis.
+// Does NOT store body, attachments or any other sensitive content.
+export const EMAIL_DELIVERY_PROVIDERS = ["graph", "smtp", "resend"] as const;
+export const EMAIL_DELIVERY_STATUSES = ["sent", "failed"] as const;
+export type EmailDeliveryProvider = (typeof EMAIL_DELIVERY_PROVIDERS)[number];
+export type EmailDeliveryStatus = (typeof EMAIL_DELIVERY_STATUSES)[number];
+
+export const emailDeliveryLog = pgTable("email_delivery_log", {
+  id: serial("id").primaryKey(),
+  recipient: text("recipient").notNull(),
+  subject: text("subject").notNull(),
+  provider: text("provider").notNull(),
+  status: text("status").notNull(),
+  errorMessage: text("error_message"),
+  messageId: text("message_id"),
+  ccCount: integer("cc_count").notNull().default(0),
+  hasAttachments: boolean("has_attachments").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  createdAtIdx: index("email_delivery_log_created_at_idx").on(t.createdAt),
+  providerIdx: index("email_delivery_log_provider_idx").on(t.provider),
+  statusIdx: index("email_delivery_log_status_idx").on(t.status),
+}));
+
+export type EmailDeliveryLogEntry = typeof emailDeliveryLog.$inferSelect;
+export type InsertEmailDeliveryLogEntry = typeof emailDeliveryLog.$inferInsert;
+
 // Custom Dashboards - AI-generated dashboards saved by users
 export const customDashboards = pgTable("custom_dashboards", {
   id: serial("id").primaryKey(),

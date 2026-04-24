@@ -166,18 +166,23 @@ async function postSendMail(senderAddress: string, accessToken: string, payload:
   throw new Error(`Microsoft Graph sendMail failed (HTTP ${res.status}): ${detail}`);
 }
 
-export async function sendViaGraph(input: GraphSendInput): Promise<boolean> {
+export interface GraphSendResult {
+  ok: boolean;
+  error?: string;
+}
+
+export async function sendViaGraph(input: GraphSendInput): Promise<GraphSendResult> {
   const s = await getActiveGraphSettings();
-  if (!s) return false;
+  if (!s) return { ok: false, error: "Microsoft Graph is not configured or not enabled" };
   try {
     const accessToken = await getCachedAccessToken(s);
     const payload = buildGraphMessage(input, { fromAddress: s.fromAddress || s.graphSenderAddress, fromName: s.fromName });
     await postSendMail(s.graphSenderAddress!, accessToken, payload);
     console.log(`Email sent via Microsoft Graph to ${input.to}`);
-    return true;
-  } catch (err) {
+    return { ok: true };
+  } catch (err: any) {
     console.error("Failed to send email via Microsoft Graph:", err);
-    return false;
+    return { ok: false, error: err?.message || String(err) };
   }
 }
 

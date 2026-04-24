@@ -81,9 +81,15 @@ export interface SmtpSendInput {
   }>;
 }
 
-export async function sendViaSmtp(input: SmtpSendInput): Promise<boolean> {
+export interface SmtpSendResult {
+  ok: boolean;
+  error?: string;
+  messageId?: string;
+}
+
+export async function sendViaSmtp(input: SmtpSendInput): Promise<SmtpSendResult> {
   const s = await getActiveSmtpSettings();
-  if (!s) return false;
+  if (!s) return { ok: false, error: "SMTP is not configured or not enabled" };
   try {
     const transporter = buildTransporter(s);
     const info = await transporter.sendMail({
@@ -101,10 +107,10 @@ export async function sendViaSmtp(input: SmtpSendInput): Promise<boolean> {
       })),
     });
     console.log(`Email sent via SMTP to ${input.to}, messageId=${info.messageId}`);
-    return true;
-  } catch (err) {
+    return { ok: true, messageId: info.messageId };
+  } catch (err: any) {
     console.error("Failed to send email via SMTP:", err);
-    return false;
+    return { ok: false, error: err?.message || String(err) };
   }
 }
 
