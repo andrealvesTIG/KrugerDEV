@@ -17,20 +17,24 @@ function dispatchIntakeStepTransitionEmails(args: {
   intakeNumber: string | null;
   projectName: string;
   organizationId: number | null;
-  workflowId: number | null;
+  previousWorkflowId: number | null;
+  nextWorkflowId: number | null;
   previousStep: string | null;
   nextStep: string | null;
   actorUserId: string;
 }): void {
-  const { intakeId, intakeNumber, projectName, organizationId, workflowId, previousStep, nextStep, actorUserId } = args;
+  const { intakeId, intakeNumber, projectName, organizationId, previousWorkflowId, nextWorkflowId, previousStep, nextStep, actorUserId } = args;
   if (!organizationId) return;
-  if (previousStep === nextStep) return;
+  if (previousStep === nextStep && previousWorkflowId === nextWorkflowId) return;
 
   void (async () => {
     try {
-      const steps = await storage.getIntakeWorkflowSteps(organizationId, workflowId ?? null);
-      const fromStep = previousStep ? steps.find(s => s.stepKey === previousStep) : undefined;
-      const toStep = nextStep ? steps.find(s => s.stepKey === nextStep) : undefined;
+      const fromSteps = await storage.getIntakeWorkflowSteps(organizationId, previousWorkflowId ?? null);
+      const toSteps = previousWorkflowId === nextWorkflowId
+        ? fromSteps
+        : await storage.getIntakeWorkflowSteps(organizationId, nextWorkflowId ?? null);
+      const fromStep = previousStep ? fromSteps.find(s => s.stepKey === previousStep) : undefined;
+      const toStep = nextStep ? toSteps.find(s => s.stepKey === nextStep) : undefined;
       const fromEmails = (fromStep?.notifyOnExit || []) as string[];
       const toEmails = (toStep?.notifyOnEntry || []) as string[];
       if (fromEmails.length === 0 && toEmails.length === 0) return;
@@ -238,7 +242,8 @@ export function registerIntakeRoutes(app: Express) {
         intakeNumber: updated.intakeNumber ?? null,
         projectName: updated.projectName,
         organizationId: existing.organizationId,
-        workflowId: updated.workflowId ?? null,
+        previousWorkflowId: existing.workflowId ?? null,
+        nextWorkflowId: updated.workflowId ?? null,
         previousStep,
         nextStep: updated.currentStep,
         actorUserId: userId,
@@ -390,7 +395,8 @@ export function registerIntakeRoutes(app: Express) {
         intakeNumber: existing.intakeNumber ?? null,
         projectName: existing.projectName,
         organizationId: existing.organizationId,
-        workflowId: existing.workflowId ?? null,
+        previousWorkflowId: existing.workflowId ?? null,
+        nextWorkflowId: existing.workflowId ?? null,
         previousStep: previousStepBeforeApproval,
         nextStep: 'submit_to_pmo',
         actorUserId: userId,
