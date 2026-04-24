@@ -9,8 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Link, useLocation } from "wouter";
-import { useIntakeWorkflows } from "@/hooks/use-intake-workflow";
-import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, ChevronDown, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen, ChevronsUpDown, BarChart3, Timer } from "lucide-react";
+import { useIntakeWorkflow, useIntakeWorkflows } from "@/hooks/use-intake-workflow";
+import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, ChevronDown, MoreVertical, Trash2, Eye, Lightbulb, Filter, FileText, Calculator, Shield, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen, ChevronsUpDown, BarChart3, Timer, type LucideIcon } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -26,17 +27,34 @@ import { cn, normalizeSearch } from "@/lib/utils";
 import type { ProjectIntake, Portfolio } from "@shared/schema";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 
-const WORKFLOW_STEPS = [
-  { id: "intake_capture", label: "Intake Capture", shortLabel: "Capture", icon: Lightbulb },
-  { id: "triage", label: "Triage", shortLabel: "Triage", icon: Filter },
-  { id: "business_case", label: "Business Case", shortLabel: "Business", icon: FileText },
-  { id: "technical_evaluation", label: "Technical Evaluation", shortLabel: "Technical", icon: Calculator },
-  { id: "governance_review", label: "Governance Review", shortLabel: "Governance", icon: Shield },
-  { id: "decision", label: "Decision", shortLabel: "Decision", icon: Gavel },
+type DisplayStep = {
+  key: string;
+  label: string;
+  description?: string | null;
+  helpText?: string | null;
+  icon: LucideIcon;
+};
+
+const STEP_ICONS: Record<string, LucideIcon> = {
+  intake_capture: Lightbulb,
+  triage: Filter,
+  business_case: FileText,
+  technical_evaluation: Calculator,
+  governance_review: Shield,
+  decision: Gavel,
+};
+
+const DEFAULT_WORKFLOW_STEPS: DisplayStep[] = [
+  { key: "intake_capture", label: "Intake Capture", icon: Lightbulb },
+  { key: "triage", label: "Triage", icon: Filter },
+  { key: "business_case", label: "Business Case", icon: FileText },
+  { key: "technical_evaluation", label: "Technical Evaluation", icon: Calculator },
+  { key: "governance_review", label: "Governance Review", icon: Shield },
+  { key: "decision", label: "Decision", icon: Gavel },
 ];
 
-function getStepIndex(stepId: string): number {
-  const index = WORKFLOW_STEPS.findIndex(s => s.id === stepId);
+function resolveStepIndex(steps: DisplayStep[], stepKey: string): number {
+  const index = steps.findIndex(s => s.key === stepKey);
   return index >= 0 ? index : 0;
 }
 
@@ -56,31 +74,80 @@ function getStatusBadge(status: string) {
   }
 }
 
-function WorkflowProgress({ currentStep, status }: { currentStep: string; status: string }) {
-  const currentIndex = getStepIndex(currentStep);
-  
+function useResolvedWorkflowSteps(workflowId?: number | null) {
+  const hasWorkflow = workflowId != null;
+  // Always call the hook to satisfy the rules of hooks, but ignore its result
+  // when the intake has no workflow assigned so we fall back to the hardcoded
+  // standard steps rather than whatever the org-level default endpoint returns.
+  const { steps, isLoading } = useIntakeWorkflow(hasWorkflow ? workflowId : null, {
+    enabled: hasWorkflow,
+  });
+
+  if (!hasWorkflow) {
+    return { steps: DEFAULT_WORKFLOW_STEPS, isLoading: false };
+  }
+
+  const resolved: DisplayStep[] = (steps && steps.length > 0)
+    ? steps.map(s => ({
+        key: s.stepKey,
+        label: s.label,
+        description: s.description,
+        helpText: s.helpText,
+        icon: STEP_ICONS[s.stepKey] || s.icon || Lightbulb,
+      }))
+    : DEFAULT_WORKFLOW_STEPS;
+  return { steps: resolved, isLoading };
+}
+
+function WorkflowProgress({
+  workflowId,
+  currentStep,
+  status,
+}: {
+  workflowId?: number | null;
+  currentStep: string;
+  status: string;
+}) {
+  const { steps: displaySteps } = useResolvedWorkflowSteps(workflowId);
+  const currentIndex = resolveStepIndex(displaySteps, currentStep);
+
   return (
     <div className="flex items-center gap-1 overflow-x-auto py-2">
-      {WORKFLOW_STEPS.map((step, index) => {
+      {displaySteps.map((step, index) => {
         const isCompleted = status === "approved" || index < currentIndex;
         const isCurrent = index === currentIndex && status !== "approved" && status !== "rejected";
         const Icon = step.icon;
-        
+        const tooltipDetail = step.description || step.helpText;
+
         return (
-          <div key={step.id} className="flex items-center">
-            <div 
-              className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium ${
-                isCompleted 
-                  ? "bg-primary text-primary-foreground" 
-                  : isCurrent 
-                    ? "border-2 border-primary text-primary bg-primary/10" 
-                    : "border border-muted-foreground/30 text-muted-foreground"
-              }`}
-              title={step.label}
-            >
-              {isCompleted ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
-            </div>
-            {index < WORKFLOW_STEPS.length - 1 && (
+          <div key={step.key} className="flex items-center">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  tabIndex={0}
+                  onClick={(e) => e.preventDefault()}
+                  aria-label={step.label}
+                  data-testid={`step-dot-${step.key}`}
+                  className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
+                    isCompleted
+                      ? "bg-primary text-primary-foreground"
+                      : isCurrent
+                        ? "border-2 border-primary text-primary bg-primary/10"
+                        : "border border-muted-foreground/30 text-muted-foreground"
+                  }`}
+                >
+                  {isCompleted ? <Check className="w-3 h-3" /> : <Icon className="w-3 h-3" />}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <div className="font-medium text-xs">{step.label}</div>
+                {tooltipDetail && (
+                  <div className="text-xs text-muted-foreground mt-0.5">{tooltipDetail}</div>
+                )}
+              </TooltipContent>
+            </Tooltip>
+            {index < displaySteps.length - 1 && (
               <div className={`w-4 h-0.5 ${isCompleted ? "bg-primary" : "bg-muted-foreground/30"}`} />
             )}
           </div>
@@ -88,6 +155,19 @@ function WorkflowProgress({ currentStep, status }: { currentStep: string; status
       })}
     </div>
   );
+}
+
+function WorkflowGateLabel({
+  workflowId,
+  currentStep,
+}: {
+  workflowId?: number | null;
+  currentStep: string;
+}) {
+  const { steps } = useResolvedWorkflowSteps(workflowId);
+  const step = steps.find(s => s.key === currentStep)
+    ?? DEFAULT_WORKFLOW_STEPS.find(s => s.key === currentStep);
+  return <>Gate: {step?.label || "Unknown"}</>;
 }
 
 interface CreateIntakeDialogProps {
@@ -790,11 +870,6 @@ export default function ProjectIntakes() {
     rejected: intakesList.filter(i => i.status === "rejected").length,
   };
 
-  const getStepLabel = (stepId: string) => {
-    const step = WORKFLOW_STEPS.find(s => s.id === stepId);
-    return step?.label || "Unknown";
-  };
-
   const { data: pbiCount } = useQuery<PowerBIIntakeRequest[]>({
     queryKey: ['/api/powerbi-agent/requests', currentOrganization?.id],
     queryFn: async () => {
@@ -1087,7 +1162,12 @@ export default function ProjectIntakes() {
                     <div className="mt-3 flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">
                         <Gavel className="h-4 w-4 text-muted-foreground" />
-                        <span>Gate: {getStepLabel(intake.currentStep || "intake_capture")}</span>
+                        <span>
+                          <WorkflowGateLabel
+                            workflowId={intake.workflowId ?? null}
+                            currentStep={intake.currentStep || "intake_capture"}
+                          />
+                        </span>
                       </div>
                       {intake.createdAt && (
                         <div className="flex items-center gap-2">
@@ -1116,10 +1196,11 @@ export default function ProjectIntakes() {
                     )}
                     
                     {/* Workflow Progress */}
-                    <div className="hidden md:block">
-                      <WorkflowProgress 
-                        currentStep={intake.currentStep || "intake_capture"} 
-                        status={intake.status || "draft"} 
+                    <div className="hidden md:block" onClick={(e) => e.preventDefault()}>
+                      <WorkflowProgress
+                        workflowId={intake.workflowId ?? null}
+                        currentStep={intake.currentStep || "intake_capture"}
+                        status={intake.status || "draft"}
                       />
                     </div>
                     

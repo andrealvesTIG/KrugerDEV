@@ -40,10 +40,11 @@ export interface WorkflowStep extends IntakeWorkflowStep {
   icon: LucideIcon;
 }
 
-export function useIntakeWorkflow(workflowId?: number | null) {
+export function useIntakeWorkflow(workflowId?: number | null, options?: { enabled?: boolean }) {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
   const wfId = workflowId ?? null;
+  const enabledOpt = options?.enabled ?? true;
 
   const query = useQuery<IntakeWorkflowStep[]>({
     queryKey: ['/api/organizations', orgId, 'intake-workflow', wfId],
@@ -54,7 +55,7 @@ export function useIntakeWorkflow(workflowId?: number | null) {
       const res = await apiRequest("GET", url);
       return res.json();
     },
-    enabled: !!orgId,
+    enabled: !!orgId && enabledOpt,
   });
 
   // Transform steps to include icons
