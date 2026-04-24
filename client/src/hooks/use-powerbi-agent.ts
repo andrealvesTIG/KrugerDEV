@@ -409,7 +409,7 @@ export function usePowerBIAgent() {
               setMessages(prev => {
                 const u = [...prev];
                 const last = u[u.length - 1];
-                if (last.role === "assistant") last.content = `Error: ${data.error}`;
+                if (last?.role === "assistant") last.content = `Error: ${data.error}`;
                 return u;
               });
               break;
@@ -459,7 +459,7 @@ export function usePowerBIAgent() {
               setMessages(prev => {
                 const u = [...prev];
                 const last = u[u.length - 1];
-                if (last.role === "assistant") last.content += data.content;
+                if (last?.role === "assistant") last.content += data.content;
                 return u;
               });
             }
