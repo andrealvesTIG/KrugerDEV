@@ -3,7 +3,7 @@ import { calculateEndDate, formatDateStr } from "../lib/workingDays";
 import {
   projectIntakes, mppImports, mppImportTasks, changeRequests,
   intakeWorkflows, intakeWorkflowSteps, projectWorkflows, projectWorkflowSteps,
-  projects, tasks, taskDependencies,
+  projects, tasks, taskDependencies, powerbiIntakeRequests,
   type ProjectIntake, type InsertProjectIntake, type UpdateProjectIntakeRequest,
   type MppImport, type InsertMppImport,
   type MppImportTask, type InsertMppImportTask,
@@ -55,7 +55,17 @@ export async function updateProjectIntake(id: number, updates: UpdateProjectInta
 }
 
 export async function deleteProjectIntake(id: number): Promise<void> {
-  await db.delete(projectIntakes).where(eq(projectIntakes.id, id));
+  // Power BI requests reference project_intakes.id with NO ACTION on delete,
+  // so a raw delete fails with a foreign-key violation whenever the intake
+  // was created via the Power BI agent. Nullify the link first (preserving
+  // the captured request data so it can still be viewed/converted from the
+  // Power BI Requests tab), then delete the intake itself.
+  await db.transaction(async (tx) => {
+    await tx.update(powerbiIntakeRequests)
+      .set({ projectIntakeId: null })
+      .where(eq(powerbiIntakeRequests.projectIntakeId, id));
+    await tx.delete(projectIntakes).where(eq(projectIntakes.id, id));
+  });
 }
 
 export async function approveProjectIntake(id: number, approvedBy: string): Promise<Project> {
