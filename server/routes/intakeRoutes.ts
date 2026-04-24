@@ -176,16 +176,21 @@ export function registerIntakeRoutes(app: Express) {
             try {
               const actor = await storage.getUser(userId);
               actorName = actor ? (`${actor.firstName || ''} ${actor.lastName || ''}`.trim() || actor.email || null) : null;
-            } catch {}
+            } catch (lookupErr) {
+              console.error("Failed to look up actor for intake step transition email:", lookupErr);
+            }
             let organizationName: string | undefined;
             try {
               const org = await storage.getOrganization(existing.organizationId!);
               organizationName = org?.name;
-            } catch {}
+            } catch (lookupErr) {
+              console.error("Failed to look up organization for intake step transition email:", lookupErr);
+            }
 
             const exitTasks = fromEmails.map(email =>
               sendIntakeStepTransitionEmail(email, {
                 intakeId: id,
+                intakeNumber: updated.intakeNumber,
                 projectName: updated.projectName,
                 organizationName,
                 stepLabel: fromStep?.label || previousStep || 'Step',
@@ -198,6 +203,7 @@ export function registerIntakeRoutes(app: Express) {
             const entryTasks = toEmails.map(email =>
               sendIntakeStepTransitionEmail(email, {
                 intakeId: id,
+                intakeNumber: updated.intakeNumber,
                 projectName: updated.projectName,
                 organizationName,
                 stepLabel: toStep?.label || updated.currentStep || 'Step',

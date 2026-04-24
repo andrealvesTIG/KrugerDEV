@@ -251,6 +251,7 @@ export async function sendIntakeStepTransitionEmail(
   recipientEmail: string,
   options: {
     intakeId: number;
+    intakeNumber?: string | null;
     projectName: string;
     organizationName?: string;
     stepLabel: string;
@@ -273,7 +274,12 @@ export async function sendIntakeStepTransitionEmail(
   const safeTo = options.toStepLabel ? escapeHtml(options.toStepLabel) : '';
 
   const action = isEntry ? 'entered' : 'exited';
-  const subject = `Intake "${options.projectName}" ${action} step "${options.stepLabel}"`;
+  const intakeRef = options.intakeNumber
+    ? `${options.intakeNumber} — ${options.projectName}`
+    : options.projectName;
+  const safeIntakeRef = escapeHtml(intakeRef);
+  const safeIntakeNumber = options.intakeNumber ? escapeHtml(options.intakeNumber) : '';
+  const subject = `Intake ${intakeRef} ${action} step "${options.stepLabel}"`;
   const intakeUrl = `${options.appUrl.replace(/\/$/, '')}/intakes/${options.intakeId}`;
 
   const transitionLine = isEntry
@@ -289,7 +295,7 @@ export async function sendIntakeStepTransitionEmail(
   const text = `
 ${transitionLine}
 
-Intake: ${options.projectName}${options.organizationName ? `\nOrganization: ${options.organizationName}` : ''}
+Intake: ${intakeRef}${options.organizationName ? `\nOrganization: ${options.organizationName}` : ''}
 Step: ${options.stepLabel}
 Transition: ${isEntry ? 'Entry' : 'Exit'}
 ${actorLine ? actorLine + '\n' : ''}
@@ -325,8 +331,12 @@ View intake: ${intakeUrl}
 
     <div style="background: #f9fafb; padding: 20px; border-radius: 6px; margin: 20px 0;">
       <table style="width: 100%; border-collapse: collapse;">
+        ${safeIntakeNumber ? `<tr>
+          <td style="padding: 6px 0; color: #6b7280; font-size: 14px; width: 110px;">Intake #</td>
+          <td style="padding: 6px 0; font-weight: 600;">${safeIntakeNumber}</td>
+        </tr>` : ''}
         <tr>
-          <td style="padding: 6px 0; color: #6b7280; font-size: 14px; width: 110px;">Intake</td>
+          <td style="padding: 6px 0; color: #6b7280; font-size: 14px; width: 110px;">Name</td>
           <td style="padding: 6px 0; font-weight: 600;">${safeProject}</td>
         </tr>
         ${safeOrg ? `<tr>
