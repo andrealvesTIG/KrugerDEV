@@ -3,13 +3,34 @@ import { db } from "../db";
 import { systemEmailSettings } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { storage } from "../storage";
-import { hasAdminAccess, getUserIdFromRequest } from "./helpers";
+import { getUserIdFromRequest } from "./helpers";
 import { encryptToken, decryptToken, isEncryptedFormat } from "../lib/tokenEncryption";
 import { invalidateSmtpSettingsCache, sendSmtpTestEmail } from "../services/smtpEmailSender";
+import { invalidateGraphSettingsCache, sendGraphTestEmail } from "../services/graphEmailSender";
 
 const PASSWORD_PLACEHOLDER = "__UNCHANGED__";
 
-function maskPassword(s: typeof systemEmailSettings.$inferSelect | null) {
+// Per-user rate limit for the test endpoint (max N sends per window) — prevents abuse/noise.
+const TEST_RATE_LIMIT_WINDOW_MS = 60_000;
+const TEST_RATE_LIMIT_MAX = 5;
+const testRateLimit = new Map<string, number[]>();
+
+function checkTestRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const list = testRateLimit.get(userId) || [];
+  const fresh = list.filter((t) => now - t < TEST_RATE_LIMIT_WINDOW_MS);
+  if (fresh.length >= TEST_RATE_LIMIT_MAX) {
+    testRateLimit.set(userId, fresh);
+    return false;
+  }
+  fresh.push(now);
+  testRateLimit.set(userId, fresh);
+  return true;
+}
+
+type EmailRow = typeof systemEmailSettings.$inferSelect;
+
+function maskRow(s: EmailRow | null) {
   if (!s) {
     return {
       provider: "resend" as const,
@@ -18,6 +39,10 @@ function maskPassword(s: typeof systemEmailSettings.$inferSelect | null) {
       smtpSecure: false,
       smtpUser: null,
       hasSmtpPassword: false,
+      graphTenantId: null,
+      graphClientId: null,
+      hasGraphClientSecret: false,
+      graphSenderAddress: null,
       fromAddress: null,
       fromName: null,
       isEnabled: false,
@@ -35,6 +60,10 @@ function maskPassword(s: typeof systemEmailSettings.$inferSelect | null) {
     smtpSecure: !!s.smtpSecure,
     smtpUser: s.smtpUser,
     hasSmtpPassword: !!s.smtpPasswordEncrypted,
+    graphTenantId: s.graphTenantId,
+    graphClientId: s.graphClientId,
+    hasGraphClientSecret: !!s.graphClientSecretEncrypted,
+    graphSenderAddress: s.graphSenderAddress,
     fromAddress: s.fromAddress,
     fromName: s.fromName,
     isEnabled: s.isEnabled,
@@ -53,19 +82,20 @@ async function requireSuperAdmin(req: any, res: any): Promise<string | null> {
     return null;
   }
   const user = await storage.getUser(userId);
-  if (!hasAdminAccess(user)) {
+  // Strict super-admin only — system email credentials must not be touchable by other elevated roles.
+  if (!user || user.role !== "super_admin") {
     res.status(403).json({ message: "Super admin access required" });
     return null;
   }
   return userId;
 }
 
-async function loadOrInit(): Promise<typeof systemEmailSettings.$inferSelect | null> {
+async function loadOrInit(): Promise<EmailRow | null> {
   const [row] = await db.select().from(systemEmailSettings).where(eq(systemEmailSettings.id, 1));
   return row || null;
 }
 
-async function upsertRow(updates: Partial<typeof systemEmailSettings.$inferInsert>): Promise<typeof systemEmailSettings.$inferSelect> {
+async function upsertRow(updates: Partial<typeof systemEmailSettings.$inferInsert>): Promise<EmailRow> {
   const existing = await loadOrInit();
   if (existing) {
     const [updated] = await db.update(systemEmailSettings)
@@ -85,13 +115,22 @@ async function upsertRow(updates: Partial<typeof systemEmailSettings.$inferInser
   return created;
 }
 
+function invalidateAllCaches() {
+  invalidateSmtpSettingsCache();
+  invalidateGraphSettingsCache();
+}
+
+function isValidProvider(v: unknown): v is "resend" | "smtp" | "graph" {
+  return v === "resend" || v === "smtp" || v === "graph";
+}
+
 export function registerSystemEmailRoutes(app: Express) {
   app.get("/api/admin/email-settings", async (req, res) => {
     try {
       const userId = await requireSuperAdmin(req, res);
       if (!userId) return;
       const row = await loadOrInit();
-      res.json(maskPassword(row));
+      res.json(maskRow(row));
     } catch (err: any) {
       console.error("Error loading email settings:", err);
       res.status(500).json({ message: err?.message || "Failed to load email settings" });
@@ -103,7 +142,7 @@ export function registerSystemEmailRoutes(app: Express) {
       const userId = await requireSuperAdmin(req, res);
       if (!userId) return;
       const body = req.body || {};
-      const provider = body.provider === "smtp" ? "smtp" : "resend";
+      const provider = isValidProvider(body.provider) ? body.provider : "resend";
 
       const existing = await loadOrInit();
       const updates: Partial<typeof systemEmailSettings.$inferInsert> = {
@@ -142,13 +181,40 @@ export function registerSystemEmailRoutes(app: Express) {
         if (updates.isEnabled && !updates.smtpPasswordEncrypted && !existing?.smtpPasswordEncrypted) {
           return res.status(400).json({ message: "SMTP password is required to enable SMTP delivery" });
         }
+      } else if (provider === "graph") {
+        const tenantId = typeof body.graphTenantId === "string" ? body.graphTenantId.trim() : "";
+        const clientId = typeof body.graphClientId === "string" ? body.graphClientId.trim() : "";
+        const sender = typeof body.graphSenderAddress === "string" ? body.graphSenderAddress.trim() : "";
+        const fromAddress = typeof body.fromAddress === "string" ? body.fromAddress.trim() : sender;
+        const fromName = typeof body.fromName === "string" ? body.fromName.trim() : "";
+
+        if (!tenantId) return res.status(400).json({ message: "Tenant ID is required" });
+        if (!clientId) return res.status(400).json({ message: "Client ID is required" });
+        if (!sender) return res.status(400).json({ message: "Sender mailbox is required" });
+
+        updates.graphTenantId = tenantId;
+        updates.graphClientId = clientId;
+        updates.graphSenderAddress = sender;
+        updates.fromAddress = fromAddress || sender;
+        updates.fromName = fromName || null;
+
+        const incomingSecret = typeof body.graphClientSecret === "string" ? body.graphClientSecret : "";
+        if (incomingSecret && incomingSecret !== PASSWORD_PLACEHOLDER) {
+          updates.graphClientSecretEncrypted = encryptToken(incomingSecret);
+        } else if (!existing?.graphClientSecretEncrypted) {
+          return res.status(400).json({ message: "Client secret is required" });
+        }
+
+        if (updates.isEnabled && !updates.graphClientSecretEncrypted && !existing?.graphClientSecretEncrypted) {
+          return res.status(400).json({ message: "Client secret is required to enable Microsoft Graph delivery" });
+        }
       } else {
         updates.isEnabled = false;
       }
 
       const saved = await upsertRow(updates);
-      invalidateSmtpSettingsCache();
-      res.json(maskPassword(saved));
+      invalidateAllCaches();
+      res.json(maskRow(saved));
     } catch (err: any) {
       console.error("Error saving email settings:", err);
       res.status(500).json({ message: err?.message || "Failed to save email settings" });
@@ -159,32 +225,56 @@ export function registerSystemEmailRoutes(app: Express) {
     try {
       const userId = await requireSuperAdmin(req, res);
       if (!userId) return;
+      if (!checkTestRateLimit(userId)) {
+        return res.status(429).json({ message: `Too many test sends. Try again in a minute (max ${TEST_RATE_LIMIT_MAX}/min).` });
+      }
       const body = req.body || {};
       const to = typeof body.to === "string" ? body.to.trim() : "";
       if (!to) return res.status(400).json({ message: "Recipient email is required" });
 
-      const host = typeof body.smtpHost === "string" ? body.smtpHost.trim() : "";
-      const portRaw = body.smtpPort;
-      const port = typeof portRaw === "number" ? portRaw : Number(portRaw);
-      const user = typeof body.smtpUser === "string" ? body.smtpUser.trim() : "";
-      const fromAddress = typeof body.fromAddress === "string" ? body.fromAddress.trim() : "";
-      const fromName = typeof body.fromName === "string" ? body.fromName.trim() : "";
-      const secure = !!body.smtpSecure;
+      const provider = isValidProvider(body.provider) ? body.provider : "smtp";
+      const existing = await loadOrInit();
 
-      if (!host || !port || !user || !fromAddress) {
-        return res.status(400).json({ message: "Host, port, username and From address are required" });
-      }
+      let result: { ok: boolean; error?: string };
 
-      let pass = typeof body.smtpPassword === "string" ? body.smtpPassword : "";
-      if (!pass || pass === PASSWORD_PLACEHOLDER) {
-        const existing = await loadOrInit();
-        if (!existing?.smtpPasswordEncrypted) {
-          return res.status(400).json({ message: "SMTP password is required" });
+      if (provider === "graph") {
+        const tenantId = typeof body.graphTenantId === "string" ? body.graphTenantId.trim() : "";
+        const clientId = typeof body.graphClientId === "string" ? body.graphClientId.trim() : "";
+        const sender = typeof body.graphSenderAddress === "string" ? body.graphSenderAddress.trim() : "";
+        const fromAddress = typeof body.fromAddress === "string" ? body.fromAddress.trim() : "";
+        const fromName = typeof body.fromName === "string" ? body.fromName.trim() : "";
+        if (!tenantId || !clientId || !sender) {
+          return res.status(400).json({ message: "Tenant ID, Client ID and sender mailbox are required" });
         }
-        pass = isEncryptedFormat(existing.smtpPasswordEncrypted) ? decryptToken(existing.smtpPasswordEncrypted) : existing.smtpPasswordEncrypted;
+        let secret = typeof body.graphClientSecret === "string" ? body.graphClientSecret : "";
+        if (!secret || secret === PASSWORD_PLACEHOLDER) {
+          if (!existing?.graphClientSecretEncrypted) {
+            return res.status(400).json({ message: "Client secret is required" });
+          }
+          secret = isEncryptedFormat(existing.graphClientSecretEncrypted) ? decryptToken(existing.graphClientSecretEncrypted) : existing.graphClientSecretEncrypted;
+        }
+        result = await sendGraphTestEmail({ tenantId, clientId, clientSecret: secret, senderAddress: sender, to, fromAddress: fromAddress || sender, fromName: fromName || null });
+      } else {
+        // SMTP test (default)
+        const host = typeof body.smtpHost === "string" ? body.smtpHost.trim() : "";
+        const portRaw = body.smtpPort;
+        const port = typeof portRaw === "number" ? portRaw : Number(portRaw);
+        const user = typeof body.smtpUser === "string" ? body.smtpUser.trim() : "";
+        const fromAddress = typeof body.fromAddress === "string" ? body.fromAddress.trim() : "";
+        const fromName = typeof body.fromName === "string" ? body.fromName.trim() : "";
+        const secure = !!body.smtpSecure;
+        if (!host || !port || !user || !fromAddress) {
+          return res.status(400).json({ message: "Host, port, username and From address are required" });
+        }
+        let pass = typeof body.smtpPassword === "string" ? body.smtpPassword : "";
+        if (!pass || pass === PASSWORD_PLACEHOLDER) {
+          if (!existing?.smtpPasswordEncrypted) {
+            return res.status(400).json({ message: "SMTP password is required" });
+          }
+          pass = isEncryptedFormat(existing.smtpPasswordEncrypted) ? decryptToken(existing.smtpPasswordEncrypted) : existing.smtpPasswordEncrypted;
+        }
+        result = await sendSmtpTestEmail({ host, port, secure, user, pass, fromAddress, fromName: fromName || null, to });
       }
-
-      const result = await sendSmtpTestEmail({ host, port, secure, user, pass, fromAddress, fromName: fromName || null, to });
 
       await upsertRow({
         lastTestedAt: new Date(),
@@ -192,7 +282,7 @@ export function registerSystemEmailRoutes(app: Express) {
         lastTestError: result.ok ? null : (result.error || "Unknown error"),
         updatedBy: userId,
       });
-      invalidateSmtpSettingsCache();
+      invalidateAllCaches();
 
       if (!result.ok) {
         return res.status(400).json({ ok: false, error: result.error || "Test send failed" });

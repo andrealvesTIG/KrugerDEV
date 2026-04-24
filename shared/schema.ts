@@ -2156,12 +2156,17 @@ export type OrganizationIntegration = typeof organizationIntegrations.$inferSele
 // SMTP password is encrypted at rest via server/lib/tokenEncryption.ts.
 export const systemEmailSettings = pgTable("system_email_settings", {
   id: serial("id").primaryKey(),
-  provider: text("provider").notNull().default("resend"), // 'resend' | 'smtp'
+  provider: text("provider").notNull().default("resend"), // 'resend' | 'smtp' | 'graph'
   smtpHost: text("smtp_host"),
   smtpPort: integer("smtp_port"),
   smtpSecure: boolean("smtp_secure").default(false), // true for 465 SSL, false for 587 STARTTLS
   smtpUser: text("smtp_user"),
   smtpPasswordEncrypted: text("smtp_password_encrypted"),
+  // Microsoft Graph (Entra ID) credentials for client-credentials flow
+  graphTenantId: text("graph_tenant_id"),
+  graphClientId: text("graph_client_id"),
+  graphClientSecretEncrypted: text("graph_client_secret_encrypted"),
+  graphSenderAddress: text("graph_sender_address"), // mailbox to send as (must match app permission scope)
   fromAddress: text("from_address"),
   fromName: text("from_name"),
   isEnabled: boolean("is_enabled").notNull().default(false),

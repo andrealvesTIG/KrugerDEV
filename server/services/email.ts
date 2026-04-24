@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { sendViaSmtp, getActiveSmtpSettings } from "./smtpEmailSender";
+import { sendViaGraph, getActiveGraphSettings } from "./graphEmailSender";
 
 let resend: Resend | null = null;
 
@@ -40,7 +41,15 @@ export async function sendEmail({
   cc?: string[];
   attachments?: EmailAttachment[];
 }): Promise<boolean> {
-  // Prefer system-configured SMTP (e.g. Office 365) when enabled.
+  // Prefer system-configured Microsoft Graph (Entra ID) when enabled.
+  const graphSettings = await getActiveGraphSettings();
+  if (graphSettings) {
+    const ok = await sendViaGraph({ to, subject, text, html, cc, attachments });
+    if (ok) return true;
+    console.warn("Microsoft Graph send failed; trying SMTP/Resend fallback");
+  }
+
+  // Otherwise prefer system-configured SMTP (e.g. Office 365) when enabled.
   const smtpSettings = await getActiveSmtpSettings();
   if (smtpSettings) {
     const ok = await sendViaSmtp({ to, subject, text, html, cc, from, attachments });
