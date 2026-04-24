@@ -150,7 +150,22 @@ function AttachmentChip({
       compact ? "max-w-[180px]" : "max-w-[260px]",
     )}>
       {isImage ? <ImageIcon className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" /> : <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
-      <span className="truncate" title={att.name}>{att.name}</span>
+      {att.objectPath ? (
+        <a
+          href={att.objectPath}
+          download={att.name}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="truncate underline-offset-2 hover:underline"
+          title={`Download ${att.name}`}
+          data-testid="attachment-download"
+        >
+          {att.name}
+        </a>
+      ) : (
+        <span className="truncate" title={att.name}>{att.name}</span>
+      )}
       {onRemove && (
         <button onClick={onRemove} className="text-muted-foreground hover:text-foreground" aria-label="Remove">
           <X className="w-3 h-3" />
