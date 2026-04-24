@@ -16,6 +16,7 @@ import { format, isWithinInterval, differenceInDays } from "date-fns";
 import type { ProjectIntake } from "@shared/schema";
 import { formatCurrency } from "@/lib/format";
 import { CompactCurrency } from "@/components/CompactCurrency";
+import { WorkflowProgress } from "@/components/intake/IntakeWorkflowProgress";
 
 const COLORS = {
   Green: "#10b981",
@@ -349,27 +350,36 @@ export function IntakeDashboard() {
               ) : (
                 <div className="space-y-2">
                   {pendingReviewIntakes.map((intake) => (
-                    <div 
-                      key={intake.id} 
-                      className="flex items-center gap-3 p-2 rounded-lg border hover-elevate cursor-pointer" 
+                    <div
+                      key={intake.id}
+                      className="flex flex-col gap-1 p-2 rounded-lg border hover-elevate cursor-pointer"
                       onClick={() => setLocation(`/intakes/${intake.id}`)}
                       data-testid={`row-intake-${intake.id}`}
                     >
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">{intake.projectName}</div>
-                        <div className="text-xs text-muted-foreground">{intake.businessUnit || intake.fundingSource || "No details"}</div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-right text-xs">
-                          <div className="font-medium"><CompactCurrency value={intake.estimatedBudget || 0} /></div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">{intake.projectName}</div>
+                          <div className="text-xs text-muted-foreground">{intake.businessUnit || intake.fundingSource || "No details"}</div>
                         </div>
-                        <Badge 
-                          variant="outline" 
-                          className="text-[10px] h-5"
-                          style={{ borderColor: STATUS_COLORS[intake.status || "draft"], color: STATUS_COLORS[intake.status || "draft"] }}
-                        >
-                          {STATUS_LABELS[intake.status || "draft"]}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right text-xs">
+                            <div className="font-medium"><CompactCurrency value={intake.estimatedBudget || 0} /></div>
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] h-5"
+                            style={{ borderColor: STATUS_COLORS[intake.status || "draft"], color: STATUS_COLORS[intake.status || "draft"] }}
+                          >
+                            {STATUS_LABELS[intake.status || "draft"]}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <WorkflowProgress
+                          workflowId={intake.workflowId}
+                          currentStep={intake.currentStep || "intake_capture"}
+                          status={intake.status || "draft"}
+                        />
                       </div>
                     </div>
                   ))}
@@ -395,32 +405,41 @@ export function IntakeDashboard() {
               ) : (
                 <div className="space-y-2">
                   {recentIntakes.map((intake) => (
-                    <div 
-                      key={intake.id} 
-                      className="flex items-center gap-3 p-2 rounded-lg border hover-elevate cursor-pointer" 
+                    <div
+                      key={intake.id}
+                      className="flex flex-col gap-1 p-2 rounded-lg border hover-elevate cursor-pointer"
                       onClick={() => setLocation(`/intakes/${intake.id}`)}
                       data-testid={`row-recent-${intake.id}`}
                     >
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">{intake.projectName}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {intake.createdAt ? format(new Date(intake.createdAt), "MMM d, yyyy") : "N/A"}
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">{intake.projectName}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {intake.createdAt ? format(new Date(intake.createdAt), "MMM d, yyyy") : "N/A"}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-right text-xs">
+                            <div className="font-medium"><CompactCurrency value={intake.estimatedBudget || 0} /></div>
+                          </div>
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px] h-5"
+                            style={{
+                              backgroundColor: `${STATUS_COLORS[intake.status || "draft"]}15`,
+                              color: STATUS_COLORS[intake.status || "draft"]
+                            }}
+                          >
+                            {STATUS_LABELS[intake.status || "draft"]}
+                          </Badge>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-right text-xs">
-                          <div className="font-medium"><CompactCurrency value={intake.estimatedBudget || 0} /></div>
-                        </div>
-                        <Badge 
-                          variant="secondary" 
-                          className="text-[10px] h-5"
-                          style={{ 
-                            backgroundColor: `${STATUS_COLORS[intake.status || "draft"]}15`,
-                            color: STATUS_COLORS[intake.status || "draft"]
-                          }}
-                        >
-                          {STATUS_LABELS[intake.status || "draft"]}
-                        </Badge>
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <WorkflowProgress
+                          workflowId={intake.workflowId}
+                          currentStep={intake.currentStep || "intake_capture"}
+                          status={intake.status || "draft"}
+                        />
                       </div>
                     </div>
                   ))}
