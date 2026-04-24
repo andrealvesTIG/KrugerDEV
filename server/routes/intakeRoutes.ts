@@ -190,7 +190,19 @@ export function registerIntakeRoutes(app: Express) {
         const { recordResourceUsage, METER_CODES } = await import("../services/billing");
         await recordResourceUsage(userId, METER_CODES.INTAKES, intake.id, 1, input.organizationId);
       }
-      
+
+      dispatchIntakeStepTransitionEmails({
+        intakeId: intake.id,
+        intakeNumber: intake.intakeNumber ?? null,
+        projectName: intake.projectName,
+        organizationId: intake.organizationId,
+        previousWorkflowId: null,
+        nextWorkflowId: intake.workflowId ?? null,
+        previousStep: null,
+        nextStep: intake.currentStep,
+        actorUserId: userId,
+      });
+
       res.status(201).json(intake);
     } catch (err) {
       console.error("Error creating project intake:", err);
