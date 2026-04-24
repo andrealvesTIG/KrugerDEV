@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { powerbiAgentConversations, powerbiAgentMessages, type PbiIntakeState } from "@shared/schema";
+import { powerbiAgentConversations, powerbiAgentMessages, type PbiIntakeState, type PbiAttachmentAnalysis, type PbiAttachmentExtraction } from "@shared/schema";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 
 export type PbiAttachment = { name: string; objectPath: string; contentType: string; size: number };
@@ -66,6 +66,7 @@ export async function addMessage(
   content: string,
   attachments: PbiAttachment[] | null = null,
   options: string[] | null = null,
+  attachmentExtractions: PbiAttachmentExtraction[] | null = null,
 ) {
   const [row] = await db.insert(powerbiAgentMessages).values({
     conversationId,
@@ -73,6 +74,7 @@ export async function addMessage(
     content,
     attachments: attachments ?? null,
     options: options ?? null,
+    attachmentExtractions: attachmentExtractions ?? null,
   }).returning();
   await db.update(powerbiAgentConversations)
     .set({ lastMessageAt: new Date(), updatedAt: new Date() })
@@ -96,6 +98,18 @@ export async function updateConversationModel(id: number, model: string) {
   await db.update(powerbiAgentConversations)
     .set({ model, updatedAt: new Date() })
     .where(eq(powerbiAgentConversations.id, id));
+}
+
+export async function setAttachmentAnalysis(id: number, analysis: PbiAttachmentAnalysis) {
+  await db.update(powerbiAgentConversations)
+    .set({ attachmentAnalysis: analysis, updatedAt: new Date() })
+    .where(eq(powerbiAgentConversations.id, id));
+}
+
+export async function setMessageExtractions(messageId: number, extractions: PbiAttachmentExtraction[]) {
+  await db.update(powerbiAgentMessages)
+    .set({ attachmentExtractions: extractions })
+    .where(eq(powerbiAgentMessages.id, messageId));
 }
 
 export async function setSubmittedIntake(

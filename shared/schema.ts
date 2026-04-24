@@ -1537,6 +1537,38 @@ export type PbiIntakeState = {
   updatedAt?: string;
 };
 
+// Structured analysis derived from documents the user attached to the agent chat.
+export type PbiAttachmentAnalysis = {
+  audienceTier: "executive" | "manager" | "analyst" | "mixed" | "unknown";
+  audienceEvidence: string;
+  documentTypes: string[];
+  topics: string[];
+  suggestedMetrics: string[];
+  suggestedDimensions: string[];
+  suggestedTimeGrain: string;
+  suggestedRefreshCadence: string;
+  suggestedDataSources: string[];
+  openQuestions: string[];
+  confidence: "low" | "medium" | "high";
+  summary: string;
+  sourceFiles: string[];
+  attachmentIds: number[];
+};
+
+// Per-attachment text extraction stored alongside the user message that uploaded it.
+export type PbiAttachmentExtraction = {
+  name: string;
+  objectPath: string;
+  contentType: string;
+  size: number;
+  text: string | null;
+  pageCount?: number;
+  sheetCount?: number;
+  detectedLanguage?: string;
+  truncated?: boolean;
+  error?: string;
+};
+
 // Power BI Agent Conversations - persistent chat history per user
 export const powerbiAgentConversations = pgTable("powerbi_agent_conversations", {
   id: serial("id").primaryKey(),
@@ -1550,6 +1582,7 @@ export const powerbiAgentConversations = pgTable("powerbi_agent_conversations", 
   lastMessageAt: timestamp("last_message_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  attachmentAnalysis: jsonb("attachment_analysis").$type<PbiAttachmentAnalysis>(),
 }, (table) => [
   index("pbi_agent_conv_user_idx").on(table.userId, table.lastMessageAt),
   index("pbi_agent_conv_org_idx").on(table.organizationId),
@@ -1561,6 +1594,7 @@ export const powerbiAgentMessages = pgTable("powerbi_agent_messages", {
   role: text("role").notNull(),
   content: text("content").notNull(),
   attachments: jsonb("attachments").$type<Array<{ name: string; objectPath: string; contentType: string; size: number }>>(),
+  attachmentExtractions: jsonb("attachment_extractions").$type<PbiAttachmentExtraction[]>(),
   options: jsonb("options").$type<string[]>(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [

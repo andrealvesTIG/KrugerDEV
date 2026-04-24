@@ -32,6 +32,23 @@ export interface PowerBIAgentMessage {
   attachments?: PowerBIAttachment[];
   intake?: PowerBIIntakeRef;
   timestamp: Date;
+  phase?: "analyzing" | null;
+}
+
+export interface PowerBIAttachmentAnalysis {
+  audienceTier: "executive" | "manager" | "analyst" | "mixed" | "unknown";
+  audienceEvidence: string;
+  documentTypes: string[];
+  topics: string[];
+  suggestedMetrics: string[];
+  suggestedDimensions: string[];
+  suggestedTimeGrain: string;
+  suggestedRefreshCadence: string;
+  suggestedDataSources: string[];
+  openQuestions: string[];
+  confidence: "low" | "medium" | "high";
+  summary: string;
+  sourceFiles: string[];
 }
 
 export interface PowerBIAgentConversation {
@@ -377,6 +394,24 @@ export function usePowerBIAgent() {
                 return u;
               });
               break;
+            }
+            if (data.phase === "analyzing") {
+              setMessages(prev => {
+                const u = [...prev];
+                const last = u[u.length - 1];
+                if (last?.role === "assistant") last.phase = "analyzing";
+                return u;
+              });
+              continue;
+            }
+            if (data.phase === "analyzed") {
+              setMessages(prev => {
+                const u = [...prev];
+                const last = u[u.length - 1];
+                if (last?.role === "assistant") last.phase = null;
+                return u;
+              });
+              continue;
             }
             if (data.intake) {
               const info = data.intake as PowerBIIntakeRef;

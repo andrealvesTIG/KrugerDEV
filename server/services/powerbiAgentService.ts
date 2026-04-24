@@ -1,11 +1,14 @@
 import { db } from "../db";
-import { powerbiIntakeRequests, projectIntakes } from "@shared/schema";
+import { powerbiIntakeRequests, projectIntakes, powerbiAgentConversations, powerbiAgentMessages } from "@shared/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import OpenAI from "openai";
 import type { ChatCompletionTool } from "openai/resources/chat/completions";
 import Anthropic from "@anthropic-ai/sdk";
-import { addMessage, setSubmittedIntake, type PbiAttachment } from "../storage/powerbiAgentStorage";
+import { addMessage, setSubmittedIntake, setAttachmentAnalysis, setMessageExtractions, type PbiAttachment } from "../storage/powerbiAgentStorage";
 import { ObjectStorageService } from "../replit_integrations/object_storage/objectStorage";
+import { extractAllAttachments } from "./powerbiAttachmentExtraction";
+import { analyzeAttachments, mergeAnalyses } from "./powerbiAttachmentAnalysis";
+import type { PbiAttachmentAnalysis } from "@shared/schema";
 
 export const ALLOWED_ATTACHMENT_TYPES = new Set<string>([
   "image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp",
@@ -82,7 +85,21 @@ For EVERY question you ask the client, append a marker on its own final line:
 - Do NOT include "I don't know" or "Skip" — the UI adds those automatically.
 - Never reference the marker in the visible text — place it on its own final line.
 
-If the user attaches files (mockups, sample reports, data dictionaries), acknowledge them briefly and use them to inform follow-up questions.`;
+If the user attaches files (mockups, sample reports, data dictionaries), acknowledge them briefly and use them to inform follow-up questions.
+
+ATTACHMENT-DRIVEN SUGGESTIONS:
+When an "ATTACHMENT ANALYSIS" block is included below, you have a structured understanding of the documents the client uploaded. Use it to:
+- If you JUST received a new attachment batch (the latest user turn includes attachments), START your reply with a compact summary bubble. Use this exact format on its own block before any question:
+  > 📎 **Analysed attachments:** <document types in plain English>.
+  > **Audience:** <Executives | Managers | Analysts | Mixed | Unclear> — <one-line evidence cue>.
+  > **Key things I picked up:** <3-5 short bullets covering metrics, time grain, refresh, sources>.
+  Then continue with your next intake question on a new line.
+- For EVERY subsequent question whose answer the analysis suggests, prepend the most-likely answer to the [OPTIONS] list using the prefix \`SUGGESTED|<filename>|<value>\` (the source filename and the suggested value, separated by a pipe). Example:
+  [OPTIONS]SUGGESTED|exec_brief.pdf|Executives|Managers|Analysts[/OPTIONS]
+  The UI shows that first chip with a distinct "Suggested from <filename>" label.
+- Only emit the SUGGESTED chip when you have real evidence in the analysis. Never guess.
+- If the analysis flagged conflicts (openQuestions), ask ONE disambiguating question first, with both conflicting values as plain options (not SUGGESTED).
+- If confidence is "low", say so plainly and ask a clarifying question instead of asserting a tier.`;
 
 export interface PowerBIAgentMessage {
   role: "user" | "assistant" | "system";
@@ -182,6 +199,39 @@ async function handleSubmitTool(
   onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
 ): Promise<string> {
   const requestNumber = await generateRequestNumber(orgId);
+
+  // If the conversation produced an attachment analysis, surface its derived
+  // fields without overwriting anything the user explicitly typed.
+  let analysis: PbiAttachmentAnalysis | null = null;
+  if (conversationDbId) {
+    try {
+      const [row] = await db.select({ analysis: powerbiAgentConversations.attachmentAnalysis })
+        .from(powerbiAgentConversations)
+        .where(eq(powerbiAgentConversations.id, conversationDbId));
+      if (row?.analysis) analysis = row.analysis as PbiAttachmentAnalysis;
+    } catch {}
+  }
+  if (analysis) {
+    if (!args.dataSources && analysis.suggestedDataSources.length) {
+      args.dataSources = analysis.suggestedDataSources.join(", ");
+    }
+    if (!args.refreshFrequency && analysis.suggestedRefreshCadence && analysis.suggestedRefreshCadence !== "Unknown") {
+      args.refreshFrequency = analysis.suggestedRefreshCadence;
+    }
+    const derivedNotes: string[] = [];
+    if (analysis.audienceTier && analysis.audienceTier !== "unknown") {
+      derivedNotes.push(`Derived audience tier (from attachments): ${analysis.audienceTier} (confidence ${analysis.confidence})${analysis.audienceEvidence ? ` — "${analysis.audienceEvidence}"` : ""}`);
+    }
+    if (analysis.suggestedMetrics.length) derivedNotes.push(`Suggested KPIs: ${analysis.suggestedMetrics.join(", ")}`);
+    if (analysis.suggestedDimensions.length) derivedNotes.push(`Suggested dimensions: ${analysis.suggestedDimensions.join(", ")}`);
+    if (analysis.suggestedTimeGrain && analysis.suggestedTimeGrain !== "Unknown") derivedNotes.push(`Suggested time grain: ${analysis.suggestedTimeGrain}`);
+    if (analysis.sourceFiles.length) derivedNotes.push(`Source attachments: ${analysis.sourceFiles.join(", ")}`);
+    if (derivedNotes.length) {
+      const block = derivedNotes.join("\n");
+      args.additionalNotes = args.additionalNotes ? `${args.additionalNotes}\n\n${block}` : block;
+    }
+  }
+
   const effort = calculateEffortEstimate(args);
 
   const descParts: string[] = [];
@@ -525,6 +575,77 @@ function extractOptionsFromText(text: string): string[] | null {
   return opts.length ? opts : null;
 }
 
+function formatAnalysisForPrompt(a: PbiAttachmentAnalysis): string {
+  const lines: string[] = [
+    "ATTACHMENT ANALYSIS (derived from documents the client uploaded earlier in this conversation):",
+    `- Audience tier: ${a.audienceTier}${a.audienceEvidence ? ` — evidence: "${a.audienceEvidence}"` : ""}`,
+    `- Confidence: ${a.confidence}`,
+    `- Document types: ${a.documentTypes.join(", ") || "(none)"}`,
+    `- Topics: ${a.topics.join(", ") || "(none)"}`,
+    `- Suggested metrics / KPIs: ${a.suggestedMetrics.join(", ") || "(none)"}`,
+    `- Suggested dimensions: ${a.suggestedDimensions.join(", ") || "(none)"}`,
+    `- Suggested time grain: ${a.suggestedTimeGrain}`,
+    `- Suggested refresh cadence: ${a.suggestedRefreshCadence}`,
+    `- Suggested data sources: ${a.suggestedDataSources.join(", ") || "(none)"}`,
+    `- Source files: ${a.sourceFiles.join(", ") || "(none)"}`,
+  ];
+  if (a.openQuestions.length) lines.push(`- CONFLICTS / open questions: ${a.openQuestions.join(" | ")}`);
+  if (a.summary) lines.push(`- One-line summary: ${a.summary}`);
+  return lines.join("\n");
+}
+
+/**
+ * Inspect the latest user turn for fresh attachments. If any are present,
+ * extract their text, run a single structured analysis pass, persist both,
+ * and merge with any pre-existing analysis on the conversation.
+ */
+async function ensureAttachmentAnalysis(
+  conversationDbId: number | null,
+  messages: PowerBIAgentMessage[],
+  modelTier: PbiModelTier,
+  onPhase?: (phase: { phase: "analyzing" | "analyzed"; fileCount?: number }) => void,
+): Promise<PbiAttachmentAnalysis | null> {
+  if (!conversationDbId) return null;
+  const last = messages[messages.length - 1];
+  const newAttachments = (last?.role === "user" ? last.attachments : null) ?? null;
+
+  // Always load existing analysis (so we can re-use it on follow-up turns).
+  // Auth was enforced at the route layer; do a direct id lookup here.
+  let existing: PbiAttachmentAnalysis | null = null;
+  try {
+    const [row] = await db.select({ analysis: powerbiAgentConversations.attachmentAnalysis })
+      .from(powerbiAgentConversations)
+      .where(eq(powerbiAgentConversations.id, conversationDbId));
+    if (row?.analysis) existing = row.analysis as PbiAttachmentAnalysis;
+  } catch {}
+
+  if (!newAttachments || newAttachments.length === 0) return existing;
+
+  onPhase?.({ phase: "analyzing", fileCount: newAttachments.length });
+
+  // Persist the user message first so we can attach extractions to its row.
+  let messageId: number | null = null;
+  try {
+    const [row] = await db.select({ id: powerbiAgentMessages.id })
+      .from(powerbiAgentMessages)
+      .where(eq(powerbiAgentMessages.conversationId, conversationDbId))
+      .orderBy(desc(powerbiAgentMessages.createdAt))
+      .limit(1);
+    if (row?.id) messageId = row.id;
+  } catch {}
+
+  const extractions = await extractAllAttachments(newAttachments);
+  if (messageId) {
+    try { await setMessageExtractions(messageId, extractions); } catch {}
+  }
+
+  const fresh = await analyzeAttachments(extractions, modelTier);
+  const merged = mergeAnalyses(existing, fresh);
+  try { await setAttachmentAnalysis(conversationDbId, merged); } catch {}
+  onPhase?.({ phase: "analyzed", fileCount: newAttachments.length });
+  return merged;
+}
+
 export async function streamPowerBIAgentResponse(
   orgId: number,
   userId: string,
@@ -535,10 +656,23 @@ export async function streamPowerBIAgentResponse(
   onDone: (fullResponse: string) => void,
   onError: (error: Error) => void,
   onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
+  onPhase?: (phase: { phase: "analyzing" | "analyzed"; fileCount?: number }) => void,
 ) {
   try {
     if (!isModelAvailable(modelTier)) {
       modelTier = "fast";
+    }
+
+    // Run extraction + analysis BEFORE the chat call so the model can use it.
+    const analysis = await ensureAttachmentAnalysis(conversationDbId, messages, modelTier, onPhase);
+    if (analysis) {
+      // Splice the analysis into the system prompt for THIS turn by prepending
+      // a synthetic system message. We do it here so the active system prompt
+      // string remains the same for everyone else.
+      messages = [
+        { role: "system", content: formatAnalysisForPrompt(analysis) },
+        ...messages,
+      ];
     }
     // Include attachment references in the persisted intake conversation log so the
     // internal team can trace back which files the client supplied during intake.

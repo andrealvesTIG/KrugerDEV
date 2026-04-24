@@ -106,15 +106,32 @@ function SimpleMarkdown({ content }: { content: string }) {
 
 const OPTIONS_REGEX = /\[OPTIONS\]([\s\S]*?)\[\/OPTIONS\]/i;
 
-function extractOptions(content: string): { cleanContent: string; options: string[] } {
+export type ParsedOption = { value: string; suggestedFrom?: string };
+
+function extractOptions(content: string): { cleanContent: string; options: ParsedOption[] } {
   const match = content.match(OPTIONS_REGEX);
   if (!match) return { cleanContent: content, options: [] };
-  const options = match[1]
-    .split("|")
-    .map(o => o.trim())
-    .filter(o => o.length > 0 && !/^i\s*don'?t\s*know$/i.test(o) && !/^skip$/i.test(o));
+  // Parse `SUGGESTED|<filename>|<value>` triples as a single suggested chip
+  // (with the filename surfaced on hover/badge), and normal `value` items as
+  // plain chips. Tokens are pipe-separated.
+  const tokens = match[1].split("|").map(s => s.trim()).filter(Boolean);
+  const out: ParsedOption[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (/^suggested$/i.test(t) && i + 2 < tokens.length) {
+      const fname = tokens[i + 1];
+      const value = tokens[i + 2];
+      if (value && !/^i\s*don'?t\s*know$/i.test(value) && !/^skip$/i.test(value)) {
+        out.push({ value, suggestedFrom: fname });
+      }
+      i += 2;
+      continue;
+    }
+    if (/^i\s*don'?t\s*know$/i.test(t) || /^skip$/i.test(t)) continue;
+    out.push({ value: t });
+  }
   const cleanContent = content.replace(OPTIONS_REGEX, "").trimEnd();
-  return { cleanContent, options };
+  return { cleanContent, options: out };
 }
 
 // Detect when the assistant has actually submitted the request — in that case we don't show reply chips.
@@ -179,7 +196,9 @@ function MessageBubble({ message }: { message: PowerBIAgentMessage }) {
                   <span className="w-2 h-2 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
                   <span className="w-2 h-2 bg-orange-500 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                 </div>
-                <span className="text-xs">Thinking...</span>
+                <span className="text-xs" data-testid="thinking-indicator">
+                  {message.phase === "analyzing" ? "Analyzing attachments…" : "Thinking..."}
+                </span>
               </div>
             )}
             {message.intake && (
@@ -477,12 +496,12 @@ export default function PowerBIAgent() {
   const lastMsg = messages[messages.length - 1];
   const lastIsAssistant = !!lastMsg && lastMsg.role === "assistant" && !isLoading && lastMsg.content.length > 0;
   const { options: parsedOptions, cleanContent: lastCleanContent } = lastIsAssistant
-    ? extractOptions(lastMsg!.content) : { options: [] as string[], cleanContent: "" };
+    ? extractOptions(lastMsg!.content) : { options: [] as ParsedOption[], cleanContent: "" };
   // Always offer reply chips on a terminal assistant turn unless the request was just submitted.
   // Suppress entirely while resuming a past conversation in read-only mode.
   const shouldOfferQuickReplies = lastIsAssistant && !looksSubmitted(lastCleanContent) && !isReadOnly;
   // When the model didn't supply options, fall back to generic conversational chips so the user always has chips.
-  const GENERIC_FALLBACK_OPTIONS = ["Yes", "No", "Tell me more"];
+  const GENERIC_FALLBACK_OPTIONS: ParsedOption[] = [{ value: "Yes" }, { value: "No" }, { value: "Tell me more" }];
   const effectiveOptions = parsedOptions.length > 0 ? parsedOptions : GENERIC_FALLBACK_OPTIONS;
 
   // Hide unavailable providers entirely (e.g. Claude only appears when the
@@ -639,19 +658,37 @@ export default function PowerBIAgent() {
                 className="ml-11 mb-4 flex flex-wrap gap-2"
                 data-testid="answer-options"
               >
-                {effectiveOptions.map((opt) => (
-                  <Card
-                    key={opt}
-                    className="cursor-pointer border-border/60 hover:border-orange-500/50 hover:bg-orange-500/5 transition-colors"
-                    onClick={() => handlePromptClick(opt)}
-                    data-testid={`option-${opt.replace(/\s+/g, "-").toLowerCase()}`}
-                  >
-                    <CardContent className="px-3 py-2 flex items-center gap-1.5">
-                      <Sparkles className="w-3 h-3 text-orange-500 flex-shrink-0" />
-                      <span className="text-xs font-medium">{opt}</span>
-                    </CardContent>
-                  </Card>
-                ))}
+                {effectiveOptions.map((opt, idx) => {
+                  const isSuggested = !!opt.suggestedFrom;
+                  return (
+                    <Card
+                      key={`${opt.value}-${idx}`}
+                      className={cn(
+                        "cursor-pointer transition-colors",
+                        isSuggested
+                          ? "border-emerald-500/60 bg-emerald-500/10 hover:border-emerald-500 hover:bg-emerald-500/15"
+                          : "border-border/60 hover:border-orange-500/50 hover:bg-orange-500/5",
+                      )}
+                      onClick={() => handlePromptClick(opt.value)}
+                      title={isSuggested ? `Suggested from ${opt.suggestedFrom}` : undefined}
+                      data-testid={`option-${opt.value.replace(/\s+/g, "-").toLowerCase()}`}
+                      data-suggested={isSuggested ? "true" : undefined}
+                    >
+                      <CardContent className="px-3 py-2 flex flex-col items-start gap-0.5">
+                        {isSuggested && (
+                          <span className="text-[9px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                            <FileText className="w-2.5 h-2.5" />
+                            Suggested from {opt.suggestedFrom}
+                          </span>
+                        )}
+                        <div className="flex items-center gap-1.5">
+                          <Sparkles className={cn("w-3 h-3 flex-shrink-0", isSuggested ? "text-emerald-600" : "text-orange-500")} />
+                          <span className="text-xs font-medium">{opt.value}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
                 <Card
                   className="cursor-pointer border-dashed border-border/60 hover:border-muted-foreground/50 hover:bg-muted/40 transition-colors"
                   onClick={() => handlePromptClick("I don't know")}

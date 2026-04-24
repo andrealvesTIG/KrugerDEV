@@ -368,6 +368,7 @@ export function registerPowerBIAgentRoutes(app: Express) {
           res.end();
         },
         (info) => sendSSE({ intake: info }),
+        (phase) => sendSSE(phase),
       );
 
       logUserActivity(userId, "powerbi_agent_chat", "powerbi_agent_conversation", convId ?? undefined, { organizationId });
