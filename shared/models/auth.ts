@@ -63,6 +63,10 @@ export const users = pgTable("users", {
   // Terms of Service and Privacy Policy consent
   termsAcceptedAt: timestamp("terms_accepted_at"),
 
+  // Per-user notification preferences. Sparse map of "<key>.<channel>" -> boolean.
+  // Missing keys fall back to the catalog default (true) at read time.
+  notificationPreferences: jsonb("notification_preferences").$type<Record<string, boolean>>().default({}),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

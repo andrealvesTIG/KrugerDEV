@@ -2,6 +2,7 @@ import { Resend } from "resend";
 import { sendViaSmtp, getActiveSmtpSettings } from "./smtpEmailSender";
 import { sendViaGraph, getActiveGraphSettings } from "./graphEmailSender";
 import { recordEmailAttempt } from "./emailDeliveryLog";
+import { shouldSendEmailToAddress } from "./userNotificationPreferences";
 
 let resend: Resend | null = null;
 
@@ -339,6 +340,7 @@ export async function sendIntakeStepTransitionEmail(
     appUrl: string;
   }
 ): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(recipientEmail, "intake.stepTransition"))) return false;
   const escapeHtml = (str: string) =>
     String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -461,6 +463,7 @@ export async function sendAccessRequestNotification(
   organizationName: string,
   requestMessage?: string
 ): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(adminEmail, "org.accessRequestReceived"))) return false;
   const subject = `Access Request for ${organizationName} - FridayReport.AI`;
   
   const text = `
@@ -602,6 +605,7 @@ export async function sendTaskAssignmentNotificationEmail(
   endDate: string | null,
   projectUrl: string
 ): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(email, "task_assignment"))) return false;
   const escapeHtml = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
   const safeResourceName = escapeHtml(resourceName);
@@ -692,6 +696,7 @@ export async function sendAccessRequestDecisionNotification(
   approved: boolean,
   reviewerName?: string
 ): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(userEmail, "org.accessRequestDecision"))) return false;
   const subject = `Access Request ${approved ? 'Approved' : 'Declined'} - ${organizationName}`;
   
   const text = approved
@@ -925,13 +930,16 @@ Please follow up with this lead as soon as possible.
 </html>
 `;
 
-  const userSent = await sendEmail({ 
-    to: userEmail, 
-    subject: `Your ${planName} Inquiry - FridayReport.AI`, 
-    text: userText, 
-    html: userHtml 
-  });
-  
+  const userPrefAllows = await shouldSendEmailToAddress(userEmail, "support.enterpriseInquiry");
+  const userSent = userPrefAllows
+    ? await sendEmail({
+        to: userEmail,
+        subject: `Your ${planName} Inquiry - FridayReport.AI`,
+        text: userText,
+        html: userHtml,
+      })
+    : false;
+
   const salesSent = await sendEmail({ 
     to: salesEmail, 
     subject, 
@@ -1092,6 +1100,7 @@ This link will expire in 7 days.
 }
 
 export async function sendWelcomeEmail(email: string, firstName?: string | null): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(email, "account.welcome"))) return false;
   const subject = "Welcome to FridayReport.AI - Thank You for Signing Up!";
   const name = firstName || "there";
   
@@ -1263,6 +1272,7 @@ export async function sendUpgradeOfferEmail({
   customMessage: string;
   senderName: string;
 }): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(to, "marketing.upgradeOffer"))) return false;
   const subject = "Unlock More with FridayReport.AI Pro";
   const appUrl = "https://fridayreport.ai";
 
@@ -1347,8 +1357,9 @@ export async function sendTimesheetSubmissionReminder(
   weekStart: string,
   weekEnd: string,
   hoursLogged: number,
-  appUrl: string
+  appUrl: string,
 ): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(to, "timesheet.submissionReminder"))) return false;
   const urgencyConfig = {
     friendly: {
       emoji: '🕐',
@@ -1417,6 +1428,7 @@ export async function sendManagerApprovalReminder(
   daysOld: number,
   appUrl: string
 ): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(to, "timesheet.approvalReminder"))) return false;
   const isUrgent = daysOld >= 4;
   const subject = isUrgent
     ? `🚨 Urgent: ${pendingEntries.length} timesheets awaiting your approval`
@@ -1481,6 +1493,7 @@ export async function sendTimesheetEscalationEmail(
   thresholdDays: number,
   appUrl: string
 ): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(to, "timesheet.escalation"))) return false;
   const subject = `🔺 Escalation: Timesheets unapproved for ${thresholdDays}+ days (Manager: ${managerName})`;
 
   const namesList = pendingNames.map(n => `• ${n}`).join('\n');
@@ -1534,8 +1547,9 @@ export async function sendManagerWeeklyDigestEmail(
     overdue: string[];
     totalDirectReports: number;
   },
-  appUrl: string
+  appUrl: string,
 ): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(to, "timesheet.weeklyDigest"))) return false;
   const subject = `📋 Weekly Timesheet Digest - ${weekStart}`;
 
   const text = `Hi ${managerName},\n\nWeekly Timesheet Digest for ${weekStart} to ${weekEnd}\n\nSubmitted: ${summary.submitted.length}/${summary.totalDirectReports}\nNot Submitted: ${summary.notSubmitted.join(', ') || 'None'}\nPending Approval: ${summary.pendingApproval.length}\nOverdue: ${summary.overdue.length}\n\nView: ${appUrl}/timesheets\n\n- FridayReport.AI`;
@@ -1606,6 +1620,7 @@ export async function sendManagerWeeklyDigestEmail(
 }
 
 export async function sendUnconSelfieFollowupEmail(email: string, firstName: string, _shareToken: string, brandedImage?: Buffer, rawSelfie?: Buffer | null): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(email, "marketing.event"))) return false;
   const escapeHtml = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const sanitize = (str: string) => str.replace(/[\r\n\x00-\x1f\x7f]/g, '');
   const safeFirstName = escapeHtml(firstName);
@@ -1728,6 +1743,7 @@ https://fridayreport.ai`;
 }
 
 export async function sendUnconSelfieThankYouEmail(email: string, userName: string, brandedImage?: Buffer): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(email, "marketing.event"))) return false;
   const escapeHtml = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const sanitize = (str: string) => str.replace(/[\r\n\x00-\x1f\x7f]/g, '');
   const safeUserName = escapeHtml(userName);

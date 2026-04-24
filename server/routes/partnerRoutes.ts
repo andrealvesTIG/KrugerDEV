@@ -108,9 +108,15 @@ The FridayReport.AI Partnerships Team`;
 </body>
 </html>`;
 
-  sendEmail({ to: email, subject, text, html }).catch(err => {
-    console.error("[partner] Failed to send confirmation email to applicant:", err);
-  });
+  void (async () => {
+    try {
+      const { shouldSendEmailToAddress } = await import("../services/userNotificationPreferences");
+      if (!(await shouldSendEmailToAddress(email, "support.partnerApplication"))) return;
+      await sendEmail({ to: email, subject, text, html });
+    } catch (err) {
+      console.error("[partner] Failed to send confirmation email to applicant:", err);
+    }
+  })();
 }
 
 function sendPartnerNotificationEmail(name: string, email: string, company: string | null, partnerType: string, message: string | null) {

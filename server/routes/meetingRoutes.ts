@@ -589,8 +589,10 @@ export function registerMeetingRoutes(app: Express) {
 
       const textContent = `Meeting Minutes: ${meeting.title}\n${meeting.meetingNumber || ""} | ${meeting.date}\n\n${minutesContent}`;
 
+      const { shouldSendEmailToAddress } = await import("../services/userNotificationPreferences");
       let successCount = 0;
       for (const email of parsed.data.recipients) {
+        if (!(await shouldSendEmailToAddress(email, "report.shared"))) continue;
         const sent = await sendEmail({
           to: email,
           subject: `Meeting Minutes: ${meeting.title} (${meeting.meetingNumber || ""})`,

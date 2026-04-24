@@ -461,7 +461,7 @@ export interface IMiscStorage {
   deleteSystemProjectView(id: number): Promise<void>;
   getNotifications(userId: string, limit?: number, offset?: number): Promise<Notification[]>;
   getUnreadNotificationCount(userId: string): Promise<number>;
-  createNotification(notification: InsertNotification): Promise<Notification>;
+  createNotification(notification: InsertNotification): Promise<Notification | null>;
   markNotificationRead(id: number): Promise<void>;
   markAllNotificationsRead(userId: string): Promise<void>;
   getStatusReportHistory(projectId: number): Promise<StatusReportHistory[]>;
