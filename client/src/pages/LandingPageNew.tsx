@@ -15,6 +15,7 @@ import { IndustrySolutionsMenu, IndustrySolutionsMobileLinks } from "@/component
 import { EventsMenu, EventsMobileLinks } from "@/components/EventsMenu";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import demoVideo from "@assets/30_sec_video_1771015821657.mp4";
+import { trackLinkedInSignupConversion } from "@/lib/linkedinTracking";
 import clientLogo1 from "@assets/client-logo-1.png";
 import clientLogo2 from "@assets/client-logo-2.png";
 import clientLogo3 from "@assets/client-logo-3.png";
@@ -71,10 +72,12 @@ export default function LandingPageNew() {
   });
 
   const handleGoogleSignIn = () => {
+    trackLinkedInSignupConversion();
     window.location.href = "/api/auth/google/login?source=signup";
   };
 
   const handleMicrosoftSignIn = () => {
+    trackLinkedInSignupConversion();
     window.location.href = "/api/auth/microsoft/login?source=signup";
   };
 
@@ -82,6 +85,8 @@ export default function LandingPageNew() {
     e.preventDefault();
     if (!email.trim()) return;
     if (!termsAccepted) return;
+
+    trackLinkedInSignupConversion();
 
     const honeypotPayload = honeypotData ? {
       honeypot1: honeypotData.honeypot1,
