@@ -1,7 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useUserJourney } from "@/hooks/use-user-journey";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { X, ChevronRight, ChevronLeft, Sparkles } from "lucide-react";
+
+interface ConsentStatus {
+  currentTermsVersion: string;
+  currentPrivacyVersion: string;
+  termsAccepted: boolean;
+  privacyAccepted: boolean;
+  needsConsent: boolean;
+}
 
 interface TourStep {
   target: string;
@@ -45,10 +55,19 @@ const TOUR_STEPS: TourStep[] = [
 
 export function GuidedTour() {
   const { shouldShowTour, completeTour } = useUserJourney();
+  const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 });
   const [visible, setVisible] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
+
+  const { data: consentStatus, isLoading: consentLoading } = useQuery<ConsentStatus>({
+    queryKey: ["/api/consents/status"],
+    enabled: !!user,
+    refetchOnWindowFocus: false,
+  });
+
+  const consentBlocking = !!user && (consentLoading || consentStatus?.needsConsent === true);
 
   const positionTooltip = useCallback(() => {
     if (!shouldShowTour || currentStep >= TOUR_STEPS.length) return;
@@ -88,10 +107,13 @@ export function GuidedTour() {
   }, [currentStep, shouldShowTour]);
 
   useEffect(() => {
-    if (!shouldShowTour) return;
+    if (!shouldShowTour || consentBlocking) {
+      setVisible(false);
+      return;
+    }
     const timer = setTimeout(() => setVisible(true), 500);
     return () => clearTimeout(timer);
-  }, [shouldShowTour]);
+  }, [shouldShowTour, consentBlocking]);
 
   useEffect(() => {
     if (!visible) return;
@@ -100,7 +122,7 @@ export function GuidedTour() {
     return () => window.removeEventListener("resize", positionTooltip);
   }, [visible, positionTooltip]);
 
-  if (!shouldShowTour || !visible) return null;
+  if (!shouldShowTour || consentBlocking || !visible) return null;
 
   const step = TOUR_STEPS[currentStep];
   const isLast = currentStep === TOUR_STEPS.length - 1;
