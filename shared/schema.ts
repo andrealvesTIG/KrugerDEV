@@ -42,6 +42,20 @@ export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 export const DEFAULT_TASK_STATUS: string = TASK_STATUS.NOT_STARTED;
 export const DEFAULT_TASK_PRIORITY: string = TASK_PRIORITY.MEDIUM;
 
+// Canonical issue status/priority lists. Keep aligned with the OpenAPI spec
+// (server/openapi-schemas.ts) and the column comments on the issues table.
+export const ISSUE_STATUSES = ["Open", "In Progress", "Pending", "Resolved", "Closed", "Escalated"] as const;
+export const ISSUE_PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
+export type IssueStatus = (typeof ISSUE_STATUSES)[number];
+export type IssuePriority = (typeof ISSUE_PRIORITIES)[number];
+
+// Canonical risk status/priority lists. Risks share the issues table but use
+// their own status vocabulary (see issues.status column comment).
+export const RISK_STATUSES = ["Identified", "Open", "In Mitigation", "Mitigated", "Closed", "Accepted"] as const;
+export const RISK_PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
+export type RiskStatus = (typeof RISK_STATUSES)[number];
+export type RiskPriority = (typeof RISK_PRIORITIES)[number];
+
 // Audit trail: fields tracked by the risk update history.
 // Names MUST match Drizzle camelCase column properties on the issues table
 // (e.g. mitigationPlan, ownerId — not "mitigation"/"owner").
@@ -63,6 +77,34 @@ export const projectPriorityEnum = z.enum(PROJECT_PRIORITIES);
 export const billableStatusEnum = z.enum(BILLABLE_STATUSES);
 export const taskStatusEnum = z.enum(TASK_STATUSES);
 export const taskPriorityEnum = z.enum(TASK_PRIORITIES);
+export const issueStatusEnum = z.enum(ISSUE_STATUSES);
+export const issuePriorityEnum = z.enum(ISSUE_PRIORITIES);
+export const riskStatusEnum = z.enum(RISK_STATUSES);
+export const riskPriorityEnum = z.enum(RISK_PRIORITIES);
+
+// Build a friendly error message for invalid enum values that lists every
+// allowed option, e.g. "status: Invalid value 'Done'. Allowed values: Not
+// Started, In Progress, On Hold, Completed, Cancelled". Used by the task /
+// issue / risk insert schemas so API clients get an actionable response
+// instead of Zod's terse default.
+//
+// Implemented with z.string().refine(...) (rather than z.enum) so the inferred
+// TypeScript type stays a wide `string`. This keeps the runtime contract
+// strict (invalid values are rejected with a clear message) while preserving
+// compatibility with the many callers that still pass string-typed status /
+// priority values into insert / update payloads.
+function enumWithMessage<T extends readonly [string, ...string[]]>(values: T, fieldLabel: string) {
+  const allowed = values.join(", ");
+  const allowedSet = new Set<string>(values);
+  return z.string().superRefine((value, ctx) => {
+    if (!allowedSet.has(value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Invalid ${fieldLabel} '${value}'. Allowed values: ${allowed}`,
+      });
+    }
+  });
+}
 
 export const fridayAgentConfigSchema = z.object({
   useOrgAzure: z.boolean().default(false),
@@ -2290,6 +2332,11 @@ export const insertRiskSchema = baseRiskSchema.extend({
   // Force itemType to "risk" so the shared issues table cannot be used to insert
   // non-risk rows through the risk endpoints.
   itemType: z.literal("risk").default("risk"),
+  // Enforce canonical enum values so callers cannot persist arbitrary strings
+  // for status or priority. Both columns are nullable in the DB and have
+  // defaults, so we keep them nullable + optional here.
+  status: enumWithMessage(RISK_STATUSES, "status").nullable().optional(),
+  priority: enumWithMessage(RISK_PRIORITIES, "priority").nullable().optional(),
 });
 /** @deprecated Renamed to Portfolio Key Dates. Schema kept for backward compatibility. */
 export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true }).extend({
@@ -2309,6 +2356,11 @@ const baseIssueSchema = createInsertSchema(issues).omit({ id: true, createdAt: t
 export const insertIssueSchema = baseIssueSchema.extend({
   escalatedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),
   type: issueTypeEnum.default("Bug").optional(),
+  // Enforce canonical enum values so callers cannot persist arbitrary strings
+  // for status or priority. Both columns are nullable in the DB and have
+  // defaults, so we keep them nullable + optional here.
+  status: enumWithMessage(ISSUE_STATUSES, "status").nullable().optional(),
+  priority: enumWithMessage(ISSUE_PRIORITIES, "priority").nullable().optional(),
 });
 export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true }).extend({
   durationDays: z.number().min(0).max(36500).nullable().optional(),
@@ -2316,6 +2368,11 @@ export const insertTaskSchema = createInsertSchema(tasks).omit({ id: true, creat
   endDate: z.string().nullable().optional(),
   isOngoing: z.boolean().optional(),
   schedulingMode: z.enum(['auto', 'manual']).optional(),
+  // Enforce canonical enum values so callers cannot persist arbitrary strings
+  // for status or priority. Both columns are nullable in the DB and have
+  // defaults, so we keep them nullable + optional here.
+  status: enumWithMessage(TASK_STATUSES, "status").nullable().optional(),
+  priority: enumWithMessage(TASK_PRIORITIES, "priority").nullable().optional(),
 });
 export const insertTaskChangeLogSchema = createInsertSchema(taskChangeLogs).omit({ id: true, changedAt: true });
 export const insertTaskNotesHistorySchema = createInsertSchema(taskNotesHistory).omit({ id: true, changedAt: true });

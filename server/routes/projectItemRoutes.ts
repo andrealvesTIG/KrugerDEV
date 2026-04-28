@@ -5,7 +5,7 @@ import { db } from "../db";
 import { z } from "zod";
 import Papa from "papaparse";
 import { and, desc, asc, eq } from "drizzle-orm";
-import { issues, tasks, projects, portfolios, type Task, RISK_TRACKED_FIELDS } from "@shared/schema";
+import { issues, tasks, projects, portfolios, type Task, RISK_TRACKED_FIELDS, TASK_STATUSES, TASK_PRIORITIES } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -1495,11 +1495,25 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
+  // Friendly enum error messages for the bulk-update endpoints — mirrors the
+  // enumWithMessage helper used by insertTaskSchema so callers always see the
+  // allowed list (kept as a local errorMap here to avoid a circular import).
+  const bulkTaskStatusEnum = z.enum(TASK_STATUSES, {
+    errorMap: (issue, ctx) => issue.code === z.ZodIssueCode.invalid_enum_value
+      ? { message: `Invalid status '${String(ctx.data)}'. Allowed values: ${TASK_STATUSES.join(", ")}` }
+      : { message: ctx.defaultError },
+  });
+  const bulkTaskPriorityEnum = z.enum(TASK_PRIORITIES, {
+    errorMap: (issue, ctx) => issue.code === z.ZodIssueCode.invalid_enum_value
+      ? { message: `Invalid priority '${String(ctx.data)}'. Allowed values: ${TASK_PRIORITIES.join(", ")}` }
+      : { message: ctx.defaultError },
+  });
+
   const bulkUpdateSchema = z.object({
     taskIds: z.array(z.number()).optional(),
     updates: z.object({
       progress: z.number().min(0).max(100).optional(),
-      status: z.string().optional(),
+      status: bulkTaskStatusEnum.optional(),
       timesheetBlocked: z.boolean().optional(),
     }).optional(),
     taskUpdates: z.array(z.object({
@@ -1512,8 +1526,8 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         endDate: z.string().nullable().optional(),
         durationDays: z.number().nullable().optional(),
         progress: z.number().min(0).max(100).nullable().optional(),
-        status: z.string().nullable().optional(),
-        priority: z.string().nullable().optional(),
+        status: bulkTaskStatusEnum.nullable().optional(),
+        priority: bulkTaskPriorityEnum.nullable().optional(),
         taskType: z.string().nullable().optional(),
         estimatedHours: z.number().nullable().optional(),
         actualHours: z.number().nullable().optional(),
