@@ -41,15 +41,22 @@ import {
   referralCodes,
   users,
   plans,
+  PROJECT_STATUSES_EXTENDED,
+  PROJECT_HEALTH_VALUES,
+  PROJECT_PRIORITIES,
+  TASK_STATUSES,
+  TASK_PRIORITIES,
 } from '@shared/schema';
 
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 
 const STATUS_ENUMS = {
-  project: ['Initiation', 'Planning', 'Execution', 'Monitoring', 'Closing', 'Billing', 'On Hold', 'Cancelled', 'Closed'],
-  task: ['Not Started', 'In Progress', 'On Hold', 'Completed', 'Cancelled'],
-  priority: ['Low', 'Medium', 'High', 'Critical'],
-  health: ['Green', 'Yellow', 'Red'],
+  // Sourced from shared/schema.ts to prevent drift between the OpenAPI spec
+  // and the runtime validators / UI dropdowns.
+  project: [...PROJECT_STATUSES_EXTENDED, 'On Hold', 'Cancelled'],
+  task: [...TASK_STATUSES],
+  priority: [...PROJECT_PRIORITIES],
+  health: [...PROJECT_HEALTH_VALUES],
   riskTolerance: ['Low', 'Medium', 'High'],
   portfolioStatus: ['Active', 'On Hold', 'Closed', 'Archived'],
   taskType: ['Work', 'Milestone', 'Summary', 'Fixed Duration', 'Fixed Units', 'Ongoing'],
@@ -59,7 +66,7 @@ const STATUS_ENUMS = {
   probability: ['Very Low', 'Low', 'Medium', 'High', 'Very High'],
   impact: ['Very Low', 'Low', 'Medium', 'High', 'Very High'],
   responseStrategy: ['Avoid', 'Transfer', 'Mitigate', 'Accept'],
-  milestoneStatus: ['Backlog', 'To Do', 'In Progress', 'Done', 'Delayed'],
+  milestoneStatus: ['Backlog', 'To Do', 'In Progress', 'Completed', 'Delayed'],
   severity: ['Minor', 'Moderate', 'Major', 'Critical', 'Blocker'],
   issueType: ['Bug', 'Enhancement', 'Task', 'Question', 'Defect', 'Support'],
   escalationLevel: ['None', 'Team Lead', 'Manager', 'Director', 'Executive'],

@@ -114,10 +114,10 @@ export async function runMeetingAgenda(agentId: number, projectId: number): Prom
   const contextSummary = `
 Project: ${ctx.project.name}
 Completion: ${ctx.completionPct}%
-Recently completed: ${ctx.completedTasks.map(t => `- ${t.title}`).join('\n') || 'None'}
-In progress: ${ctx.inProgressTasks.map(t => `- ${t.title} (${t.progress || 0}%)`).join('\n') || 'None'}
-Upcoming deadlines (7 days): ${ctx.upcomingDeadlines.map(t => `- ${t.title} (due ${t.endDate})`).join('\n') || 'None'}
-Overdue: ${ctx.overdueTasks.map(t => `- ${t.title} (was due ${t.endDate})`).join('\n') || 'None'}
+Recently completed: ${ctx.completedTasks.map(t => `- ${t.name}`).join('\n') || 'None'}
+In progress: ${ctx.inProgressTasks.map(t => `- ${t.name} (${t.progress || 0}%)`).join('\n') || 'None'}
+Upcoming deadlines (7 days): ${ctx.upcomingDeadlines.map(t => `- ${t.name} (due ${t.endDate})`).join('\n') || 'None'}
+Overdue: ${ctx.overdueTasks.map(t => `- ${t.name} (was due ${t.endDate})`).join('\n') || 'None'}
 Open issues: ${ctx.openIssues.map(i => `- [${i.priority || 'medium'}] ${i.title}`).join('\n') || 'None'}`;
 
   try {
@@ -137,7 +137,9 @@ Open issues: ${ctx.openIssues.map(i => `- [${i.priority || 'medium'}] ${i.title}
     const subject = `Meeting Agenda: ${ctx.project.name}`;
     const emailHtml = wrapEmailHtml("Weekly Meeting Agenda", agendaHtml, ctx.project.name);
 
+    const { shouldSendEmailToAddress } = await import("./userNotificationPreferences");
     for (const to of recipients) {
+      if (!(await shouldSendEmailToAddress(to, "ai.meetingAgenda"))) continue;
       await sendEmail({ to, subject, text: `Meeting agenda for ${ctx.project.name}`, html: emailHtml });
     }
 
@@ -172,9 +174,9 @@ export async function runTaskFollowUp(agentId: number, projectId: number): Promi
 
   if (stakeholders.managerEmail) {
     const allIncompleteTasks = ctx.allTasks.filter(t => t.status !== 'completed' && t.status !== 'cancelled');
-    const overdueSection = overdueTasks.map(t => `<li><strong>${t.title}</strong> — due ${t.endDate}</li>`).join('');
-    const inProgressSection = ctx.inProgressTasks.map(t => `<li>${t.title} (${t.progress || 0}%)</li>`).join('');
-    const notStartedSection = allIncompleteTasks.filter(t => t.status === 'not_started' || !t.status).map(t => `<li>${t.title}</li>`).join('');
+    const overdueSection = overdueTasks.map(t => `<li><strong>${t.name}</strong> — due ${t.endDate}</li>`).join('');
+    const inProgressSection = ctx.inProgressTasks.map(t => `<li>${t.name} (${t.progress || 0}%)</li>`).join('');
+    const notStartedSection = allIncompleteTasks.filter(t => t.status === 'not_started' || !t.status).map(t => `<li>${t.name}</li>`).join('');
 
     let digestHtml = `<h3>PM Digest: All Incomplete Tasks</h3>`;
     if (overdueSection) digestHtml += `<h4 style="color:#ef4444">Overdue (${overdueTasks.length})</h4><ul>${overdueSection}</ul>`;
@@ -182,13 +184,16 @@ export async function runTaskFollowUp(agentId: number, projectId: number): Promi
     if (notStartedSection) digestHtml += `<h4 style="color:#6b7280">Not Started</h4><ul>${notStartedSection}</ul>`;
 
     const emailHtml = wrapEmailHtml("Task Follow-Up Digest", digestHtml, ctx.project.name);
-    await sendEmail({
-      to: stakeholders.managerEmail,
-      subject: `Task Follow-Up: ${ctx.project.name} — ${overdueTasks.length} overdue`,
-      text: `Task follow-up digest for ${ctx.project.name}`,
-      html: emailHtml,
-    });
-    allRecipients.push(stakeholders.managerEmail);
+    const { shouldSendEmailToAddress } = await import("./userNotificationPreferences");
+    if (await shouldSendEmailToAddress(stakeholders.managerEmail, "ai.followUp")) {
+      await sendEmail({
+        to: stakeholders.managerEmail,
+        subject: `Task Follow-Up: ${ctx.project.name} — ${overdueTasks.length} overdue`,
+        text: `Task follow-up digest for ${ctx.project.name}`,
+        html: emailHtml,
+      });
+      allRecipients.push(stakeholders.managerEmail);
+    }
   }
 
   await logAgentAction(agentId, projectId, "task_follow_up",
@@ -240,7 +245,9 @@ export async function runStatusReport(agentId: number, projectId: number): Promi
   const emailHtml = wrapEmailHtml("Weekly Status Report", reportHtml, ctx.project.name);
 
   try {
+    const { shouldSendEmailToAddress } = await import("./userNotificationPreferences");
     for (const to of recipients) {
+      if (!(await shouldSendEmailToAddress(to, "ai.statusReport"))) continue;
       await sendEmail({ to, subject, text: `Status report for ${ctx.project.name}`, html: emailHtml });
     }
     await logAgentAction(agentId, projectId, "status_report", subject, recipients, "success", null, reportHtml.substring(0, 2000));

@@ -1,5 +1,5 @@
 import { billingProvider } from "./billing";
-import { v4 as uuidv4 } from "crypto";
+import { randomUUID } from "crypto";
 
 export async function checkAndRecordUsage(params: {
   userId: string;
@@ -15,7 +15,7 @@ export async function checkAndRecordUsage(params: {
       return { allowed: false, error: check.reason };
     }
     
-    const requestId = `${params.action}-${params.userId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const requestId = `${params.action}-${params.userId}-${Date.now()}-${randomUUID()}`;
     
     const result = await billingProvider.recordUsage({
       subscriptionId: subscription.id,
@@ -64,7 +64,7 @@ export async function recordUsageOnly(params: {
 }): Promise<void> {
   try {
     const subscription = await billingProvider.ensureUserHasSubscription(params.userId);
-    const requestId = `${params.action}-${params.userId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const requestId = `${params.action}-${params.userId}-${Date.now()}-${randomUUID()}`;
     
     await billingProvider.recordUsage({
       subscriptionId: subscription.id,

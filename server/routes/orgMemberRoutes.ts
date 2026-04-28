@@ -3,7 +3,10 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
-import { users, organizationInvites, plans, subscriptions, billingAuditLogs, notifications, type Task } from "@shared/schema";
+import { users, organizationInvites, plans, subscriptions, billingAuditLogs, notifications, passwordResetTokens, type Task } from "@shared/schema";
+import crypto from "crypto";
+import { sendPasswordResetEmail } from "../services/email";
+import { hashPassword } from "../auth/emailAuth";
 import type { User } from "@shared/models/auth";
 import {
   classifyError,
@@ -1091,6 +1094,133 @@ export function registerOrgMemberRoutes(app: Express) {
     } catch (err) {
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update member role' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'post', '/api/organizations/:id/members/:userId/send-password-reset', {
+    tag: 'Organization Members',
+    summary: 'Generate temporary password reset link and email it to a member',
+    parameters: [pathId(), pathStr('userId')],
+    responses: { ...r200('Reset link emailed', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes },
+  }, async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const currentUserId = getUserIdFromRequest(req);
+
+      if (!currentUserId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      if (!await userHasOrgAccess(currentUserId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      const members = await storage.getOrganizationMembers(orgId);
+      const requesterMembership = members.find(m => m.userId === currentUserId);
+      if (!requesterMembership || (requesterMembership.role !== 'owner' && requesterMembership.role !== 'org_admin')) {
+        const [currentUser] = await db.select().from(users).where(eq(users.id, currentUserId));
+        if (!hasAdminAccess(currentUser)) {
+          return res.status(403).json({ message: 'Only organization owners and admins can send password reset links' });
+        }
+      }
+
+      const targetUserId = req.params.userId;
+      const targetMembership = members.find(m => m.userId === targetUserId);
+      if (!targetMembership) {
+        return res.status(404).json({ message: 'Member not found in this organization' });
+      }
+
+      const [targetUser] = await db.select().from(users).where(eq(users.id, targetUserId)).limit(1);
+      if (!targetUser || !targetUser.email) {
+        return res.status(404).json({ message: 'User not found or has no email on file' });
+      }
+
+      // Invalidate any existing reset tokens for this user
+      await db.update(passwordResetTokens)
+        .set({ usedAt: new Date() })
+        .where(eq(passwordResetTokens.userId, targetUser.id));
+
+      // Generate a fresh secure token
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+      await db.insert(passwordResetTokens).values({
+        userId: targetUser.id,
+        token,
+        expiresAt,
+      });
+
+      const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+      const resetUrl = `${baseUrl.replace(/\/$/, '')}/reset-password?token=${token}`;
+
+      const emailSent = await sendPasswordResetEmail(targetUser.email, resetUrl);
+      if (!emailSent) {
+        console.warn(`[org-members] Password reset email could not be sent to ${targetUser.email} (no email service configured)`);
+        return res.status(502).json({ message: 'Reset link generated but email could not be sent. Check email service configuration.' });
+      }
+
+      res.json({ message: 'Password reset link emailed successfully' });
+    } catch (err) {
+      console.error('Error sending password reset link:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to send password reset link' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'post', '/api/organizations/:id/members/:userId/generate-temp-password', {
+    tag: 'Organization Members',
+    summary: 'Generate a one-time temporary password for a member',
+    parameters: [pathId(), pathStr('userId')],
+    responses: { ...r200('Temporary password generated', { type: 'object', properties: { tempPassword: { type: 'string' }, email: { type: 'string' } } }), ...fullRes },
+  }, async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const currentUserId = getUserIdFromRequest(req);
+
+      if (!currentUserId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      if (!await userHasOrgAccess(currentUserId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      const members = await storage.getOrganizationMembers(orgId);
+      const requesterMembership = members.find(m => m.userId === currentUserId);
+      if (!requesterMembership || (requesterMembership.role !== 'owner' && requesterMembership.role !== 'org_admin')) {
+        const [currentUser] = await db.select().from(users).where(eq(users.id, currentUserId));
+        if (!hasAdminAccess(currentUser)) {
+          return res.status(403).json({ message: 'Only organization owners and admins can generate temporary passwords' });
+        }
+      }
+
+      const targetUserId = req.params.userId;
+      const targetMembership = members.find(m => m.userId === targetUserId);
+      if (!targetMembership) {
+        return res.status(404).json({ message: 'Member not found in this organization' });
+      }
+
+      const [targetUser] = await db.select().from(users).where(eq(users.id, targetUserId)).limit(1);
+      if (!targetUser) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      // Generate a 16-char readable random password (hex is unambiguous)
+      const tempPassword = crypto.randomBytes(9).toString('base64').replace(/[+/=]/g, '').slice(0, 12) + 'A1!';
+      const hash = await hashPassword(tempPassword);
+
+      await db.update(users).set({ passwordHash: hash }).where(eq(users.id, targetUser.id));
+
+      // Invalidate any pending reset tokens so the temp password is the only valid path
+      await db.update(passwordResetTokens)
+        .set({ usedAt: new Date() })
+        .where(eq(passwordResetTokens.userId, targetUser.id));
+
+      res.json({ tempPassword, email: targetUser.email });
+    } catch (err) {
+      console.error('Error generating temporary password:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to generate temporary password' : classified.message });
     }
   });
 

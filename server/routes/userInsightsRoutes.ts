@@ -547,6 +547,11 @@ export function registerUserInsightsRoutes(app: Express) {
         || 'FridayReport.AI Team';
 
       const { sendEmail } = await import("../services/email");
+      const { shouldSendEmailToAddress } = await import("../services/userNotificationPreferences");
+      if (!(await shouldSendEmailToAddress(target.email, "support.adminMessage"))) {
+        return res.json({ ok: true, skipped: true, reason: "Recipient opted out of admin direct messages" });
+      }
+
       const text = `${message}\n\n— ${adminName}`;
       const html = `<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:14px;line-height:1.5;color:#111">`
         + message.replace(/\n/g, '<br/>')

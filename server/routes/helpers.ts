@@ -751,7 +751,7 @@ async function seedDatabase() {
       dueDate: "2025-02-28",
       startDate: "2025-01-01",
       completed: true,
-      status: "Done",
+      status: "Completed",
       priority: "Critical",
       assignee: "Alex Chen"
     });
@@ -800,7 +800,7 @@ async function seedDatabase() {
       dueDate: "2025-01-31",
       startDate: "2024-11-01",
       completed: true,
-      status: "Done",
+      status: "Completed",
       priority: "Critical",
       assignee: "David Park"
     });
@@ -837,7 +837,7 @@ async function seedDatabase() {
       dueDate: "2025-01-31",
       startDate: "2024-12-01",
       completed: true,
-      status: "Done",
+      status: "Completed",
       priority: "High",
       assignee: "Chris Lee"
     });

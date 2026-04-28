@@ -142,7 +142,7 @@ function taskToMilestone(task: Task): Milestone {
     baselineDueDate: task.baselineEndDate ?? null,
     actualCompletionDate: task.actualEndDate ?? null,
     startDate: task.startDate ?? null,
-    completed: task.status === 'Done' || task.status === 'Completed' || task.progress === 100,
+    completed: task.status === 'Completed' || task.progress === 100,
     status: task.status,
     priority: task.priority,
     ownerId: task.ownerId ?? null,
@@ -170,6 +170,13 @@ export async function getMilestones(projectId: number): Promise<Milestone[]> {
   return rows.map(taskToMilestone);
 }
 
+export async function getMilestone(id: number): Promise<Milestone | undefined> {
+  const [row] = await db.select().from(tasks).where(
+    and(eq(tasks.id, id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone'), isNull(tasks.deletedAt))
+  );
+  return row ? taskToMilestone(row) : undefined;
+}
+
 export async function getAllMilestones(): Promise<Milestone[]> {
   const rows = await db.select().from(tasks).where(
     and(eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone'), isNull(tasks.deletedAt))
@@ -189,7 +196,7 @@ export async function createMilestone(milestone: InsertMilestone): Promise<Miles
     endDate: milestone.dueDate,
     baselineEndDate: milestone.baselineDueDate ?? null,
     actualEndDate: milestone.actualCompletionDate ?? null,
-    status: milestone.status ?? (milestone.completed ? 'Done' : 'Not Started'),
+    status: milestone.status ?? (milestone.completed ? 'Completed' : 'Not Started'),
     progress: milestone.completed ? 100 : 0,
     assignee: milestone.assignee ?? null,
     ownerId: milestone.ownerId ?? null,
@@ -231,7 +238,7 @@ export async function updateMilestone(id: number, updates: UpdateMilestoneReques
   if (updates.completed !== undefined) {
     taskUpdates.progress = updates.completed ? 100 : 0;
     if (updates.status === undefined) {
-      taskUpdates.status = updates.completed ? 'Done' : 'Not Started';
+      taskUpdates.status = updates.completed ? 'Completed' : 'Not Started';
     }
     if (updates.completed && updates.actualCompletionDate === undefined) {
       taskUpdates.actualEndDate = new Date();

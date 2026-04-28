@@ -155,7 +155,7 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
               { title: 'Application Downtime', description: 'Extended downtime during cutover may impact business', probability: 'Medium', impact: 'High', status: 'Open', mitigationPlan: 'Schedule migrations during off-peak hours, use blue-green deployment', costExposure: '120000' },
             ],
             milestones: [
-              { title: 'Infrastructure Assessment Complete', description: 'All VMs inventoried and prioritized', dueDaysFromNow: -30, completed: true, status: 'Done', priority: 'High', assignee: 'Michael Chen' },
+              { title: 'Infrastructure Assessment Complete', description: 'All VMs inventoried and prioritized', dueDaysFromNow: -30, completed: true, status: 'Completed', priority: 'High', assignee: 'Michael Chen' },
               { title: 'Network Connectivity Established', description: 'Hybrid connectivity operational', dueDaysFromNow: 60, completed: false, status: 'In Progress', priority: 'Critical', assignee: 'Sarah Johnson' },
             ],
             issues: [
@@ -244,7 +244,7 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
               { title: 'User Adoption Resistance', description: 'Employees may resist new authentication requirements', probability: 'High', impact: 'Medium', status: 'Open', mitigationPlan: 'Comprehensive training program, phased rollout with pilot groups', costExposure: '200000' },
             ],
             milestones: [
-              { title: 'Phase 1: Identity Go-Live', description: 'Identity integration complete for all users', dueDaysFromNow: -45, completed: true, status: 'Done', priority: 'Critical', assignee: 'Alex Thompson' },
+              { title: 'Phase 1: Identity Go-Live', description: 'Identity integration complete for all users', dueDaysFromNow: -45, completed: true, status: 'Completed', priority: 'Critical', assignee: 'Alex Thompson' },
               { title: 'Phase 2: Application Access', description: 'All applications protected with conditional access', dueDaysFromNow: 90, completed: false, status: 'In Progress', priority: 'High', assignee: 'Jennifer Wu' },
             ],
             issues: [
@@ -339,7 +339,7 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
               { title: 'State Licensing Requirements', description: 'Varying state licensing for telehealth practitioners', probability: 'Medium', impact: 'High', status: 'Open', mitigationPlan: 'Engage legal team for state-by-state compliance review', costExposure: '350000' },
             ],
             milestones: [
-              { title: 'Vendor Selection', description: 'Final telehealth platform vendor selected', dueDaysFromNow: -15, completed: true, status: 'Done', priority: 'High', assignee: 'IT Director' },
+              { title: 'Vendor Selection', description: 'Final telehealth platform vendor selected', dueDaysFromNow: -15, completed: true, status: 'Completed', priority: 'High', assignee: 'IT Director' },
               { title: 'Pilot Program Launch', description: 'Launch pilot with primary care department', dueDaysFromNow: 90, completed: false, status: 'In Progress', priority: 'Critical', assignee: 'Program Manager' },
             ],
             issues: [
@@ -425,7 +425,7 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
               { title: 'App Store Rejection', description: 'New features may violate app store guidelines', probability: 'Low', impact: 'High', status: 'Open', mitigationPlan: 'Early submission to TestFlight/Play Beta', costExposure: '180000' },
             ],
             milestones: [
-              { title: 'Design Freeze', description: 'Final design approved for development', dueDaysFromNow: -20, completed: true, status: 'Done', priority: 'High', assignee: 'Product Owner' },
+              { title: 'Design Freeze', description: 'Final design approved for development', dueDaysFromNow: -20, completed: true, status: 'Completed', priority: 'High', assignee: 'Product Owner' },
               { title: 'Internal Beta', description: 'Employee beta testing phase', dueDaysFromNow: 60, completed: false, status: 'In Progress', priority: 'High', assignee: 'QA Lead' },
               { title: 'Public Launch', description: 'App store release', dueDaysFromNow: 120, completed: false, status: 'Backlog', priority: 'Critical', assignee: 'Release Manager' },
             ],
@@ -468,7 +468,7 @@ export const industryTemplates: Record<Industry, DemoDataTemplate> = {
               { title: 'Regulatory Non-Compliance', description: 'APIs may not fully meet PSD2 RTS requirements', probability: 'Medium', impact: 'Critical', status: 'Open', mitigationPlan: 'Engage regulatory specialist for compliance review', costExposure: '40000' },
             ],
             milestones: [
-              { title: 'API Gateway Live', description: 'Production API gateway deployed', dueDaysFromNow: -60, completed: true, status: 'Done', priority: 'Critical', assignee: 'Platform Lead' },
+              { title: 'API Gateway Live', description: 'Production API gateway deployed', dueDaysFromNow: -60, completed: true, status: 'Completed', priority: 'Critical', assignee: 'Platform Lead' },
               { title: 'First TPP Integration', description: 'First third-party successfully integrated', dueDaysFromNow: 45, completed: false, status: 'In Progress', priority: 'High', assignee: 'Integration Lead' },
             ],
             issues: [

@@ -120,6 +120,20 @@ export function registerOrganizationRoutes(app: Express) {
         userId: safeOwnerId, 
         role: 'org_admin' 
       });
+      // Seed default intake & project workflows (best-effort)
+      try {
+        await storage.ensureDefaultIntakeWorkflow(org.id);
+        await storage.ensureDefaultProjectWorkflow(org.id);
+      } catch (wfErr) {
+        console.error("Failed to seed default workflows for new org:", wfErr);
+      }
+      // Auto-apply the Generic PMO project tab template (best-effort)
+      try {
+        const { applyDefaultTemplateToOrg } = await import("../services/projectTabTemplateSeed");
+        await applyDefaultTemplateToOrg(org.id, safeOwnerId);
+      } catch (templateErr) {
+        console.error("Failed to apply default project tab template to new organization:", templateErr);
+      }
       // Auto-assign FREE plan subscription to new organization
       try {
         const { billingProvider } = await import("../services/billing");

@@ -1,4 +1,8 @@
 import { Resend } from "resend";
+import { sendViaSmtp, getActiveSmtpSettings } from "./smtpEmailSender";
+import { sendViaGraph, getActiveGraphSettings } from "./graphEmailSender";
+import { recordEmailAttempt } from "./emailDeliveryLog";
+import { shouldSendEmailToAddress } from "./userNotificationPreferences";
 
 let resend: Resend | null = null;
 
@@ -39,6 +43,44 @@ export async function sendEmail({
   cc?: string[];
   attachments?: EmailAttachment[];
 }): Promise<boolean> {
+  const ccCount = cc?.length || 0;
+  const hasAttachments = !!(attachments && attachments.length > 0);
+
+  // Prefer system-configured Microsoft Graph (Entra ID) when enabled.
+  const graphSettings = await getActiveGraphSettings();
+  if (graphSettings) {
+    const result = await sendViaGraph({ to, subject, text, html, cc, attachments });
+    await recordEmailAttempt({
+      recipient: to,
+      subject,
+      provider: "graph",
+      status: result.ok ? "sent" : "failed",
+      errorMessage: result.ok ? null : result.error,
+      ccCount,
+      hasAttachments,
+    });
+    if (result.ok) return true;
+    console.warn("Microsoft Graph send failed; trying SMTP/Resend fallback");
+  }
+
+  // Otherwise prefer system-configured SMTP (e.g. Office 365) when enabled.
+  const smtpSettings = await getActiveSmtpSettings();
+  if (smtpSettings) {
+    const result = await sendViaSmtp({ to, subject, text, html, cc, from, attachments });
+    await recordEmailAttempt({
+      recipient: to,
+      subject,
+      provider: "smtp",
+      status: result.ok ? "sent" : "failed",
+      errorMessage: result.ok ? null : result.error,
+      messageId: result.messageId,
+      ccCount,
+      hasAttachments,
+    });
+    if (result.ok) return true;
+    console.warn("SMTP send failed; falling back to Resend if available");
+  }
+
   const client = getResendClient();
   
   if (!client) {
@@ -51,6 +93,15 @@ export async function sendEmail({
     if (attachments) {
       console.log("Attachments:", attachments.map(a => a.filename).join(", "));
     }
+    await recordEmailAttempt({
+      recipient: to,
+      subject,
+      provider: "resend",
+      status: "failed",
+      errorMessage: "Resend not configured (RESEND_API_KEY missing)",
+      ccCount,
+      hasAttachments,
+    });
     return false;
   }
 
@@ -97,13 +148,40 @@ export async function sendEmail({
 
     if (error) {
       console.error("Failed to send email:", error);
+      await recordEmailAttempt({
+        recipient: to,
+        subject,
+        provider: "resend",
+        status: "failed",
+        errorMessage: typeof error === "string" ? error : (error as any)?.message || JSON.stringify(error),
+        ccCount,
+        hasAttachments,
+      });
       return false;
     }
 
     console.log(`Email sent successfully to ${to}, ID: ${data?.id}`);
+    await recordEmailAttempt({
+      recipient: to,
+      subject,
+      provider: "resend",
+      status: "sent",
+      messageId: data?.id || null,
+      ccCount,
+      hasAttachments,
+    });
     return true;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to send email:", error);
+    await recordEmailAttempt({
+      recipient: to,
+      subject,
+      provider: "resend",
+      status: "failed",
+      errorMessage: error?.message || String(error),
+      ccCount,
+      hasAttachments,
+    });
     return false;
   }
 }
@@ -247,12 +325,145 @@ export async function verifyEmailConnection(): Promise<boolean> {
   }
 }
 
+export async function sendIntakeStepTransitionEmail(
+  recipientEmail: string,
+  options: {
+    intakeId: number;
+    intakeNumber?: string | null;
+    projectName: string;
+    organizationName?: string;
+    stepLabel: string;
+    transition: 'entry' | 'exit';
+    fromStepLabel?: string | null;
+    toStepLabel?: string | null;
+    actorName?: string | null;
+    appUrl: string;
+  }
+): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(recipientEmail, "intake.stepTransition"))) return false;
+  const escapeHtml = (str: string) =>
+    String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  const isEntry = options.transition === 'entry';
+  const safeProject = escapeHtml(options.projectName);
+  const safeStep = escapeHtml(options.stepLabel);
+  const safeOrg = options.organizationName ? escapeHtml(options.organizationName) : '';
+  const safeActor = options.actorName ? escapeHtml(options.actorName) : '';
+  const safeFrom = options.fromStepLabel ? escapeHtml(options.fromStepLabel) : '';
+  const safeTo = options.toStepLabel ? escapeHtml(options.toStepLabel) : '';
+
+  const action = isEntry ? 'entered' : 'exited';
+  const intakeRef = options.intakeNumber
+    ? `${options.intakeNumber} — ${options.projectName}`
+    : options.projectName;
+  const safeIntakeRef = escapeHtml(intakeRef);
+  const safeIntakeNumber = options.intakeNumber ? escapeHtml(options.intakeNumber) : '';
+  const subject = `Intake ${intakeRef} ${action} step "${options.stepLabel}"`;
+  const intakeUrl = `${options.appUrl.replace(/\/$/, '')}/intakes/${options.intakeId}`;
+
+  const transitionLine = isEntry
+    ? (options.fromStepLabel
+        ? `This intake just moved from "${options.fromStepLabel}" into "${options.stepLabel}".`
+        : `This intake just entered the "${options.stepLabel}" step.`)
+    : (options.toStepLabel
+        ? `This intake just left "${options.stepLabel}" and is now in "${options.toStepLabel}".`
+        : `This intake just exited the "${options.stepLabel}" step.`);
+
+  const actorLine = options.actorName ? `Updated by ${options.actorName}.` : '';
+
+  const text = `
+${transitionLine}
+
+Intake: ${intakeRef}${options.organizationName ? `\nOrganization: ${options.organizationName}` : ''}
+Step: ${options.stepLabel}
+Transition: ${isEntry ? 'Entry' : 'Exit'}
+${actorLine ? actorLine + '\n' : ''}
+View intake: ${intakeUrl}
+
+- The FridayReport.AI Team
+`;
+
+  const safeTransitionLine = isEntry
+    ? (options.fromStepLabel
+        ? `This intake just moved from <strong>${safeFrom}</strong> into <strong>${safeStep}</strong>.`
+        : `This intake just entered the <strong>${safeStep}</strong> step.`)
+    : (options.toStepLabel
+        ? `This intake just left <strong>${safeStep}</strong> and is now in <strong>${safeTo}</strong>.`
+        : `This intake just exited the <strong>${safeStep}</strong> step.`);
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">FridayReport.AI</h1>
+  </div>
+
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
+    <h2 style="margin-top: 0; color: #1f2937;">Intake Workflow Update</h2>
+
+    <p>${safeTransitionLine}</p>
+
+    <div style="background: #f9fafb; padding: 20px; border-radius: 6px; margin: 20px 0;">
+      <table style="width: 100%; border-collapse: collapse;">
+        ${safeIntakeNumber ? `<tr>
+          <td style="padding: 6px 0; color: #6b7280; font-size: 14px; width: 110px;">Intake #</td>
+          <td style="padding: 6px 0; font-weight: 600;">${safeIntakeNumber}</td>
+        </tr>` : ''}
+        <tr>
+          <td style="padding: 6px 0; color: #6b7280; font-size: 14px; width: 110px;">Name</td>
+          <td style="padding: 6px 0; font-weight: 600;">${safeProject}</td>
+        </tr>
+        ${safeOrg ? `<tr>
+          <td style="padding: 6px 0; color: #6b7280; font-size: 14px;">Organization</td>
+          <td style="padding: 6px 0;">${safeOrg}</td>
+        </tr>` : ''}
+        <tr>
+          <td style="padding: 6px 0; color: #6b7280; font-size: 14px;">Step</td>
+          <td style="padding: 6px 0; font-weight: 600;">${safeStep}</td>
+        </tr>
+        <tr>
+          <td style="padding: 6px 0; color: #6b7280; font-size: 14px;">Transition</td>
+          <td style="padding: 6px 0;">${isEntry ? 'Entry' : 'Exit'}</td>
+        </tr>
+        ${safeActor ? `<tr>
+          <td style="padding: 6px 0; color: #6b7280; font-size: 14px;">Updated by</td>
+          <td style="padding: 6px 0;">${safeActor}</td>
+        </tr>` : ''}
+      </table>
+    </div>
+
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${escapeHtml(intakeUrl)}" style="display: inline-block; background-color: #f97316; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 6px; font-weight: 600; font-size: 16px;">View Intake</a>
+    </div>
+
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+
+    <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0;">
+      You're receiving this because your email was added to the notification list for this workflow step.
+    </p>
+    <p style="font-size: 11px; color: #9ca3af; margin: 12px 0 0; text-align: center;">
+      <a href="https://fridayreport.ai/profile?section=notifications" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
+    </p>
+  </div>
+</body>
+</html>
+`;
+
+  return sendEmail({ to: recipientEmail, subject, text, html });
+}
+
 export async function sendAccessRequestNotification(
   adminEmail: string,
   requesterName: string,
   organizationName: string,
   requestMessage?: string
 ): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(adminEmail, "org.accessRequestReceived"))) return false;
   const subject = `Access Request for ${organizationName} - FridayReport.AI`;
   
   const text = `
@@ -394,6 +605,7 @@ export async function sendTaskAssignmentNotificationEmail(
   endDate: string | null,
   projectUrl: string
 ): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(email, "task_assignment"))) return false;
   const escapeHtml = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
   const safeResourceName = escapeHtml(resourceName);
@@ -484,6 +696,7 @@ export async function sendAccessRequestDecisionNotification(
   approved: boolean,
   reviewerName?: string
 ): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(userEmail, "org.accessRequestDecision"))) return false;
   const subject = `Access Request ${approved ? 'Approved' : 'Declined'} - ${organizationName}`;
   
   const text = approved
@@ -717,13 +930,16 @@ Please follow up with this lead as soon as possible.
 </html>
 `;
 
-  const userSent = await sendEmail({ 
-    to: userEmail, 
-    subject: `Your ${planName} Inquiry - FridayReport.AI`, 
-    text: userText, 
-    html: userHtml 
-  });
-  
+  const userPrefAllows = await shouldSendEmailToAddress(userEmail, "support.enterpriseInquiry");
+  const userSent = userPrefAllows
+    ? await sendEmail({
+        to: userEmail,
+        subject: `Your ${planName} Inquiry - FridayReport.AI`,
+        text: userText,
+        html: userHtml,
+      })
+    : false;
+
   const salesSent = await sendEmail({ 
     to: salesEmail, 
     subject, 
@@ -1055,6 +1271,7 @@ export async function sendUpgradeOfferEmail({
   customMessage: string;
   senderName: string;
 }): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(to, "marketing.upgradeOffer"))) return false;
   const subject = "Unlock More with FridayReport.AI Pro";
   const appUrl = "https://fridayreport.ai";
 
@@ -1139,8 +1356,9 @@ export async function sendTimesheetSubmissionReminder(
   weekStart: string,
   weekEnd: string,
   hoursLogged: number,
-  appUrl: string
+  appUrl: string,
 ): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(to, "timesheet.submissionReminder"))) return false;
   const urgencyConfig = {
     friendly: {
       emoji: '🕐',
@@ -1209,6 +1427,7 @@ export async function sendManagerApprovalReminder(
   daysOld: number,
   appUrl: string
 ): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(to, "timesheet.approvalReminder"))) return false;
   const isUrgent = daysOld >= 4;
   const subject = isUrgent
     ? `🚨 Urgent: ${pendingEntries.length} timesheets awaiting your approval`
@@ -1273,6 +1492,7 @@ export async function sendTimesheetEscalationEmail(
   thresholdDays: number,
   appUrl: string
 ): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(to, "timesheet.escalation"))) return false;
   const subject = `🔺 Escalation: Timesheets unapproved for ${thresholdDays}+ days (Manager: ${managerName})`;
 
   const namesList = pendingNames.map(n => `• ${n}`).join('\n');
@@ -1326,8 +1546,9 @@ export async function sendManagerWeeklyDigestEmail(
     overdue: string[];
     totalDirectReports: number;
   },
-  appUrl: string
+  appUrl: string,
 ): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(to, "timesheet.weeklyDigest"))) return false;
   const subject = `📋 Weekly Timesheet Digest - ${weekStart}`;
 
   const text = `Hi ${managerName},\n\nWeekly Timesheet Digest for ${weekStart} to ${weekEnd}\n\nSubmitted: ${summary.submitted.length}/${summary.totalDirectReports}\nNot Submitted: ${summary.notSubmitted.join(', ') || 'None'}\nPending Approval: ${summary.pendingApproval.length}\nOverdue: ${summary.overdue.length}\n\nView: ${appUrl}/timesheets\n\n- FridayReport.AI`;
@@ -1398,6 +1619,7 @@ export async function sendManagerWeeklyDigestEmail(
 }
 
 export async function sendUnconSelfieFollowupEmail(email: string, firstName: string, _shareToken: string, brandedImage?: Buffer, rawSelfie?: Buffer | null): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(email, "marketing.event"))) return false;
   const escapeHtml = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const sanitize = (str: string) => str.replace(/[\r\n\x00-\x1f\x7f]/g, '');
   const safeFirstName = escapeHtml(firstName);
@@ -1520,6 +1742,7 @@ https://fridayreport.ai`;
 }
 
 export async function sendUnconSelfieThankYouEmail(email: string, userName: string, brandedImage?: Buffer): Promise<boolean> {
+  if (!(await shouldSendEmailToAddress(email, "marketing.event"))) return false;
   const escapeHtml = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const sanitize = (str: string) => str.replace(/[\r\n\x00-\x1f\x7f]/g, '');
   const safeUserName = escapeHtml(userName);

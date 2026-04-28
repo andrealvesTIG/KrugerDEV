@@ -295,7 +295,7 @@ export function ProjectStatusReport({
                   key={m.id}
                   className="absolute top-1/2 -translate-y-1/2 z-20"
                   style={{ left: `${m.position}%` }}
-                  title={m.title}
+                  title={m.name}
                 >
                   <Flag 
                     className={cn(
@@ -334,7 +334,7 @@ export function ProjectStatusReport({
                         "h-3 w-3 shrink-0",
                         m.isComplete ? "text-green-500" : m.isAtRisk ? "text-red-500" : "text-yellow-500"
                       )} />
-                      <span className="truncate min-w-0">{m.title}</span>
+                      <span className="truncate min-w-0">{m.name}</span>
                     </div>
                   ))}
                 </div>
@@ -508,7 +508,7 @@ export function ProjectStatusReport({
                       const status = getMilestoneStatus(milestone);
                       return (
                         <div key={milestone.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                          <span className="min-w-0 truncate">{milestone.title}</span>
+                          <span className="min-w-0 truncate">{milestone.name}</span>
                           <div className="flex items-center gap-2 shrink-0">
                             <span className="text-muted-foreground text-xs sm:text-sm">
                               {(milestone.endDate || milestone.startDate) ? format(new Date((milestone.endDate || milestone.startDate)!), "MMM d") : "—"}
@@ -583,9 +583,9 @@ export function ProjectStatusReport({
                   <span className="text-muted-foreground capitalize text-xs shrink-0">{cr.type?.replace('_', ' ') || 'Scope'}</span>
                   <Badge variant="outline" className={cn(
                     "text-xs shrink-0",
-                    cr.status === "approved" ? "border-green-500 text-green-600" :
-                    cr.status === "rejected" ? "border-red-500 text-red-600" :
-                    cr.status === "implemented" ? "border-blue-500 text-blue-600" :
+                    cr.status === "Approved" ? "border-green-500 text-green-600" :
+                    cr.status === "Rejected" ? "border-red-500 text-red-600" :
+                    cr.status === "Implemented" ? "border-blue-500 text-blue-600" :
                     "border-yellow-500 text-yellow-600"
                   )}>
                     {cr.status?.replace('_', ' ') || 'pending'}

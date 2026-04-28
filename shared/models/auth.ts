@@ -63,6 +63,10 @@ export const users = pgTable("users", {
   // Terms of Service and Privacy Policy consent
   termsAcceptedAt: timestamp("terms_accepted_at"),
 
+  // Per-user notification preferences. Sparse map of "<key>.<channel>" -> boolean.
+  // Missing keys fall back to the catalog default (true) at read time.
+  notificationPreferences: jsonb("notification_preferences").$type<Record<string, boolean>>().default({}),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -95,3 +99,7 @@ export const magicLinkTokens = pgTable("magic_link_tokens", {
 });
 
 export type MagicLinkToken = typeof magicLinkTokens.$inferSelect;
+
+// Canonical user roles (server-side; org-level roles live in organization_members)
+export const USER_ROLES = ["user", "super_admin", "marketing"] as const;
+export type UserRole = (typeof USER_ROLES)[number];

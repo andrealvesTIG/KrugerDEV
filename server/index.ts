@@ -174,6 +174,28 @@ app.use((req, res, next) => {
   await registerRoutes(httpServer, app);
   setupSwagger(app);
 
+  // Boot-time seed: ensure every existing organization has at least one
+  // intake workflow and one project workflow (adopting any legacy steps).
+  (async () => {
+    try {
+      const { storage } = await import("./storage");
+      const orgs = await storage.getOrganizations();
+      let seeded = 0;
+      for (const org of orgs) {
+        try {
+          await storage.ensureDefaultIntakeWorkflow(org.id);
+          await storage.ensureDefaultProjectWorkflow(org.id);
+          seeded++;
+        } catch (e) {
+          console.error(`[seed] Failed for org ${org.id}:`, e);
+        }
+      }
+      if (seeded > 0) console.log(`[seed] Ensured default workflows for ${seeded} organization(s)`);
+    } catch (e) {
+      console.error("[seed] Workflow seed failed:", e);
+    }
+  })();
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";

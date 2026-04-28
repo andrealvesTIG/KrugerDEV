@@ -368,7 +368,7 @@ export default function ChangeOrdersTab({ projectId }: { projectId: number }) {
                   <tbody>
                     {report.log.map(entry => (
                       <tr key={entry.id} className="border-t">
-                        <td className="p-3 font-mono text-xs">{entry.number}</td>
+                        <td className="p-3 font-mono text-xs">{entry.changeOrderNumber}</td>
                         <td className="p-3"><Badge className={tierColors[entry.tier || ""]}>{entry.tier}</Badge></td>
                         <td className="p-3 max-w-[200px] truncate">{entry.title}</td>
                         <td className="p-3"><Badge className={statusColors[entry.status || ""]}>{entry.status}</Badge></td>

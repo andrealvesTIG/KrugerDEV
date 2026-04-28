@@ -30,6 +30,7 @@ import { FinancialLockdownsSection } from "@/components/settings/FinancialLockdo
 import { DeveloperSection } from "@/components/settings/DeveloperSection";
 import { ActAsSection } from "@/components/settings/ActAsSection";
 import { ScoringCriteriaSection } from "@/components/settings/ScoringCriteriaSection";
+import { ApplyTemplateButton } from "@/components/settings/ApplyTemplateButton";
 
 export default function OrgSettings() {
   const { user, isLoading: authLoading } = useAuth();
@@ -75,7 +76,7 @@ export default function OrgSettings() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <Settings className="h-8 w-8 text-primary" />
           <div>
@@ -83,6 +84,7 @@ export default function OrgSettings() {
             <p className="text-muted-foreground">Managing: <strong>{currentOrganization.name}</strong></p>
           </div>
         </div>
+        <ApplyTemplateButton organizationId={currentOrganization.id} />
       </div>
 
       <OrgSettingsTabs currentOrganization={currentOrganization} />

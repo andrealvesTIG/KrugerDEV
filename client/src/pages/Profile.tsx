@@ -22,6 +22,7 @@ import type { OrganizationMember, Organization } from "@shared/schema";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import ProfileAnalytics from "@/components/ProfileAnalytics";
+import NotificationPreferences from "@/components/profile/NotificationPreferences";
 
 const AVATAR_EMOJIS = [
   "smile", "grin", "laugh", "wink", "cool", "heart-eyes", "star-struck", "thinking",
@@ -114,11 +115,6 @@ export default function Profile() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [selectedEmoji, setSelectedEmoji] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [projectUpdates, setProjectUpdates] = useState(true);
-  const [taskReminders, setTaskReminders] = useState(true);
-  const [weeklyDigest, setWeeklyDigest] = useState(false);
   
   const [editForm, setEditForm] = useState({
     firstName: "",
@@ -316,13 +312,6 @@ export default function Profile() {
       });
     }
   });
-
-  const handleSavePreferences = () => {
-    toast({
-      title: "Preferences saved",
-      description: "Your notification preferences have been updated.",
-    });
-  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -821,47 +810,12 @@ export default function Profile() {
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-bold">Notifications</h2>
-              <p className="text-muted-foreground">Control how you receive notifications</p>
+              <p className="text-muted-foreground">
+                Choose exactly which messages you want, and how you want them. Required messages (sign-in,
+                password reset, organization invites) are always delivered.
+              </p>
             </div>
-
-            <Card>
-              <CardContent className="pt-6 space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Email Notifications</p>
-                    <p className="text-sm text-muted-foreground">Receive notifications via email</p>
-                  </div>
-                  <Switch checked={emailNotifications} onCheckedChange={setEmailNotifications} data-testid="switch-email-notifications" />
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Project Updates</p>
-                    <p className="text-sm text-muted-foreground">Get notified when projects are updated</p>
-                  </div>
-                  <Switch checked={projectUpdates} onCheckedChange={setProjectUpdates} data-testid="switch-project-updates" />
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Task Reminders</p>
-                    <p className="text-sm text-muted-foreground">Receive reminders for upcoming tasks</p>
-                  </div>
-                  <Switch checked={taskReminders} onCheckedChange={setTaskReminders} data-testid="switch-task-reminders" />
-                </div>
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Weekly Digest</p>
-                    <p className="text-sm text-muted-foreground">Get a weekly summary of activity</p>
-                  </div>
-                  <Switch checked={weeklyDigest} onCheckedChange={setWeeklyDigest} data-testid="switch-weekly-digest" />
-                </div>
-                <Button onClick={handleSavePreferences} className="w-full" data-testid="button-save-preferences">
-                  Save Preferences
-                </Button>
-              </CardContent>
-            </Card>
+            <NotificationPreferences />
           </div>
         )}
 

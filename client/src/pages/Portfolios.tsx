@@ -342,7 +342,7 @@ export default function Portfolios() {
                                 <div className={`h-2 w-2 rounded-full shrink-0 ${getHealthColor(project.health)}`} />
                                 <span className="truncate flex-1">{project.name}</span>
                                 <span className="text-[10px] text-muted-foreground shrink-0">
-                                  {project.percentComplete ?? 0}%
+                                  {project.completionPercentage ?? 0}%
                                 </span>
                               </div>
                             ))}

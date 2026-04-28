@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useOrganization } from "@/hooks/use-organization";
-import type { IntakeWorkflowStep, InsertIntakeWorkflowStep } from "@shared/schema";
+import type { IntakeWorkflowStep, InsertIntakeWorkflowStep, IntakeWorkflow } from "@shared/schema";
 import { Lightbulb, Filter, FileText, Calculator, Shield, Gavel, LucideIcon } from "lucide-react";
 
 // Map step keys to icons
@@ -40,13 +40,22 @@ export interface WorkflowStep extends IntakeWorkflowStep {
   icon: LucideIcon;
 }
 
-export function useIntakeWorkflow() {
+export function useIntakeWorkflow(workflowId?: number | null, options?: { enabled?: boolean }) {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
+  const wfId = workflowId ?? null;
+  const enabledOpt = options?.enabled ?? true;
 
   const query = useQuery<IntakeWorkflowStep[]>({
-    queryKey: ['/api/organizations', orgId, 'intake-workflow'],
-    enabled: !!orgId,
+    queryKey: ['/api/organizations', orgId, 'intake-workflow', wfId],
+    queryFn: async () => {
+      const url = wfId != null
+        ? `/api/organizations/${orgId}/intake-workflow?workflowId=${wfId}`
+        : `/api/organizations/${orgId}/intake-workflow`;
+      const res = await apiRequest("GET", url);
+      return res.json();
+    },
+    enabled: !!orgId && enabledOpt,
   });
 
   // Transform steps to include icons
@@ -117,5 +126,59 @@ export function useIntakeWorkflow() {
     getStepIndex,
     isFieldRequired,
     getRequiredFieldsForStep,
+  };
+}
+
+/**
+ * Hook for listing/managing all intake workflows for the current organization.
+ */
+export function useIntakeWorkflows() {
+  const { currentOrganization } = useOrganization();
+  const orgId = currentOrganization?.id;
+
+  const query = useQuery<IntakeWorkflow[]>({
+    queryKey: ['/api/organizations', orgId, 'intake-workflows'],
+    enabled: !!orgId,
+  });
+
+  const createWorkflow = useMutation({
+    mutationFn: async (data: { name: string; description?: string; isDefault?: boolean; creationMode?: 'dialog' | 'url'; creationUrl?: string | null; agentTarget?: 'powerbi' | null }) => {
+      if (!orgId) throw new Error("No organization selected");
+      const res = await apiRequest("POST", `/api/organizations/${orgId}/intake-workflows`, data);
+      return res.json() as Promise<IntakeWorkflow>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', orgId, 'intake-workflows'] });
+    },
+  });
+
+  const updateWorkflowMeta = useMutation({
+    mutationFn: async ({ id, ...data }: { id: number; name?: string; description?: string; isDefault?: boolean; isActive?: boolean; creationMode?: 'dialog' | 'url'; creationUrl?: string | null; agentTarget?: 'powerbi' | null }) => {
+      if (!orgId) throw new Error("No organization selected");
+      const res = await apiRequest("PATCH", `/api/organizations/${orgId}/intake-workflows/${id}`, data);
+      return res.json() as Promise<IntakeWorkflow>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', orgId, 'intake-workflows'] });
+    },
+  });
+
+  const deleteWorkflow = useMutation({
+    mutationFn: async (id: number) => {
+      if (!orgId) throw new Error("No organization selected");
+      await apiRequest("DELETE", `/api/organizations/${orgId}/intake-workflows/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', orgId, 'intake-workflows'] });
+    },
+  });
+
+  return {
+    workflows: query.data || [],
+    isLoading: query.isLoading,
+    isError: query.isError,
+    createWorkflow,
+    updateWorkflowMeta,
+    deleteWorkflow,
   };
 }

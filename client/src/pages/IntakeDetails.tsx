@@ -16,9 +16,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, Shield, Calculator, Save, Lightbulb, Gavel, ChevronsUpDown } from "lucide-react";
+import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, Shield, Calculator, Save, Lightbulb, Gavel, ChevronsUpDown, Paperclip, MessageSquare, Image as ImageIcon, Download, User as UserIcon, Bot } from "lucide-react";
+import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import type { ProjectIntake, Portfolio } from "@shared/schema";
@@ -50,6 +52,210 @@ function getCompletedSteps(intake: ProjectIntake): string[] {
   return completed;
 }
 
+interface SourceAttachment {
+  name: string;
+  objectPath: string;
+  contentType: string;
+  size: number;
+  messageId: number;
+  createdAt: string | null;
+}
+interface SourceMessage {
+  id: number;
+  role: string;
+  content: string;
+  attachments: Array<{ name: string; objectPath: string; contentType: string; size: number }> | null;
+  createdAt: string | null;
+}
+interface IntakeSource {
+  pbiRequest: { id: number; requestNumber: string | null; reportName: string | null; status: string | null } | null;
+  conversation: { id: number; title: string | null; createdAt: string | null } | null;
+  messages: SourceMessage[];
+  attachments: SourceAttachment[];
+}
+
+function formatBytes(n: number): string {
+  if (!n || n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function IntakeSourcePanel({ intakeId }: { intakeId: number }) {
+  const { data, isLoading, error } = useQuery<IntakeSource>({
+    queryKey: ['/api/project-intakes', intakeId, 'source'],
+    queryFn: async () => {
+      const res = await fetch(`/api/project-intakes/${intakeId}/source`);
+      if (!res.ok) throw new Error('Failed to fetch intake source');
+      return res.json();
+    },
+    enabled: intakeId > 0,
+  });
+
+  if (isLoading) {
+    return (
+      <Card><CardContent className="py-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></CardContent></Card>
+    );
+  }
+  if (error) {
+    return <Card><CardContent className="py-6 text-sm text-destructive">Failed to load source data.</CardContent></Card>;
+  }
+
+  const hasAny = !!(data && (data.conversation || data.attachments.length || data.pbiRequest));
+  if (!hasAny) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center text-sm text-muted-foreground">
+          No agent conversation or attachments are linked to this intake.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {data!.pbiRequest && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <FileText className="h-4 w-4" />
+              Source Request
+            </CardTitle>
+            <CardDescription>This intake was created from a Power BI request.</CardDescription>
+          </CardHeader>
+          <CardContent className="text-sm space-y-1">
+            {data!.pbiRequest.requestNumber && (
+              <div><span className="text-muted-foreground">Request:</span> <span className="font-mono">{data!.pbiRequest.requestNumber}</span></div>
+            )}
+            {data!.pbiRequest.reportName && (
+              <div><span className="text-muted-foreground">Report:</span> {data!.pbiRequest.reportName}</div>
+            )}
+            {data!.pbiRequest.status && (
+              <div><span className="text-muted-foreground">Status:</span> {data!.pbiRequest.status}</div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Paperclip className="h-4 w-4" />
+            Attachments
+            <Badge variant="secondary" className="ml-1">{data!.attachments.length}</Badge>
+          </CardTitle>
+          <CardDescription>Files uploaded during the agent conversation.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {data!.attachments.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No attachments.</p>
+          ) : (
+            <ul className="divide-y">
+              {data!.attachments.map((a, idx) => {
+                const isImage = a.contentType?.startsWith('image/');
+                return (
+                  <li key={`${a.objectPath}-${idx}`} className="flex items-center gap-3 py-2">
+                    {isImage ? <ImageIcon className="h-4 w-4 text-orange-500 flex-shrink-0" /> : <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />}
+                    <div className="min-w-0 flex-1">
+                      <a
+                        href={a.objectPath}
+                        download={a.name}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium hover:underline truncate block"
+                        data-testid={`source-attachment-${idx}`}
+                      >
+                        {a.name}
+                      </a>
+                      <div className="text-xs text-muted-foreground">
+                        {a.contentType} · {formatBytes(a.size)}
+                        {a.createdAt && !isNaN(new Date(a.createdAt).getTime()) && (
+                          <> · {format(new Date(a.createdAt), 'MMM d, yyyy h:mm a')}</>
+                        )}
+                      </div>
+                    </div>
+                    <a href={a.objectPath} download={a.name} target="_blank" rel="noopener noreferrer">
+                      <Button variant="ghost" size="icon" className="h-8 w-8"><Download className="h-4 w-4" /></Button>
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <MessageSquare className="h-4 w-4" />
+            Agent Conversation
+            {data!.messages.length > 0 && <Badge variant="secondary" className="ml-1">{data!.messages.length}</Badge>}
+          </CardTitle>
+          <CardDescription>
+            {data!.conversation?.title || 'Conversation that produced this intake.'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {data!.messages.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No messages.</p>
+          ) : (
+            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
+              {data!.messages.map((m) => {
+                const isUser = m.role === 'user';
+                return (
+                  <div key={m.id} className={cn("flex gap-2", isUser ? "justify-end" : "justify-start")}>
+                    {!isUser && (
+                      <div className="h-7 w-7 rounded-full bg-orange-500/10 flex items-center justify-center flex-shrink-0">
+                        <Bot className="h-4 w-4 text-orange-500" />
+                      </div>
+                    )}
+                    <div className={cn(
+                      "max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap break-words",
+                      isUser ? "bg-primary text-primary-foreground" : "bg-muted"
+                    )}>
+                      <div>{m.content}</div>
+                      {m.attachments && m.attachments.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {m.attachments.map((att, i) => (
+                            <a
+                              key={i}
+                              href={att.objectPath}
+                              download={att.name}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs hover:underline",
+                                isUser ? "bg-primary-foreground/20" : "bg-background border"
+                              )}
+                            >
+                              <Paperclip className="h-3 w-3" />
+                              {att.name}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                      {m.createdAt && !isNaN(new Date(m.createdAt).getTime()) && (
+                        <div className={cn("mt-1 text-[10px]", isUser ? "text-primary-foreground/70" : "text-muted-foreground")}>
+                          {format(new Date(m.createdAt), 'MMM d, h:mm a')}
+                        </div>
+                      )}
+                    </div>
+                    {isUser && (
+                      <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <UserIcon className="h-4 w-4 text-primary" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function IntakeDetails() {
   const [, params] = useRoute("/intakes/:id");
   const [, navigate] = useLocation();
@@ -57,8 +263,6 @@ export default function IntakeDetails() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
-  const { steps: workflowSteps, isLoading: workflowLoading, getStepByKey, getStepIndex, isFieldRequired } = useIntakeWorkflow();
-  
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [activeTab, setActiveTab] = useState("details");
@@ -90,6 +294,8 @@ export default function IntakeDetails() {
     },
     enabled: !!id && !!currentOrganization?.id,
   });
+
+  const { steps: workflowSteps, isLoading: workflowLoading, getStepByKey, getStepIndex, isFieldRequired } = useIntakeWorkflow(intake?.workflowId ?? null);
 
   const [formData, setFormData] = useState<Partial<ProjectIntake>>({});
 
@@ -300,40 +506,54 @@ export default function IntakeDetails() {
               const isCurrent = index === currentStepIndex && !isApproved && !isRejected;
               const isClickable = index <= currentStepIndex && !isLocked;
               const Icon = step.icon;
-              
+              const tooltipDetail = step.description || step.helpText;
+
               return (
                 <div key={step.stepKey} className="flex items-center flex-1">
-                  <div 
-                    className={cn(
-                      "flex flex-col items-center text-center min-w-[40px] sm:min-w-[80px]",
-                      isClickable ? "cursor-pointer" : "",
-                      isClickable ? "opacity-100" : "opacity-50"
-                    )}
-                    onClick={() => {
-                      if (isClickable) {
-                        updateIntake.mutate({ currentStep: step.stepKey });
-                      }
-                    }}
-                  >
-                    <div 
-                      className={cn(
-                        "flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full text-sm font-medium mb-1 sm:mb-2 transition-colors",
-                        isCompleted 
-                          ? "bg-primary text-primary-foreground" 
-                          : isCurrent 
-                            ? "border-2 border-primary text-primary bg-primary/10" 
-                            : "border border-muted-foreground/30 text-muted-foreground"
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label={step.label}
+                        data-testid={`detail-step-${step.stepKey}`}
+                        onClick={() => {
+                          if (isClickable) {
+                            updateIntake.mutate({ currentStep: step.stepKey });
+                          }
+                        }}
+                        className={cn(
+                          "flex flex-col items-center text-center min-w-[40px] sm:min-w-[80px] bg-transparent p-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+                          isClickable ? "cursor-pointer" : "cursor-default",
+                          isClickable ? "opacity-100" : "opacity-50"
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full text-sm font-medium mb-1 sm:mb-2 transition-colors",
+                            isCompleted
+                              ? "bg-primary text-primary-foreground"
+                              : isCurrent
+                                ? "border-2 border-primary text-primary bg-primary/10"
+                                : "border border-muted-foreground/30 text-muted-foreground"
+                          )}
+                        >
+                          {isCompleted ? <Check className="w-4 h-4 sm:w-5 sm:h-5" /> : <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+                        </div>
+                        <span className={cn(
+                          "text-[10px] sm:text-xs leading-tight",
+                          isCurrent ? "font-medium text-foreground" : "text-muted-foreground"
+                        )}>
+                          {step.label}
+                        </span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <div className="font-medium text-xs">{step.label}</div>
+                      {tooltipDetail && (
+                        <div className="text-xs text-muted-foreground mt-0.5">{tooltipDetail}</div>
                       )}
-                    >
-                      {isCompleted ? <Check className="w-4 h-4 sm:w-5 sm:h-5" /> : <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-                    </div>
-                    <span className={cn(
-                      "text-[10px] sm:text-xs leading-tight",
-                      isCurrent ? "font-medium text-foreground" : "text-muted-foreground"
-                    )}>
-                      {step.label}
-                    </span>
-                  </div>
+                    </TooltipContent>
+                  </Tooltip>
                   {index < workflowSteps.length - 1 && (
                     <div className={cn(
                       "flex-1 h-0.5 mx-1 sm:mx-2 min-w-[12px] sm:min-w-[20px]",
@@ -424,6 +644,10 @@ export default function IntakeDetails() {
           <TabsTrigger value="governance" data-testid="tab-governance">
             <Shield className="h-4 w-4 mr-1 sm:mr-2" />
             Governance
+          </TabsTrigger>
+          <TabsTrigger value="source" data-testid="tab-source">
+            <MessageSquare className="h-4 w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Source &amp; </span>Conversation
           </TabsTrigger>
         </TabsList>
 
@@ -812,6 +1036,10 @@ export default function IntakeDetails() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="source" className="space-y-4">
+          <IntakeSourcePanel intakeId={id} />
         </TabsContent>
       </Tabs>
 

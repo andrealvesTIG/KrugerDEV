@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Resource, InsertResource, TaskResourceAssignment, IssueResourceAssignment, RiskResourceAssignment, ResourceSkill, InsertResourceSkill, ResourceAvailability, InsertResourceAvailability } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
+import { trackChecklistEvent } from "@/hooks/use-user-journey";
 
 type ResourceWithAssignment = TaskResourceAssignment & { resource: Resource };
 type IssueResourceWithAssignment = IssueResourceAssignment & { resource: Resource };
@@ -51,6 +52,7 @@ export function useCreateResource() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/resources", variables.organizationId] });
+      trackChecklistEvent("assign_member");
     },
   });
 }

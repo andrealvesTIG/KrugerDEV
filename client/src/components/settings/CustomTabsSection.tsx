@@ -7,12 +7,85 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Loader2, Trash2, Pencil, Plus, Save, Columns, LayoutGrid, X } from "lucide-react";
+import { Loader2, Trash2, Pencil, Plus, Save, Columns, LayoutGrid, X, Sparkles, Library } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCustomProjectTabs, useCreateCustomTab, useUpdateCustomTab, useDeleteCustomTab, useFullCustomTab, useCreateCustomTabSection, useUpdateCustomTabSection, useDeleteCustomTabSection, useCreateCustomTabField, useDeleteCustomTabField, useProjectFieldDefinitions } from "@/hooks/use-custom-tabs";
 import { useCustomFieldDefinitions } from "@/hooks/use-custom-fields";
-import type { CustomProjectTab } from "@shared/schema";
+import { useProjectTabTemplates, useApplyTemplate, useSaveOrgAsTemplate, useDeleteProjectTabTemplate, useFullProjectTabTemplate } from "@/hooks/use-project-tab-templates";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import { useOrganization } from "@/hooks/use-organization";
+import type { CustomProjectTab, ProjectTabTemplate, User } from "@shared/schema";
+
+const INDUSTRY_CHIPS = [
+  { value: 'all', label: 'All' },
+  { value: 'generic', label: 'Generic' },
+  { value: 'construction', label: 'Construction' },
+  { value: 'it', label: 'IT' },
+  { value: 'marketing', label: 'Marketing' },
+  { value: 'rnd', label: 'R&D' },
+  { value: 'healthcare', label: 'Healthcare' },
+  { value: 'services', label: 'Services' },
+];
+
+function TemplatePreviewBody({ templateId, organizationId }: { templateId: number; organizationId: number }) {
+  const { data, isLoading, error } = useFullProjectTabTemplate(templateId, organizationId);
+  if (isLoading) {
+    return (
+      <div className="mt-3 flex items-center justify-center py-4 border-t">
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  if (error || !data) {
+    return (
+      <div className="mt-3 pt-3 border-t text-sm text-destructive">
+        Could not load template preview{error instanceof Error && error.message ? `: ${error.message}` : '.'}
+      </div>
+    );
+  }
+  const tabs = data.tabs ?? [];
+  if (tabs.length === 0) {
+    return <div className="mt-3 pt-3 border-t text-sm text-muted-foreground">This template has no tabs yet.</div>;
+  }
+  return (
+    <div className="mt-3 pt-3 border-t space-y-3" data-testid={`template-preview-${templateId}`}>
+      {tabs.map(tab => (
+        <div key={tab.id} className="space-y-2">
+          <div className="text-sm font-semibold flex items-center gap-2">
+            <LayoutGrid className="h-3.5 w-3.5 text-muted-foreground" />
+            {tab.name}
+          </div>
+          <div className="ml-5 space-y-2">
+            {(tab.sections ?? []).map(section => (
+              <div key={section.id} className="rounded-md border bg-muted/30 p-2">
+                <div className="text-xs font-medium flex items-center gap-2">
+                  <Columns className="h-3 w-3 text-muted-foreground" />
+                  {section.name}
+                  <Badge variant="outline" className="text-[10px]">{section.columns ?? 2} cols</Badge>
+                </div>
+                {(section.fields ?? []).length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {section.fields.map(f => (
+                      <Badge key={f.id} variant="secondary" className="text-[10px]">
+                        {f.label || f.fieldKey}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {(tab.sections ?? []).length === 0 && (
+              <div className="text-xs text-muted-foreground">No sections</div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function CustomTabsSection({ organizationId }: { organizationId: number }) {
   const { toast } = useToast();
@@ -42,6 +115,72 @@ export function CustomTabsSection({ organizationId }: { organizationId: number }
   const [fieldPickerSectionId, setFieldPickerSectionId] = useState<number | null>(null);
   const [fieldPickerTabId, setFieldPickerTabId] = useState<number | null>(null);
   const { data: fullTabData } = useFullCustomTab(editingTabId ?? undefined);
+  const { user } = useAuth() as { user: User | null | undefined };
+  const { memberships = [] } = useOrganization();
+  const currentMembership = memberships.find(m => m.organizationId === organizationId);
+  const isSuperAdmin = user?.role === 'super_admin' || user?.role === 'marketing';
+  const isOrgAdminOrOwner = isSuperAdmin
+    || currentMembership?.role === 'org_admin'
+    || currentMembership?.role === 'owner';
+  const [templateIndustry, setTemplateIndustry] = useState<string>('all');
+  const [previewTemplateId, setPreviewTemplateId] = useState<number | null>(null);
+  const { data: templates = [] } = useProjectTabTemplates(isOrgAdminOrOwner ? organizationId : undefined, templateIndustry);
+  const applyTemplate = useApplyTemplate();
+  const saveAsTemplate = useSaveOrgAsTemplate();
+  const deleteTemplate = useDeleteProjectTabTemplate();
+  const [showTemplatesDialog, setShowTemplatesDialog] = useState(false);
+  const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
+  const [applyMode, setApplyMode] = useState<'append' | 'replace'>('append');
+  const [pendingTemplateId, setPendingTemplateId] = useState<number | null>(null);
+  const [showApplyConfirm, setShowApplyConfirm] = useState(false);
+  const [saveName, setSaveName] = useState('');
+  const [saveDescription, setSaveDescription] = useState('');
+  const [saveIndustry, setSaveIndustry] = useState('');
+  const [saveScope, setSaveScope] = useState<'system' | 'org'>('org');
+
+  const handleApplyTemplate = async () => {
+    if (!pendingTemplateId) return;
+    try {
+      const result = await applyTemplate.mutateAsync({ templateId: pendingTemplateId, organizationId, mode: applyMode });
+      const skipNote = result.fieldsSkipped > 0 ? ` (${result.fieldsSkipped} unknown field${result.fieldsSkipped === 1 ? '' : 's'} skipped)` : '';
+      toast({ title: 'Template applied', description: `${result.tabsCreated} tab${result.tabsCreated === 1 ? '' : 's'} added${skipNote}` });
+      setShowApplyConfirm(false);
+      setShowTemplatesDialog(false);
+      setPendingTemplateId(null);
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.message || 'Failed to apply template', variant: 'destructive' });
+    }
+  };
+
+  const handleSaveAsTemplate = async () => {
+    if (!saveName.trim()) {
+      toast({ title: 'Error', description: 'Template name is required', variant: 'destructive' });
+      return;
+    }
+    try {
+      await saveAsTemplate.mutateAsync({
+        organizationId,
+        name: saveName.trim(),
+        description: saveDescription.trim() || undefined,
+        industry: saveIndustry.trim() || undefined,
+        scope: saveScope,
+      });
+      toast({ title: 'Template saved', description: `"${saveName}" is now available to apply.` });
+      setShowSaveTemplateDialog(false);
+      setSaveName(''); setSaveDescription(''); setSaveIndustry(''); setSaveScope('org');
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.message || 'Failed to save template', variant: 'destructive' });
+    }
+  };
+
+  const handleDeleteTemplate = async (id: number) => {
+    try {
+      await deleteTemplate.mutateAsync({ id, organizationId });
+      toast({ title: 'Template deleted' });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err?.message || 'Failed to delete template', variant: 'destructive' });
+    }
+  };
 
   const handleCreateTab = async () => {
     if (!tabName.trim()) {
@@ -152,9 +291,21 @@ export function CustomTabsSection({ organizationId }: { organizationId: number }
             Create custom tabs for project details with your own sections and fields
           </CardDescription>
         </div>
-        <Button onClick={() => setShowNewTabDialog(true)} data-testid="button-add-custom-tab">
-          <Plus className="h-4 w-4 mr-2" /> Add Tab
-        </Button>
+        <div className="flex items-center gap-2">
+          {isOrgAdminOrOwner && (
+            <>
+              <Button variant="outline" onClick={() => setShowTemplatesDialog(true)} data-testid="button-browse-templates">
+                <Library className="h-4 w-4 mr-2" /> Templates
+              </Button>
+              <Button variant="outline" onClick={() => setShowSaveTemplateDialog(true)} disabled={tabs.length === 0} data-testid="button-save-as-template">
+                <Sparkles className="h-4 w-4 mr-2" /> Save as Template
+              </Button>
+            </>
+          )}
+          <Button onClick={() => setShowNewTabDialog(true)} data-testid="button-add-custom-tab">
+            <Plus className="h-4 w-4 mr-2" /> Add Tab
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {tabs.length === 0 ? (
@@ -341,6 +492,146 @@ export function CustomTabsSection({ organizationId }: { organizationId: number }
               </Button>
             ))}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showTemplatesDialog} onOpenChange={(open) => { setShowTemplatesDialog(open); if (!open) setPreviewTemplateId(null); }}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto" data-testid="dialog-templates">
+          <DialogHeader>
+            <DialogTitle>Project Tab Templates</DialogTitle>
+            <DialogDescription>Apply an industry-flavored layout, or pick one of your saved templates. Applying never changes existing project data.</DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-wrap gap-2 mb-3" data-testid="template-industry-chips">
+            {INDUSTRY_CHIPS.map(opt => (
+              <Button
+                key={opt.value}
+                size="sm"
+                variant={templateIndustry === opt.value ? 'default' : 'outline'}
+                onClick={() => setTemplateIndustry(opt.value)}
+                data-testid={`chip-industry-${opt.value}`}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
+
+          {templates.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">No templates available.</div>
+          ) : (
+            <div className="grid gap-3">
+              {templates.map((tpl: ProjectTabTemplate) => (
+                <div key={tpl.id} className="border rounded-lg p-4" data-testid={`card-template-${tpl.id}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium">{tpl.name}</span>
+                        <Badge variant={tpl.scope === 'system' ? 'secondary' : 'default'} className="text-xs">
+                          {tpl.scope === 'system' ? 'System' : 'Org'}
+                        </Badge>
+                        {tpl.industry && <Badge variant="outline" className="text-xs">{tpl.industry}</Badge>}
+                      </div>
+                      {tpl.description && <p className="text-sm text-muted-foreground mt-1">{tpl.description}</p>}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button size="sm" variant="outline" onClick={() => setPreviewTemplateId(previewTemplateId === tpl.id ? null : tpl.id)} data-testid={`button-preview-template-${tpl.id}`}>
+                        {previewTemplateId === tpl.id ? <ChevronDown className="h-4 w-4 mr-1" /> : <ChevronRight className="h-4 w-4 mr-1" />}
+                        Preview
+                      </Button>
+                      <Button size="sm" onClick={() => { setPendingTemplateId(tpl.id); setApplyMode('append'); setShowApplyConfirm(true); }} data-testid={`button-apply-template-${tpl.id}`}>
+                        Apply
+                      </Button>
+                      {(tpl.scope === 'org' || isSuperAdmin) && (
+                        <Button size="icon" variant="ghost" onClick={() => handleDeleteTemplate(tpl.id)} data-testid={`button-delete-template-${tpl.id}`}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  {previewTemplateId === tpl.id && (
+                    <TemplatePreviewBody templateId={tpl.id} organizationId={organizationId} />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showApplyConfirm} onOpenChange={setShowApplyConfirm}>
+        <DialogContent data-testid="dialog-apply-template">
+          <DialogHeader>
+            <DialogTitle>Apply Template</DialogTitle>
+            <DialogDescription>
+              Choose how to merge the template's tabs with your existing custom tabs. This affects layout only — your project data is never changed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Mode</Label>
+              <Select value={applyMode} onValueChange={(v) => setApplyMode(v as 'append' | 'replace')}>
+                <SelectTrigger data-testid="select-apply-mode"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="append">Append (add template tabs alongside existing tabs)</SelectItem>
+                  <SelectItem value="replace">Replace (hide existing tabs, then add template tabs)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {applyMode === 'replace' && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+                <strong>Heads up:</strong> Replace will hide all of your current custom tabs and replace them with the template's tabs. Project data is never modified, but your existing custom-tab layout will no longer be visible.
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowApplyConfirm(false)}>Cancel</Button>
+            <Button onClick={handleApplyTemplate} disabled={applyTemplate.isPending} data-testid="button-confirm-apply">
+              {applyTemplate.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Apply Template
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showSaveTemplateDialog} onOpenChange={setShowSaveTemplateDialog}>
+        <DialogContent data-testid="dialog-save-template">
+          <DialogHeader>
+            <DialogTitle>Save as Template</DialogTitle>
+            <DialogDescription>Snapshot your current custom tabs into a reusable template.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Name</Label>
+              <Input value={saveName} onChange={(e) => setSaveName(e.target.value)} placeholder="e.g., Our Construction Layout" data-testid="input-save-name" />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea value={saveDescription} onChange={(e) => setSaveDescription(e.target.value)} placeholder="What does this template cover?" data-testid="input-save-description" />
+            </div>
+            <div>
+              <Label>Industry (optional)</Label>
+              <Input value={saveIndustry} onChange={(e) => setSaveIndustry(e.target.value)} placeholder="e.g., Construction" data-testid="input-save-industry" />
+            </div>
+            {isSuperAdmin && (
+              <div>
+                <Label>Visibility</Label>
+                <Select value={saveScope} onValueChange={(v) => setSaveScope(v as 'system' | 'org')}>
+                  <SelectTrigger data-testid="select-save-scope"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="org">My organization only</SelectItem>
+                    <SelectItem value="system">System-wide (all organizations)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSaveTemplateDialog(false)}>Cancel</Button>
+            <Button onClick={handleSaveAsTemplate} disabled={saveAsTemplate.isPending} data-testid="button-confirm-save-template">
+              {saveAsTemplate.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Save Template
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

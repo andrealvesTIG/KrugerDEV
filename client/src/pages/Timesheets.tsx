@@ -3619,7 +3619,9 @@ export default function Timesheets() {
     return Array.from(projectMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [assignedTasks, hideClosedProjects]);
 
-  const CLOSED_TASK_STATUSES = useMemo(() => ["Done", "Completed", "Cancelled"], []);
+  // Mirrors the canonical TASK_STATUSES "closed" subset. "Done" is retained
+  // only as a defensive backward-compat literal for legacy demo/seed data.
+  const CLOSED_TASK_STATUSES = useMemo(() => ["Completed", "Cancelled", "Done"], []);
 
   const taskIdsWithHours = useMemo(() => {
     const ids = new Set<number>();

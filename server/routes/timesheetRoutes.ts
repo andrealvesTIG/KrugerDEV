@@ -3242,8 +3242,10 @@ export function registerTimesheetRoutes(app: Express) {
         </div>
       `;
       
+      const { shouldSendEmailToAddress } = await import("../services/userNotificationPreferences");
       let successCount = 0;
       for (const email of recipients) {
+        if (!(await shouldSendEmailToAddress(email, "report.shared"))) continue;
         const success = await sendEmail({
           to: email,
           subject: `${data.title} - Shared Report`,

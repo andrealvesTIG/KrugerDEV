@@ -61,3 +61,6 @@ APP_URL = "https://fridayreport.ai"
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 120000
+
+[objectStorage]
+defaultBucketID = "replit-objstore-a3493cd3-4812-4c6a-a0d1-cce7f20b5c59"

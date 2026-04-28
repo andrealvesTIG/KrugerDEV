@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, date, varchar, jsonb, uniqueIndex, index, customType } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, date, varchar, jsonb, uniqueIndex, index, customType, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations, sql } from "drizzle-orm";
@@ -10,8 +10,14 @@ const numeric = customType<{ data: number; driverData: string }>({
 });
 import { users } from "./models/auth";
 
-export const PROJECT_STATUSES = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"] as const;
-export const PROJECT_STATUSES_EXTENDED = [...PROJECT_STATUSES, "Billing", "Closed"] as const;
+// Core project lifecycle states (in-flight only). Use PROJECT_STATUSES_EXTENDED
+// for any UI dropdown that must also represent terminal states.
+export const PROJECT_STATUSES_CORE = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"] as const;
+export const PROJECT_STATUSES_EXTENDED = [...PROJECT_STATUSES_CORE, "Billing", "Closed"] as const;
+// Backwards-compatible alias: PROJECT_STATUSES historically referred to the
+// short list and silently truncated dropdowns. It now points at the extended
+// list so projects in "Billing"/"Closed" render correctly everywhere.
+export const PROJECT_STATUSES = PROJECT_STATUSES_EXTENDED;
 export const PROJECT_HEALTH_VALUES = ["Green", "Yellow", "Red"] as const;
 export const PROJECT_PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
 export const BILLABLE_STATUSES = ["N/A", "On Track", "Waiting for Approval", "Verbal Approval", "Email Approval", "SOW Signed", "PO Received", "Partially Invoiced", "At Risk", "Ready for Invoice", "Critical", "Invoiced"] as const;
@@ -35,6 +41,20 @@ export type TaskStatus = (typeof TASK_STATUSES)[number];
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 export const DEFAULT_TASK_STATUS: string = TASK_STATUS.NOT_STARTED;
 export const DEFAULT_TASK_PRIORITY: string = TASK_PRIORITY.MEDIUM;
+
+// Audit trail: fields tracked by the risk update history.
+// Names MUST match Drizzle camelCase column properties on the issues table
+// (e.g. mitigationPlan, ownerId — not "mitigation"/"owner").
+export const RISK_TRACKED_FIELDS = [
+  "title",
+  "description",
+  "probability",
+  "impact",
+  "status",
+  "mitigationPlan",
+  "ownerId",
+] as const;
+export type RiskTrackedField = (typeof RISK_TRACKED_FIELDS)[number];
 
 export const projectStatusEnum = z.enum(PROJECT_STATUSES_EXTENDED);
 export const issueTypeEnum = z.enum(ISSUE_TYPES);
@@ -73,6 +93,7 @@ export const sidebarItemSchema = z.discriminatedUnion("type", [
     type: z.literal("module"),
     key: z.string(),
     hidden: z.boolean().optional(),
+    customLabel: z.string().optional(),
   }),
   z.object({
     type: z.literal("customLink"),
@@ -418,6 +439,7 @@ export const organizations = pgTable("organizations", {
   costItemCategoriesConfig: jsonb("cost_item_categories_config").$type<CostItemCategoriesConfig>(), // Configurable Financial View / Cost Category / Cost Specification hierarchy
   fiscalYearStartMonth: integer("fiscal_year_start_month").default(10).notNull(), // 1..12 calendar month that is M1 of the org's fiscal year (default 10 = October)
   projectTabSettings: jsonb("project_tab_settings").$type<{ order: string[]; hidden: string[] }>(), // Org-level default order + visibility for project detail tabs
+  defaultTemplateAppliedAt: timestamp("default_template_applied_at"), // One-time backfill marker for default project tab template
 });
 
 // Organization Members (Join table for users <-> organizations)
@@ -1593,7 +1615,7 @@ export const costItems = pgTable("cost_items", {
 }, (table) => [
   index("cost_items_project_id_idx").on(table.projectId),
 ]);
-
+ 
 // Cost Item Change Logs (audit trail / undo support for financial entries)
 // Note: `costItemId` is now used loosely — for normalized financial entries it is
 // left null and the `previousValues`/`newValues` JSON carry the cell context
@@ -1714,13 +1736,12 @@ export const intakeTypes = pgTable("intake_types", {
 }, (table) => [
   index("intake_types_org_id_idx").on(table.organizationId),
 ]);
-
+ 
 // Project Intakes (Intake workflow for new project ideas)
 export const projectIntakes = pgTable("project_intakes", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   intakeNumber: text("intake_number"), // Auto-generated intake ID (e.g., "INT-2026-001")
-  intakeTypeId: integer("intake_type_id").references(() => intakeTypes.id, { onDelete: "set null" }),
   workflowId: integer("workflow_id"), // FK to intake_workflows.id (nullable; assigned when org has multiple intake workflows)
   
   // Basic Information (Intake Form tab)
@@ -1799,6 +1820,9 @@ export const intakeWorkflows = pgTable("intake_workflows", {
   isActive: boolean("is_active").default(true),
   creationMode: text("creation_mode").notNull().default("dialog"), // 'dialog' | 'url'
   creationUrl: text("creation_url"),
+  // When set to 'powerbi', selecting this workflow opens the Power BI agent
+  // instead of the standard intake dialog. null = standard intake behavior.
+  agentTarget: text("agent_target"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -1819,6 +1843,8 @@ export const intakeWorkflowSteps = pgTable("intake_workflow_steps", {
   description: text("description"), // Short description
   helpText: text("help_text"), // Detailed help text shown during step
   requiredFields: text("required_fields").array(), // Array of field names required at this step
+  notifyOnEntry: text("notify_on_entry").array(), // Email recipients notified when an intake enters this step
+  notifyOnExit: text("notify_on_exit").array(), // Email recipients notified when an intake exits this step
   isActive: boolean("is_active").default(true), // Whether step is active
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1891,6 +1917,99 @@ export const powerbiIntakeRequests = pgTable("powerbi_intake_requests", {
 }, (table) => [
   index("powerbi_intake_org_id_idx").on(table.organizationId),
   uniqueIndex("powerbi_intake_request_number_idx").on(table.requestNumber),
+]);
+
+// Snapshot of intake fields extracted live from the Power BI Agent conversation.
+// Each value is the model's current best-known capture (string for free-text, number
+// for numeric counts) or null if not yet captured.
+export type PbiIntakeState = {
+  reportName: string | null;
+  reportType: string | null;
+  description: string | null;
+  numberOfPages: number | null;
+  numberOfDrillDownPages: number | null;
+  dataSources: string | null;
+  integrations: string | null;
+  calculationComplexity: string | null;
+  refreshFrequency: string | null;
+  filtersAndSlicers: string | null;
+  visualRequirements: string | null;
+  securityRequirements: string | null;
+  targetDeliveryDate: string | null;
+  additionalNotes: string | null;
+  submittedRequestNumber?: string | null;
+  submittedIntakeNumber?: string | null;
+  updatedAt?: string;
+  // Field keys the user has manually edited in the side panel.
+  // The extractor must not overwrite these on subsequent turns.
+  editedFields?: string[];
+  // Field keys whose current value originated from attachment analysis,
+  // along with the source filename(s) to display ("from file: X").
+  attachmentSourcedFields?: Record<string, string>;
+};
+
+// Structured analysis derived from documents the user attached to the agent chat.
+export type PbiAttachmentAnalysis = {
+  audienceTier: "executive" | "manager" | "analyst" | "mixed" | "unknown";
+  audienceEvidence: string;
+  documentTypes: string[];
+  topics: string[];
+  suggestedMetrics: string[];
+  suggestedDimensions: string[];
+  suggestedTimeGrain: string;
+  suggestedRefreshCadence: string;
+  suggestedDataSources: string[];
+  openQuestions: string[];
+  confidence: "low" | "medium" | "high";
+  summary: string;
+  sourceFiles: string[];
+  attachmentIds: number[];
+};
+
+// Per-attachment text extraction stored alongside the user message that uploaded it.
+export type PbiAttachmentExtraction = {
+  name: string;
+  objectPath: string;
+  contentType: string;
+  size: number;
+  text: string | null;
+  pageCount?: number;
+  sheetCount?: number;
+  detectedLanguage?: string;
+  truncated?: boolean;
+  error?: string;
+};
+
+// Power BI Agent Conversations - persistent chat history per user
+export const powerbiAgentConversations = pgTable("powerbi_agent_conversations", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  title: text("title"),
+  model: text("model").default("fast"),
+  submittedIntakeId: integer("submitted_intake_id"),
+  intakeState: jsonb("intake_state").$type<PbiIntakeState>(),
+  archivedAt: timestamp("archived_at"),
+  lastMessageAt: timestamp("last_message_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  attachmentAnalysis: jsonb("attachment_analysis").$type<PbiAttachmentAnalysis>(),
+}, (table) => [
+  index("pbi_agent_conv_user_idx").on(table.userId, table.lastMessageAt),
+  index("pbi_agent_conv_org_idx").on(table.organizationId),
+]);
+
+export const powerbiAgentMessages = pgTable("powerbi_agent_messages", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id").references(() => powerbiAgentConversations.id, { onDelete: "cascade" }).notNull(),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  attachments: jsonb("attachments").$type<Array<{ name: string; objectPath: string; contentType: string; size: number }>>(),
+  attachmentExtractions: jsonb("attachment_extractions").$type<PbiAttachmentExtraction[]>(),
+  options: jsonb("options").$type<string[]>(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("pbi_agent_msg_conv_idx").on(table.conversationId, table.createdAt),
 ]);
 
 // MPP Imports - Store imported Microsoft Project data
@@ -2173,7 +2292,16 @@ export const insertRiskSchema = baseRiskSchema.extend({
   itemType: z.literal("risk").default("risk"),
 });
 /** @deprecated Renamed to Portfolio Key Dates. Schema kept for backward compatibility. */
-export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true });
+export const insertMilestoneSchema = createInsertSchema(milestones).omit({ id: true }).extend({
+  // Normalize legacy 'Done' status (used by older clients & older demo data) to
+  // the canonical 'Completed' value used everywhere else in the codebase. This
+  // preserves backward compatibility with clients that were built before the
+  // milestoneStatus enum was unified.
+  status: z.preprocess(
+    (val) => (val === 'Done' ? 'Completed' : val),
+    z.string().nullable().optional(),
+  ),
+});
 export const insertPortfolioKeyDateSchema = createInsertSchema(portfolioKeyDates).omit({ id: true, createdAt: true, updatedAt: true, deletedAt: true, deletedBy: true, isDemo: true });
 export const updatePortfolioKeyDateSchema = insertPortfolioKeyDateSchema.pick({ title: true, description: true, keyDateType: true, date: true, status: true, completed: true, notes: true }).partial();
 // Extend to handle date strings for escalatedAt field
@@ -2214,7 +2342,6 @@ export const financialLockdownInputSchema = z.object({
 });
 export const insertMultiYearWbsSchema = createInsertSchema(multiYearWbs).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProjectIntakeSchema = createInsertSchema(projectIntakes).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertIntakeTypeSchema = createInsertSchema(intakeTypes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMppImportSchema = createInsertSchema(mppImports).omit({ id: true, createdAt: true, lastSyncedAt: true });
 export const insertMppImportTaskSchema = createInsertSchema(mppImportTasks).omit({ id: true, createdAt: true });
 export const insertChangeRequestSchema = createInsertSchema(changeRequests).omit({ id: true, createdAt: true });
@@ -2228,6 +2355,9 @@ export const insertInvoiceNoteSchema = createInsertSchema(invoiceNotes).omit({ i
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
 export const insertStatusReportHistorySchema = createInsertSchema(statusReportHistory).omit({ id: true, createdAt: true });
 export const insertIntakeWorkflowStepSchema = createInsertSchema(intakeWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertIntakeWorkflowSchema = createInsertSchema(intakeWorkflows).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertProjectWorkflowSchema = createInsertSchema(projectWorkflows).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertProjectWorkflowStepSchema = createInsertSchema(projectWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
 
@@ -2331,8 +2461,6 @@ export type InsertMultiYearWbs = z.infer<typeof insertMultiYearWbsSchema>;
 
 export type ProjectIntake = typeof projectIntakes.$inferSelect;
 export type InsertProjectIntake = z.infer<typeof insertProjectIntakeSchema>;
-export type IntakeType = typeof intakeTypes.$inferSelect;
-export type InsertIntakeType = z.infer<typeof insertIntakeTypeSchema>;
 
 export type MppImport = typeof mppImports.$inferSelect;
 export type InsertMppImport = z.infer<typeof insertMppImportSchema>;
@@ -2368,7 +2496,13 @@ export type StatusReportHistory = typeof statusReportHistory.$inferSelect;
 export type InsertStatusReportHistory = z.infer<typeof insertStatusReportHistorySchema>;
 
 export type IntakeWorkflowStep = typeof intakeWorkflowSteps.$inferSelect;
+export type ProjectWorkflowStep = typeof projectWorkflowSteps.$inferSelect;
 export type InsertIntakeWorkflowStep = z.infer<typeof insertIntakeWorkflowStepSchema>;
+export type IntakeWorkflow = typeof intakeWorkflows.$inferSelect;
+export type InsertIntakeWorkflow = z.infer<typeof insertIntakeWorkflowSchema>;
+export type ProjectWorkflow = typeof projectWorkflows.$inferSelect;
+export type InsertProjectWorkflow = z.infer<typeof insertProjectWorkflowSchema>;
+export type InsertProjectWorkflowStep = z.infer<typeof insertProjectWorkflowStepSchema>;
 
 // API Request/Response Types
 export type CreatePortfolioRequest = InsertPortfolio;
@@ -2422,6 +2556,66 @@ export const insertOrganizationIntegrationSchema = createInsertSchema(organizati
 });
 export type InsertOrganizationIntegration = z.infer<typeof insertOrganizationIntegrationSchema>;
 export type OrganizationIntegration = typeof organizationIntegrations.$inferSelect;
+
+// System-wide email delivery settings (singleton row managed by super admins).
+// SMTP password is encrypted at rest via server/lib/tokenEncryption.ts.
+export const systemEmailSettings = pgTable("system_email_settings", {
+  id: serial("id").primaryKey(),
+  provider: text("provider").notNull().default("resend"), // 'resend' | 'smtp' | 'graph'
+  smtpHost: text("smtp_host"),
+  smtpPort: integer("smtp_port"),
+  smtpSecure: boolean("smtp_secure").default(false), // true for 465 SSL, false for 587 STARTTLS
+  smtpUser: text("smtp_user"),
+  smtpPasswordEncrypted: text("smtp_password_encrypted"),
+  // Microsoft Graph (Entra ID) credentials for client-credentials flow
+  graphTenantId: text("graph_tenant_id"),
+  graphClientId: text("graph_client_id"),
+  graphClientSecretEncrypted: text("graph_client_secret_encrypted"),
+  graphSenderAddress: text("graph_sender_address"), // mailbox to send as (must match app permission scope)
+  fromAddress: text("from_address"),
+  fromName: text("from_name"),
+  isEnabled: boolean("is_enabled").notNull().default(false),
+  lastTestedAt: timestamp("last_tested_at"),
+  lastTestStatus: text("last_test_status"), // 'success' | 'failed' | null
+  lastTestError: text("last_test_error"),
+  updatedBy: text("updated_by"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSystemEmailSettingsSchema = createInsertSchema(systemEmailSettings).omit({
+  id: true,
+  updatedAt: true,
+});
+export type InsertSystemEmailSettings = z.infer<typeof insertSystemEmailSettingsSchema>;
+export type SystemEmailSettings = typeof systemEmailSettings.$inferSelect;
+
+// Per-attempt log of outbound notification deliveries. Records which provider was
+// used (graph/smtp/resend), the result, and minimal metadata for diagnosis.
+// Does NOT store body, attachments or any other sensitive content.
+export const EMAIL_DELIVERY_PROVIDERS = ["graph", "smtp", "resend"] as const;
+export const EMAIL_DELIVERY_STATUSES = ["sent", "failed"] as const;
+export type EmailDeliveryProvider = (typeof EMAIL_DELIVERY_PROVIDERS)[number];
+export type EmailDeliveryStatus = (typeof EMAIL_DELIVERY_STATUSES)[number];
+
+export const emailDeliveryLog = pgTable("email_delivery_log", {
+  id: serial("id").primaryKey(),
+  recipient: text("recipient").notNull(),
+  subject: text("subject").notNull(),
+  provider: text("provider").notNull(),
+  status: text("status").notNull(),
+  errorMessage: text("error_message"),
+  messageId: text("message_id"),
+  ccCount: integer("cc_count").notNull().default(0),
+  hasAttachments: boolean("has_attachments").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  createdAtIdx: index("email_delivery_log_created_at_idx").on(t.createdAt),
+  providerIdx: index("email_delivery_log_provider_idx").on(t.provider),
+  statusIdx: index("email_delivery_log_status_idx").on(t.status),
+}));
+
+export type EmailDeliveryLogEntry = typeof emailDeliveryLog.$inferSelect;
+export type InsertEmailDeliveryLogEntry = typeof emailDeliveryLog.$inferInsert;
 
 // Custom Dashboards - AI-generated dashboards saved by users
 export const customDashboards = pgTable("custom_dashboards", {
@@ -2678,6 +2872,7 @@ export const customProjectTabs = pgTable("custom_project_tabs", {
   icon: text("icon"), // Lucide icon name
   displayOrder: integer("display_order").default(0),
   isActive: boolean("is_active").default(true),
+  sourceTemplateId: integer("source_template_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   createdBy: varchar("created_by").references(() => users.id),
@@ -2775,6 +2970,77 @@ export const PROJECT_FIELD_DEFINITIONS = [
 ] as const;
 
 export type ProjectFieldKey = typeof PROJECT_FIELD_DEFINITIONS[number]['key'];
+
+// =====================================================================
+// Project Tab Templates - Reusable, industry-flavored snapshots of
+// custom-tab layouts that admins can apply to organizations.
+// `scope` = 'system' (managed by super-admins, available to all orgs)
+// or 'org' (private to the organization that owns it).
+// =====================================================================
+export const projectTabTemplates = pgTable("project_tab_templates", {
+  id: serial("id").primaryKey(),
+  slug: text("slug").notNull().unique(), // Stable identifier for system templates ('generic-pmo', etc)
+  name: text("name").notNull(),
+  description: text("description"),
+  industry: text("industry"), // e.g. 'Generic', 'Construction', 'IT/Software'
+  icon: text("icon"),
+  scope: text("scope").notNull().default("system"), // 'system' | 'org'
+  organizationId: integer("organization_id").references(() => organizations.id), // nullable for system
+  isPublished: boolean("is_published").default(true),
+  version: integer("version").default(1),
+  createdBy: varchar("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const projectTabTemplateTabs = pgTable("project_tab_template_tabs", {
+  id: serial("id").primaryKey(),
+  templateId: integer("template_id").references(() => projectTabTemplates.id, { onDelete: 'cascade' }).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  icon: text("icon"),
+  displayOrder: integer("display_order").default(0),
+});
+
+export const projectTabTemplateSections = pgTable("project_tab_template_sections", {
+  id: serial("id").primaryKey(),
+  templateTabId: integer("template_tab_id").references(() => projectTabTemplateTabs.id, { onDelete: 'cascade' }).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  columns: integer("columns").default(2),
+  displayOrder: integer("display_order").default(0),
+  isCollapsible: boolean("is_collapsible").default(true),
+  isCollapsedByDefault: boolean("is_collapsed_by_default").default(false),
+});
+
+export const projectTabTemplateFields = pgTable("project_tab_template_fields", {
+  id: serial("id").primaryKey(),
+  templateSectionId: integer("template_section_id").references(() => projectTabTemplateSections.id, { onDelete: 'cascade' }).notNull(),
+  fieldKey: text("field_key").notNull(),
+  fieldType: text("field_type").notNull(),
+  label: text("label"),
+  displayOrder: integer("display_order").default(0),
+  span: integer("span").default(1),
+  isRequired: boolean("is_required").default(false),
+});
+
+export const insertProjectTabTemplateSchema = createInsertSchema(projectTabTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export type ProjectTabTemplate = typeof projectTabTemplates.$inferSelect;
+export type InsertProjectTabTemplate = z.infer<typeof insertProjectTabTemplateSchema>;
+export type ProjectTabTemplateTab = typeof projectTabTemplateTabs.$inferSelect;
+export type ProjectTabTemplateSection = typeof projectTabTemplateSections.$inferSelect;
+export type ProjectTabTemplateField = typeof projectTabTemplateFields.$inferSelect;
+
+// Tracks which organizations have applied which templates so structural
+// edits to a template can be propagated automatically.
+export const organizationAppliedTemplates = pgTable("organization_applied_templates", {
+  organizationId: integer("organization_id").references(() => organizations.id, { onDelete: 'cascade' }).notNull(),
+  templateId: integer("template_id").references(() => projectTabTemplates.id, { onDelete: 'cascade' }).notNull(),
+  appliedAt: timestamp("applied_at").defaultNow().notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.organizationId, t.templateId] }),
+}));
+export type OrganizationAppliedTemplate = typeof organizationAppliedTemplates.$inferSelect;
 
 // Portfolio Scoring Criteria - defines scoring dimensions with weights
 // Project Scoring Criteria - organization-level criteria for scoring projects

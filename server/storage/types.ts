@@ -40,7 +40,9 @@ import type {
   InvoiceNote, InsertInvoiceNote,
   Notification, InsertNotification,
   StatusReportHistory, InsertStatusReportHistory,
-  IntakeWorkflowStep, InsertIntakeWorkflowStep, ProjectWorkflowStep,
+  IntakeWorkflowStep, InsertIntakeWorkflowStep,
+  IntakeWorkflow, InsertIntakeWorkflow,
+  ProjectWorkflow, InsertProjectWorkflow, ProjectWorkflowStep, InsertProjectWorkflowStep,
   TimesheetEntry, InsertTimesheetEntry, UpdateTimesheetEntryRequest,
   TimeCategory, InsertTimeCategory,
   NonProjectTimeEntry, InsertNonProjectTimeEntry,
@@ -69,6 +71,7 @@ import type {
   ProjectScoringCriteria, InsertProjectScoringCriteria,
   ProjectScore, InsertProjectScore,
   PortfolioScoringConfig,
+  LessonLearned, InsertLessonLearned,
 } from "@shared/schema";
 import type { BillingTransaction, InsertBillingTransaction } from "@shared/models/billing";
 
@@ -123,8 +126,11 @@ export interface IOrganizationStorage {
   removeOrganizationMember(organizationId: number, userId: string): Promise<void>;
   getOrganizationInvites(organizationId: number): Promise<OrganizationInvite[]>;
   getPendingInvitesByEmail(email: string): Promise<OrganizationInvite[]>;
+  getOrganizationInviteByToken(token: string): Promise<OrganizationInvite | undefined>;
   createOrganizationInvite(invite: InsertOrganizationInvite): Promise<OrganizationInvite>;
   cancelOrganizationInvite(id: number): Promise<void>;
+  resendOrganizationInvite(id: number, newToken: string, newExpiresAt: Date): Promise<OrganizationInvite | null>;
+  acceptOrganizationInvite(id: number, userId: string): Promise<OrganizationMember | null>;
   claimInvitesForUser(email: string, userId: string): Promise<OrganizationMember[]>;
   getOrganizationAccessRequests(organizationId: number): Promise<OrganizationAccessRequest[]>;
   getPendingAccessRequestByUser(organizationId: number, userId: string): Promise<OrganizationAccessRequest | undefined>;
@@ -153,11 +159,17 @@ export interface IPortfolioStorage {
   getPortfolioKeyDate(id: number): Promise<PortfolioKeyDate | undefined>;
   createPortfolioKeyDate(data: InsertPortfolioKeyDate): Promise<PortfolioKeyDate>;
   updatePortfolioKeyDate(id: number, updates: UpdatePortfolioKeyDateRequest): Promise<PortfolioKeyDate>;
-  deletePortfolioKeyDate(id: number, deletedBy?: string): Promise<void>;
+  deletePortfolioKeyDate(id: number, deletedBy?: string): Promise<void>; 
   getPortfolioFinancialEntries(
     portfolioId: number,
     fiscalYear?: number,
-  ): Promise<(FinancialEntry & { projectName: string })[]>;
+  ): Promise<(FinancialEntry & { projectName: string })[]>; 
+  getPortfolioProjects(portfolioId: number): Promise<Project[]>;
+  getPortfolioRisks(portfolioId: number): Promise<(Risk & { projectName: string })[]>;
+  getPortfolioIssues(portfolioId: number): Promise<(Issue & { projectName: string })[]>;
+  getPortfolioMilestones(portfolioId: number): Promise<(Milestone & { projectName: string })[]>;
+  addProjectToCustomPortfolio(portfolioId: number, projectId: number, addedBy?: string): Promise<void>;
+  removeProjectFromCustomPortfolio(portfolioId: number, projectId: number): Promise<void>; 
 }
 
 export interface IProjectStorage {
@@ -171,7 +183,10 @@ export interface IProjectStorage {
   createRisk(risk: InsertRisk): Promise<Risk>;
   updateRisk(id: number, updates: UpdateRiskRequest): Promise<Risk>;
   deleteRisk(id: number): Promise<void>;
+  convertRiskToIssue(id: number): Promise<Issue | undefined>;
+  getEscalatedItemsByProjects(projectIds: number[]): Promise<Issue[]>;
   getMilestones(projectId: number): Promise<Milestone[]>;
+  getMilestone(id: number): Promise<Milestone | undefined>;
   getAllMilestones(): Promise<Milestone[]>;
   createMilestone(milestone: InsertMilestone): Promise<Milestone>;
   updateMilestone(id: number, updates: UpdateMilestoneRequest): Promise<Milestone>;
@@ -245,6 +260,8 @@ export interface ITaskStorage {
   batchUpdateTaskWbs(updates: Array<{ id: number; wbs: string }>): Promise<void>;
   batchUpdateTaskParentIds(updates: Array<{ id: number; parentId: number | null }>): Promise<void>;
   batchUpdateTaskFields(updates: import('./taskStorage').BatchTaskFieldUpdate[]): Promise<void>;
+  bulkUpdateTasks(taskIds: number[], updates: UpdateTaskRequest): Promise<Task[]>;
+  bulkSoftDeleteTasks(taskIds: number[], userId: string): Promise<number>;
   getResourcesByUserId(userId: string, organizationId: number): Promise<Resource[]>;
   getTaskResourceAssignmentsByOrgId(organizationId: number): Promise<(TaskResourceAssignment & { resource: Resource })[]>;
   deleteTask(id: number): Promise<void>;
@@ -419,12 +436,30 @@ export interface IIntakeStorage {
   createMppImportTask(task: InsertMppImportTask): Promise<MppImportTask>;
   createMppImportTasks(tasks: InsertMppImportTask[]): Promise<MppImportTask[]>;
   deleteMppImportTasks(importId: number): Promise<void>;
-  getIntakeWorkflowSteps(organizationId: number): Promise<IntakeWorkflowStep[]>;
-  upsertIntakeWorkflowSteps(organizationId: number, steps: InsertIntakeWorkflowStep[]): Promise<IntakeWorkflowStep[]>;
-  resetIntakeWorkflowToDefaults(organizationId: number): Promise<IntakeWorkflowStep[]>;
-  getProjectWorkflowSteps(organizationId: number): Promise<ProjectWorkflowStep[]>;
-  upsertProjectWorkflowSteps(organizationId: number, steps: Array<{ stepKey: string; position: number; label: string; description?: string; isTerminal?: boolean; isActive?: boolean }>): Promise<ProjectWorkflowStep[]>;
-  resetProjectWorkflowToDefaults(organizationId: number): Promise<ProjectWorkflowStep[]>;
+  convertMppImportToProject(importId: number, projectData: { organizationId: number; portfolioId?: number; name: string; description?: string; status?: string; priority?: string }): Promise<{ project: Project; taskCount: number }>;
+  syncMppImportToProject(importId: number, projectId: number, options?: { syncMode?: 'merge' | 'replace' }): Promise<{ project: Project; tasksAdded: number; tasksUpdated: number; tasksRemoved: number }>;
+  getIntakeWorkflowSteps(organizationId: number, workflowId?: number | null): Promise<IntakeWorkflowStep[]>;
+  upsertIntakeWorkflowSteps(organizationId: number, steps: InsertIntakeWorkflowStep[], workflowId?: number | null): Promise<IntakeWorkflowStep[]>;
+  resetIntakeWorkflowToDefaults(organizationId: number, workflowId?: number | null): Promise<IntakeWorkflowStep[]>;
+  getIntakeWorkflows(organizationId: number): Promise<IntakeWorkflow[]>;
+  getIntakeWorkflow(id: number): Promise<IntakeWorkflow | undefined>;
+  createIntakeWorkflow(data: InsertIntakeWorkflow): Promise<IntakeWorkflow>;
+  updateIntakeWorkflow(id: number, updates: Partial<InsertIntakeWorkflow>): Promise<IntakeWorkflow>;
+  deleteIntakeWorkflow(id: number): Promise<void>;
+  ensureDefaultIntakeWorkflow(organizationId: number): Promise<IntakeWorkflow>;
+  getProjectWorkflows(organizationId: number): Promise<ProjectWorkflow[]>;
+  getProjectWorkflow(id: number): Promise<ProjectWorkflow | undefined>;
+  createProjectWorkflow(data: InsertProjectWorkflow): Promise<ProjectWorkflow>;
+  updateProjectWorkflow(id: number, updates: Partial<InsertProjectWorkflow>): Promise<ProjectWorkflow>;
+  deleteProjectWorkflow(id: number): Promise<void>;
+  ensureDefaultProjectWorkflow(organizationId: number): Promise<ProjectWorkflow>;
+  resetProjectWorkflowToDefaults(organizationId: number, workflowId: number): Promise<ProjectWorkflowStep[]>;
+  getProjectWorkflowSteps(organizationId: number, workflowId: number): Promise<ProjectWorkflowStep[]>;
+  upsertProjectWorkflowSteps(
+    organizationId: number,
+    workflowId: number,
+    steps: Array<Omit<InsertProjectWorkflowStep, 'organizationId' | 'workflowId'>>,
+  ): Promise<ProjectWorkflowStep[]>;
 }
 
 export interface IMiscStorage {
@@ -458,20 +493,20 @@ export interface IMiscStorage {
   softDeleteItem(type: RecycleBinItemType, id: number, userId: string, organizationId?: number): Promise<boolean>;
   restoreItem(type: RecycleBinItemType, id: number, organizationId: number): Promise<boolean>;
   permanentlyDeleteItem(type: RecycleBinItemType, id: number, organizationId: number): Promise<boolean>;
-  getProjectViews(organizationId: number, userId: string, mode: string): Promise<ProjectView[]>;
+  getProjectViews(organizationId: number, userId: string, mode: string, portfolioId?: number | null): Promise<ProjectView[]>;
   getProjectView(id: number): Promise<ProjectView | undefined>;
   createProjectView(view: InsertProjectView): Promise<ProjectView>;
   updateProjectView(id: number, updates: UpdateProjectViewRequest): Promise<ProjectView>;
   deleteProjectView(id: number): Promise<void>;
-  setDefaultProjectView(organizationId: number, userId: string, mode: string, viewId: number): Promise<void>;
-  getSystemProjectViews(organizationId: number, mode: string): Promise<SystemProjectView[]>;
+  setDefaultProjectView(organizationId: number, userId: string, mode: string, viewId: number, portfolioId?: number | null): Promise<void>;
+  getSystemProjectViews(organizationId: number, mode: string, portfolioId?: number | null): Promise<SystemProjectView[]>;
   getSystemProjectView(id: number): Promise<SystemProjectView | undefined>;
   createSystemProjectView(view: InsertSystemProjectView): Promise<SystemProjectView>;
   updateSystemProjectView(id: number, updates: UpdateSystemProjectViewRequest): Promise<SystemProjectView>;
   deleteSystemProjectView(id: number): Promise<void>;
   getNotifications(userId: string, limit?: number, offset?: number): Promise<Notification[]>;
   getUnreadNotificationCount(userId: string): Promise<number>;
-  createNotification(notification: InsertNotification): Promise<Notification>;
+  createNotification(notification: InsertNotification): Promise<Notification | null>;
   markNotificationRead(id: number): Promise<void>;
   markAllNotificationsRead(userId: string): Promise<void>;
   getStatusReportHistory(projectId: number): Promise<StatusReportHistory[]>;
@@ -517,6 +552,11 @@ export interface IMiscStorage {
   getPortfolioScoringConfig(portfolioId: number): Promise<PortfolioScoringConfig[]>;
   upsertPortfolioScoringConfig(portfolioId: number, criteriaId: number, aggregationMethod: string): Promise<PortfolioScoringConfig>;
   getAllProjectScoresForProjects(projectIds: number[]): Promise<ProjectScore[]>;
+  getLessonsLearned(projectId: number): Promise<LessonLearned[]>;
+  getLessonLearned(id: number): Promise<LessonLearned | undefined>;
+  createLessonLearned(lesson: InsertLessonLearned): Promise<LessonLearned>;
+  updateLessonLearned(id: number, updates: Partial<InsertLessonLearned>): Promise<LessonLearned>;
+  deleteLessonLearned(id: number): Promise<void>;
 }
 
 export interface IStorage extends

@@ -1,48 +1,67 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
-import { apiRequest } from "@/lib/queryClient";
-
-export interface ProjectWorkflow {
-  id: number;
-  organizationId: number;
-  name: string;
-  description: string | null;
-  isDefault: boolean | null;
-  isActive: boolean | null;
-  creationMode: string;
-  creationUrl: string | null;
-}
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { ProjectWorkflow } from "@shared/schema";
 
 /**
- * Fetches the list of project workflow templates for the current organization.
- *
- * The backend endpoint is optional — when it's not yet wired up the hook
- * returns an empty list so consumers can render gracefully (e.g. by falling
- * back to the default lifecycle).
+ * Hook for listing/managing all project workflows for the current organization.
  */
 export function useProjectWorkflows() {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
 
   const query = useQuery<ProjectWorkflow[]>({
-    queryKey: ["/api/project-workflows", orgId],
+    queryKey: ["/api/organizations", orgId, "project-workflows"],
     enabled: !!orgId,
     queryFn: async () => {
-      try {
-        const res = await apiRequest("GET", "/api/project-workflows");
-        if (!res.ok) return [];
-        const data = await res.json();
-        return Array.isArray(data) ? data : [];
-      } catch {
-        return [];
-      }
+      const res = await apiRequest("GET", `/api/organizations/${orgId}/project-workflows`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
     },
-    staleTime: 5 * 60 * 1000,
+  });
+
+  const createWorkflow = useMutation({
+    mutationFn: async (data: { name: string; description?: string; isDefault?: boolean; creationMode?: 'dialog' | 'url'; creationUrl?: string | null }) => {
+      if (!orgId) throw new Error("No organization selected");
+      const res = await apiRequest("POST", `/api/organizations/${orgId}/project-workflows`, data);
+      return res.json() as Promise<ProjectWorkflow>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations", orgId, "project-workflows"] });
+    },
+  });
+
+  const updateWorkflowMeta = useMutation({
+    mutationFn: async ({ id, ...data }: { id: number; name?: string; description?: string; isDefault?: boolean; isActive?: boolean; creationMode?: 'dialog' | 'url'; creationUrl?: string | null }) => {
+      if (!orgId) throw new Error("No organization selected");
+      const res = await apiRequest("PATCH", `/api/organizations/${orgId}/project-workflows/${id}`, data);
+      return res.json() as Promise<ProjectWorkflow>;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations", orgId, "project-workflows"] });
+    },
+  });
+
+  const deleteWorkflow = useMutation({
+    mutationFn: async (id: number) => {
+      if (!orgId) throw new Error("No organization selected");
+      await apiRequest("DELETE", `/api/organizations/${orgId}/project-workflows/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/organizations", orgId, "project-workflows"] });
+    },
   });
 
   return {
     workflows: query.data ?? [],
     isLoading: query.isLoading,
     error: query.error,
+    createWorkflow,
+    updateWorkflowMeta,
+    deleteWorkflow,
   };
 }
+
+// Backwards-compatible re-export of the type so existing imports keep working.
+export type { ProjectWorkflow };

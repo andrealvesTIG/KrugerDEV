@@ -36,12 +36,13 @@ export function ShareReportDialog({ open, onOpenChange, dashboardType, organizat
       const formats: string[] = [];
       if (includePptx) formats.push("pptx");
       
-      return apiRequest("POST", `/api/dashboard/${dashboardType}/share`, {
+      const res = await apiRequest("POST", `/api/dashboard/${dashboardType}/share`, {
         recipients: emails,
         organizationId,
         formats,
         message,
       });
+      return (await res.json()) as { sent: number; total: number };
     },
     onSuccess: (data) => {
       toast({

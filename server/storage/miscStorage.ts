@@ -214,7 +214,16 @@ export async function getUnreadNotificationCount(userId: string): Promise<number
   return result[0]?.count || 0;
 }
 
-export async function createNotification(notification: InsertNotification): Promise<Notification> {
+export async function createNotification(notification: InsertNotification): Promise<Notification | null> {
+  try {
+    const { shouldSendNotification } = await import("../services/userNotificationPreferences");
+    const allowed = await shouldSendNotification(notification.userId, notification.type, "inApp");
+    if (!allowed) {
+      return null;
+    }
+  } catch (err) {
+    console.warn("Notification preference check failed; delivering anyway:", err);
+  }
   const [created] = await db.insert(notifications).values(notification).returning();
   return created;
 }

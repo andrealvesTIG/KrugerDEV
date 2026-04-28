@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserPlus, Trash2, Users, ShieldAlert, X, Check, Building2, Mail, Clock, RefreshCw, ArrowUpCircle } from "lucide-react";
+import { Loader2, UserPlus, Trash2, Users, ShieldAlert, X, Check, Building2, Mail, Clock, RefreshCw, ArrowUpCircle, KeyRound, Key, Copy } from "lucide-react";
 import { format } from "date-fns";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
 import type { OrganizationMember, User } from "@shared/schema";
@@ -65,6 +65,7 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
   const [removeMemberId, setRemoveMemberId] = useState<string | null>(null);
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [upgradeMessage, setUpgradeMessage] = useState<string>("");
+  const [tempPasswordResult, setTempPasswordResult] = useState<{ tempPassword: string; email: string | null; name: string } | null>(null);
 
   const { data: members = [], isLoading } = useQuery<EnrichedMember[]>({
     queryKey: [`/api/organizations/${organizationId}/members`],
@@ -255,6 +256,32 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
     }
   });
 
+  const generateTempPassword = useMutation({
+    mutationFn: async ({ userId }: { userId: string; name: string }) => {
+      const res = await apiRequest('POST', `/api/organizations/${organizationId}/members/${userId}/generate-temp-password`);
+      return res.json() as Promise<{ tempPassword: string; email: string | null }>;
+    },
+    onSuccess: (data, variables) => {
+      setTempPasswordResult({ tempPassword: data.tempPassword, email: data.email, name: variables.name });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Could not generate password", description: error.message || "Please try again.", variant: "destructive" });
+    }
+  });
+
+  const sendPasswordReset = useMutation({
+    mutationFn: async (userId: string) => {
+      const res = await apiRequest('POST', `/api/organizations/${organizationId}/members/${userId}/send-password-reset`);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Password reset link sent", description: "The member has been emailed a temporary link to set a new password." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Could not send reset link", description: error.message || "Please try again.", variant: "destructive" });
+    }
+  });
+
   const removeMember = useMutation({
     mutationFn: async (userId: string) => {
       return apiRequest('DELETE', `/api/organizations/${organizationId}/members/${userId}`);
@@ -385,7 +412,7 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
               <TableHead>Email</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Added</TableHead>
-              <TableHead className="w-[100px]">Actions</TableHead>
+              <TableHead className="w-[180px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -415,14 +442,45 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
                   {member.createdAt ? format(new Date(member.createdAt), 'MMM d, yyyy') : 'N/A'}
                 </TableCell>
                 <TableCell>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    onClick={() => setRemoveMemberId(member.userId)}
-                    data-testid={`button-remove-member-${member.id}`}
-                  >
-                    <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => generateTempPassword.mutate({ userId: member.userId, name: `${member.user?.firstName ?? ''} ${member.user?.lastName ?? ''}`.trim() || member.user?.email || 'this user' })}
+                      disabled={generateTempPassword.isPending}
+                      title="Generate a temporary password (shown once)"
+                      data-testid={`button-generate-temp-password-${member.id}`}
+                    >
+                      {generateTempPassword.isPending && generateTempPassword.variables?.userId === member.userId ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                      ) : (
+                        <Key className="h-4 w-4 text-slate-400 hover:text-orange-500" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => sendPasswordReset.mutate(member.userId)}
+                      disabled={sendPasswordReset.isPending || !member.user?.email}
+                      title="Email a password reset link"
+                      data-testid={`button-send-reset-${member.id}`}
+                    >
+                      {sendPasswordReset.isPending && sendPasswordReset.variables === member.userId ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                      ) : (
+                        <KeyRound className="h-4 w-4 text-slate-400 hover:text-orange-500" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setRemoveMemberId(member.userId)}
+                      title="Remove member"
+                      data-testid={`button-remove-member-${member.id}`}
+                    >
+                      <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -834,6 +892,58 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
               data-testid="button-send-directory-invite"
             >
               {inviteFromDirectory.isPending ? "Sending..." : "Send Invite"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!tempPasswordResult} onOpenChange={(open) => { if (!open) setTempPasswordResult(null); }}>
+        <DialogContent data-testid="dialog-temp-password">
+          <DialogHeader>
+            <DialogTitle>Temporary password generated</DialogTitle>
+            <DialogDescription>
+              Share this password with {tempPasswordResult?.name} privately. It will not be shown again. They should change it on first sign-in.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {tempPasswordResult?.email && (
+              <div className="text-sm text-muted-foreground">
+                Sign-in email: <span className="font-medium text-foreground">{tempPasswordResult.email}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <Input
+                readOnly
+                value={tempPasswordResult?.tempPassword ?? ''}
+                className="font-mono"
+                onFocus={(e) => e.currentTarget.select()}
+                data-testid="input-temp-password-value"
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={async () => {
+                  if (!tempPasswordResult) return;
+                  try {
+                    await navigator.clipboard.writeText(tempPasswordResult.tempPassword);
+                    toast({ title: "Copied", description: "Temporary password copied to clipboard" });
+                  } catch {
+                    toast({ title: "Copy failed", description: "Please select and copy manually.", variant: "destructive" });
+                  }
+                }}
+                title="Copy to clipboard"
+                data-testid="button-copy-temp-password"
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              The previous password (if any) and any pending reset links have been invalidated.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setTempPasswordResult(null)} data-testid="button-close-temp-password">
+              Done
             </Button>
           </DialogFooter>
         </DialogContent>

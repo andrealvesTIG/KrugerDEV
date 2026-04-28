@@ -272,7 +272,7 @@ export async function checkMilestones(organizationId: number): Promise<Notificat
         eq(tasks.taskType, 'Milestone'),
         gte(tasks.endDate, todayStr),
         lte(tasks.endDate, nextWeekStr),
-        not(eq(tasks.status, 'Done')),
+        not(eq(tasks.status, 'Completed')),
         sql`(${tasks.progress} IS NULL OR ${tasks.progress} < 100)`,
         isNull(tasks.deletedAt),
         isNull(projects.deletedAt)
@@ -322,7 +322,7 @@ export async function checkMilestones(organizationId: number): Promise<Notificat
         eq(tasks.isMilestone, true),
         eq(tasks.taskType, 'Milestone'),
         lt(tasks.endDate, todayStr),
-        not(eq(tasks.status, 'Done')),
+        not(eq(tasks.status, 'Completed')),
         sql`(${tasks.progress} IS NULL OR ${tasks.progress} < 100)`,
         isNull(tasks.deletedAt),
         isNull(projects.deletedAt)

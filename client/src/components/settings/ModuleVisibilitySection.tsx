@@ -291,11 +291,13 @@ export function ModuleVisibilitySection({ organization }: { organization: Organi
   
   const [showAddLink, setShowAddLink] = useState<string | null>(null);
   const [editingLink, setEditingLink] = useState<{ groupId: string; link: SidebarItem & { type: "customLink" } } | null>(null);
+  const [editingModule, setEditingModule] = useState<{ groupId: string; itemKey: string; defaultName: string } | null>(null);
   
   const [newGroupName, setNewGroupName] = useState("");
   const [newLinkLabel, setNewLinkLabel] = useState("");
   const [newLinkUrl, setNewLinkUrl] = useState("");
   const [newLinkOpenMode, setNewLinkOpenMode] = useState<"newTab" | "iframe">("newTab");
+  const [newModuleLabel, setNewModuleLabel] = useState("");
   
   useEffect(() => {
     const newStructure = organization.sidebarStructure && Array.isArray(organization.sidebarStructure) && organization.sidebarStructure.length > 0
@@ -537,6 +539,32 @@ export function ModuleVisibilitySection({ organization }: { organization: Organi
     setEditingLink(null);
   };
 
+  const updateModuleLabel = () => {
+    if (!editingModule) return;
+    const trimmed = newModuleLabel.trim();
+    const newStructure = structure.map(g => {
+      if (g.id !== editingModule.groupId) return g;
+      return {
+        ...g,
+        items: g.items.map(item => {
+          if (item.type === "module" && item.key === editingModule.itemKey) {
+            const next = { ...item } as SidebarItem & { type: "module" };
+            if (!trimmed || trimmed === editingModule.defaultName) {
+              delete (next as { customLabel?: string }).customLabel;
+            } else {
+              next.customLabel = trimmed;
+            }
+            return next;
+          }
+          return item;
+        })
+      };
+    });
+    saveStructure(newStructure);
+    setEditingModule(null);
+    setNewModuleLabel("");
+  };
+
   const deleteItem = (groupId: string, itemId: string) => {
     const newStructure = structure.map(g => {
       if (g.id !== groupId) return g;
@@ -691,6 +719,9 @@ export function ModuleVisibilitySection({ organization }: { organization: Organi
                           if (item.type === "module") {
                             const moduleInfo = getModuleInfo(item.key);
                             const Icon = moduleIconMap[item.key] || Folder;
+                            const defaultName = moduleInfo?.name || item.key;
+                            const displayName = item.customLabel?.trim() || defaultName;
+                            const isCustomized = !!item.customLabel?.trim() && item.customLabel.trim() !== defaultName;
                             return (
                               <SortableItem key={itemId} id={itemId}>
                                 <div 
@@ -704,22 +735,41 @@ export function ModuleVisibilitySection({ organization }: { organization: Organi
                                     </div>
                                     <div className="min-w-0">
                                       <div className="font-medium flex items-center gap-2">
-                                        <span className="truncate">{moduleInfo?.name || item.key}</span>
+                                        <span className="truncate">{displayName}</span>
+                                        {isCustomized && <Badge variant="outline" className="text-xs shrink-0">Renamed</Badge>}
                                         {isHidden && <Badge variant="secondary" className="text-xs shrink-0">Hidden</Badge>}
                                       </div>
-                                      <div className="text-sm text-muted-foreground truncate">{moduleInfo?.description || 'Module'}</div>
+                                      <div className="text-sm text-muted-foreground truncate">
+                                        {isCustomized ? `Default: ${defaultName}` : (moduleInfo?.description || 'Module')}
+                                      </div>
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    <span className="text-muted-foreground">
-                                      {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                    </span>
-                                    <Switch
-                                      checked={!isHidden}
-                                      onCheckedChange={() => toggleItemVisibility(group.id, itemId)}
-                                      disabled={updateOrgMutation.isPending}
-                                      data-testid={`switch-item-${itemId}`}
-                                    />
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingModule({ groupId: group.id, itemKey: item.key, defaultName });
+                                        setNewModuleLabel(item.customLabel?.trim() || defaultName);
+                                      }}
+                                      onPointerDown={(e) => e.stopPropagation()}
+                                      data-testid={`button-edit-module-${item.key}`}
+                                      title="Rename"
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <div className="flex items-center gap-2 ml-1">
+                                      <span className="text-muted-foreground">
+                                        {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                      </span>
+                                      <Switch
+                                        checked={!isHidden}
+                                        onCheckedChange={() => toggleItemVisibility(group.id, itemId)}
+                                        disabled={updateOrgMutation.isPending}
+                                        data-testid={`switch-item-${itemId}`}
+                                      />
+                                    </div>
                                   </div>
                                 </div>
                               </SortableItem>
@@ -909,6 +959,45 @@ export function ModuleVisibilitySection({ organization }: { organization: Organi
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowAddLink(null); setNewLinkLabel(""); setNewLinkUrl(""); setNewLinkOpenMode("newTab"); }}>Cancel</Button>
             <Button onClick={() => showAddLink && addCustomLink(showAddLink)} disabled={!newLinkLabel.trim() || !newLinkUrl.trim()} data-testid="button-confirm-add-link">Add Link</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingModule} onOpenChange={(open) => { if (!open) { setEditingModule(null); setNewModuleLabel(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Menu Item</DialogTitle>
+            <DialogDescription>
+              Set a custom label for this menu item. Leave blank or match the default to restore the original name.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="module-label">Label</Label>
+              <Input
+                id="module-label"
+                value={newModuleLabel}
+                onChange={(e) => setNewModuleLabel(e.target.value)}
+                placeholder={editingModule?.defaultName || ""}
+                data-testid="input-module-label"
+              />
+              {editingModule && (
+                <p className="text-xs text-muted-foreground">Default: {editingModule.defaultName}</p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (editingModule) setNewModuleLabel(editingModule.defaultName);
+              }}
+              data-testid="button-reset-module-label"
+            >
+              Reset to Default
+            </Button>
+            <Button variant="outline" onClick={() => { setEditingModule(null); setNewModuleLabel(""); }}>Cancel</Button>
+            <Button onClick={updateModuleLabel} data-testid="button-confirm-edit-module">Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

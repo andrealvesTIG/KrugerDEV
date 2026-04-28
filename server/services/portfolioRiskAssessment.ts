@@ -159,7 +159,7 @@ export async function generatePortfolioRiskAssessment(
       endDate: p.endDate,
       completionPercentage: p.completionPercentage,
       taskCount: tasksByProject[p.id]?.length || 0,
-      completedTasks: tasksByProject[p.id]?.filter((t: any) => t.status === 'Done' || t.status === 'Completed').length || 0,
+      completedTasks: tasksByProject[p.id]?.filter((t: any) => t.status === 'Completed').length || 0,
     })),
     risks: risks.map(r => ({
       title: r.title,

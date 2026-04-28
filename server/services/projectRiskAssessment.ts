@@ -144,9 +144,9 @@ export async function generateProjectRiskAssessment(
     })),
     summary: {
       totalTasks: tasks.length,
-      completedTasks: tasks.filter(t => t.status === 'Done' || t.status === 'Completed').length,
+      completedTasks: tasks.filter(t => t.status === 'Completed').length,
       inProgressTasks: tasks.filter(t => t.status === 'In Progress').length,
-      overdueTasks: tasks.filter(t => t.endDate && new Date(t.endDate) < new Date() && t.status !== 'Done' && t.status !== 'Completed').length,
+      overdueTasks: tasks.filter(t => t.endDate && new Date(t.endDate) < new Date() && t.status !== 'Completed' && t.status !== 'Cancelled').length,
       totalBudget: Number(project.budget || 0),
       totalSpent: Number(project.actualCost || 0),
       totalRisks: risks.length,

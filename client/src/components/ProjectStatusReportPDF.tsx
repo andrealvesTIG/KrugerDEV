@@ -652,7 +652,7 @@ export function ProjectStatusReportPDF({
                   return (
                     <View key={m.id} style={styles.milestoneDot}>
                       <View style={{ width: 0, height: 0, borderLeftWidth: 4, borderRightWidth: 4, borderBottomWidth: 8, borderLeftColor: "transparent", borderRightColor: "transparent", borderBottomColor: color }} />
-                      <Text style={styles.milestoneDotText}>{m.title.substring(0, 20)}</Text>
+                      <Text style={styles.milestoneDotText}>{(m.name ?? "").substring(0, 20)}</Text>
                     </View>
                   );
                 })}
@@ -756,7 +756,7 @@ export function ProjectStatusReportPDF({
                   const status = getMilestoneStatus(milestone);
                   return (
                     <View key={milestone.id} style={styles.milestoneRow}>
-                      <Text style={styles.milestoneTitle}>{milestone.title}</Text>
+                      <Text style={styles.milestoneTitle}>{milestone.name}</Text>
                       <Text style={styles.milestoneDate}>
                         {(milestone.endDate || milestone.startDate) ? format(new Date((milestone.endDate || milestone.startDate)!), "MMM d, yyyy") : "—"}
                       </Text>
@@ -817,8 +817,8 @@ export function ProjectStatusReportPDF({
                 </Text>
                 <Text style={[
                   styles.milestoneStatus,
-                  cr.status === "approved" ? styles.statusComplete :
-                  cr.status === "rejected" ? styles.statusAtRisk : styles.statusOnTrack
+                  cr.status === "Approved" || cr.status === "Implemented" ? styles.statusComplete :
+                  cr.status === "Rejected" ? styles.statusAtRisk : styles.statusOnTrack
                 ]}>
                   {cr.status?.replace('_', ' ') || 'pending'}
                 </Text>

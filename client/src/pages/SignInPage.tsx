@@ -68,6 +68,7 @@ import { LandingFooter } from "@/components/layout/LandingFooter";
 import { PublicFeatureComparison } from "@/components/PublicFeatureComparison";
 import RadarCanvas, { type RiskSignal } from "@/components/radar/RadarCanvas";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
+import { trackLinkedInSignupConversion } from "@/lib/linkedinTracking";
 // Video served from public folder for production compatibility
 import demoVideo from "@assets/30_sec_video_1771015821657.mp4";
 
@@ -248,6 +249,7 @@ export default function SignInPage() {
   });
 
   const handleGoogleSignIn = () => {
+    trackLinkedInSignupConversion();
     window.location.href = `/api/auth/google/login?source=${encodeURIComponent(effectiveSource)}`;
   };
 
@@ -255,6 +257,8 @@ export default function SignInPage() {
     e.preventDefault();
     if (!email.trim()) return;
     if (!termsAccepted) return;
+
+    trackLinkedInSignupConversion();
 
     const honeypotPayload = honeypotData ? {
       honeypot1: honeypotData.honeypot1,
@@ -297,6 +301,7 @@ export default function SignInPage() {
   };
 
   const handleMicrosoftSignIn = () => {
+    trackLinkedInSignupConversion();
     window.location.href = `/api/auth/microsoft/login?source=${encodeURIComponent(effectiveSource)}`;
   };
 

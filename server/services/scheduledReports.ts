@@ -446,9 +446,11 @@ export async function sendScheduledReport(subscriptionId: number): Promise<boole
       recipients.push(...subscription.recipients);
     }
     
+    const { shouldSendEmailToAddress } = await import("./userNotificationPreferences");
     // Send to all recipients
     for (const recipient of recipients) {
       if (recipient) {
+        if (!(await shouldSendEmailToAddress(recipient, "report.shared"))) continue;
         await sendEmail({
           to: recipient,
           subject: `📊 ${subscription.name} - ${format(new Date(), 'MMM d, yyyy')}`,

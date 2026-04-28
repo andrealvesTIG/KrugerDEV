@@ -3538,9 +3538,11 @@ export async function registerMiscRoutes(app: Express) {
       const organizationId = req.query.organizationId ? Number(req.query.organizationId) : null;
       if (!organizationId) return res.json([]);
 
-      const orgMembers = await storage.getOrganizationMembers(organizationId);
-      const isMember = orgMembers.some(m => m.userId === userId);
-      if (!isMember) return res.status(403).json({ message: "Not a member of this organization" });
+      // Use shared access helper so admin roles (super_admin, marketing) get the same
+      // override as in /api/organizations/:id and ~20 other endpoints.
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
 
       const activity = await storage.getRecentOrgActivity(organizationId, 15);
       res.json(activity.map((item, i) => ({ id: `${item.type}-activity-${i}`, ...item })));

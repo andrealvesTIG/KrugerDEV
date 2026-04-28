@@ -16,7 +16,8 @@ import { PROJECT_STATUSES, PROJECT_HEALTH_VALUES, PROJECT_PRIORITIES } from "@sh
 import type { Project, Resource, Portfolio } from "@shared/schema";
 import { DEFAULT_PROJECT_STATUS_LIST } from "@/lib/project-statuses";
 import { Link, useLocation } from "wouter";
-import { Plus, Search, Calendar, AlertCircle, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, ChevronLeft, ChevronRight, Download, Loader2, ExternalLink, Table2, Settings2, Check, Crown, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown, FileSpreadsheet, Cloud, Rocket, Lock as LockIcon, Shield, Layers, FolderOpen } from "lucide-react";
+import { Plus, Search, Calendar, AlertCircle, List, LayoutGrid, GanttChart, MoreVertical, Trash2, Eye, Upload, PenTool, ChevronDown, ChevronLeft, ChevronRight, Download, Loader2, ExternalLink, Table2, Settings2, Check, Crown, GripVertical, X, Maximize2, Minimize2, ArrowUp, ArrowDown, ChevronsUpDown, FileSpreadsheet, Cloud, Rocket, Lock as LockIcon, Shield, Layers, FolderOpen, MapPin } from "lucide-react";
+import { ProjectsMapView } from "@/components/ProjectsMapView";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -1102,15 +1103,15 @@ export default function Projects() {
   const isOrgAdmin = user?.role === 'super_admin' || 
     currentMembership?.role === 'org_admin' || 
     currentOrganization?.ownerId === user?.id;
-  const [view, setView] = useState<"list" | "grid" | "kanban" | "gantt">(() => {
+  const [view, setView] = useState<"list" | "grid" | "kanban" | "gantt" | "map">(() => {
     const saved = localStorage.getItem("projects-view-preference");
-    if (saved && ["list", "grid", "kanban", "gantt"].includes(saved)) {
-      return saved as "list" | "grid" | "kanban" | "gantt";
+    if (saved && ["list", "grid", "kanban", "gantt", "map"].includes(saved)) {
+      return saved as "list" | "grid" | "kanban" | "gantt" | "map";
     }
     return "grid";
   });
 
-  const handleViewChange = (newView: "list" | "grid" | "kanban" | "gantt") => {
+  const handleViewChange = (newView: "list" | "grid" | "kanban" | "gantt" | "map") => {
     setView(newView);
     localStorage.setItem("projects-view-preference", newView);
   };
@@ -1867,6 +1868,16 @@ export default function Projects() {
               <GanttChart className="h-4 w-4 mr-2" />
               Gantt
             </Button>
+            <Button
+              variant={view === "map" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => handleViewChange("map")}
+              className="rounded-none"
+              data-testid="button-view-map"
+            >
+              <MapPin className="h-4 w-4 mr-2" />
+              Map
+            </Button>
           </div>
           <div className="flex-1" />
           <Button
@@ -1961,8 +1972,10 @@ export default function Projects() {
                 cfValues={exportCfValues || []}
                 onCustomFieldChange={handleKanbanCfChange}
               />
-            ) : (
+            ) : view === "gantt" ? (
               <ProjectsGanttView projects={filteredProjects || []} organizationId={currentOrganization?.id || null} />
+            ) : (
+              <ProjectsMapView projects={filteredProjects || []} portfolios={portfolios || []} />
             )}
           </div>
         </div>
@@ -2020,8 +2033,10 @@ export default function Projects() {
           cfValues={exportCfValues || []}
           onCustomFieldChange={handleKanbanCfChange}
         />
-      ) : !isFullscreen ? (
+      ) : !isFullscreen && view === "gantt" ? (
         <ProjectsGanttView projects={filteredProjects || []} organizationId={currentOrganization?.id || null} />
+      ) : !isFullscreen && view === "map" ? (
+        <ProjectsMapView projects={filteredProjects || []} portfolios={portfolios || []} />
       ) : null}
 
       {/* Delete Confirmation Dialog */}
