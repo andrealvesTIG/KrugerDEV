@@ -3083,20 +3083,29 @@ export async function registerMiscRoutes(app: Express) {
 
       const [ticket] = await db.insert(helpTickets).values(ticketData).returning();
 
-      // Send email notification to support
+      // Send email notification to support. All user-controlled fields must
+      // be HTML-escaped so a malicious subject/description cannot inject
+      // markup or scripts into the support inbox.
       try {
+        const { escapeHtml, escapeHtmlMultiline } = await import("../lib/htmlEscape");
+        const safeSubject = escapeHtml(subject);
+        const safeUserName = escapeHtml(ticketData.userName);
+        const safeUserEmail = escapeHtml(ticketData.userEmail);
+        const safeOrgName = orgName ? escapeHtml(orgName) : '';
+        const safeDescription = escapeHtmlMultiline(description);
+        const subjectHeader = `[Help Ticket #${ticket.id}] ${subject}`.replace(/[\r\n]+/g, ' ').slice(0, 250);
         await sendEmail({
           to: 'support@fridayreport.ai',
-          subject: `[Help Ticket #${ticket.id}] ${subject}`,
+          subject: subjectHeader,
           text: `New Help Ticket from ${ticketData.userName} (${ticketData.userEmail}): ${subject} - ${description}`,
           html: `
             <h2>New Help Ticket Submitted</h2>
-            <p><strong>From:</strong> ${ticketData.userName} (${ticketData.userEmail})</p>
-            ${orgName ? `<p><strong>Organization:</strong> ${orgName}</p>` : ''}
-            <p><strong>Subject:</strong> ${subject}</p>
+            <p><strong>From:</strong> ${safeUserName} (${safeUserEmail})</p>
+            ${safeOrgName ? `<p><strong>Organization:</strong> ${safeOrgName}</p>` : ''}
+            <p><strong>Subject:</strong> ${safeSubject}</p>
             <hr>
             <p><strong>Description:</strong></p>
-            <p>${description.replace(/\n/g, '<br>')}</p>
+            <p>${safeDescription}</p>
             ${imageUrls?.length ? `<p><strong>Attachments:</strong> ${imageUrls.length} image(s)</p>` : ''}
             <hr>
             <p><em>Ticket ID: ${ticket.id}</em></p>
@@ -3540,8 +3549,12 @@ export async function registerMiscRoutes(app: Express) {
 
       // Use shared access helper so admin roles (super_admin, marketing) get the same
       // override as in /api/organizations/:id and ~20 other endpoints.
+      // For this ambient widget we soft-fail to an empty list rather than 403,
+      // matching the no-organization branch above. This avoids surfacing
+      // permission errors to end-users on the home dashboard during normal
+      // org-context transitions (e.g. after switching orgs).
       if (!await userHasOrgAccess(userId, organizationId)) {
-        return res.status(403).json({ message: "Access denied to this organization" });
+        return res.json([]);
       }
 
       const activity = await storage.getRecentOrgActivity(organizationId, 15);
@@ -3561,11 +3574,17 @@ export async function registerMiscRoutes(app: Express) {
       });
       const { email, name, message } = schema.parse(req.body);
 
+      const { escapeHtml } = await import("../lib/htmlEscape");
+      const safeName = escapeHtml(name || 'Not provided');
+      const safeEmail = escapeHtml(email);
+      const safeMessage = escapeHtml(message || 'No message provided');
+      const safeSubject = (name || email).replace(/[\r\n]+/g, ' ').slice(0, 200);
+
       await sendEmail({
         to: 'info@fridayreport.ai',
-        subject: `Contact Sales Request from ${name || email}`,
+        subject: `Contact Sales Request from ${safeSubject}`,
         text: `New contact sales inquiry:\n\nName: ${name || 'Not provided'}\nEmail: ${email}\nMessage: ${message || 'No message provided'}`,
-        html: `<h2>New Contact Sales Inquiry</h2><p><strong>Name:</strong> ${name || 'Not provided'}</p><p><strong>Email:</strong> ${email}</p><p><strong>Message:</strong> ${message || 'No message provided'}</p>`,
+        html: `<h2>New Contact Sales Inquiry</h2><p><strong>Name:</strong> ${safeName}</p><p><strong>Email:</strong> ${safeEmail}</p><p><strong>Message:</strong> ${safeMessage}</p>`,
       });
 
       res.json({ success: true });

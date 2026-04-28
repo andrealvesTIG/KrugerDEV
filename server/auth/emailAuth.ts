@@ -4,7 +4,7 @@ import connectPgSimple from "connect-pg-simple";
 import rateLimit from "express-rate-limit";
 import { db } from "../db";
 import { users, passwordResetTokens, magicLinkTokens } from "@shared/schema";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, isNull } from "drizzle-orm";
 import crypto from "crypto";
 import { sendPasswordResetEmail, sendMagicLinkEmail, sendPasswordlessSignInEmail, sendEmailVerificationEmail, sendWelcomeEmail } from "../services/email";
 import { ensureUserOrganization } from "../services/onboarding";
@@ -97,6 +97,9 @@ export function getSession() {
       conString: process.env.DATABASE_URL,
       createTableIfMissing: true,
       tableName: "sessions",
+      // Periodically purge expired sessions so the sessions table doesn't grow
+      // unbounded. connect-pg-simple does not prune by default.
+      pruneSessionInterval: 60 * 60, // 1 hour, in seconds
     }),
     secret: process.env.SESSION_SECRET,
     resave: false,
@@ -709,12 +712,28 @@ export async function setupAuth(app: Express) {
         });
       }
 
+      // Atomically claim the token to prevent double-redemption races.
+      // The WHERE clause re-checks usedAt IS NULL (race) AND expiresAt > now
+      // (defense-in-depth against a token expiring between SELECT and UPDATE).
+      const claimed = await db.update(magicLinkTokens)
+        .set({ usedAt: new Date() })
+        .where(and(
+          eq(magicLinkTokens.id, magicToken.id),
+          isNull(magicLinkTokens.usedAt),
+          gt(magicLinkTokens.expiresAt, new Date()),
+        ))
+        .returning({ id: magicLinkTokens.id });
+      if (claimed.length === 0) {
+        return res.status(400).json({
+          message: "Invalid or expired link",
+          expired: true,
+        });
+      }
+
       // Check if user was created in the meantime (race condition)
       const [existingUser] = await db.select().from(users).where(eq(users.email, magicToken.email)).limit(1);
       
       if (existingUser) {
-        // Mark token as used
-        await db.update(magicLinkTokens).set({ usedAt: new Date() }).where(eq(magicLinkTokens.id, magicToken.id));
         return res.status(409).json({ 
           message: "An account with this email already exists. Please log in instead.",
           userExists: true
@@ -784,8 +803,8 @@ export async function setupAuth(app: Express) {
         console.error("Failed to send welcome email for magic link user:", err);
       });
 
-      // Mark token as used
-      await db.update(magicLinkTokens).set({ usedAt: new Date() }).where(eq(magicLinkTokens.id, magicToken.id));
+      // (Token was already atomically marked as used above to prevent
+      // double-redemption races.)
 
       // Auto-accept any pending invites and ensure organization
       let organizationCreated = false;
@@ -908,10 +927,11 @@ export async function setupAuth(app: Express) {
         }
       }
 
-      res.json({ 
-        message: "Check your email for a link to continue.",
+      // NOTE: We deliberately do not return whether the email matched an
+      // existing account. Returning that bit allows account enumeration.
+      res.json({
+        message: "If an account exists for that email, a sign-in link has been sent.",
         success: true,
-        userExists: !!existingUser
       });
     } catch (error) {
       console.error("Passwordless auth request error:", error);
@@ -954,20 +974,33 @@ export async function setupAuth(app: Express) {
         });
       }
 
+      // Atomically claim the token to prevent double-redemption races.
+      // The WHERE clause re-checks usedAt IS NULL (race) AND expiresAt > now
+      // (defense-in-depth against a token expiring between SELECT and UPDATE).
+      const claimed = await db.update(magicLinkTokens)
+        .set({ usedAt: new Date() })
+        .where(and(
+          eq(magicLinkTokens.id, magicToken.id),
+          isNull(magicLinkTokens.usedAt),
+          gt(magicLinkTokens.expiresAt, new Date()),
+        ))
+        .returning({ id: magicLinkTokens.id });
+      if (claimed.length === 0) {
+        return res.status(400).json({
+          message: "Invalid or expired link",
+          expired: true,
+        });
+      }
+
       // Find the user
       const [existingUser] = await db.select().from(users).where(eq(users.email, magicToken.email)).limit(1);
-      
+
       if (!existingUser) {
-        // Mark token as used
-        await db.update(magicLinkTokens).set({ usedAt: new Date() }).where(eq(magicLinkTokens.id, magicToken.id));
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "User not found. Please sign up instead.",
           userNotFound: true
         });
       }
-
-      // Mark token as used
-      await db.update(magicLinkTokens).set({ usedAt: new Date() }).where(eq(magicLinkTokens.id, magicToken.id));
 
 
       // Create session

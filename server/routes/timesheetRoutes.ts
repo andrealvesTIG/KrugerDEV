@@ -3229,14 +3229,17 @@ export function registerTimesheetRoutes(app: Express) {
       
       const user = await storage.getUser(userId);
       const senderName = user?.firstName || user?.email || 'A colleague';
-      
+      const { escapeHtml, escapeHtmlMultiline } = await import('../lib/htmlEscape');
+      const safeSenderName = escapeHtml(senderName);
+      const safeMessage = message ? escapeHtmlMultiline(String(message)) : '';
+
       const emailHtml = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px;">
           <div style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px;">
             <h1 style="color: white; margin: 0; font-size: 20px;">FridayReport.AI</h1>
           </div>
-          <p><strong>${senderName}</strong> has shared a dashboard report with you.</p>
-          ${message ? `<p style="background: #f3f4f6; padding: 12px; border-radius: 6px; font-style: italic;">"${message}"</p>` : ''}
+          <p><strong>${safeSenderName}</strong> has shared a dashboard report with you.</p>
+          ${safeMessage ? `<p style="background: #f3f4f6; padding: 12px; border-radius: 6px; font-style: italic;">"${safeMessage}"</p>` : ''}
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
           ${htmlContent}
         </div>

@@ -134,6 +134,8 @@ export function registerInvestorRoutes(app: Express) {
         return res.json({ success: true, skipped: true, reason: "Recipient opted out" });
       }
 
+      const { escapeHtml } = await import("../lib/htmlEscape");
+      const safeRecipientName = escapeHtml(recipientName || "there");
       const success = await sendEmail({
         to: toEmail,
         subject: "FridayReport.AI — Investor Deck",
@@ -145,7 +147,7 @@ export function registerInvestorRoutes(app: Express) {
               <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0;">Investor Deck</p>
             </div>
             <div style="padding: 30px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 0 0 12px 12px;">
-              <p>Hi ${recipientName || "there"},</p>
+              <p>Hi ${safeRecipientName},</p>
               <p>Please find attached the FridayReport.AI investor deck for your review.</p>
               <p>We'd love to discuss how we're transforming project portfolio management with AI-powered insights.</p>
               <p style="margin-top: 24px;">Best regards,<br/>The FridayReport.AI Team</p>

@@ -277,11 +277,10 @@ export default function SignInPage() {
       const data = await response.json();
       
       if (data.success) {
-        if (data.userExists) {
-          setLocation(`/signin/waiting?email=${encodeURIComponent(email.trim())}`);
-        } else {
-          setEmailSent(true);
-        }
+        // The server intentionally no longer reveals whether the email maps to
+        // an existing account (prevents enumeration). Always show the
+        // "check your email" state.
+        setEmailSent(true);
       } else {
         toast({
           title: "Error",

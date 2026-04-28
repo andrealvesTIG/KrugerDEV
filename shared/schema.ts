@@ -583,10 +583,10 @@ export const projects = pgTable("projects", {
   baselineEndDate: date("baseline_end_date"), // Original planned end
   actualStartDate: date("actual_start_date"), // When work actually started
   actualEndDate: date("actual_end_date"), // When work actually finished
-  budget: numeric("budget").notNull().default("0"),
-  actualCost: numeric("actual_cost").default("0"), // Actual spend to date
+  budget: numeric("budget").notNull().default(0),
+  actualCost: numeric("actual_cost").default(0), // Actual spend to date
   forecastCost: numeric("forecast_cost"), // Projected final cost
-  contractTotal: numeric("contract_total").default("0"), // Total contract value for invoicing
+  contractTotal: numeric("contract_total").default(0), // Total contract value for invoicing
   managerId: varchar("manager_id").references(() => users.id), // Project Manager (user ID)
   managerResourceId: integer("manager_resource_id").references(() => resources.id), // Project Manager (resource ID for display)
   businessSponsorId: varchar("business_sponsor_id").references(() => users.id), // Executive Sponsor
@@ -972,7 +972,7 @@ export const resources = pgTable("resources", {
   hourlyRate: numeric("hourly_rate"), // Standard hourly rate
   overtimeRate: numeric("overtime_rate"), // Overtime hourly rate
   costRate: numeric("cost_rate"), // Internal cost rate
-  weeklyCapacity: numeric("weekly_capacity").default("40"), // Hours per week available
+  weeklyCapacity: numeric("weekly_capacity").default(40), // Hours per week available
   availability: integer("availability").default(100), // Percentage availability (0-100)
   startDate: date("start_date"), // When resource started
   endDate: date("end_date"), // When resource contract ends (if applicable)
@@ -1141,9 +1141,9 @@ export type TimesheetPeriod = typeof timesheetPeriods.$inferSelect;
 export const timesheetSettings = pgTable("timesheet_settings", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
-  minWeeklyHours: numeric("min_weekly_hours").default("0"),
-  maxWeeklyHours: numeric("max_weekly_hours").default("50"),
-  overtimeThreshold: numeric("overtime_threshold").default("40"),
+  minWeeklyHours: numeric("min_weekly_hours").default(0),
+  maxWeeklyHours: numeric("max_weekly_hours").default(50),
+  overtimeThreshold: numeric("overtime_threshold").default(40),
   gracePeriodDays: integer("grace_period_days").default(0),
   mandatoryNotes: boolean("mandatory_notes").default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -1488,7 +1488,7 @@ export const projectInvoices = pgTable("project_invoices", {
   invoiceNumber: text("invoice_number"), // Invoice reference number
   title: text("title").notNull(), // Brief description
   description: text("description"), // Detailed description
-  amount: numeric("amount").default("0"), // Invoice amount
+  amount: numeric("amount").default(0), // Invoice amount
   currency: text("currency").default("USD"),
   status: text("status").default("Draft"), // Draft, Sent, Paid, Overdue, Cancelled
   invoiceDate: date("invoice_date"), // Date of invoice
@@ -1537,9 +1537,9 @@ export const projectFinancials = pgTable("project_financials", {
   description: text("description"),
   fiscalYear: integer("fiscal_year").notNull(), // e.g., 2025, 2026
   fiscalPeriod: text("fiscal_period"), // e.g., "Q1", "Q2", "Jan", "Full Year"
-  budgetAmount: numeric("budget_amount").default("0"), // Original budget/plan
-  plannedAmount: numeric("planned_amount").default("0"), // Current planned amount (may differ from original budget)
-  actualAmount: numeric("actual_amount").default("0"), // Actual spent
+  budgetAmount: numeric("budget_amount").default(0), // Original budget/plan
+  plannedAmount: numeric("planned_amount").default(0), // Current planned amount (may differ from original budget)
+  actualAmount: numeric("actual_amount").default(0), // Actual spent
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1564,50 +1564,50 @@ export const costItems = pgTable("cost_items", {
   category: text("category"), // legacy: "Direct Expense", "Licenses", "Outside Services", "Travel/Meals", "Project Material", etc.
   fiscalYear: integer("fiscal_year").notNull(), // e.g., 2026
   // Annual totals
-  aopTotal: numeric("aop_total").default("0"), // Annual Operating Plan (original budget)
-  fcstTotal: numeric("fcst_total").default("0"), // Forecast total
-  actTotal: numeric("act_total").default("0"), // Actual total
+  aopTotal: numeric("aop_total").default(0), // Annual Operating Plan (original budget)
+  fcstTotal: numeric("fcst_total").default(0), // Forecast total
+  actTotal: numeric("act_total").default(0), // Actual total
   // Monthly AOP. M1..M12 are the 12 months of the org's fiscal year. The
   // calendar month of M1 is set on `organizations.fiscalYearStartMonth`
   // (default 10 = October, in which case M1=Oct .. M12=Sep).
-  aopM1: numeric("aop_m1").default("0"),
-  aopM2: numeric("aop_m2").default("0"),
-  aopM3: numeric("aop_m3").default("0"),
-  aopM4: numeric("aop_m4").default("0"),
-  aopM5: numeric("aop_m5").default("0"),
-  aopM6: numeric("aop_m6").default("0"),
-  aopM7: numeric("aop_m7").default("0"),
-  aopM8: numeric("aop_m8").default("0"),
-  aopM9: numeric("aop_m9").default("0"),
-  aopM10: numeric("aop_m10").default("0"),
-  aopM11: numeric("aop_m11").default("0"),
-  aopM12: numeric("aop_m12").default("0"),
+  aopM1: numeric("aop_m1").default(0),
+  aopM2: numeric("aop_m2").default(0),
+  aopM3: numeric("aop_m3").default(0),
+  aopM4: numeric("aop_m4").default(0),
+  aopM5: numeric("aop_m5").default(0),
+  aopM6: numeric("aop_m6").default(0),
+  aopM7: numeric("aop_m7").default(0),
+  aopM8: numeric("aop_m8").default(0),
+  aopM9: numeric("aop_m9").default(0),
+  aopM10: numeric("aop_m10").default(0),
+  aopM11: numeric("aop_m11").default(0),
+  aopM12: numeric("aop_m12").default(0),
   // Monthly forecasts
-  fcstM1: numeric("fcst_m1").default("0"), // October
-  fcstM2: numeric("fcst_m2").default("0"), // November
-  fcstM3: numeric("fcst_m3").default("0"), // December
-  fcstM4: numeric("fcst_m4").default("0"), // January
-  fcstM5: numeric("fcst_m5").default("0"), // February
-  fcstM6: numeric("fcst_m6").default("0"), // March
-  fcstM7: numeric("fcst_m7").default("0"), // April
-  fcstM8: numeric("fcst_m8").default("0"), // May
-  fcstM9: numeric("fcst_m9").default("0"), // June
-  fcstM10: numeric("fcst_m10").default("0"), // July
-  fcstM11: numeric("fcst_m11").default("0"), // August
-  fcstM12: numeric("fcst_m12").default("0"), // September
+  fcstM1: numeric("fcst_m1").default(0), // October
+  fcstM2: numeric("fcst_m2").default(0), // November
+  fcstM3: numeric("fcst_m3").default(0), // December
+  fcstM4: numeric("fcst_m4").default(0), // January
+  fcstM5: numeric("fcst_m5").default(0), // February
+  fcstM6: numeric("fcst_m6").default(0), // March
+  fcstM7: numeric("fcst_m7").default(0), // April
+  fcstM8: numeric("fcst_m8").default(0), // May
+  fcstM9: numeric("fcst_m9").default(0), // June
+  fcstM10: numeric("fcst_m10").default(0), // July
+  fcstM11: numeric("fcst_m11").default(0), // August
+  fcstM12: numeric("fcst_m12").default(0), // September
   // Monthly actuals
-  actM1: numeric("act_m1").default("0"),
-  actM2: numeric("act_m2").default("0"),
-  actM3: numeric("act_m3").default("0"),
-  actM4: numeric("act_m4").default("0"),
-  actM5: numeric("act_m5").default("0"),
-  actM6: numeric("act_m6").default("0"),
-  actM7: numeric("act_m7").default("0"),
-  actM8: numeric("act_m8").default("0"),
-  actM9: numeric("act_m9").default("0"),
-  actM10: numeric("act_m10").default("0"),
-  actM11: numeric("act_m11").default("0"),
-  actM12: numeric("act_m12").default("0"),
+  actM1: numeric("act_m1").default(0),
+  actM2: numeric("act_m2").default(0),
+  actM3: numeric("act_m3").default(0),
+  actM4: numeric("act_m4").default(0),
+  actM5: numeric("act_m5").default(0),
+  actM6: numeric("act_m6").default(0),
+  actM7: numeric("act_m7").default(0),
+  actM8: numeric("act_m8").default(0),
+  actM9: numeric("act_m9").default(0),
+  actM10: numeric("act_m10").default(0),
+  actM11: numeric("act_m11").default(0),
+  actM12: numeric("act_m12").default(0),
   sortOrder: integer("sort_order").default(0), // For manual ordering within parent
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1676,7 +1676,7 @@ export const financialEntries = pgTable("financial_entries", {
   // server translates to/from the org's fiscal-month index (M1..M12) using
   // `organizations.fiscalYearStartMonth` (default 10 = October).
   month: integer("month").notNull(),
-  amount: numeric("amount").default("0").notNull(),
+  amount: numeric("amount").default(0).notNull(),
   // Logical-item identity (shared by every cell of one item)
   itemKey: text("item_key").notNull(),
   itemName: text("item_name").notNull(),
@@ -1770,9 +1770,9 @@ export const projectIntakes = pgTable("project_intakes", {
   pmoApprovedBy: varchar("pmo_approved_by").references(() => users.id),
   
   // Financials tab data
-  estimatedBudget: numeric("estimated_budget").default("0"),
-  capitalExpense: numeric("capital_expense").default("0"),
-  operatingExpense: numeric("operating_expense").default("0"),
+  estimatedBudget: numeric("estimated_budget").default(0),
+  capitalExpense: numeric("capital_expense").default(0),
+  operatingExpense: numeric("operating_expense").default(0),
   financialJustification: text("financial_justification"),
   
   // Cyber and Architectural Evaluation tab
@@ -1784,7 +1784,7 @@ export const projectIntakes = pgTable("project_intakes", {
   securityApproverId: varchar("security_approver_id").references(() => users.id),
   
   // Project Cost Evaluation (IT) tab
-  itCostEstimate: numeric("it_cost_estimate").default("0"),
+  itCostEstimate: numeric("it_cost_estimate").default(0),
   resourceRequirements: text("resource_requirements"),
   implementationTimeline: text("implementation_timeline"),
   costBenefitAnalysis: text("cost_benefit_analysis"),
@@ -3050,7 +3050,7 @@ export const projectScoringCriteria = pgTable("project_scoring_criteria", {
   name: text("name").notNull(),
   description: text("description"),
   category: text("category"), // Strategic, Financial, Risk, Resource, etc.
-  weight: numeric("weight").default("1"), // Weight for weighted scoring
+  weight: numeric("weight").default(1), // Weight for weighted scoring
   minScore: integer("min_score").default(0),
   maxScore: integer("max_score").default(10),
   scoringGuidelines: text("scoring_guidelines"), // Instructions for scoring
@@ -3336,9 +3336,9 @@ export const simulationRuns = pgTable("simulation_runs", {
   status: text("status").default("pending"), // "pending", "running", "completed", "cancelled"
   currentStep: integer("current_step").default(0),
   totalSteps: integer("total_steps").default(0),
-  riskTriggerProbabilityMultiplier: numeric("risk_trigger_probability_multiplier").default("1.0"),
-  budgetVarianceRange: numeric("budget_variance_range").default("0.1"),
-  scheduleVarianceRange: numeric("schedule_variance_range").default("0.1"),
+  riskTriggerProbabilityMultiplier: numeric("risk_trigger_probability_multiplier").default(1.0),
+  budgetVarianceRange: numeric("budget_variance_range").default(0.1),
+  scheduleVarianceRange: numeric("schedule_variance_range").default(0.1),
   snapshotData: jsonb("snapshot_data").$type<SimulationSnapshot>(),
   finalResults: jsonb("final_results").$type<SimulationResults>(),
   createdBy: varchar("created_by").references(() => users.id),
@@ -4762,10 +4762,10 @@ export const changeOrders = pgTable("change_orders", {
   tier: text("tier").default("PCO").notNull(),
   status: text("status").default("Draft").notNull(),
   reasonCode: text("reason_code"),
-  costImpact: numeric("cost_impact").default("0"),
+  costImpact: numeric("cost_impact").default(0),
   scheduleImpactDays: integer("schedule_impact_days").default(0),
-  originalContractAmount: numeric("original_contract_amount").default("0"),
-  revisedContractAmount: numeric("revised_contract_amount").default("0"),
+  originalContractAmount: numeric("original_contract_amount").default(0),
+  revisedContractAmount: numeric("revised_contract_amount").default(0),
   requestedBy: text("requested_by"),
   requestedDate: date("requested_date"),
   reviewedBy: text("reviewed_by"),
@@ -4794,9 +4794,9 @@ export const changeOrderLineItems = pgTable("change_order_line_items", {
   changeOrderId: integer("change_order_id").references(() => changeOrders.id).notNull(),
   costCode: text("cost_code"),
   description: text("description").notNull(),
-  quantity: numeric("quantity").default("1"),
-  unitPrice: numeric("unit_price").default("0"),
-  totalPrice: numeric("total_price").default("0"),
+  quantity: numeric("quantity").default(1),
+  unitPrice: numeric("unit_price").default(0),
+  totalPrice: numeric("total_price").default(0),
   category: text("category"),
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
@@ -4827,12 +4827,12 @@ export const constructionInvoices = pgTable("construction_invoices", {
   invoiceNumber: text("invoice_number"),
   title: text("title").notNull(),
   description: text("description"),
-  contractAmount: numeric("contract_amount").default("0"),
-  totalAmount: numeric("total_amount").default("0"),
-  previousBilled: numeric("previous_billed").default("0"),
-  currentBilled: numeric("current_billed").default("0"),
-  balanceToFinish: numeric("balance_to_finish").default("0"),
-  retainage: numeric("retainage").default("0"),
+  contractAmount: numeric("contract_amount").default(0),
+  totalAmount: numeric("total_amount").default(0),
+  previousBilled: numeric("previous_billed").default(0),
+  currentBilled: numeric("current_billed").default(0),
+  balanceToFinish: numeric("balance_to_finish").default(0),
+  retainage: numeric("retainage").default(0),
   status: text("status").default("Draft").notNull(),
   periodFrom: date("period_from"),
   periodTo: date("period_to"),
@@ -4862,11 +4862,11 @@ export const constructionInvoiceLineItems = pgTable("construction_invoice_line_i
   invoiceId: integer("invoice_id").references(() => constructionInvoices.id).notNull(),
   costCode: text("cost_code"),
   description: text("description").notNull(),
-  scheduledValue: numeric("scheduled_value").default("0"),
-  previousBilled: numeric("previous_billed").default("0"),
-  currentBilled: numeric("current_billed").default("0"),
-  balanceToFinish: numeric("balance_to_finish").default("0"),
-  percentComplete: numeric("percent_complete").default("0"),
+  scheduledValue: numeric("scheduled_value").default(0),
+  previousBilled: numeric("previous_billed").default(0),
+  currentBilled: numeric("current_billed").default(0),
+  balanceToFinish: numeric("balance_to_finish").default(0),
+  percentComplete: numeric("percent_complete").default(0),
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [

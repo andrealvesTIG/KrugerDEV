@@ -582,7 +582,16 @@ export function registerIntakeRoutes(app: Express) {
       let steps = await storage.getIntakeWorkflowSteps(orgId, workflowId);
 
       if (steps.length === 0) {
-        steps = await storage.resetIntakeWorkflowToDefaults(orgId, workflowId);
+        try {
+          steps = await storage.resetIntakeWorkflowToDefaults(orgId, workflowId);
+        } catch (resetErr) {
+          // Most likely cause: a concurrent request already populated the
+          // default steps (the unique-key violation surfaces as a 500).
+          // Re-read; if rows now exist, treat it as success.
+          console.warn("resetIntakeWorkflowToDefaults failed, re-reading:", resetErr);
+          steps = await storage.getIntakeWorkflowSteps(orgId, workflowId);
+          if (steps.length === 0) throw resetErr;
+        }
       }
 
       res.json(steps);

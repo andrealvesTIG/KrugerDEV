@@ -596,30 +596,36 @@ export async function getIntakeWorkflowSteps(organizationId: number, workflowId?
 }
 
 export async function upsertIntakeWorkflowSteps(organizationId: number, steps: InsertIntakeWorkflowStep[], workflowId?: number | null): Promise<IntakeWorkflowStep[]> {
-  if (workflowId != null) {
-    await db.delete(intakeWorkflowSteps).where(and(
-      eq(intakeWorkflowSteps.organizationId, organizationId),
-      eq(intakeWorkflowSteps.workflowId, workflowId),
-    ));
-  } else {
-    await db.delete(intakeWorkflowSteps).where(and(
-      eq(intakeWorkflowSteps.organizationId, organizationId),
-      isNull(intakeWorkflowSteps.workflowId),
-    ));
-  }
+  // Wrap the delete + insert in a single transaction so concurrent requests
+  // (e.g. two browser tabs hitting GET /api/organizations/:id/intake-workflow
+  // when no steps yet exist) cannot race and leave the table in a half-empty
+  // state, which previously surfaced as 500s on the GET endpoint.
+  return await db.transaction(async (tx) => {
+    if (workflowId != null) {
+      await tx.delete(intakeWorkflowSteps).where(and(
+        eq(intakeWorkflowSteps.organizationId, organizationId),
+        eq(intakeWorkflowSteps.workflowId, workflowId),
+      ));
+    } else {
+      await tx.delete(intakeWorkflowSteps).where(and(
+        eq(intakeWorkflowSteps.organizationId, organizationId),
+        isNull(intakeWorkflowSteps.workflowId),
+      ));
+    }
 
-  if (steps.length === 0) {
-    return [];
-  }
+    if (steps.length === 0) {
+      return [];
+    }
 
-  const stepsWithOrg = steps.map(step => ({
-    ...step,
-    organizationId,
-    workflowId: workflowId ?? step.workflowId ?? null,
-  }));
+    const stepsWithOrg = steps.map(step => ({
+      ...step,
+      organizationId,
+      workflowId: workflowId ?? step.workflowId ?? null,
+    }));
 
-  const inserted = await db.insert(intakeWorkflowSteps).values(stepsWithOrg).returning();
-  return inserted;
+    const inserted = await tx.insert(intakeWorkflowSteps).values(stepsWithOrg).returning();
+    return inserted;
+  });
 }
 
 export async function resetIntakeWorkflowToDefaults(organizationId: number, workflowId?: number | null): Promise<IntakeWorkflowStep[]> {
