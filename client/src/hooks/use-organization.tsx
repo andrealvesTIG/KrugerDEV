@@ -36,7 +36,13 @@ export function OrganizationProvider({ children }: { children: ReactNode }) {
         queryFn: async () => {
           const response = await fetch(`/api/timesheets/current-resource?organizationId=${currentOrganization.id}`);
           if (!response.ok) return null;
-          return response.json();
+          const data = await response.json();
+          // Server returns { resource: <Resource> | null, reason: ... }; fall back to legacy
+          // shape (raw resource) so cached data stays compatible across deploys.
+          if (data && typeof data === 'object' && 'resource' in data) {
+            return data.resource;
+          }
+          return data;
         },
         staleTime: 1000 * 60 * 10, // 10 minutes
       });

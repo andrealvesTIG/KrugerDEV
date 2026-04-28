@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { useSidebarState } from "@/components/layout/Sidebar";
@@ -41,6 +41,7 @@ import {
   DialogFooter,
   DialogDescription 
 } from "@/components/ui/dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -116,7 +117,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { TimerWidget } from "@/components/TimerWidget";
 import { TimesheetReminder } from "@/components/TimesheetReminder";
 import { exportTimesheetToExcel } from "@/lib/excelExport";
-import { FileSpreadsheet, Shield, Settings, UserPlus, Users2, UserCog } from "lucide-react";
+import { FileSpreadsheet, Shield, Settings, UserPlus, Users2, UserCog, Mail } from "lucide-react";
 import type { Task, Project, InsertTimesheetEntry, TimesheetPeriod } from "@shared/schema";
 import { TimesheetSettingsDialog } from "@/components/TimesheetSettingsDialog";
 import { TimesheetAuditDialog } from "@/components/TimesheetAuditDialog";
@@ -2997,6 +2998,148 @@ function TimesheetHistoryTab({ userId, organizationId }: { userId: string | unde
   );
 }
 
+interface AdminMemberSummary {
+  userId: string;
+  role: string;
+  user?: {
+    id: string;
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+  } | null;
+}
+
+function ResourceLinkRequestDialog({
+  open,
+  onOpenChange,
+  organizationId,
+  organizationName,
+  requesterEmail,
+  requesterName,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  organizationId: number | null;
+  organizationName: string;
+  requesterEmail: string;
+  requesterName: string;
+}) {
+  const { data: members = [], isLoading } = useQuery<AdminMemberSummary[]>({
+    queryKey: [`/api/organizations/${organizationId}/members`],
+    enabled: open && !!organizationId,
+  });
+
+  const admins = useMemo(
+    () =>
+      members.filter(
+        (m) => (m.role === "org_admin" || m.role === "owner") && m.user?.email,
+      ),
+    [members],
+  );
+
+  const subject = `Please link my account to a resource record (${organizationName})`;
+  const body =
+    `Hi,\n\n` +
+    `My account (${requesterEmail}) is signed in to ${organizationName} but isn't linked ` +
+    `to a resource record yet, so I can't log time. Could you please create a resource ` +
+    `for me — or link an existing resource to my user — so I can submit timesheets?\n\n` +
+    `Thanks,\n${requesterName || requesterEmail}`;
+  const mailtoFor = (email: string) =>
+    `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const allAdminEmails = admins
+    .map((a) => a.user?.email)
+    .filter((e): e is string => !!e);
+  const mailtoAll = allAdminEmails.length
+    ? `mailto:${allAdminEmails.join(",")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+    : null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Ask an admin to link your resource</DialogTitle>
+          <DialogDescription>
+            Reach out to an organization admin so they can link a resource record
+            to your account. They'll be able to do it from the Resources page.
+          </DialogDescription>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : admins.length === 0 ? (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>No admins found</AlertTitle>
+            <AlertDescription>
+              We couldn't find any organization admins to contact for{" "}
+              {organizationName}. Please reach out to your team's
+              administrator directly.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <div className="space-y-3">
+            <div className="border rounded-md divide-y">
+              {admins.map((admin) => {
+                const fullName =
+                  [admin.user?.firstName, admin.user?.lastName]
+                    .filter(Boolean)
+                    .join(" ") || admin.user?.email || "Admin";
+                return (
+                  <div
+                    key={admin.userId}
+                    className="flex items-center justify-between gap-3 p-3"
+                    data-testid={`row-admin-${admin.userId}`}
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{fullName}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {admin.user?.email}
+                      </div>
+                    </div>
+                    {admin.user?.email && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        asChild
+                        data-testid={`button-email-admin-${admin.userId}`}
+                      >
+                        <a href={mailtoFor(admin.user.email)}>
+                          <Mail className="h-4 w-4 mr-2" />
+                          Email
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            data-testid="button-close-link-resource-dialog"
+          >
+            Close
+          </Button>
+          {mailtoAll && (
+            <Button asChild data-testid="button-email-all-admins">
+              <a href={mailtoAll}>
+                <Mail className="h-4 w-4 mr-2" />
+                Email all admins
+              </a>
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Timesheets() {
   const { user } = useAuth();
   const { currentOrganization, memberships } = useOrganization();
@@ -3097,7 +3240,9 @@ export default function Timesheets() {
     user?.id
   );
 
-  const { data: currentResource } = useCurrentUserResource(currentOrganization?.id || null, user?.id);
+  const { data: currentResource, isLoading: currentResourceLoading } = useCurrentUserResource(currentOrganization?.id || null, user?.id);
+  const isResourceUnlinked = !currentResourceLoading && currentResource === null && !!currentOrganization && !!user?.id;
+  const [showLinkResourceDialog, setShowLinkResourceDialog] = useState(false);
 
   const currentMembership = memberships.find(m => m.organizationId === currentOrganization?.id);
   const isOrgAdmin = currentMembership?.role === 'org_admin' || currentMembership?.role === 'owner';
@@ -4207,7 +4352,66 @@ export default function Timesheets() {
           </nav>
         </div>
 
-        {activeTab === "entry" && (
+        {activeTab === "entry" && isResourceUnlinked && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            <Card className="border-0 shadow-sm bg-card">
+              <CardContent className="p-6 sm:p-8">
+                <div className="flex flex-col items-center text-center gap-4 max-w-xl mx-auto">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10">
+                    <UserPlus className="h-6 w-6 text-amber-600" />
+                  </div>
+                  <div className="space-y-2">
+                    <h2 className="text-lg font-semibold text-foreground" data-testid="text-resource-unlinked-title">
+                      Your account isn't linked to a resource record yet
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      Time can only be logged when your user account is connected to a
+                      resource in {currentOrganization?.name || "this organization"}.
+                      An admin needs to create or link a resource record for{" "}
+                      <span className="font-medium text-foreground">
+                        {user?.email}
+                      </span>{" "}
+                      before you can submit hours.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                    <Button
+                      onClick={() => setShowLinkResourceDialog(true)}
+                      data-testid="button-contact-admin-link-resource"
+                    >
+                      <Mail className="h-4 w-4 mr-2" />
+                      Contact an admin
+                    </Button>
+                    {isOrgAdmin && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setLocation("/resources")}
+                        data-testid="button-manage-resources"
+                      >
+                        <Users2 className="h-4 w-4 mr-2" />
+                        Manage resources
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <ResourceLinkRequestDialog
+              open={showLinkResourceDialog}
+              onOpenChange={setShowLinkResourceDialog}
+              organizationId={currentOrganization?.id ?? null}
+              organizationName={currentOrganization?.name ?? ""}
+              requesterEmail={user?.email ?? ""}
+              requesterName={[user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email || ""}
+            />
+          </motion.div>
+        )}
+
+        {activeTab === "entry" && !isResourceUnlinked && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}

@@ -77,10 +77,16 @@ export function useCurrentUserResource(organizationId: number | null, userId: st
     queryFn: async () => {
       const response = await fetch(`/api/timesheets/current-resource?organizationId=${organizationId}`);
       if (!response.ok) {
+        // Server now returns 200 with { resource: null, reason: 'no_match' } for missing
+        // resources, but keep 404 fallback for backwards compatibility during rollout.
         if (response.status === 404) return null;
         throw new Error("Failed to fetch current resource");
       }
-      return response.json();
+      const data = await response.json();
+      if (data && typeof data === 'object' && 'resource' in data) {
+        return (data as { resource: Resource | null }).resource;
+      }
+      return data as Resource | null;
     },
   });
 }

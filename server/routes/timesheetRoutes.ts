@@ -215,7 +215,24 @@ export function registerTimesheetRoutes(app: Express) {
   apiRoute(app, 'get', '/api/timesheets/current-resource', {
     tag: 'Timesheets',
     summary: 'Get current user resource for timesheets',
-    responses: { ...r200('Current resource', ref('TimesheetEntry')), ...authRes },
+    responses: {
+      ...r200('Current resource (resource is null when the user has no linked resource)', {
+        type: 'object',
+        properties: {
+          resource: {
+            oneOf: [ref('Resource'), { type: 'null' }],
+            description: 'The resource record linked to the current user, or null when no link exists.',
+          },
+          reason: {
+            type: ['string', 'null'],
+            enum: ['no_match', null],
+            description: "Set to 'no_match' when no linked resource was found; null otherwise.",
+          },
+        },
+        required: ['resource', 'reason'],
+      }),
+      ...authRes,
+    },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
     if (!userId) {
@@ -246,10 +263,10 @@ export function registerTimesheetRoutes(app: Express) {
       }
 
       if (!userResource) {
-        return res.status(404).json({ message: 'Resource not found' });
+        return res.json({ resource: null, reason: 'no_match' });
       }
 
-      res.json(userResource);
+      res.json({ resource: userResource, reason: null });
     } catch (error) {
       console.error('Error getting current resource:', error);
       const classified = classifyError(error);
