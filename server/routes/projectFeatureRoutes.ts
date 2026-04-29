@@ -1641,6 +1641,9 @@ export function registerProjectFeatureRoutes(app: Express) {
           workHours: task.workHours?.toString() || null,
           actualWorkHours: task.actualWorkHours?.toString() || null,
           remainingWorkHours: task.remainingWorkHours?.toString() || null,
+          cost: task.cost != null ? task.cost.toString() : null,
+          actualCost: task.actualCost != null ? task.actualCost.toString() : null,
+          remainingCost: task.remainingCost != null ? task.remainingCost.toString() : null,
           predecessors: task.predecessors && task.predecessors.length > 0 ? JSON.stringify(task.predecessors) : null,
         }));
         await storage.createMppImportTasks(taskRecords);
@@ -1878,6 +1881,9 @@ export function registerProjectFeatureRoutes(app: Express) {
           workHours: task.workHours?.toString() || null,
           actualWorkHours: task.actualWorkHours?.toString() || null,
           remainingWorkHours: task.remainingWorkHours?.toString() || null,
+          cost: task.cost != null ? task.cost.toString() : null,
+          actualCost: task.actualCost != null ? task.actualCost.toString() : null,
+          remainingCost: task.remainingCost != null ? task.remainingCost.toString() : null,
           predecessors: task.predecessors && task.predecessors.length > 0
             ? JSON.stringify(task.predecessors)
             : null,

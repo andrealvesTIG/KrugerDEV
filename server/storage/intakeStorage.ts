@@ -204,6 +204,13 @@ export async function convertMppImportToProject(
     projectEndDate = validEndDates.sort().reverse()[0];
   }
 
+  // Project budget = sum of leaf-task budgeted costs from the imported file.
+  // We sum only non-summary tasks to avoid double-counting WBS rollups that
+  // the parser already aggregated.
+  const projectBudgetTotal = importedTasks
+    .filter(t => !t.isSummary && t.cost != null)
+    .reduce((sum, t) => sum + (Number(t.cost) || 0), 0);
+
   return await db.transaction(async (tx) => {
     const [newProject] = await tx.insert(projects).values({
       organizationId: projectData.organizationId,
@@ -215,7 +222,7 @@ export async function convertMppImportToProject(
       startDate: projectStartDate,
       endDate: projectEndDate,
       health: "Green",
-      budget: "0",
+      budget: projectBudgetTotal > 0 ? projectBudgetTotal.toString() : "0",
       completionPercentage: 0,
       source: "imported",
       sourceFileName: mppImportRecord.fileName,
@@ -238,6 +245,15 @@ export async function convertMppImportToProject(
       const workHoursStr = importedTask.workHours ? importedTask.workHours.toString() : null;
       const actualWorkHoursStr = importedTask.actualWorkHours ? importedTask.actualWorkHours.toString() : null;
       const remainingWorkHoursStr = importedTask.remainingWorkHours ? importedTask.remainingWorkHours.toString() : null;
+      // Cost columns are nullable numerics on the imported tasks. Pass them
+      // through to tasks.cost / tasks.actualCost so they show in the Gantt
+      // view's Cost / Actual Cost columns. Numeric values are truthy strings
+      // returned from getMppImportTasks (numeric -> string in pg), so use
+      // Number() to normalize before checking presence.
+      const importedCostNum = importedTask.cost != null ? Number(importedTask.cost) : null;
+      const importedActualCostNum = importedTask.actualCost != null ? Number(importedTask.actualCost) : null;
+      const costStr = importedCostNum != null && !isNaN(importedCostNum) ? importedCostNum.toString() : null;
+      const actualCostStr = importedActualCostNum != null && !isNaN(importedActualCostNum) ? importedActualCostNum.toString() : null;
 
       const [newTask] = await tx.insert(tasks).values({
         projectId: newProject.id,
@@ -258,6 +274,8 @@ export async function convertMppImportToProject(
         estimatedHours: workHoursStr,
         actualHours: actualWorkHoursStr,
         remainingHours: remainingWorkHoursStr,
+        cost: costStr,
+        actualCost: actualCostStr,
         parentId: null,
       }).returning();
 
@@ -436,6 +454,12 @@ export async function syncMppImportToProject(
     const workHoursStr = importedTask.workHours ? importedTask.workHours.toString() : null;
     const actualWorkHoursStr = importedTask.actualWorkHours ? importedTask.actualWorkHours.toString() : null;
     const remainingWorkHoursStr = importedTask.remainingWorkHours ? importedTask.remainingWorkHours.toString() : null;
+    // Mirror cost handling from convertMppImportToProject above so re-syncs
+    // also update tasks.cost / tasks.actualCost from the latest P6 file.
+    const importedCostNum = importedTask.cost != null ? Number(importedTask.cost) : null;
+    const importedActualCostNum = importedTask.actualCost != null ? Number(importedTask.actualCost) : null;
+    const costStr = importedCostNum != null && !isNaN(importedCostNum) ? importedCostNum.toString() : null;
+    const actualCostStr = importedActualCostNum != null && !isNaN(importedActualCostNum) ? importedActualCostNum.toString() : null;
 
     const taskData = {
       name: importedTask.taskName,
@@ -455,6 +479,8 @@ export async function syncMppImportToProject(
       estimatedHours: workHoursStr,
       actualHours: actualWorkHoursStr,
       remainingHours: remainingWorkHoursStr,
+      cost: costStr,
+      actualCost: actualCostStr,
     };
 
     let existingTask = importedTask.wbs ? existingByWbs.get(importedTask.wbs) : undefined;
@@ -576,6 +602,16 @@ export async function syncMppImportToProject(
     : project.completionPercentage || 0;
   
   projectUpdates.completionPercentage = avgProgress;
+
+  // Refresh project budget from the rolled-up cost of all leaf tasks in this
+  // import. We only set this when the file actually carried cost data so a
+  // file without cost doesn't zero out a manually-entered budget.
+  const importedBudgetTotal = leafTasks
+    .filter(t => t.cost != null)
+    .reduce((sum, t) => sum + (Number(t.cost) || 0), 0);
+  if (importedBudgetTotal > 0) {
+    projectUpdates.budget = importedBudgetTotal.toString();
+  }
 
   if (avgProgress >= 100) {
     projectUpdates.status = "Closing";

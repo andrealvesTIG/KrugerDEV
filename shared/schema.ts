@@ -2089,6 +2089,9 @@ export const mppImportTasks = pgTable("mpp_import_tasks", {
   workHours: numeric("work_hours"), // Work/effort in hours from MPP
   actualWorkHours: numeric("actual_work_hours"), // Actual work hours from MPP
   remainingWorkHours: numeric("remaining_work_hours"), // Remaining work hours from MPP
+  cost: numeric("cost"), // Budgeted/planned total cost (from P6 TASKRSRC + TASKEXP target_cost or P6 XML PlannedCost)
+  actualCost: numeric("actual_cost"), // Actual cost to date (P6 TASKRSRC act_reg+act_ot + TASKEXP act_cost)
+  remainingCost: numeric("remaining_cost"), // Remaining cost (P6 TASKRSRC + TASKEXP remain_cost)
   predecessors: text("predecessors"), // JSON array of predecessor relationships [{predecessorTaskId, type, lagDays}]
   createdAt: timestamp("created_at").defaultNow(),
 });

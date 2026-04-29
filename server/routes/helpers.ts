@@ -170,6 +170,9 @@ interface ParsedMppTask {
   workHours?: number;
   actualWorkHours?: number;
   remainingWorkHours?: number;
+  cost?: number; // Budgeted / planned total cost
+  actualCost?: number; // Actual cost to date
+  remainingCost?: number; // Remaining cost
   predecessors?: Array<{ predecessorTaskId: number; type: string; lagDays: number }>;
 }
 
@@ -495,8 +498,38 @@ function parseXerFile(fileBuffer: Buffer): ParsedMppTask[] {
   const wbsRows = sections['PROJWBS']?.rows || [];
   const taskRows = sections['TASK']?.rows || [];
   const predRows = sections['TASKPRED']?.rows || [];
+  const rsrcRows = sections['TASKRSRC']?.rows || [];
+  const expRows = sections['TASKEXP']?.rows || [];
 
   if (taskRows.length === 0) return [];
+
+  // Aggregate per-activity cost from resource assignments and expenses.
+  // P6 stores costs on the TASKRSRC (resource assignment) and TASKEXP
+  // (expense item) tables, keyed by task_id (the activity). The activity's
+  // total = sum across both. Activity's actual = act_reg_cost + act_ot_cost
+  // (resources) + act_cost (expenses).
+  type CostBucket = { cost: number; actualCost: number; remainingCost: number };
+  const taskCosts = new Map<string, CostBucket>();
+  const addCost = (taskIdStr: string, c: number, a: number, r: number) => {
+    if (!taskIdStr) return;
+    if (c === 0 && a === 0 && r === 0) return;
+    const cur = taskCosts.get(taskIdStr) || { cost: 0, actualCost: 0, remainingCost: 0 };
+    cur.cost += c; cur.actualCost += a; cur.remainingCost += r;
+    taskCosts.set(taskIdStr, cur);
+  };
+  for (const r of rsrcRows) {
+    const target = parseFloat(r.target_cost) || 0;
+    const actReg = parseFloat(r.act_reg_cost) || 0;
+    const actOt = parseFloat(r.act_ot_cost) || 0;
+    const remain = parseFloat(r.remain_cost) || 0;
+    addCost(r.task_id, target, actReg + actOt, remain);
+  }
+  for (const r of expRows) {
+    const target = parseFloat(r.target_cost) || 0;
+    const actual = parseFloat(r.act_cost) || 0;
+    const remain = parseFloat(r.remain_cost) || 0;
+    addCost(r.task_id, target, actual, remain);
+  }
 
   // Build WBS hierarchy: wbs_id -> node
   type WbsNode = {
@@ -611,6 +644,8 @@ function parseXerFile(fileBuffer: Buffer): ParsedMppTask[] {
 
     const taskName = (t.task_name || '').trim() || (t.task_code || '').trim() || `Task ${t.task_id}`;
 
+    const costs = taskCosts.get(t.task_id);
+
     tasks.push({
       taskId,
       wbs: wbsNode?.shortName || undefined,
@@ -624,11 +659,44 @@ function parseXerFile(fileBuffer: Buffer): ParsedMppTask[] {
       parentTaskId,
       isSummary: false,
       isMilestone,
+      cost: costs?.cost,
+      actualCost: costs?.actualCost,
+      remainingCost: costs?.remainingCost,
       predecessors: predMap.get(t.task_id),
     });
   }
 
+  rollupCostsToSummaries(tasks);
   return tasks;
+}
+
+// Walk the parent chain from each leaf task and accumulate cost / actualCost /
+// remainingCost into ancestor summary tasks. Mutates the array in place.
+function rollupCostsToSummaries(tasks: ParsedMppTask[]): void {
+  const byId = new Map<number, ParsedMppTask>();
+  for (const t of tasks) {
+    if (t.taskId !== undefined) byId.set(t.taskId, t);
+  }
+  for (const t of tasks) {
+    if (t.isSummary) continue;
+    const c = t.cost || 0;
+    const a = t.actualCost || 0;
+    const r = t.remainingCost || 0;
+    if (c === 0 && a === 0 && r === 0) continue;
+
+    let pid = t.parentTaskId;
+    const seen = new Set<number>();
+    while (pid !== undefined && byId.has(pid) && !seen.has(pid)) {
+      seen.add(pid);
+      const parent = byId.get(pid)!;
+      if (parent.isSummary) {
+        parent.cost = (parent.cost || 0) + c;
+        parent.actualCost = (parent.actualCost || 0) + a;
+        parent.remainingCost = (parent.remainingCost || 0) + r;
+      }
+      pid = parent.parentTaskId;
+    }
+  }
 }
 
 // Parse Primavera P6 PM XML format
@@ -654,14 +722,77 @@ async function parseP6Xml(xmlContent: string): Promise<ParsedMppTask[]> {
     let wbsItems = project.WBS;
     let activities = project.Activity;
     let relationships = project.Relationship;
+    let resourceAssignments = project.ResourceAssignment;
+    let expenseItems = project.ExpenseItem || project.Expense;
 
     if (wbsItems && !Array.isArray(wbsItems)) wbsItems = [wbsItems];
     if (activities && !Array.isArray(activities)) activities = [activities];
     if (relationships && !Array.isArray(relationships)) relationships = [relationships];
+    if (resourceAssignments && !Array.isArray(resourceAssignments)) resourceAssignments = [resourceAssignments];
+    if (expenseItems && !Array.isArray(expenseItems)) expenseItems = [expenseItems];
 
     wbsItems = wbsItems || [];
     activities = activities || [];
     relationships = relationships || [];
+    resourceAssignments = resourceAssignments || [];
+    expenseItems = expenseItems || [];
+
+    // Some P6 PMXML exports nest <ResourceAssignment> / <ExpenseItem> inside
+    // each <Activity> rather than at the <Project> level. Pull those up too.
+    for (const a of activities) {
+      const nestedRas = a.ResourceAssignment;
+      if (nestedRas) {
+        const arr = Array.isArray(nestedRas) ? nestedRas : [nestedRas];
+        for (const ra of arr) {
+          if (ra && ra.ActivityObjectId === undefined) ra.ActivityObjectId = a.ObjectId;
+          resourceAssignments.push(ra);
+        }
+      }
+      const nestedExps = a.ExpenseItem || a.Expense;
+      if (nestedExps) {
+        const arr = Array.isArray(nestedExps) ? nestedExps : [nestedExps];
+        for (const ex of arr) {
+          if (ex && ex.ActivityObjectId === undefined) ex.ActivityObjectId = a.ObjectId;
+          expenseItems.push(ex);
+        }
+      }
+    }
+
+    // Aggregate cost per Activity from resource assignments + expense items.
+    const num = (v: any): number => {
+      if (v === undefined || v === null || v === '') return 0;
+      const n = parseFloat(String(v));
+      return isNaN(n) ? 0 : n;
+    };
+    type CostBucket = { cost: number; actualCost: number; remainingCost: number };
+    const activityCosts = new Map<string, CostBucket>();
+    const addActivityCost = (aid: any, c: number, a: number, r: number) => {
+      const key = aid !== undefined && aid !== '' ? String(aid) : '';
+      if (!key) return;
+      if (c === 0 && a === 0 && r === 0) return;
+      const cur = activityCosts.get(key) || { cost: 0, actualCost: 0, remainingCost: 0 };
+      cur.cost += c; cur.actualCost += a; cur.remainingCost += r;
+      activityCosts.set(key, cur);
+    };
+    for (const ra of resourceAssignments) {
+      if (!ra) continue;
+      // Field names vary across P6 versions: prefer PlannedCost / ActualCost /
+      // RemainingCost, fall back to *TotalCost variants.
+      const planned = num(ra.PlannedCost ?? ra.PlannedTotalCost ?? ra.BudgetedCost);
+      const actualReg = num(ra.ActualRegularCost);
+      const actualOt = num(ra.ActualOvertimeCost);
+      const actualTotal = num(ra.ActualCost ?? ra.ActualTotalCost);
+      const actual = actualTotal > 0 ? actualTotal : (actualReg + actualOt);
+      const remaining = num(ra.RemainingCost ?? ra.RemainingTotalCost ?? ra.RemainingEarlyCost);
+      addActivityCost(ra.ActivityObjectId, planned, actual, remaining);
+    }
+    for (const ex of expenseItems) {
+      if (!ex) continue;
+      const planned = num(ex.PlannedCost ?? ex.PlannedTotalCost ?? ex.BudgetedCost);
+      const actual = num(ex.ActualCost ?? ex.ActualTotalCost);
+      const remaining = num(ex.RemainingCost ?? ex.RemainingTotalCost);
+      addActivityCost(ex.ActivityObjectId, planned, actual, remaining);
+    }
 
     type WbsNode = { id: string; parentId: string | null; name: string; code: string; level: number };
     const wbsMap = new Map<string, WbsNode>();
@@ -754,6 +885,20 @@ async function parseP6Xml(xmlContent: string): Promise<ParsedMppTask[]> {
       if (pct > 0 && pct <= 1) pct = pct * 100;
       const percentComplete = Math.max(0, Math.min(100, Math.round(pct)));
 
+      // Prefer aggregated cost from resource assignments + expenses; if none
+      // were provided, fall back to activity-level total cost fields. P6 PMXML
+      // emits these as PlannedTotalCost / ActualTotalCost / RemainingTotalCost
+      // (or PlannedCost / ActualCost / RemainingCost in some exports).
+      let costs = activityCosts.get(String(a.ObjectId));
+      if (!costs) {
+        const planned = num(a.PlannedTotalCost ?? a.PlannedCost ?? a.BudgetedTotalCost);
+        const actual = num(a.ActualTotalCost ?? a.ActualCost);
+        const remaining = num(a.RemainingTotalCost ?? a.RemainingCost);
+        if (planned > 0 || actual > 0 || remaining > 0) {
+          costs = { cost: planned, actualCost: actual, remainingCost: remaining };
+        }
+      }
+
       tasks.push({
         taskId,
         wbs: wbsNode?.code || undefined,
@@ -767,11 +912,15 @@ async function parseP6Xml(xmlContent: string): Promise<ParsedMppTask[]> {
         parentTaskId,
         isSummary: false,
         isMilestone,
+        cost: costs?.cost,
+        actualCost: costs?.actualCost,
+        remainingCost: costs?.remainingCost,
         predecessors: predMap.get(String(a.ObjectId)),
       });
     }
   }
 
+  rollupCostsToSummaries(tasks);
   return tasks;
 }
 
