@@ -62,6 +62,20 @@ const upload = multer({
   }
 });
 
+const p6Upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['.xer', '.xml'];
+    const ext = '.' + file.originalname.split('.').pop()?.toLowerCase();
+    if (allowedTypes.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only Primavera P6 .xer or .xml files are allowed'));
+    }
+  }
+});
+
 const imageUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -443,6 +457,321 @@ function parseCsv(csvContent: string): Array<{
     });
   });
   
+  return tasks;
+}
+
+// Parse Primavera P6 XER (tab-delimited) format
+// Reuses ParsedMppTask shape so existing convertMppImportToProject works as-is.
+function parseXerFile(fileBuffer: Buffer): ParsedMppTask[] {
+  // XER files are typically Windows-1252 encoded. Decode using latin1 (lossless byte-preserving)
+  // so accented characters in names are not mangled at the byte level.
+  const content = fileBuffer.toString('latin1');
+  const lines = content.split(/\r?\n/);
+
+  type Section = { name: string; fields: string[]; rows: Record<string, string>[] };
+  const sections: Record<string, Section> = {};
+  let current: Section | null = null;
+
+  for (const line of lines) {
+    if (!line) continue;
+    const cells = line.split('\t');
+    const tag = cells[0];
+
+    if (tag === '%T') {
+      current = { name: cells[1] || '', fields: [], rows: [] };
+      if (current.name) sections[current.name] = current;
+    } else if (tag === '%F' && current) {
+      current.fields = cells.slice(1);
+    } else if (tag === '%R' && current && current.fields.length > 0) {
+      const values = cells.slice(1);
+      const row: Record<string, string> = {};
+      for (let i = 0; i < current.fields.length; i++) {
+        row[current.fields[i]] = values[i] ?? '';
+      }
+      current.rows.push(row);
+    }
+  }
+
+  const wbsRows = sections['PROJWBS']?.rows || [];
+  const taskRows = sections['TASK']?.rows || [];
+  const predRows = sections['TASKPRED']?.rows || [];
+
+  if (taskRows.length === 0) return [];
+
+  // Build WBS hierarchy: wbs_id -> node
+  type WbsNode = {
+    wbsId: string;
+    parentId: string | null;
+    name: string;
+    shortName: string;
+    level: number;
+  };
+  const wbsMap = new Map<string, WbsNode>();
+  for (const w of wbsRows) {
+    if (!w.wbs_id) continue;
+    wbsMap.set(w.wbs_id, {
+      wbsId: w.wbs_id,
+      parentId: w.parent_wbs_id && w.parent_wbs_id !== '' ? w.parent_wbs_id : null,
+      name: w.wbs_name || w.wbs_short_name || 'WBS',
+      shortName: w.wbs_short_name || '',
+      level: 1,
+    });
+  }
+  // Compute depths (root = 1)
+  const computeLevel = (node: WbsNode): number => {
+    let lvl = 1;
+    let p = node.parentId;
+    const seen = new Set<string>();
+    while (p && wbsMap.has(p) && !seen.has(p)) {
+      seen.add(p);
+      lvl++;
+      p = wbsMap.get(p)!.parentId;
+    }
+    return lvl;
+  };
+  for (const node of wbsMap.values()) {
+    node.level = computeLevel(node);
+  }
+
+  // Allocate synthetic taskIds for WBS summaries above max real task_id to avoid collision
+  let maxTaskId = 0;
+  for (const t of taskRows) {
+    const tid = parseInt(t.task_id);
+    if (!isNaN(tid) && tid > maxTaskId) maxTaskId = tid;
+  }
+  let wbsIdCounter = maxTaskId + 1000;
+  const wbsToSyntheticId = new Map<string, number>();
+  for (const node of wbsMap.values()) {
+    wbsToSyntheticId.set(node.wbsId, wbsIdCounter++);
+  }
+
+  const tasks: ParsedMppTask[] = [];
+  // Emit WBS summaries first, in level order so parents precede children
+  const sortedWbs = Array.from(wbsMap.values()).sort((a, b) => a.level - b.level);
+  for (const node of sortedWbs) {
+    const parentSyntheticId = node.parentId && wbsToSyntheticId.has(node.parentId)
+      ? wbsToSyntheticId.get(node.parentId)
+      : undefined;
+    tasks.push({
+      taskId: wbsToSyntheticId.get(node.wbsId)!,
+      wbs: node.shortName || undefined,
+      taskName: node.name,
+      outlineLevel: node.level,
+      parentTaskId: parentSyntheticId,
+      isSummary: true,
+      isMilestone: false,
+      percentComplete: 0,
+    });
+  }
+
+  // Build predecessor lookup keyed by successor task_id (string)
+  const predMap = new Map<string, Array<{ predecessorTaskId: number; type: string; lagDays: number }>>();
+  const xerTypeMap: Record<string, string> = {
+    PR_FS: 'FS', PR_SS: 'SS', PR_FF: 'FF', PR_SF: 'SF',
+  };
+  for (const p of predRows) {
+    const succId = p.task_id;
+    const predId = parseInt(p.pred_task_id);
+    if (!succId || isNaN(predId)) continue;
+    const type = xerTypeMap[p.pred_type] || 'FS';
+    const lagHours = parseFloat(p.lag_hr_cnt) || 0;
+    const lagDays = Math.round((lagHours / 8) * 100) / 100;
+    if (!predMap.has(succId)) predMap.set(succId, []);
+    predMap.get(succId)!.push({ predecessorTaskId: predId, type, lagDays });
+  }
+
+  // Emit TASK rows
+  for (const t of taskRows) {
+    const taskId = parseInt(t.task_id);
+    if (isNaN(taskId)) continue;
+
+    const wbsNode = t.wbs_id ? wbsMap.get(t.wbs_id) : undefined;
+    const outlineLevel = wbsNode ? wbsNode.level + 1 : 1;
+    const parentTaskId = wbsNode ? wbsToSyntheticId.get(wbsNode.wbsId) : undefined;
+
+    const targetDrtnHr = parseFloat(t.target_drtn_hr_cnt) || 0;
+    const durationDays = targetDrtnHr > 0 ? Math.round((targetDrtnHr / 8) * 100) / 100 : undefined;
+
+    const isMilestone = t.task_type === 'TT_Mile' || t.task_type === 'TT_FinMile';
+
+    // P6 phys_complete_pct stored as 0-100 percentage
+    let pct = parseFloat(t.phys_complete_pct);
+    if (isNaN(pct)) pct = 0;
+    if (pct > 0 && pct <= 1) pct = pct * 100; // tolerate 0-1 fractional schemas
+    const percentComplete = Math.max(0, Math.min(100, Math.round(pct)));
+
+    const pickDate = (s: string | undefined) => {
+      if (!s) return undefined;
+      const trimmed = s.trim();
+      if (!trimmed) return undefined;
+      return trimmed.split(' ')[0];
+    };
+    const startDate = pickDate(t.act_start_date) || pickDate(t.target_start_date) || pickDate(t.early_start_date);
+    const finishDate = pickDate(t.act_end_date) || pickDate(t.target_end_date) || pickDate(t.early_end_date);
+
+    const taskName = (t.task_name || '').trim() || (t.task_code || '').trim() || `Task ${t.task_id}`;
+
+    tasks.push({
+      taskId,
+      wbs: wbsNode?.shortName || undefined,
+      taskName,
+      startDate,
+      finishDate,
+      duration: durationDays !== undefined ? `${durationDays}d` : undefined,
+      durationDays,
+      percentComplete,
+      outlineLevel,
+      parentTaskId,
+      isSummary: false,
+      isMilestone,
+      predecessors: predMap.get(t.task_id),
+    });
+  }
+
+  return tasks;
+}
+
+// Parse Primavera P6 PM XML format
+async function parseP6Xml(xmlContent: string): Promise<ParsedMppTask[]> {
+  const parser = new xml2js.Parser({ explicitArray: false });
+  const result = await parser.parseStringPromise(xmlContent);
+
+  const tasks: ParsedMppTask[] = [];
+
+  // Root may be <APIBusinessObjects> (P6 PM XML) or just <Project>
+  const root = result.APIBusinessObjects || result;
+  let projects = root.Project;
+  if (!projects) return [];
+  if (!Array.isArray(projects)) projects = [projects];
+
+  const p6XmlTypeMap: Record<string, string> = {
+    'Finish to Start': 'FS', 'Start to Start': 'SS',
+    'Finish to Finish': 'FF', 'Start to Finish': 'SF',
+    FS: 'FS', SS: 'SS', FF: 'FF', SF: 'SF',
+  };
+
+  for (const project of projects) {
+    let wbsItems = project.WBS;
+    let activities = project.Activity;
+    let relationships = project.Relationship;
+
+    if (wbsItems && !Array.isArray(wbsItems)) wbsItems = [wbsItems];
+    if (activities && !Array.isArray(activities)) activities = [activities];
+    if (relationships && !Array.isArray(relationships)) relationships = [relationships];
+
+    wbsItems = wbsItems || [];
+    activities = activities || [];
+    relationships = relationships || [];
+
+    type WbsNode = { id: string; parentId: string | null; name: string; code: string; level: number };
+    const wbsMap = new Map<string, WbsNode>();
+    for (const w of wbsItems) {
+      const id = w.ObjectId !== undefined ? String(w.ObjectId) : '';
+      if (!id) continue;
+      wbsMap.set(id, {
+        id,
+        parentId: w.ParentObjectId !== undefined && w.ParentObjectId !== '' ? String(w.ParentObjectId) : null,
+        name: w.Name || w.Code || 'WBS',
+        code: w.Code || '',
+        level: 1,
+      });
+    }
+    const computeLevel = (node: WbsNode): number => {
+      let lvl = 1;
+      let p = node.parentId;
+      const seen = new Set<string>();
+      while (p && wbsMap.has(p) && !seen.has(p)) { seen.add(p); lvl++; p = wbsMap.get(p)!.parentId; }
+      return lvl;
+    };
+    for (const n of wbsMap.values()) n.level = computeLevel(n);
+
+    let maxActivityId = 0;
+    for (const a of activities) {
+      const aid = parseInt(a.ObjectId);
+      if (!isNaN(aid) && aid > maxActivityId) maxActivityId = aid;
+    }
+    let wbsIdCounter = maxActivityId + 1000;
+    const wbsSyntheticIds = new Map<string, number>();
+    for (const n of wbsMap.values()) wbsSyntheticIds.set(n.id, wbsIdCounter++);
+
+    const sortedWbs = Array.from(wbsMap.values()).sort((a, b) => a.level - b.level);
+    for (const n of sortedWbs) {
+      const parentSyntheticId = n.parentId && wbsSyntheticIds.has(n.parentId)
+        ? wbsSyntheticIds.get(n.parentId)
+        : undefined;
+      tasks.push({
+        taskId: wbsSyntheticIds.get(n.id)!,
+        wbs: n.code || undefined,
+        taskName: n.name,
+        outlineLevel: n.level,
+        parentTaskId: parentSyntheticId,
+        isSummary: true,
+        isMilestone: false,
+        percentComplete: 0,
+      });
+    }
+
+    const predMap = new Map<string, Array<{ predecessorTaskId: number; type: string; lagDays: number }>>();
+    for (const r of relationships) {
+      const succ = r.SuccessorActivityObjectId !== undefined ? String(r.SuccessorActivityObjectId) : '';
+      const pred = parseInt(r.PredecessorActivityObjectId);
+      if (!succ || isNaN(pred)) continue;
+      const type = p6XmlTypeMap[r.Type] || 'FS';
+      const lagHours = parseFloat(r.Lag) || 0;
+      const lagDays = Math.round((lagHours / 8) * 100) / 100;
+      if (!predMap.has(succ)) predMap.set(succ, []);
+      predMap.get(succ)!.push({ predecessorTaskId: pred, type, lagDays });
+    }
+
+    for (const a of activities) {
+      const taskId = parseInt(a.ObjectId);
+      if (isNaN(taskId)) continue;
+
+      const wbsId = a.WBSObjectId !== undefined && a.WBSObjectId !== '' ? String(a.WBSObjectId) : null;
+      const wbsNode = wbsId ? wbsMap.get(wbsId) : undefined;
+      const outlineLevel = wbsNode ? wbsNode.level + 1 : 1;
+      const parentTaskId = wbsNode ? wbsSyntheticIds.get(wbsNode.id) : undefined;
+
+      const isMilestone = a.Type === 'Start Milestone' || a.Type === 'Finish Milestone'
+        || a.Type === 'TT_Mile' || a.Type === 'TT_FinMile';
+
+      const pickDate = (s: any) => {
+        if (!s) return undefined;
+        const str = String(s).trim();
+        if (!str) return undefined;
+        return str.split('T')[0].split(' ')[0];
+      };
+      const startDate = pickDate(a.ActualStartDate) || pickDate(a.PlannedStartDate)
+        || pickDate(a.StartDate) || pickDate(a.EarlyStartDate);
+      const finishDate = pickDate(a.ActualFinishDate) || pickDate(a.PlannedFinishDate)
+        || pickDate(a.FinishDate) || pickDate(a.EarlyFinishDate);
+
+      const plannedDur = parseFloat(a.PlannedDuration) || parseFloat(a.AtCompletionDuration) || 0;
+      const durationDays = plannedDur > 0 ? Math.round((plannedDur / 8) * 100) / 100 : undefined;
+
+      let pct = parseFloat(a.PercentComplete);
+      if (isNaN(pct)) pct = 0;
+      if (pct > 0 && pct <= 1) pct = pct * 100;
+      const percentComplete = Math.max(0, Math.min(100, Math.round(pct)));
+
+      tasks.push({
+        taskId,
+        wbs: wbsNode?.code || undefined,
+        taskName: a.Name || a.Id || `Activity ${a.ObjectId}`,
+        startDate,
+        finishDate,
+        duration: durationDays !== undefined ? `${durationDays}d` : undefined,
+        durationDays,
+        percentComplete,
+        outlineLevel,
+        parentTaskId,
+        isSummary: false,
+        isMilestone,
+        predecessors: predMap.get(String(a.ObjectId)),
+      });
+    }
+  }
+
   return tasks;
 }
 
@@ -1416,12 +1745,15 @@ export {
   decryptApiKey,
   openai,
   upload,
+  p6Upload,
   imageUpload,
   formatZodErrors,
   classifyError,
   parseMppFile,
   parseXmlMspdi,
   parseCsv,
+  parseXerFile,
+  parseP6Xml,
   parseDate,
   seedDatabase,
   sanitizeUser,

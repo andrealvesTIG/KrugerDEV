@@ -13,9 +13,12 @@ import {
   getUserOrgIds,
   requireEmailVerified,
   upload,
+  p6Upload,
   parseMppFile,
   parseXmlMspdi,
   parseCsv,
+  parseXerFile,
+  parseP6Xml,
   isTeamMemberInOrg,
   getTeamMemberProjectIds,
   type ParsedMppTask,
@@ -1720,6 +1723,251 @@ export function registerProjectFeatureRoutes(app: Express) {
       console.error("Error converting MPP import:", err);
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? "Error converting import to project" : classified.message });
+    }
+  });
+
+  // =========== PRIMAVERA P6 IMPORTS ===========
+  // Reuses the mppImports / mppImportTasks tables and convertMppImportToProject storage helper.
+  // fileType is set to "xer" or "p6xml" so downstream listings can distinguish the source.
+
+  apiRoute(app, 'post', '/api/p6-imports/upload', {
+    tag: 'P6 Imports',
+    summary: 'Upload and parse a Primavera P6 XER or PM XML file',
+    requestBody: body({ type: 'object' }),
+    responses: { ...r201('File uploaded and parsed', { type: 'object' }), ...createRes },
+  }, p6Upload.single('file'), async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+
+      const organizationId = Number(req.body.organizationId);
+      if (isNaN(organizationId)) {
+        return res.status(400).json({ message: "Organization ID required" });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      const fileName = req.file.originalname;
+      const fileExt = fileName.split('.').pop()?.toLowerCase();
+
+      // Determine source: .xer is tab-delimited; .xml could be P6 PM XML.
+      let parsedTasks: ParsedMppTask[] = [];
+      let storedFileType: string;
+
+      if (fileExt === 'xer') {
+        parsedTasks = parseXerFile(req.file.buffer);
+        storedFileType = 'xer';
+      } else if (fileExt === 'xml') {
+        // Detect P6 PM XML vs MS Project MSPDI by sniffing for P6 markers.
+        const xmlPreview = req.file.buffer.toString('utf-8');
+        const isP6 = /APIBusinessObjects|<Activity[\s>]|<WBS[\s>]|<Relationship[\s>]/.test(xmlPreview);
+        if (!isP6) {
+          return res.status(400).json({
+            message: "This XML does not appear to be a Primavera P6 PM XML export. Use the MS Project importer for MSPDI files.",
+          });
+        }
+        parsedTasks = await parseP6Xml(xmlPreview);
+        storedFileType = 'p6xml';
+      } else {
+        return res.status(400).json({ message: "Unsupported file format. Use .xer or P6 PM .xml." });
+      }
+
+      if (parsedTasks.length === 0) {
+        return res.status(400).json({
+          message: "No tasks could be parsed from this file. Verify it is a valid Primavera P6 export.",
+        });
+      }
+
+      // Save the original file to object storage (with local fallback)
+      let fileUrl: string | undefined;
+      const uniqueFilename = `${Date.now()}-${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+
+      try {
+        const { objectStorageClient } = await import("../replit_integrations/object_storage/objectStorage");
+        const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+
+        if (privateObjectDir) {
+          const objectPath = `${privateObjectDir}/p6-imports/${uniqueFilename}`;
+          const pathParts = objectPath.split('/');
+          const bucketName = pathParts[1];
+          const objectName = pathParts.slice(2).join('/');
+
+          const bucket = objectStorageClient.bucket(bucketName);
+          const file = bucket.file(objectName);
+
+          await file.save(req.file.buffer, {
+            contentType: 'application/octet-stream',
+            metadata: { originalName: fileName, uploadedBy: userId },
+          });
+
+          fileUrl = `/objects/p6-imports/${uniqueFilename}`;
+        } else {
+          throw new Error('Object storage not configured');
+        }
+      } catch (objectStorageError) {
+        console.log("Object storage unavailable, using local storage:", (objectStorageError as Error).message);
+        const p6Dir = path.join(process.cwd(), 'public', 'p6-imports');
+        if (!fs.existsSync(p6Dir)) {
+          fs.mkdirSync(p6Dir, { recursive: true });
+        }
+        const filePath = path.join(p6Dir, uniqueFilename);
+        fs.writeFileSync(filePath, req.file.buffer);
+        fileUrl = `/p6-imports/${uniqueFilename}`;
+      }
+
+      const importRecord = await storage.createMppImport({
+        organizationId,
+        fileName,
+        fileType: storedFileType,
+        fileUrl,
+        importedBy: userId,
+        taskCount: parsedTasks.length,
+        status: 'active',
+      });
+
+      if (parsedTasks.length > 0) {
+        const taskRecords = parsedTasks.map(task => ({
+          importId: importRecord.id,
+          taskId: task.taskId,
+          wbs: task.wbs,
+          taskName: task.taskName,
+          startDate: task.startDate,
+          finishDate: task.finishDate,
+          duration: task.duration,
+          durationDays: task.durationDays,
+          percentComplete: task.percentComplete || 0,
+          outlineLevel: task.outlineLevel || 1,
+          parentTaskId: task.parentTaskId,
+          isSummary: task.isSummary || false,
+          isMilestone: task.isMilestone || false,
+          notes: task.notes,
+          workHours: task.workHours?.toString() || null,
+          actualWorkHours: task.actualWorkHours?.toString() || null,
+          remainingWorkHours: task.remainingWorkHours?.toString() || null,
+          predecessors: task.predecessors && task.predecessors.length > 0
+            ? JSON.stringify(task.predecessors)
+            : null,
+        }));
+        await storage.createMppImportTasks(taskRecords);
+      }
+
+      res.status(201).json({
+        ...importRecord,
+        taskCount: parsedTasks.length,
+      });
+    } catch (err: any) {
+      console.error("Error uploading P6 file:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({
+        message: classified.status === 500 ? "Error processing file" : classified.message,
+      });
+    }
+  });
+
+  apiRoute(app, 'post', '/api/p6-imports/:id/convert', {
+    tag: 'P6 Imports',
+    summary: 'Convert a Primavera P6 import to a project',
+    parameters: [pathId()],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Import converted to project', { type: 'object' }), ...updateRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+
+      const id = Number(req.params.id);
+      const { name, portfolioId, description, status, priority } = req.body;
+
+      const importRecord = await storage.getMppImport(id);
+      if (!importRecord) {
+        return res.status(404).json({ message: "Import not found" });
+      }
+
+      if (!await userHasOrgAccess(userId, importRecord.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      // Guard against using this endpoint for non-P6 imports
+      if (importRecord.fileType !== 'xer' && importRecord.fileType !== 'p6xml') {
+        return res.status(400).json({ message: "This import is not a Primavera P6 import" });
+      }
+
+      if (importRecord.projectId) {
+        return res.status(400).json({ message: "This import has already been converted to a project" });
+      }
+
+      if (!name) {
+        return res.status(400).json({ message: "Project name is required" });
+      }
+
+      // Check project limit before creating the new project from this import
+      {
+        const { checkAndEnforceLimit, METER_CODES } = await import("../services/billing");
+        const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.PROJECTS, 1, importRecord.organizationId);
+        if (!limitCheck.allowed) {
+          return res.status(403).json({
+            message: limitCheck.error || "Project limit reached. Please upgrade your plan.",
+            limitExceeded: true,
+            resourceType: "projects",
+          });
+        }
+      }
+
+      const result = await storage.convertMppImportToProject(id, {
+        organizationId: importRecord.organizationId,
+        portfolioId: portfolioId ? Number(portfolioId) : undefined,
+        name,
+        description,
+        status,
+        priority,
+      });
+
+      // Record usage after successful creation
+      {
+        const { recordResourceUsage, METER_CODES } = await import("../services/billing");
+        await recordResourceUsage(userId, METER_CODES.PROJECTS, result.project.id, 1, result.project.organizationId);
+      }
+
+      const p6User = await storage.getUser(userId);
+      const p6UserName = p6User
+        ? `${p6User.firstName || ''} ${p6User.lastName || ''}`.trim() || p6User.email || 'Unknown'
+        : 'System';
+      const sourceLabel = importRecord.fileType === 'xer' ? 'Primavera P6 XER' : 'Primavera P6 XML';
+      const sourceFileName = importRecord.fileName || sourceLabel;
+      await storage.createProjectChangeLog({
+        projectId: result.project.id,
+        changedBy: userId,
+        changedByName: p6UserName,
+        changeType: 'created',
+        changeSummary: `Project "${result.project.name}" created by ${p6UserName} — imported from ${sourceFileName} (${sourceLabel})`,
+        previousValues: null,
+        newValues: null,
+      });
+
+      res.json({
+        success: true,
+        project: result.project,
+        taskCount: result.taskCount,
+        message: `Created project "${result.project.name}" with ${result.taskCount} tasks`,
+      });
+    } catch (err) {
+      console.error("Error converting P6 import:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({
+        message: classified.status === 500 ? "Error converting import to project" : classified.message,
+      });
     }
   });
 

@@ -38,8 +38,24 @@ import {
   FileSpreadsheet,
   Search,
 } from "lucide-react";
+import { SiOracle } from "react-icons/si";
 
-type ProjectSource = "manual" | "planner" | "planner-premium" | "msproject";
+type ProjectSource = "manual" | "planner" | "planner-premium" | "msproject" | "primavera";
+
+interface SourceOption {
+  id: ProjectSource;
+  label: string;
+  description: string;
+  testId: string;
+  accent: {
+    border: string;
+    bg: string;
+    hoverBorder: string;
+    iconBg: string;
+    check: string;
+  };
+  renderIcon: () => React.ReactNode;
+}
 
 interface PlannerPlan {
   id: string;
@@ -79,6 +95,10 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
   const [isImportingMsProject, setIsImportingMsProject] = useState(false);
   const [selectedMsProjectFile, setSelectedMsProjectFile] = useState<File | null>(null);
   const msProjectFileInputRef = useRef<HTMLInputElement>(null);
+  const [p6PortfolioId, setP6PortfolioId] = useState<number | null>(null);
+  const [isImportingP6, setIsImportingP6] = useState(false);
+  const [selectedP6File, setSelectedP6File] = useState<File | null>(null);
+  const p6FileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: portfoliosFetched } = usePortfolios(portfoliosProp ? null : (organizationId ?? null));
   const portfolios = portfoliosProp ?? portfoliosFetched ?? [];
@@ -311,6 +331,78 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
     if (file) setSelectedMsProjectFile(file);
   };
 
+  const handleP6FileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) setSelectedP6File(file);
+  };
+
+  const handleP6Import = async () => {
+    if (!selectedP6File) {
+      toast({ title: "Select a File", description: "Please select a Primavera P6 file to import", variant: "destructive" });
+      return;
+    }
+    setIsImportingP6(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedP6File);
+      if (organizationId) formData.append("organizationId", organizationId.toString());
+      if (p6PortfolioId) formData.append("portfolioId", p6PortfolioId.toString());
+
+      const uploadResponse = await fetch("/api/p6-imports/upload", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      if (!uploadResponse.ok) {
+        const error = await uploadResponse.json();
+        const errObj: any = new Error(error.message || "Upload failed");
+        errObj.limitExceeded = error.limitExceeded;
+        errObj.resourceType = error.resourceType;
+        throw errObj;
+      }
+
+      const importRecord = await uploadResponse.json();
+
+      const response = await fetch(`/api/p6-imports/${importRecord.id}/convert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: importRecord.fileName.replace(/\.[^/.]+$/, ""),
+          portfolioId: p6PortfolioId,
+        }),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        const errObj: any = new Error(error.message || error.error || "Import failed");
+        errObj.limitExceeded = error.limitExceeded;
+        errObj.resourceType = error.resourceType;
+        throw errObj;
+      }
+
+      const result = await response.json();
+      toast({ title: "Success", description: result.message || "Project imported successfully" });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      onOpenChange(false);
+      setSelectedP6File(null);
+      setP6PortfolioId(null);
+      setProjectSource("manual");
+    } catch (err: any) {
+      if (err?.limitExceeded) {
+        setLimitError({ message: err.message, resourceType: err.resourceType });
+        setLimitDialogOpen(true);
+        onOpenChange(false);
+      } else {
+        toast({ title: "Import Failed", description: err.message || "Could not import Primavera P6 file", variant: "destructive" });
+      }
+    } finally {
+      setIsImportingP6(false);
+      if (p6FileInputRef.current) p6FileInputRef.current.value = "";
+    }
+  };
+
   const handleMsProjectImport = async () => {
     if (!selectedMsProjectFile) {
       toast({ title: "Select a File", description: "Please select an MS Project file to import", variant: "destructive" });
@@ -382,6 +474,10 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
             setProjectSource("manual");
             setSelectedPlanId(null);
             setPlannerSearchTerm("");
+            setSelectedMsProjectFile(null);
+            setMsProjectPortfolioId(null);
+            setSelectedP6File(null);
+            setP6PortfolioId(null);
           }
         }}
       >
@@ -390,70 +486,152 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
             <DialogTitle>Create New Project</DialogTitle>
           </DialogHeader>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setProjectSource("manual")}
-              className={cn(
-                "flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all hover-elevate",
-                projectSource === "manual" ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
-              )}
-              data-testid="button-source-manual"
-            >
-              <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center">
-                <PenTool className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <span className="text-xs font-medium text-center">Create Manually</span>
-            </button>
+          {(() => {
+            const sourceOptions: SourceOption[] = [
+              {
+                id: "manual",
+                label: "Manual",
+                description: "Start from scratch",
+                testId: "button-source-manual",
+                accent: {
+                  border: "border-primary",
+                  bg: "bg-primary/5",
+                  hoverBorder: "hover:border-primary/50",
+                  iconBg: "bg-muted",
+                  check: "text-primary",
+                },
+                renderIcon: () => <PenTool className="h-5 w-5 text-muted-foreground" />,
+              },
+              {
+                id: "planner",
+                label: "Planner",
+                description: "Microsoft Planner",
+                testId: "button-source-planner",
+                accent: {
+                  border: "border-indigo-500",
+                  bg: "bg-indigo-500/5",
+                  hoverBorder: "hover:border-indigo-500/50",
+                  iconBg: "bg-indigo-50 dark:bg-indigo-950/50",
+                  check: "text-indigo-600",
+                },
+                renderIcon: () => (
+                  <>
+                    <img src={plannerLogoPath} alt="Planner" className="h-5 w-5" />
+                    <Cloud className="h-3 w-3 text-indigo-600 absolute -top-1 -right-1" />
+                  </>
+                ),
+              },
+              {
+                id: "planner-premium",
+                label: "Premium",
+                description: "Project for the Web",
+                testId: "button-source-planner-premium",
+                accent: {
+                  border: "border-purple-500",
+                  bg: "bg-purple-500/5",
+                  hoverBorder: "hover:border-purple-500/50",
+                  iconBg: "bg-purple-50 dark:bg-purple-950/50",
+                  check: "text-purple-600",
+                },
+                renderIcon: () => (
+                  <>
+                    <img src={plannerLogoPath} alt="Planner Premium" className="h-5 w-5" />
+                    <Crown className="h-3 w-3 text-purple-600 absolute -top-1 -right-1" />
+                  </>
+                ),
+              },
+              {
+                id: "msproject",
+                label: "MS Project",
+                description: ".mpp / .xml / .csv",
+                testId: "button-source-msproject",
+                accent: {
+                  border: "border-emerald-500",
+                  bg: "bg-emerald-500/5",
+                  hoverBorder: "hover:border-emerald-500/50",
+                  iconBg: "bg-emerald-50 dark:bg-emerald-950/50",
+                  check: "text-emerald-600",
+                },
+                renderIcon: () => (
+                  <>
+                    <img src={msprojectLogoPath} alt="MS Project" className="h-5 w-5" />
+                    <FileSpreadsheet className="h-3 w-3 text-emerald-600 absolute -top-1 -right-1" />
+                  </>
+                ),
+              },
+              {
+                id: "primavera",
+                label: "Primavera P6",
+                description: ".xer / P6 XML",
+                testId: "button-source-primavera",
+                accent: {
+                  border: "border-red-600",
+                  bg: "bg-red-600/5",
+                  hoverBorder: "hover:border-red-500/50",
+                  iconBg: "bg-red-50 dark:bg-red-950/50",
+                  check: "text-red-600",
+                },
+                renderIcon: () => (
+                  <>
+                    <SiOracle className="h-5 w-5 text-red-600" />
+                    <FileSpreadsheet className="h-3 w-3 text-red-600 absolute -top-1 -right-1" />
+                  </>
+                ),
+              },
+            ];
 
-            <button
-              type="button"
-              onClick={() => setProjectSource("planner")}
-              className={cn(
-                "flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all hover-elevate",
-                projectSource === "planner" ? "border-indigo-500 bg-indigo-500/5" : "border-border hover:border-indigo-500/50"
-              )}
-              data-testid="button-source-planner"
-            >
-              <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center relative">
-                <img src={plannerLogoPath} alt="Planner" className="h-5 w-5" />
-                <Cloud className="h-3 w-3 text-indigo-600 absolute -top-1 -right-1" />
+            return (
+              <div
+                role="radiogroup"
+                aria-label="Project source"
+                className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 pt-2"
+              >
+                {sourceOptions.map((option) => {
+                  const isSelected = projectSource === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={isSelected}
+                      onClick={() => setProjectSource(option.id)}
+                      className={cn(
+                        "group relative flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all hover-elevate text-center",
+                        "focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-ring",
+                        isSelected
+                          ? cn(option.accent.border, option.accent.bg)
+                          : cn("border-border", option.accent.hoverBorder)
+                      )}
+                      data-testid={option.testId}
+                    >
+                      {isSelected && (
+                        <CheckCircle
+                          className={cn(
+                            "absolute top-1.5 right-1.5 h-3.5 w-3.5",
+                            option.accent.check
+                          )}
+                        />
+                      )}
+                      <div
+                        className={cn(
+                          "w-10 h-10 rounded-lg flex items-center justify-center relative shrink-0",
+                          option.accent.iconBg
+                        )}
+                      >
+                        {option.renderIcon()}
+                      </div>
+                      <div className="flex flex-col gap-0.5 min-w-0 w-full">
+                        <span className="text-xs font-medium leading-tight truncate">{option.label}</span>
+                        <span className="text-[10px] text-muted-foreground leading-tight truncate">
+                          {option.description}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-              <span className="text-xs font-medium text-center">Planner</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setProjectSource("planner-premium")}
-              className={cn(
-                "flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all hover-elevate",
-                projectSource === "planner-premium" ? "border-purple-500 bg-purple-500/5" : "border-border hover:border-purple-500/50"
-              )}
-              data-testid="button-source-planner-premium"
-            >
-              <div className="w-9 h-9 rounded-lg bg-purple-50 dark:bg-purple-950/50 flex items-center justify-center relative">
-                <img src={plannerLogoPath} alt="Planner Premium" className="h-5 w-5" />
-                <Crown className="h-3 w-3 text-purple-600 absolute -top-1 -right-1" />
-              </div>
-              <span className="text-xs font-medium text-center">Premium</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setProjectSource("msproject")}
-              className={cn(
-                "flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all hover-elevate",
-                projectSource === "msproject" ? "border-emerald-500 bg-emerald-500/5" : "border-border hover:border-emerald-500/50"
-              )}
-              data-testid="button-source-msproject"
-            >
-              <div className="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center relative">
-                <img src={msprojectLogoPath} alt="MS Project" className="h-5 w-5" />
-                <FileSpreadsheet className="h-3 w-3 text-emerald-600 absolute -top-1 -right-1" />
-              </div>
-              <span className="text-xs font-medium text-center">MS Project</span>
-            </button>
-          </div>
+            );
+          })()}
 
           {projectSource === "manual" && (
             <form
@@ -1078,6 +1256,139 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
               <DialogFooter>
                 <Button onClick={handleMsProjectImport} disabled={!selectedMsProjectFile || isImportingMsProject} data-testid="button-import-msproject">
                   {isImportingMsProject ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="mr-2 h-4 w-4" />
+                      Import Project
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+
+          {projectSource === "primavera" && (
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center gap-3 p-4 rounded-lg border bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-900">
+                <div className="w-9 h-9 rounded-lg bg-red-100 dark:bg-red-950/60 flex items-center justify-center">
+                  <SiOracle className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <p className="font-medium">Import from Primavera P6</p>
+                  <p className="text-sm text-muted-foreground">Upload .xer or P6 PM .xml schedule exports</p>
+                </div>
+              </div>
+
+              <input
+                type="file"
+                ref={p6FileInputRef}
+                onChange={handleP6FileSelect}
+                accept=".xer,.xml"
+                className="hidden"
+                data-testid="input-p6-file"
+              />
+
+              <div className="space-y-2">
+                <Label>Select P6 File</Label>
+                <div
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-3 p-6 rounded-lg border-2 border-dashed cursor-pointer transition-all hover-elevate",
+                    selectedP6File ? "border-red-500 bg-red-500/5" : "border-border hover:border-red-500/50"
+                  )}
+                  onClick={() => p6FileInputRef.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) {
+                      const ext = file.name.split('.').pop()?.toLowerCase();
+                      if (ext === 'xer' || ext === 'xml') {
+                        setSelectedP6File(file);
+                      } else {
+                        toast({
+                          title: "Unsupported File",
+                          description: "Please drop a .xer or .xml file",
+                          variant: "destructive",
+                        });
+                      }
+                    }
+                  }}
+                  data-testid="dropzone-p6"
+                >
+                  {selectedP6File ? (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <SiOracle className="h-5 w-5 text-red-600" />
+                        <span className="font-medium">{selectedP6File.name}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{(selectedP6File.size / 1024).toFixed(1)} KB</p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedP6File(null);
+                          if (p6FileInputRef.current) p6FileInputRef.current.value = "";
+                        }}
+                      >
+                        Choose Different File
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-8 w-8 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">Drop a file here or click to select</p>
+                      <p className="text-xs text-muted-foreground">Supports .xer and P6 PM .xml</p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Target Portfolio (Optional)</Label>
+                <Select
+                  onValueChange={(val) => setP6PortfolioId(val === "none" ? null : parseInt(val))}
+                  value={p6PortfolioId?.toString() || "none"}
+                >
+                  <SelectTrigger data-testid="select-p6-portfolio">
+                    <SelectValue placeholder="Select Portfolio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Portfolio</SelectItem>
+                    {portfolios.map((p: any) => (
+                      <SelectItem key={p.id} value={p.id.toString()}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {selectedP6File && (
+                <div className="p-3 bg-muted/30 rounded-md">
+                  <p className="text-sm">
+                    Importing <strong>{selectedP6File.name}</strong> will create a new project from this Primavera P6 schedule, including its WBS hierarchy, activities, and predecessor relationships.
+                  </p>
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button
+                  onClick={handleP6Import}
+                  disabled={!selectedP6File || isImportingP6}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  data-testid="button-import-p6"
+                >
+                  {isImportingP6 ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Importing...
