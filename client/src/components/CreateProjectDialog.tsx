@@ -60,6 +60,10 @@ interface P6FileEntry {
   error?: string;
   projectName?: string;
   existingProjectName?: string;
+  // Set after the user resolves a name conflict so the row can show
+  // "Overwriting existing project…" instead of generic "Creating project…",
+  // and "Overwrote X" instead of "Created X" once the import finishes.
+  conflictResolution?: "overwrite" | "skip";
 }
 
 type ProjectSource = "manual" | "planner" | "planner-premium" | "msproject" | "primavera";
@@ -526,6 +530,11 @@ export function CreateProjectDialog({
         // Conflict-resolution loop: first attempt may return 409, then we re-attempt
         // with the user's chosen action (or the batch-wide choice if "apply to all" is set).
         let onConflict: "overwrite" | "skip" | undefined = batchConflictChoice ?? undefined;
+        // If a batch-wide overwrite was already chosen, surface it on this row
+        // immediately so the user sees "Overwriting existing project…".
+        if (onConflict) {
+          updateP6Entry(entry.id, { conflictResolution: onConflict });
+        }
         let attemptResult: any = null;
         // Up to 2 attempts: first to discover conflict, second after user resolves it.
         for (let attempt = 0; attempt < 2; attempt++) {
@@ -556,6 +565,9 @@ export function CreateProjectDialog({
             }
             if (choice.applyToAll) batchConflictChoice = choice.resolution;
             onConflict = choice.resolution;
+            // Reflect the user's choice on the row so the in-flight label
+            // switches from "Creating project…" to "Overwriting existing project…".
+            updateP6Entry(entry.id, { conflictResolution: choice.resolution });
             continue;
           }
 
@@ -588,6 +600,9 @@ export function CreateProjectDialog({
           updateP6Entry(entry.id, {
             status: "success",
             projectName: attemptResult.project?.name || importRecord.fileName,
+            // Carry the resolution forward so the success row can read
+            // "Overwrote …" instead of the default "Created …".
+            conflictResolution: onConflict,
           });
           successCount++;
         }
@@ -737,7 +752,13 @@ export function CreateProjectDialog({
           description: `Skipped — a project named "${result.existingProject?.name || proposedName}" already exists.`,
         });
       } else {
-        toast({ title: "Success", description: result?.message || "Project imported successfully" });
+        const overwrote = onConflict === "overwrite";
+        toast({
+          title: overwrote ? "Project Overwritten" : "Success",
+          description: overwrote
+            ? `Overwrote existing project "${result?.project?.name || proposedName}".`
+            : (result?.message || "Project imported successfully"),
+        });
         queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       }
       onOpenChange(false);
@@ -1712,8 +1733,16 @@ export function CreateProjectDialog({
                                     <p className="text-xs text-muted-foreground truncate">
                                       {(entry.file.size / 1024).toFixed(1)} KB
                                       {entry.status === "uploading" && " · Uploading…"}
-                                      {entry.status === "converting" && " · Creating project…"}
-                                      {entry.status === "success" && entry.projectName && ` · Created “${entry.projectName}”`}
+                                      {entry.status === "converting" && (
+                                        entry.conflictResolution === "overwrite"
+                                          ? " · Overwriting existing project…"
+                                          : " · Creating project…"
+                                      )}
+                                      {entry.status === "success" && entry.projectName && (
+                                        entry.conflictResolution === "overwrite"
+                                          ? ` · Overwrote “${entry.projectName}”`
+                                          : ` · Created “${entry.projectName}”`
+                                      )}
                                       {entry.status === "skipped" && ` · Skipped — project “${entry.existingProjectName || entry.file.name}” already exists`}
                                       {entry.status === "error" && entry.error && ` · ${entry.error}`}
                                     </p>
