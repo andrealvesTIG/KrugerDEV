@@ -324,7 +324,11 @@ export async function convertMppImportToProject(
           taskId: newTaskId,
           dependsOnTaskId: depTaskId,
           dependencyType: depTypeMap[pred.type] || 'finish-to-start',
-          lagDays: pred.lagDays || 0,
+          // taskDependencies.lagDays is an integer column. The XER parser keeps
+          // sub-day precision (e.g. 3.75 days for a 30-hour lag), so round to
+          // the nearest whole day to satisfy the column type. MS Project XML
+          // already rounds at parse time.
+          lagDays: Math.round(Number(pred.lagDays) || 0),
         });
       }
     }
@@ -532,7 +536,9 @@ export async function syncMppImportToProject(
         taskId: newTaskId,
         dependsOnTaskId: depTaskId,
         dependencyType: syncDepTypeMap[pred.type] || 'finish-to-start',
-        lagDays: pred.lagDays || 0,
+        // Same integer-coercion as convertMppImportToProject above — XER
+        // predecessors can carry sub-day lag values that must be rounded.
+        lagDays: Math.round(Number(pred.lagDays) || 0),
       });
     }
   }
