@@ -401,7 +401,7 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
 
         <Card data-testid="card-metric-budget">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Budget</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Budget (AOP)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
@@ -454,7 +454,6 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
           </CardContent>
         </Card>
       </div>
-
       <div className="grid gap-4 md:grid-cols-2">
         <Card data-testid="card-metric-issues">
           <CardHeader className="pb-3">
@@ -614,7 +613,6 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
           </CardContent>
         </Card>
       </div>
-
       {portfolio.strategy && (
         <Card>
           <CardHeader>

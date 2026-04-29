@@ -78,18 +78,45 @@ export async function getProjectFinancials(projectId: number): Promise<ProjectFi
 
 export async function getFinancialBudgetTotals(projectIds: number[]): Promise<Record<number, number>> {
   if (projectIds.length === 0) return {};
-  const rows = await db
+  // Source the per-project Total Budget from the All-Years AOP scenario in
+  // `financial_entries` so the Summary tab matches the "PORTFOLIO TOTAL — ALL
+  // YEARS / AOP" chip on the Financials tab. Falls back to the legacy
+  // `project_financials.budget_amount` sum when a project has no AOP entries
+  // yet (e.g. a freshly-created project that still uses the line-item budget).
+  const aopRows = await db
     .select({
-      projectId: projectFinancials.projectId,
-      total: sql<string>`coalesce(sum(${projectFinancials.budgetAmount}), 0)`,
+      projectId: financialEntries.projectId,
+      total: sql<string>`coalesce(sum(${financialEntries.amount}), 0)`,
     })
-    .from(projectFinancials)
-    .where(inArray(projectFinancials.projectId, projectIds))
-    .groupBy(projectFinancials.projectId);
+    .from(financialEntries)
+    .where(and(
+      inArray(financialEntries.projectId, projectIds),
+      eq(financialEntries.scenario, "aop"),
+    ))
+    .groupBy(financialEntries.projectId);
+
   const result: Record<number, number> = {};
-  for (const row of rows) {
-    result[row.projectId] = Number(row.total);
+  for (const row of aopRows) {
+    const total = Number(row.total);
+    if (total !== 0) result[row.projectId] = total;
   }
+
+  const missing = projectIds.filter(id => !(id in result));
+  if (missing.length > 0) {
+    const legacyRows = await db
+      .select({
+        projectId: projectFinancials.projectId,
+        total: sql<string>`coalesce(sum(${projectFinancials.budgetAmount}), 0)`,
+      })
+      .from(projectFinancials)
+      .where(inArray(projectFinancials.projectId, missing))
+      .groupBy(projectFinancials.projectId);
+    for (const row of legacyRows) {
+      const total = Number(row.total);
+      if (total !== 0) result[row.projectId] = total;
+    }
+  }
+
   return result;
 }
 
