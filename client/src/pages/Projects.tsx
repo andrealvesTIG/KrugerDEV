@@ -24,6 +24,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { Checkbox } from "@/components/ui/checkbox";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png";
+import { SiOracle } from "react-icons/si";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -49,6 +50,30 @@ import { useProjectWorkflows } from "@/hooks/use-project-workflows";
 import type { CustomFieldDefinition, ProjectCustomFieldValue, ProjectWorkflow } from "@shared/schema";
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
+
+type ImportSourceKind = "p6" | "msproject";
+
+function getImportSourceKind(sourceFileName?: string | null): ImportSourceKind {
+  const ext = sourceFileName?.split(".").pop()?.toLowerCase();
+  if (ext === "xer") return "p6";
+  return "msproject";
+}
+
+function getImportSourceLabel(sourceFileName?: string | null): string {
+  return getImportSourceKind(sourceFileName) === "p6" ? "Primavera P6" : "MS Project";
+}
+
+function getImportSourceDefaultDownloadName(sourceFileName?: string | null): string {
+  return getImportSourceKind(sourceFileName) === "p6" ? "project.xer" : "project.mpp";
+}
+
+function ImportSourceIcon({ sourceFileName, className }: { sourceFileName?: string | null; className?: string }) {
+  const kind = getImportSourceKind(sourceFileName);
+  if (kind === "p6") {
+    return <SiOracle className={cn("text-red-600", className)} aria-label="Primavera P6" />;
+  }
+  return <img src={msprojectLogoPath} alt="MS Project" className={className} />;
+}
 
 function ProjectsPagination({ currentPage, totalPages, totalItems, pageSize, onPageChange, onPageSizeChange, selectedPageSize }: {
   currentPage: number;
@@ -609,11 +634,11 @@ export function ProjectsListView({
                 {project.source === "imported" && project.sourceFileUrl && (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); const link = document.createElement('a'); link.href = project.sourceFileUrl!; link.download = project.sourceFileName || 'project.mpp'; link.click(); }} className="shrink-0">
-                        <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                      <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); const link = document.createElement('a'); link.href = project.sourceFileUrl!; link.download = project.sourceFileName || getImportSourceDefaultDownloadName(project.sourceFileName); link.click(); }} className="shrink-0">
+                        <ImportSourceIcon sourceFileName={project.sourceFileName} className="h-4 w-4" />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>Imported from MS Project</TooltipContent>
+                    <TooltipContent>Imported from {getImportSourceLabel(project.sourceFileName)}</TooltipContent>
                   </Tooltip>
                 )}
                 {(project as any).isExternal && (
@@ -2900,23 +2925,23 @@ export function ProjectsGridView({
                         e.stopPropagation();
                         const link = document.createElement('a');
                         link.href = project.sourceFileUrl!;
-                        link.download = project.sourceFileName || 'project.mpp';
+                        link.download = project.sourceFileName || getImportSourceDefaultDownloadName(project.sourceFileName);
                         link.click();
                       }}
                       className="flex-shrink-0 flex items-center gap-0.5"
                       title={`Download ${project.sourceFileName || "source file"}`}
                     >
-                      <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                      <ImportSourceIcon sourceFileName={project.sourceFileName} className="h-4 w-4" />
                       <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
                     </button>
                   ) : (
                     <span className="flex-shrink-0 flex items-center gap-0.5">
-                      <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                      <ImportSourceIcon sourceFileName={project.sourceFileName} className="h-4 w-4" />
                       <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
                     </span>
                   )}
                 </TooltipTrigger>
-                <TooltipContent>{project.sourceFileUrl ? `Download ${project.sourceFileName || "source file"}` : "Imported from MS Project"}</TooltipContent>
+                <TooltipContent>{project.sourceFileUrl ? `Download ${project.sourceFileName || "source file"}` : `Imported from ${getImportSourceLabel(project.sourceFileName)}`}</TooltipContent>
               </Tooltip>
             )}
             <Button 
@@ -3048,13 +3073,25 @@ export function ProjectsGridView({
             Premium
           </Badge>
         );
-        if (project.source === "imported") return (
-          <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-            <img src={msprojectLogoPath} alt="MS Project" className="h-3 w-3 mr-1" />
-            <FileSpreadsheet className="h-2.5 w-2.5 mr-1 text-emerald-500" />
-            MS Project
-          </Badge>
-        );
+        if (project.source === "imported") {
+          const importKind = getImportSourceKind(project.sourceFileName);
+          if (importKind === "p6") {
+            return (
+              <Badge variant="outline" className="text-xs bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
+                <ImportSourceIcon sourceFileName={project.sourceFileName} className="h-3 w-3 mr-1" />
+                <FileSpreadsheet className="h-2.5 w-2.5 mr-1 text-rose-500" />
+                Primavera P6
+              </Badge>
+            );
+          }
+          return (
+            <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+              <ImportSourceIcon sourceFileName={project.sourceFileName} className="h-3 w-3 mr-1" />
+              <FileSpreadsheet className="h-2.5 w-2.5 mr-1 text-emerald-500" />
+              MS Project
+            </Badge>
+          );
+        }
         return <Badge variant="outline" className="text-xs">Manual</Badge>;
       case "owner":
         const managerResource = project.managerResourceId ? resourceMap.get(project.managerResourceId) : null;
@@ -4146,23 +4183,23 @@ function DraggableProjectCard({ project, isDraggable = true }: { project: Projec
                           e.stopPropagation();
                           const link = document.createElement('a');
                           link.href = project.sourceFileUrl!;
-                          link.download = project.sourceFileName || 'project.mpp';
+                          link.download = project.sourceFileName || getImportSourceDefaultDownloadName(project.sourceFileName);
                           link.click();
                         }}
                         className="flex-shrink-0 flex items-center gap-0.5"
                         title={`Download ${project.sourceFileName || "source file"}`}
                       >
-                        <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                        <ImportSourceIcon sourceFileName={project.sourceFileName} className="h-4 w-4" />
                         <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
                       </button>
                     ) : (
                       <span className="flex-shrink-0 flex items-center gap-0.5">
-                        <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                        <ImportSourceIcon sourceFileName={project.sourceFileName} className="h-4 w-4" />
                         <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
                       </span>
                     )}
                   </TooltipTrigger>
-                  <TooltipContent>{project.sourceFileUrl ? `Download ${project.sourceFileName || "source file"}` : "Imported from MS Project"}</TooltipContent>
+                  <TooltipContent>{project.sourceFileUrl ? `Download ${project.sourceFileName || "source file"}` : `Imported from ${getImportSourceLabel(project.sourceFileName)}`}</TooltipContent>
                 </Tooltip>
               )}
             </div>
@@ -4695,23 +4732,23 @@ export function ProjectsGanttView({ projects, organizationId }: { projects: Proj
                                         e.stopPropagation();
                                         const link = document.createElement('a');
                                         link.href = project.sourceFileUrl!;
-                                        link.download = project.sourceFileName || 'project.mpp';
+                                        link.download = project.sourceFileName || getImportSourceDefaultDownloadName(project.sourceFileName);
                                         link.click();
                                       }}
                                       className="flex-shrink-0 flex items-center gap-0.5"
                                       title={`Download ${project.sourceFileName || "source file"}`}
                                     >
-                                      <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                                      <ImportSourceIcon sourceFileName={project.sourceFileName} className="h-4 w-4" />
                                       <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
                                     </button>
                                   ) : (
                                     <span className="flex-shrink-0 flex items-center gap-0.5">
-                                      <img src={msprojectLogoPath} alt="MS Project" className="h-4 w-4" />
+                                      <ImportSourceIcon sourceFileName={project.sourceFileName} className="h-4 w-4" />
                                       <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
                                     </span>
                                   )}
                                 </TooltipTrigger>
-                                <TooltipContent>{project.sourceFileUrl ? `Download ${project.sourceFileName || "source file"}` : "Imported from MS Project"}</TooltipContent>
+                                <TooltipContent>{project.sourceFileUrl ? `Download ${project.sourceFileName || "source file"}` : `Imported from ${getImportSourceLabel(project.sourceFileName)}`}</TooltipContent>
                               </Tooltip>
                             )}
                           </div>
