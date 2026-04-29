@@ -28,6 +28,8 @@ import { Loader2, Search, Plus, Trash2, Bug, MoreVertical, Pencil, AlertTriangle
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useForm, Controller } from "react-hook-form";
 import type { Issue } from "@shared/schema";
+import { ISSUE_STATUSES, ISSUE_PRIORITIES, RISK_STATUSES } from "@shared/schema";
+import { applyServerErrorsToForm } from "@/lib/serverErrors";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { exportIssuesToFile, parseImportFile, generateTemplate, type ImportResult } from "@/lib/issuesExportImport";
@@ -298,6 +300,10 @@ export default function Issues() {
   const { toast } = useToast();
   const [deleteIssueData, setDeleteIssueData] = useState<{ id: number; projectId: number } | null>(null);
   const [editResourceIds, setEditResourceIds] = useState<number[]>([]);
+  // Server-side validation error from the most recent risk update attempt.
+  // Passed into EditRiskDialog so it can surface inline field errors (e.g.
+  // "status: Invalid status 'Done'. Allowed values: ...").
+  const [editRiskSubmitError, setEditRiskSubmitError] = useState<string | null>(null);
   const [isRiskDialogOpen, setIsRiskDialogOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(getInitialColumns);
@@ -397,7 +403,20 @@ export default function Issues() {
         setResourcesInitialized(false);
       },
       onError: (err: Error) => {
-        toast({ title: "Error", description: err.message, variant: "destructive" });
+        // Surface server-side validation errors next to the offending fields
+        // (e.g. invalid status / priority enum values) instead of a generic toast.
+        const { appliedFields, unknownMessage } = applyServerErrorsToForm(
+          editForm,
+          err.message,
+          ["title", "description", "priority", "status", "type", "dueDate", "impactCost"],
+        );
+        if (appliedFields.length === 0 || unknownMessage) {
+          toast({
+            title: "Error",
+            description: unknownMessage || err.message,
+            variant: "destructive",
+          });
+        }
       }
     });
   };
@@ -667,10 +686,11 @@ export default function Issues() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="Open">Open</SelectItem>
-              <SelectItem value="In Progress">In Progress</SelectItem>
-              <SelectItem value="Resolved">Resolved</SelectItem>
-              <SelectItem value="Closed">Closed</SelectItem>
+              {/* Show the union of issue + risk statuses so the filter works
+                  for both item types in this combined view. */}
+              {Array.from(new Set<string>([...ISSUE_STATUSES, ...RISK_STATUSES])).map((status) => (
+                <SelectItem key={status} value={status}>{status}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -681,10 +701,9 @@ export default function Issues() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Priority</SelectItem>
-              <SelectItem value="Low">Low</SelectItem>
-              <SelectItem value="Medium">Medium</SelectItem>
-              <SelectItem value="High">High</SelectItem>
-              <SelectItem value="Critical">Critical</SelectItem>
+              {ISSUE_PRIORITIES.map((priority) => (
+                <SelectItem key={priority} value={priority}>{priority}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -859,9 +878,14 @@ export default function Issues() {
         return (
           <EditRiskDialog
             open={isEditDialogOpen}
-            onOpenChange={setIsEditDialogOpen}
+            onOpenChange={(open) => {
+              setIsEditDialogOpen(open);
+              if (!open) setEditRiskSubmitError(null);
+            }}
             risk={editingIssue}
+            submitError={editRiskSubmitError}
             onSubmit={(data: RiskFormData) => {
+              setEditRiskSubmitError(null);
               updateIssue.mutate({
                 id: editingIssue.id,
                 projectId: editingIssue.projectId,
@@ -876,7 +900,10 @@ export default function Issues() {
                   setResourcesInitialized(false);
                 },
                 onError: (err: Error) => {
-                  toast({ title: "Error", description: err.message, variant: "destructive" });
+                  // Hand the raw message to the dialog; it will inline the
+                  // field-level errors and toast anything that doesn't map to
+                  // a known field.
+                  setEditRiskSubmitError(err.message);
                 }
               });
             }}
@@ -982,18 +1009,25 @@ export default function Issues() {
                 <Controller
                   control={editForm.control}
                   name="priority"
-                  render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value || "Medium"}>
-                      <SelectTrigger data-testid="select-edit-priority">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Low">Low</SelectItem>
-                        <SelectItem value="Medium">Medium</SelectItem>
-                        <SelectItem value="High">High</SelectItem>
-                        <SelectItem value="Critical">Critical</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  render={({ field, fieldState }) => (
+                    <>
+                      <Select onValueChange={field.onChange} value={field.value || "Medium"}>
+                        <SelectTrigger
+                          data-testid="select-edit-priority"
+                          className={fieldState.error ? "border-destructive" : ""}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ISSUE_PRIORITIES.map((priority) => (
+                            <SelectItem key={priority} value={priority}>{priority}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {fieldState.error && (
+                        <p className="text-xs text-destructive">{fieldState.error.message}</p>
+                      )}
+                    </>
                   )}
                 />
               </div>
@@ -1004,18 +1038,25 @@ export default function Issues() {
                 <Controller
                   control={editForm.control}
                   name="status"
-                  render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value || "Open"}>
-                      <SelectTrigger data-testid="select-edit-status">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Open">Open</SelectItem>
-                        <SelectItem value="In Progress">In Progress</SelectItem>
-                        <SelectItem value="Resolved">Resolved</SelectItem>
-                        <SelectItem value="Closed">Closed</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  render={({ field, fieldState }) => (
+                    <>
+                      <Select onValueChange={field.onChange} value={field.value || "Open"}>
+                        <SelectTrigger
+                          data-testid="select-edit-status"
+                          className={fieldState.error ? "border-destructive" : ""}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ISSUE_STATUSES.map((status) => (
+                            <SelectItem key={status} value={status}>{status}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {fieldState.error && (
+                        <p className="text-xs text-destructive">{fieldState.error.message}</p>
+                      )}
+                    </>
                   )}
                 />
               </div>
@@ -1301,16 +1342,14 @@ export default function Issues() {
             issue={issue}
             field="priority"
             value={issue.priority || "Medium"}
-            options={["Low", "Medium", "High", "Critical"]}
+            options={[...ISSUE_PRIORITIES]}
             onSave={handleInlineSave}
             colorMap={priorityColors}
           />
         );
 
       case "status": {
-        const issueStatuses = ["Open", "In Progress", "Resolved", "Closed"];
-        const riskStatuses = ["Identified", "Open", "In Mitigation", "Mitigated", "Closed", "Accepted"];
-        const statuses = issue.itemType === "risk" ? riskStatuses : issueStatuses;
+        const statuses = issue.itemType === "risk" ? [...RISK_STATUSES] : [...ISSUE_STATUSES];
         return (
           <InlineSelectCell
             issue={issue}

@@ -194,6 +194,10 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreateRiskDialogOpen, setIsCreateRiskDialogOpen] = useState(false);
   const [editingRisk, setEditingRisk] = useState<Risk | null>(null);
+  // Server-side validation error from the most recent risk update; passed
+  // into EditRiskDialog so invalid status / priority values render inline
+  // beside the offending field instead of a generic toast.
+  const [editRiskSubmitError, setEditRiskSubmitError] = useState<string | null>(null);
   const [deleteRiskData, setDeleteRiskData] = useState<Risk | null>(null);
   const [historyRiskId, setHistoryRiskId] = useState<number | null>(null);
   const [selectedResourceIds, setSelectedResourceIds] = useState<number[]>([]);
@@ -402,10 +406,18 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
           />
           <EditRiskDialog
             open={isDialogOpen}
-            onOpenChange={(open) => { setIsDialogOpen(open); if (!open) setEditingRisk(null); }}
+            onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) {
+                setEditingRisk(null);
+                setEditRiskSubmitError(null);
+              }
+            }}
             risk={editingRisk}
+            submitError={editRiskSubmitError}
             onSubmit={(data: RiskFormData) => {
               if (!editingRisk) return;
+              setEditRiskSubmitError(null);
               const escalationData = escalateToPortfolio 
                 ? { escalatedToPortfolio: true, escalatedAt: editingRisk.escalatedToPortfolio ? editingRisk.escalatedAt : new Date().toISOString() }
                 : { escalatedToPortfolio: false, escalatedAt: null };
@@ -417,7 +429,8 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
                   setEditingRisk(null);
                 },
                 onError: (error: any) => {
-                  toast({ title: "Error", description: error?.message || "Failed to update risk", variant: "destructive" });
+                  // Forward to the dialog so invalid enum values surface inline.
+                  setEditRiskSubmitError(error?.message || "Failed to update risk");
                 }
               });
             }}

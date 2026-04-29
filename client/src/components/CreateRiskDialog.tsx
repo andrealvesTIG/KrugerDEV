@@ -13,6 +13,8 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
+import { RISK_STATUSES } from "@shared/schema";
+import { applyServerErrorsToForm } from "@/lib/serverErrors";
 
 // Form schema mirrors what the server's insertRiskSchema accepts. We keep a
 // local definition (rather than importing insertRiskSchema directly) because
@@ -111,8 +113,32 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
           setLimitError({ message: err.message, resourceType: err.resourceType });
           setLimitDialogOpen(true);
           handleOpenChange(false);
-        } else {
-          toast({ title: "Error", description: err.message, variant: "destructive" });
+          return;
+        }
+        // Map server-side validation errors (e.g. invalid status enum) onto
+        // the corresponding form fields so users see the message inline.
+        const { appliedFields, unknownMessage } = applyServerErrorsToForm(
+          form,
+          err?.message,
+          [
+            "projectId",
+            "title",
+            "description",
+            "probability",
+            "impact",
+            "status",
+            "dueDate",
+            "costExposure",
+            "riskScore",
+            "mitigationPlan",
+          ],
+        );
+        if (appliedFields.length === 0 || unknownMessage) {
+          toast({
+            title: "Error",
+            description: unknownMessage || err.message,
+            variant: "destructive",
+          });
         }
       },
     });
@@ -229,18 +255,25 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
               <Controller
                 control={form.control}
                 name="status"
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value || "Open"}>
-                    <SelectTrigger data-testid="select-risk-status">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Open">Open</SelectItem>
-                      <SelectItem value="Mitigated">Mitigated</SelectItem>
-                      <SelectItem value="Occurred">Occurred</SelectItem>
-                      <SelectItem value="Closed">Closed</SelectItem>
-                    </SelectContent>
-                  </Select>
+                render={({ field, fieldState }) => (
+                  <>
+                    <Select onValueChange={field.onChange} value={field.value || "Open"}>
+                      <SelectTrigger
+                        data-testid="select-risk-status"
+                        className={fieldState.error ? "border-destructive" : ""}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {RISK_STATUSES.map((status) => (
+                          <SelectItem key={status} value={status}>{status}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {fieldState.error && (
+                      <p className="text-sm text-destructive">{fieldState.error.message}</p>
+                    )}
+                  </>
                 )}
               />
             </div>

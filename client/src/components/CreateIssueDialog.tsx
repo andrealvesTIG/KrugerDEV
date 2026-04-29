@@ -12,8 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2 } from "lucide-react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertIssueSchema } from "@shared/schema";
+import { insertIssueSchema, ISSUE_PRIORITIES } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { applyServerErrorsToForm } from "@/lib/serverErrors";
 
 interface CreateIssueDialogProps {
   open: boolean;
@@ -75,8 +76,21 @@ export function CreateIssueDialog({ open, onOpenChange, organizationId }: Create
           setLimitError({ message: err.message, resourceType: err.resourceType });
           setLimitDialogOpen(true);
           handleOpenChange(false);
-        } else {
-          toast({ title: "Error", description: err.message, variant: "destructive" });
+          return;
+        }
+        // Map server-side validation errors (e.g. invalid status enum) onto
+        // the corresponding form fields so users see the message inline.
+        const { appliedFields, unknownMessage } = applyServerErrorsToForm(
+          form,
+          err?.message,
+          ["projectId", "title", "description", "priority", "status", "type", "dueDate", "impactCost"],
+        );
+        if (appliedFields.length === 0 || unknownMessage) {
+          toast({
+            title: "Error",
+            description: unknownMessage || err.message,
+            variant: "destructive",
+          });
         }
       },
     });
@@ -171,18 +185,25 @@ export function CreateIssueDialog({ open, onOpenChange, organizationId }: Create
                 <Controller
                   control={form.control}
                   name="priority"
-                  render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value || "Medium"}>
-                      <SelectTrigger data-testid="select-priority">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Low">Low</SelectItem>
-                        <SelectItem value="Medium">Medium</SelectItem>
-                        <SelectItem value="High">High</SelectItem>
-                        <SelectItem value="Critical">Critical</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  render={({ field, fieldState }) => (
+                    <>
+                      <Select onValueChange={field.onChange} value={field.value || "Medium"}>
+                        <SelectTrigger
+                          data-testid="select-priority"
+                          className={fieldState.error ? "border-destructive" : ""}
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ISSUE_PRIORITIES.map((priority) => (
+                            <SelectItem key={priority} value={priority}>{priority}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {fieldState.error && (
+                        <p className="text-sm text-destructive">{fieldState.error.message}</p>
+                      )}
+                    </>
                   )}
                 />
               </div>

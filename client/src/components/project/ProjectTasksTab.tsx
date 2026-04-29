@@ -18,6 +18,7 @@ import { useForm, Controller } from "react-hook-form";
 import { useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { cn, normalizeSearch } from "@/lib/utils";
+import { applyServerErrorsToForm } from "@/lib/serverErrors";
 import { insertTaskSchema, TASK_STATUSES, TASK_STATUS, DEFAULT_TASK_STATUS } from "@shared/schema";
 import type { Task, TaskResourceAssignment, Resource } from "@shared/schema";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
@@ -877,7 +878,17 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           setEditingTask(null);
         },
         onError: (error: any) => {
-          toast({ title: "Error", description: error?.message || "Failed to update task", variant: "destructive" });
+          const msg = error?.message || "Failed to update task";
+          // Map server-side validation errors (e.g. invalid status enum) to
+          // their form fields so users see them inline.
+          const { appliedFields, unknownMessage } = applyServerErrorsToForm(
+            form,
+            msg,
+            ["name", "description", "status", "progress", "projectId", "startDate", "endDate", "durationDays", "baselineStartDate", "baselineEndDate"],
+          );
+          if (appliedFields.length === 0 || unknownMessage) {
+            toast({ title: "Error", description: unknownMessage || msg, variant: "destructive" });
+          }
         }
       });
     } else {
@@ -890,7 +901,15 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           setIsDialogOpen(false);
         },
         onError: (error: any) => {
-          toast({ title: "Error", description: error?.message || "Failed to create task", variant: "destructive" });
+          const msg = error?.message || "Failed to create task";
+          const { appliedFields, unknownMessage } = applyServerErrorsToForm(
+            form,
+            msg,
+            ["name", "description", "status", "progress", "projectId", "startDate", "endDate", "durationDays", "baselineStartDate", "baselineEndDate"],
+          );
+          if (appliedFields.length === 0 || unknownMessage) {
+            toast({ title: "Error", description: unknownMessage || msg, variant: "destructive" });
+          }
         }
       });
     }
@@ -1325,25 +1344,30 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Status</Label>
-                        <Controller control={form.control} name="status" render={({field}) => (
-                          <Select onValueChange={(val) => {
-                            const prevStatus = field.value;
-                            field.onChange(val);
-                            if (val === TASK_STATUS.NOT_STARTED) {
-                              form.setValue("progress", 0);
-                            } else if (val === TASK_STATUS.COMPLETED) {
-                              form.setValue("progress", 100);
-                            } else if (val === TASK_STATUS.IN_PROGRESS && prevStatus === TASK_STATUS.COMPLETED) {
-                              form.setValue("progress", 50);
-                            }
-                          }} value={field.value || DEFAULT_TASK_STATUS}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {TASK_STATUSES.map((status) => (
-                                <SelectItem key={status} value={status}>{status}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <Controller control={form.control} name="status" render={({field, fieldState}) => (
+                          <>
+                            <Select onValueChange={(val) => {
+                              const prevStatus = field.value;
+                              field.onChange(val);
+                              if (val === TASK_STATUS.NOT_STARTED) {
+                                form.setValue("progress", 0);
+                              } else if (val === TASK_STATUS.COMPLETED) {
+                                form.setValue("progress", 100);
+                              } else if (val === TASK_STATUS.IN_PROGRESS && prevStatus === TASK_STATUS.COMPLETED) {
+                                form.setValue("progress", 50);
+                              }
+                            }} value={field.value || DEFAULT_TASK_STATUS}>
+                              <SelectTrigger className={cn(fieldState.error && "border-destructive")}><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {TASK_STATUSES.map((status) => (
+                                  <SelectItem key={status} value={status}>{status}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {fieldState.error && (
+                              <p className="text-xs text-destructive">{fieldState.error.message}</p>
+                            )}
+                          </>
                         )} />
                       </div>
                       <div className="space-y-2">

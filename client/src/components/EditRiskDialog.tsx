@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Loader2, History, ChevronDown, ChevronUp, Sparkles, ArrowUpToLine } from "lucide-react";
 import { Link } from "wouter";
+import { RISK_STATUSES } from "@shared/schema";
+import { applyServerErrorsToForm } from "@/lib/serverErrors";
 
 const riskFormSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -75,6 +77,13 @@ export interface EditRiskDialogProps {
   isAiSuggesting?: boolean;
   onDelete?: () => void;
   isDeleting?: boolean;
+  /**
+   * Server-side validation error message returned from the most recent submit
+   * attempt (e.g. "status: Invalid status 'Done'. Allowed values: ..."). The
+   * dialog parses it and surfaces field-level errors next to the offending
+   * inputs. Pass `null` to clear after a successful submit.
+   */
+  submitError?: string | null;
 }
 
 export function EditRiskDialog({
@@ -101,6 +110,7 @@ export function EditRiskDialog({
   isAiSuggesting = false,
   onDelete,
   isDeleting = false,
+  submitError = null,
 }: EditRiskDialogProps) {
   const [showHistory, setShowHistory] = useState(false);
   const { toast } = useToast();
@@ -138,6 +148,27 @@ export function EditRiskDialog({
       setShowHistory(false);
     }
   }, [risk]);
+
+  // Surface server-side validation errors next to the offending fields. The
+  // parent component sets `submitError` when the API rejects the payload (e.g.
+  // an invalid `status`); we parse it once and call form.setError per field.
+  useEffect(() => {
+    if (!submitError) return;
+    const { unknownMessage } = applyServerErrorsToForm(form, submitError, [
+      "title",
+      "description",
+      "probability",
+      "impact",
+      "status",
+      "dueDate",
+      "costExposure",
+      "riskScore",
+      "mitigationPlan",
+    ]);
+    if (unknownMessage) {
+      toast({ title: "Error", description: unknownMessage, variant: "destructive" });
+    }
+  }, [submitError]);
 
   const handleSubmit = (data: RiskFormData) => {
     onSubmit({ ...data, dueDate: data.dueDate || null, costExposure: data.costExposure || null, riskScore: data.riskScore ? parseInt(data.riskScore) : null } as any);
@@ -234,16 +265,25 @@ export function EditRiskDialog({
               </div>
               <div className="space-y-1.5">
                 <Label>Status</Label>
-                <Controller control={form.control} name="status" render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger data-testid="select-risk-status"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Open">Open</SelectItem>
-                      <SelectItem value="Mitigated">Mitigated</SelectItem>
-                      <SelectItem value="Occurred">Occurred</SelectItem>
-                      <SelectItem value="Closed">Closed</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <Controller control={form.control} name="status" render={({ field, fieldState }) => (
+                  <>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger
+                        data-testid="select-risk-status"
+                        className={fieldState.error ? "border-destructive" : ""}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {RISK_STATUSES.map((status) => (
+                          <SelectItem key={status} value={status}>{status}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {fieldState.error && (
+                      <p className="text-xs text-destructive">{fieldState.error.message}</p>
+                    )}
+                  </>
                 )} />
               </div>
             </div>
