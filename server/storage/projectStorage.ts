@@ -13,6 +13,21 @@ import {
   timesheetEntries, resourceSkills, resourceAvailability,
   portfolioRiskAssessments, portfolioKeyDates,
   legacyRisks, legacyRiskChangeLogs, legacyRiskResourceAssignments,
+  financialEntries,
+  dailyLogs, dailyLogLabor, dailyLogEquipment,
+  rfis, rfiResponses,
+  submittals, submittalRevisions,
+  drawingSets, drawings, drawingRevisions, drawingMarkups,
+  punchItems, punchItemStatusHistory, punchItemPhotos,
+  inspectionTemplates, inspectionTemplateItems, inspections, inspectionResults,
+  incidents, incidentActions,
+  observations, observationActions,
+  vendors, vendorPrequalifications,
+  bidPackages, bidInvitations, bids, bidLineItems,
+  changeOrders, changeOrderLineItems,
+  constructionInvoices, constructionInvoiceLineItems,
+  meetings, meetingAgendaItems, meetingActionItems, meetingMinutes,
+  correspondence,
   type Project, type InsertProject, type UpdateProjectRequest,
   type Risk, type InsertRisk, type UpdateRiskRequest,
   type Milestone, type InsertMilestone, type UpdateMilestoneRequest,
@@ -451,12 +466,32 @@ export async function deleteAllDemoDataForOrganization(organizationId: number): 
   issues: number; financials: number; intakes: number; resources: number;
   changeRequests: number; documents: number; benefits: number; decisions: number;
   timesheets: number; assignments: number; keyDates: number;
+  taskDependencies: number; costItems: number; financialEntries: number;
+  projectComments: number; issueResourceAssignments: number;
+  healthStatusHistory: number; statusReportHistory: number; lessonsLearned: number;
+  dailyLogs: number; rfis: number; submittals: number; drawingSets: number; drawings: number;
+  punchListItems: number; inspectionTemplates: number; inspections: number;
+  incidents: number; observations: number;
+  vendors: number; bidPackages: number; bids: number;
+  changeOrders: number; constructionInvoices: number;
+  meetings: number; correspondence: number;
+  resourceSkills: number; resourceAvailability: number;
 }> {
   const stats = {
     portfolios: 0, projects: 0, tasks: 0, risks: 0, milestones: 0,
     issues: 0, financials: 0, intakes: 0, resources: 0,
     changeRequests: 0, documents: 0, benefits: 0, decisions: 0,
     timesheets: 0, assignments: 0, keyDates: 0,
+    taskDependencies: 0, costItems: 0, financialEntries: 0,
+    projectComments: 0, issueResourceAssignments: 0,
+    healthStatusHistory: 0, statusReportHistory: 0, lessonsLearned: 0,
+    dailyLogs: 0, rfis: 0, submittals: 0, drawingSets: 0, drawings: 0,
+    punchListItems: 0, inspectionTemplates: 0, inspections: 0,
+    incidents: 0, observations: 0,
+    vendors: 0, bidPackages: 0, bids: 0,
+    changeOrders: 0, constructionInvoices: 0,
+    meetings: 0, correspondence: 0,
+    resourceSkills: 0, resourceAvailability: 0,
   };
 
   const allProjects = await db.select().from(projects)
@@ -465,6 +500,164 @@ export async function deleteAllDemoDataForOrganization(organizationId: number): 
   for (const project of allProjects) {
     const isDemoProject = project.isDemo === true;
 
+    // === Capital Projects per-project demo data (delete in child→parent FK order) ===
+
+    // Daily logs + labor + equipment
+    const demoDailyLogs = await db.select({ id: dailyLogs.id }).from(dailyLogs)
+      .where(isDemoProject ? eq(dailyLogs.projectId, project.id) : and(eq(dailyLogs.projectId, project.id), eq(dailyLogs.isDemo, true)));
+    for (const dl of demoDailyLogs) {
+      await db.delete(dailyLogLabor).where(eq(dailyLogLabor.dailyLogId, dl.id));
+      await db.delete(dailyLogEquipment).where(eq(dailyLogEquipment.dailyLogId, dl.id));
+    }
+    const deletedDailyLogs = await db.delete(dailyLogs)
+      .where(isDemoProject ? eq(dailyLogs.projectId, project.id) : and(eq(dailyLogs.projectId, project.id), eq(dailyLogs.isDemo, true))).returning();
+    stats.dailyLogs += deletedDailyLogs.length;
+
+    // RFIs + responses
+    const demoRfis = await db.select({ id: rfis.id }).from(rfis)
+      .where(isDemoProject ? eq(rfis.projectId, project.id) : and(eq(rfis.projectId, project.id), eq(rfis.isDemo, true)));
+    for (const r of demoRfis) {
+      await db.delete(rfiResponses).where(eq(rfiResponses.rfiId, r.id));
+    }
+    const deletedRfis = await db.delete(rfis)
+      .where(isDemoProject ? eq(rfis.projectId, project.id) : and(eq(rfis.projectId, project.id), eq(rfis.isDemo, true))).returning();
+    stats.rfis += deletedRfis.length;
+
+    // Submittals + revisions
+    const demoSubs = await db.select({ id: submittals.id }).from(submittals)
+      .where(isDemoProject ? eq(submittals.projectId, project.id) : and(eq(submittals.projectId, project.id), eq(submittals.isDemo, true)));
+    for (const s of demoSubs) {
+      await db.delete(submittalRevisions).where(eq(submittalRevisions.submittalId, s.id));
+    }
+    const deletedSubs = await db.delete(submittals)
+      .where(isDemoProject ? eq(submittals.projectId, project.id) : and(eq(submittals.projectId, project.id), eq(submittals.isDemo, true))).returning();
+    stats.submittals += deletedSubs.length;
+
+    // Drawings + revisions + markups + sets
+    const demoDrawings = await db.select({ id: drawings.id }).from(drawings)
+      .where(isDemoProject ? eq(drawings.projectId, project.id) : and(eq(drawings.projectId, project.id), eq(drawings.isDemo, true)));
+    for (const dr of demoDrawings) {
+      const revs = await db.select({ id: drawingRevisions.id }).from(drawingRevisions).where(eq(drawingRevisions.drawingId, dr.id));
+      for (const rv of revs) {
+        await db.delete(drawingMarkups).where(eq(drawingMarkups.revisionId, rv.id));
+      }
+      await db.delete(drawingMarkups).where(eq(drawingMarkups.drawingId, dr.id));
+      await db.delete(drawingRevisions).where(eq(drawingRevisions.drawingId, dr.id));
+    }
+    const deletedDrawings = await db.delete(drawings)
+      .where(isDemoProject ? eq(drawings.projectId, project.id) : and(eq(drawings.projectId, project.id), eq(drawings.isDemo, true))).returning();
+    stats.drawings += deletedDrawings.length;
+
+    const deletedDrawingSets = await db.delete(drawingSets)
+      .where(isDemoProject ? eq(drawingSets.projectId, project.id) : and(eq(drawingSets.projectId, project.id), eq(drawingSets.isDemo, true))).returning();
+    stats.drawingSets += deletedDrawingSets.length;
+
+    // Punch items + status history + photos
+    const demoPunch = await db.select({ id: punchItems.id }).from(punchItems)
+      .where(isDemoProject ? eq(punchItems.projectId, project.id) : and(eq(punchItems.projectId, project.id), eq(punchItems.isDemo, true)));
+    for (const p of demoPunch) {
+      await db.delete(punchItemStatusHistory).where(eq(punchItemStatusHistory.punchItemId, p.id));
+      await db.delete(punchItemPhotos).where(eq(punchItemPhotos.punchItemId, p.id));
+    }
+    const deletedPunch = await db.delete(punchItems)
+      .where(isDemoProject ? eq(punchItems.projectId, project.id) : and(eq(punchItems.projectId, project.id), eq(punchItems.isDemo, true))).returning();
+    stats.punchListItems += deletedPunch.length;
+
+    // Inspections + results, then templates + items
+    const demoInsp = await db.select({ id: inspections.id }).from(inspections)
+      .where(isDemoProject ? eq(inspections.projectId, project.id) : and(eq(inspections.projectId, project.id), eq(inspections.isDemo, true)));
+    for (const ins of demoInsp) {
+      await db.delete(inspectionResults).where(eq(inspectionResults.inspectionId, ins.id));
+    }
+    const deletedInsp = await db.delete(inspections)
+      .where(isDemoProject ? eq(inspections.projectId, project.id) : and(eq(inspections.projectId, project.id), eq(inspections.isDemo, true))).returning();
+    stats.inspections += deletedInsp.length;
+
+    const demoTpl = await db.select({ id: inspectionTemplates.id }).from(inspectionTemplates)
+      .where(isDemoProject ? eq(inspectionTemplates.projectId, project.id) : and(eq(inspectionTemplates.projectId, project.id), eq(inspectionTemplates.isDemo, true)));
+    for (const t of demoTpl) {
+      await db.delete(inspectionTemplateItems).where(eq(inspectionTemplateItems.templateId, t.id));
+    }
+    const deletedTpl = await db.delete(inspectionTemplates)
+      .where(isDemoProject ? eq(inspectionTemplates.projectId, project.id) : and(eq(inspectionTemplates.projectId, project.id), eq(inspectionTemplates.isDemo, true))).returning();
+    stats.inspectionTemplates += deletedTpl.length;
+
+    // Incidents + actions
+    const demoIncidents = await db.select({ id: incidents.id }).from(incidents)
+      .where(isDemoProject ? eq(incidents.projectId, project.id) : and(eq(incidents.projectId, project.id), eq(incidents.isDemo, true)));
+    for (const inc of demoIncidents) {
+      await db.delete(incidentActions).where(eq(incidentActions.incidentId, inc.id));
+    }
+    const deletedIncidents = await db.delete(incidents)
+      .where(isDemoProject ? eq(incidents.projectId, project.id) : and(eq(incidents.projectId, project.id), eq(incidents.isDemo, true))).returning();
+    stats.incidents += deletedIncidents.length;
+
+    // Observations + actions
+    const demoObs = await db.select({ id: observations.id }).from(observations)
+      .where(isDemoProject ? eq(observations.projectId, project.id) : and(eq(observations.projectId, project.id), eq(observations.isDemo, true)));
+    for (const o of demoObs) {
+      await db.delete(observationActions).where(eq(observationActions.observationId, o.id));
+    }
+    const deletedObs = await db.delete(observations)
+      .where(isDemoProject ? eq(observations.projectId, project.id) : and(eq(observations.projectId, project.id), eq(observations.isDemo, true))).returning();
+    stats.observations += deletedObs.length;
+
+    // Change orders + line items
+    const demoCO = await db.select({ id: changeOrders.id }).from(changeOrders)
+      .where(isDemoProject ? eq(changeOrders.projectId, project.id) : and(eq(changeOrders.projectId, project.id), eq(changeOrders.isDemo, true)));
+    for (const co of demoCO) {
+      await db.delete(changeOrderLineItems).where(eq(changeOrderLineItems.changeOrderId, co.id));
+    }
+    const deletedCO = await db.delete(changeOrders)
+      .where(isDemoProject ? eq(changeOrders.projectId, project.id) : and(eq(changeOrders.projectId, project.id), eq(changeOrders.isDemo, true))).returning();
+    stats.changeOrders += deletedCO.length;
+
+    // Construction invoices + line items
+    const demoCInv = await db.select({ id: constructionInvoices.id }).from(constructionInvoices)
+      .where(isDemoProject ? eq(constructionInvoices.projectId, project.id) : and(eq(constructionInvoices.projectId, project.id), eq(constructionInvoices.isDemo, true)));
+    for (const ci of demoCInv) {
+      await db.delete(constructionInvoiceLineItems).where(eq(constructionInvoiceLineItems.invoiceId, ci.id));
+    }
+    const deletedCInv = await db.delete(constructionInvoices)
+      .where(isDemoProject ? eq(constructionInvoices.projectId, project.id) : and(eq(constructionInvoices.projectId, project.id), eq(constructionInvoices.isDemo, true))).returning();
+    stats.constructionInvoices += deletedCInv.length;
+
+    // Meetings + agenda + actions + minutes
+    const demoMeetings = await db.select({ id: meetings.id }).from(meetings)
+      .where(isDemoProject ? eq(meetings.projectId, project.id) : and(eq(meetings.projectId, project.id), eq(meetings.isDemo, true)));
+    for (const m of demoMeetings) {
+      await db.delete(meetingAgendaItems).where(eq(meetingAgendaItems.meetingId, m.id));
+      await db.delete(meetingActionItems).where(eq(meetingActionItems.meetingId, m.id));
+      await db.delete(meetingMinutes).where(eq(meetingMinutes.meetingId, m.id));
+    }
+    const deletedMeetings = await db.delete(meetings)
+      .where(isDemoProject ? eq(meetings.projectId, project.id) : and(eq(meetings.projectId, project.id), eq(meetings.isDemo, true))).returning();
+    stats.meetings += deletedMeetings.length;
+
+    // Correspondence
+    const deletedCorr = await db.delete(correspondence)
+      .where(isDemoProject ? eq(correspondence.projectId, project.id) : and(eq(correspondence.projectId, project.id), eq(correspondence.isDemo, true))).returning();
+    stats.correspondence += deletedCorr.length;
+
+    // Bid packages + invitations + bids + line items (per-project — vendors deleted org-level)
+    const demoBPs = await db.select({ id: bidPackages.id }).from(bidPackages)
+      .where(isDemoProject ? eq(bidPackages.projectId, project.id) : and(eq(bidPackages.projectId, project.id), eq(bidPackages.isDemo, true)));
+    for (const bp of demoBPs) {
+      const bpBids = await db.select({ id: bids.id }).from(bids).where(eq(bids.bidPackageId, bp.id));
+      for (const b of bpBids) {
+        await db.delete(bidLineItems).where(eq(bidLineItems.bidId, b.id));
+      }
+      const deletedBids = await db.delete(bids).where(eq(bids.bidPackageId, bp.id)).returning();
+      stats.bids += deletedBids.length;
+      await db.delete(bidLineItems).where(eq(bidLineItems.bidPackageId, bp.id));
+      await db.delete(bidInvitations).where(eq(bidInvitations.bidPackageId, bp.id));
+    }
+    const deletedBPs = await db.delete(bidPackages)
+      .where(isDemoProject ? eq(bidPackages.projectId, project.id) : and(eq(bidPackages.projectId, project.id), eq(bidPackages.isDemo, true))).returning();
+    stats.bidPackages += deletedBPs.length;
+
+    // === Classic PPM extensions ===
+
     const demoFilter = isDemoProject
       ? eq(tasks.projectId, project.id)
       : and(eq(tasks.projectId, project.id), eq(tasks.isDemo, true));
@@ -472,11 +665,13 @@ export async function deleteAllDemoDataForOrganization(organizationId: number): 
     const demoTasks = await db.select().from(tasks).where(demoFilter);
     
     let taskAssignmentsDeleted = 0;
+    let taskDepsDeleted = 0;
     for (const task of demoTasks) {
       const deletedTimesheets = await db.delete(timesheetEntries).where(eq(timesheetEntries.taskId, task.id)).returning();
       stats.timesheets += deletedTimesheets.length;
-      await db.delete(taskDependencies).where(eq(taskDependencies.taskId, task.id));
-      await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, task.id));
+      const td1 = await db.delete(taskDependencies).where(eq(taskDependencies.taskId, task.id)).returning();
+      const td2 = await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, task.id)).returning();
+      taskDepsDeleted += td1.length + td2.length;
       await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
       const deletedAssignments = await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.taskId, task.id)).returning();
       taskAssignmentsDeleted += deletedAssignments.length;
@@ -484,6 +679,7 @@ export async function deleteAllDemoDataForOrganization(organizationId: number): 
       await db.update(issues).set({ relatedTaskId: null }).where(eq(issues.relatedTaskId, task.id));
     }
     stats.assignments += taskAssignmentsDeleted;
+    stats.taskDependencies += taskDepsDeleted;
     
     const milestoneDemoFilter = isDemoProject
       ? and(eq(tasks.projectId, project.id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone'))
@@ -556,6 +752,65 @@ export async function deleteAllDemoDataForOrganization(organizationId: number): 
         : and(eq(projectDecisions.projectId, project.id), eq(projectDecisions.isDemo, true))
       ).returning();
     stats.decisions += deletedDecisions.length;
+
+    // === Per-project demo cleanup for tables with isDemo column ===
+    // (deleted regardless of whether the parent project itself is fully removed)
+
+    // Project comments — clear comment-related notifications first
+    const demoComments = await db.select({ id: projectComments.id }).from(projectComments)
+      .where(isDemoProject
+        ? eq(projectComments.projectId, project.id)
+        : and(eq(projectComments.projectId, project.id), eq(projectComments.isDemo, true))
+      );
+    for (const c of demoComments) {
+      await db.delete(notifications).where(eq(notifications.commentId, c.id));
+    }
+    const dProjComments = await db.delete(projectComments)
+      .where(isDemoProject
+        ? eq(projectComments.projectId, project.id)
+        : and(eq(projectComments.projectId, project.id), eq(projectComments.isDemo, true))
+      ).returning();
+    stats.projectComments += dProjComments.length;
+
+    // Status report history
+    const dStatusReports = await db.delete(statusReportHistory)
+      .where(isDemoProject
+        ? eq(statusReportHistory.projectId, project.id)
+        : and(eq(statusReportHistory.projectId, project.id), eq(statusReportHistory.isDemo, true))
+      ).returning();
+    stats.statusReportHistory += dStatusReports.length;
+
+    // Health status history
+    const dHealthHistory = await db.delete(healthStatusHistory)
+      .where(isDemoProject
+        ? eq(healthStatusHistory.projectId, project.id)
+        : and(eq(healthStatusHistory.projectId, project.id), eq(healthStatusHistory.isDemo, true))
+      ).returning();
+    stats.healthStatusHistory += dHealthHistory.length;
+
+    // Lessons learned
+    const dLessonsLearned = await db.delete(lessonsLearned)
+      .where(isDemoProject
+        ? eq(lessonsLearned.projectId, project.id)
+        : and(eq(lessonsLearned.projectId, project.id), eq(lessonsLearned.isDemo, true))
+      ).returning();
+    stats.lessonsLearned += dLessonsLearned.length;
+
+    // Financial entries (capital project monthly entries)
+    const dFinancialEntries = await db.delete(financialEntries)
+      .where(isDemoProject
+        ? eq(financialEntries.projectId, project.id)
+        : and(eq(financialEntries.projectId, project.id), eq(financialEntries.isDemo, true))
+      ).returning();
+    stats.financialEntries += dFinancialEntries.length;
+
+    // Cost items (capital cost catalog)
+    const dCostItems = await db.delete(costItems)
+      .where(isDemoProject
+        ? eq(costItems.projectId, project.id)
+        : and(eq(costItems.projectId, project.id), eq(costItems.isDemo, true))
+      ).returning();
+    stats.costItems += dCostItems.length;
   }
   
   const demoProjects = await db.select().from(projects)
@@ -582,12 +837,12 @@ export async function deleteAllDemoDataForOrganization(organizationId: number): 
       Number(remainingDecisions[0]?.count || 0) > 0;
     
     if (!hasRemainingChildren) {
-      await db.delete(lessonsLearned).where(eq(lessonsLearned.projectId, project.id));
+      // Per-project demo cleanup for tables WITH isDemo column happens
+      // unconditionally in the per-project loop above. The block below only
+      // handles tables WITHOUT an isDemo column (i.e. cascade cleanup needed
+      // before the demo project row itself can be deleted).
       await db.delete(projectChangeLogs).where(eq(projectChangeLogs.projectId, project.id));
-      await db.delete(healthStatusHistory).where(eq(healthStatusHistory.projectId, project.id));
-      await db.delete(statusReportHistory).where(eq(statusReportHistory.projectId, project.id));
       await db.delete(billableStatusComments).where(eq(billableStatusComments.projectId, project.id));
-      await db.delete(costItems).where(eq(costItems.projectId, project.id));
       await db.delete(projectCustomFieldValues).where(eq(projectCustomFieldValues.projectId, project.id));
       await db.delete(projectScores).where(eq(projectScores.projectId, project.id));
       await db.delete(projectRiskAssessments).where(eq(projectRiskAssessments.projectId, project.id));
@@ -601,11 +856,6 @@ export async function deleteAllDemoDataForOrganization(organizationId: number): 
         await db.delete(invoiceNotes).where(eq(invoiceNotes.invoiceId, inv.id));
       }
       await db.delete(projectInvoices).where(eq(projectInvoices.projectId, project.id));
-      const comments = await db.select({ id: projectComments.id }).from(projectComments).where(eq(projectComments.projectId, project.id));
-      for (const c of comments) {
-        await db.delete(notifications).where(eq(notifications.commentId, c.id));
-      }
-      await db.delete(projectComments).where(eq(projectComments.projectId, project.id));
       const legacyRiskRows2 = await db.select({ id: legacyRisks.id }).from(legacyRisks).where(eq(legacyRisks.projectId, project.id));
       for (const lr of legacyRiskRows2) {
         await db.delete(legacyRiskChangeLogs).where(eq(legacyRiskChangeLogs.riskId, lr.id));
@@ -651,15 +901,28 @@ export async function deleteAllDemoDataForOrganization(organizationId: number): 
       stats.timesheets += deletedTimesheets.length;
       const deletedAssignments = await db.delete(taskResourceAssignments).where(eq(taskResourceAssignments.resourceId, resourceId)).returning();
       stats.assignments += deletedAssignments.length;
-      await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.resourceId, resourceId));
-      await db.delete(resourceSkills).where(eq(resourceSkills.resourceId, resourceId));
-      await db.delete(resourceAvailability).where(eq(resourceAvailability.resourceId, resourceId));
+      const deletedIra = await db.delete(issueResourceAssignments).where(eq(issueResourceAssignments.resourceId, resourceId)).returning();
+      stats.issueResourceAssignments += deletedIra.length;
+      const deletedSkills = await db.delete(resourceSkills).where(eq(resourceSkills.resourceId, resourceId)).returning();
+      stats.resourceSkills += deletedSkills.length;
+      const deletedAvail = await db.delete(resourceAvailability).where(eq(resourceAvailability.resourceId, resourceId)).returning();
+      stats.resourceAvailability += deletedAvail.length;
     }
   }
   
   const deletedResources = await db.delete(resources)
     .where(and(eq(resources.organizationId, organizationId), eq(resources.isDemo, true))).returning();
   stats.resources = deletedResources.length;
+
+  // Org-level vendors (and their prequalifications) — independent of project lifecycle.
+  const demoVendors = await db.select({ id: vendors.id }).from(vendors)
+    .where(and(eq(vendors.organizationId, organizationId), eq(vendors.isDemo, true)));
+  for (const v of demoVendors) {
+    await db.delete(vendorPrequalifications).where(eq(vendorPrequalifications.vendorId, v.id));
+  }
+  const deletedVendors = await db.delete(vendors)
+    .where(and(eq(vendors.organizationId, organizationId), eq(vendors.isDemo, true))).returning();
+  stats.vendors = deletedVendors.length;
   
   return stats;
 }

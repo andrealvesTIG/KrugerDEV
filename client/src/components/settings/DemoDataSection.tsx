@@ -81,8 +81,25 @@ export function DemoDataSection({ organizationId, orgName }: { organizationId: n
       const parts: string[] = [];
       if (stats.portfolios) parts.push(`${stats.portfolios} portfolios`);
       if (stats.projects) parts.push(`${stats.projects} projects`);
+      if (stats.tasks) parts.push(`${stats.tasks} tasks`);
+      if (stats.risks) parts.push(`${stats.risks} risks`);
+      if (stats.issues) parts.push(`${stats.issues} issues`);
       if (stats.intakes) parts.push(`${stats.intakes} intakes`);
       if (stats.resources) parts.push(`${stats.resources} resources`);
+      if (stats.vendors) parts.push(`${stats.vendors} vendors`);
+      if (stats.dailyLogs) parts.push(`${stats.dailyLogs} daily logs`);
+      if (stats.rfis) parts.push(`${stats.rfis} RFIs`);
+      if (stats.submittals) parts.push(`${stats.submittals} submittals`);
+      if (stats.drawings) parts.push(`${stats.drawings} drawings`);
+      if (stats.punchListItems) parts.push(`${stats.punchListItems} punch items`);
+      if (stats.inspections) parts.push(`${stats.inspections} inspections`);
+      if (stats.incidents) parts.push(`${stats.incidents} incidents`);
+      if (stats.observations) parts.push(`${stats.observations} observations`);
+      if (stats.bidPackages) parts.push(`${stats.bidPackages} bid packages`);
+      if (stats.changeOrders) parts.push(`${stats.changeOrders} change orders`);
+      if (stats.constructionInvoices) parts.push(`${stats.constructionInvoices} pay apps`);
+      if (stats.meetings) parts.push(`${stats.meetings} meetings`);
+      if (stats.correspondence) parts.push(`${stats.correspondence} correspondence`);
       toast({
         title: "Demo Data Generated",
         description: parts.length > 0 ? `Created ${parts.join(', ')} for ${orgName}` : `Demo data created for ${orgName}`,
@@ -112,8 +129,25 @@ export function DemoDataSection({ organizationId, orgName }: { organizationId: n
       const parts: string[] = [];
       if (stats.portfolios) parts.push(`${stats.portfolios} portfolios`);
       if (stats.projects) parts.push(`${stats.projects} projects`);
+      if (stats.tasks) parts.push(`${stats.tasks} tasks`);
+      if (stats.risks) parts.push(`${stats.risks} risks`);
+      if (stats.issues) parts.push(`${stats.issues} issues`);
       if (stats.intakes) parts.push(`${stats.intakes} intakes`);
       if (stats.resources) parts.push(`${stats.resources} resources`);
+      if (stats.vendors) parts.push(`${stats.vendors} vendors`);
+      if (stats.dailyLogs) parts.push(`${stats.dailyLogs} daily logs`);
+      if (stats.rfis) parts.push(`${stats.rfis} RFIs`);
+      if (stats.submittals) parts.push(`${stats.submittals} submittals`);
+      if (stats.drawings) parts.push(`${stats.drawings} drawings`);
+      if (stats.punchListItems) parts.push(`${stats.punchListItems} punch items`);
+      if (stats.inspections) parts.push(`${stats.inspections} inspections`);
+      if (stats.incidents) parts.push(`${stats.incidents} incidents`);
+      if (stats.observations) parts.push(`${stats.observations} observations`);
+      if (stats.bidPackages) parts.push(`${stats.bidPackages} bid packages`);
+      if (stats.changeOrders) parts.push(`${stats.changeOrders} change orders`);
+      if (stats.constructionInvoices) parts.push(`${stats.constructionInvoices} pay apps`);
+      if (stats.meetings) parts.push(`${stats.meetings} meetings`);
+      if (stats.correspondence) parts.push(`${stats.correspondence} correspondence`);
       toast({
         title: "Demo Data Removed",
         description: parts.length > 0 ? `Removed ${parts.join(', ')} from ${orgName}` : `Demo data removed from ${orgName}`,
@@ -145,7 +179,7 @@ export function DemoDataSection({ organizationId, orgName }: { organizationId: n
           Generate Demo Data
         </CardTitle>
         <CardDescription>
-          Create sample portfolios, projects, tasks, risks, portfolio key dates, and issues to explore the application.
+          Populate the workspace with realistic sample data for both classic PPM and Capital Projects — portfolios, projects (with full street addresses, map coordinates, sample hero images, and on-site location labels), tasks, risks, key dates, issues, financials, intakes, resources, plus full Capital Projects coverage (Daily Logs, RFIs, Submittals, Drawings, Punch List, Inspections, Incidents, Observations, Vendors, Bid Packages, Bids, Change Orders, Pay Applications, Meetings, and Correspondence).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -227,11 +261,14 @@ export function DemoDataSection({ organizationId, orgName }: { organizationId: n
           <h4 className="font-medium text-sm">What will be created:</h4>
           <ul className="text-sm text-muted-foreground space-y-1">
             <li>2 Portfolios with descriptions</li>
-            <li>4-6 Projects with budgets, statuses, and health indicators</li>
-            <li>Tasks, Risks, Key Dates, and Issues for each project</li>
-            <li>Financial line items with budget vs actual tracking</li>
+            <li>4-6 Projects with budgets, statuses, full street addresses, map coordinates (latitude / longitude), sample hero images, and health indicators</li>
+            <li>Tasks, Risks, Key Dates, Issues (with on-site location labels), Financial line items, status & health history per project</li>
             <li>4 Intake pipeline items with various workflow statuses</li>
-            <li>5 Resources with skills and departments</li>
+            <li>5 Resources with skills, availability windows (PTO + training), and departments</li>
+            <li>Org-level Vendors with prequalifications and bid invitations</li>
+            <li>Capital Projects per project: Daily Logs (with weather, labor, equipment), RFIs, Submittals, Drawings, Punch List, Inspections, Incidents, Observations</li>
+            <li>Bid Packages, Bids with line items, Change Orders, Pay Applications (Construction Invoices), Cost Items</li>
+            <li>Meetings (with attendees and agenda items) and Project Correspondence</li>
           </ul>
         </div>
 
@@ -289,7 +326,7 @@ export function DemoDataSection({ organizationId, orgName }: { organizationId: n
           <DialogHeader>
             <DialogTitle>Remove Demo Data</DialogTitle>
             <DialogDescription>
-              Are you sure you want to remove all demo data from {orgName}? This will delete all demo portfolios, projects, tasks, risks, key dates, issues, intakes, resources, and financial records.
+              Are you sure you want to remove all demo data from {orgName}? This will delete every demo record across both classic PPM (portfolios, projects, tasks, risks, key dates, issues, intakes, resources, financials) and Capital Projects (daily logs, RFIs, submittals, drawings, punch list, inspections, incidents, observations, vendors, bid packages, change orders, pay applications, meetings, and correspondence).
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

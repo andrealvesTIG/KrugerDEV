@@ -2,7 +2,27 @@ import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and, sql, inArray } from "drizzle-orm";
-import { users, taskResourceAssignments, issues, resources, tasks, projects, portfolios, portfolioKeyDates, organizationMembers, featureUsageLogs, timesheetEntries, projectChangeLogs, taskChangeLogs, issueChangeLogs, organizations, apiRequestLogs, type Task } from "@shared/schema";
+import {
+  users, taskResourceAssignments, issues, resources, tasks, projects, portfolios, portfolioKeyDates,
+  organizationMembers, featureUsageLogs, timesheetEntries, projectChangeLogs, taskChangeLogs,
+  issueChangeLogs, organizations, apiRequestLogs,
+  taskDependencies, resourceSkills, resourceAvailability, costItems, financialEntries,
+  projectComments, statusReportHistory, healthStatusHistory,
+  dailyLogs, dailyLogLabor, dailyLogEquipment,
+  rfis, rfiResponses, submittals, submittalRevisions,
+  drawingSets, drawings, drawingRevisions, drawingMarkups,
+  punchItems, punchItemPhotos, punchItemStatusHistory,
+  inspectionTemplates, inspectionTemplateItems, inspections, inspectionResults,
+  incidents, incidentActions, observations, observationActions,
+  vendors, vendorPrequalifications,
+  bidPackages, bidInvitations, bids, bidLineItems,
+  changeOrders, changeOrderLineItems,
+  constructionInvoices, constructionInvoiceLineItems,
+  meetings, meetingAgendaItems, meetingActionItems, meetingMinutes,
+  correspondence,
+  issueResourceAssignments,
+  type Task,
+} from "@shared/schema";
 import type { User } from "@shared/models/auth";
 import {
   classifyError,
@@ -605,6 +625,36 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         return res.status(400).json({ message: 'Invalid industry' });
       }
       
+      const {
+        projectAddressPool, onSiteLocationLabels, resourceOfficeLocations,
+        vendorTemplates, skillTemplates,
+        dailyLogTemplates, dailyLogLaborTemplates, dailyLogEquipmentTemplates,
+        rfiTemplates, submittalTemplates,
+        drawingSetTemplates, drawingTemplates,
+        punchItemTemplates,
+        inspectionTemplateData, inspectionInstanceTemplates,
+        incidentTemplates, observationTemplates,
+        changeOrderTemplates, constructionInvoiceTemplates,
+        meetingTemplates, correspondenceTemplates,
+        bidPackageTemplates, costItemTemplates, projectCommentTemplates,
+      } = await import('../demo-data-capital-templates');
+
+      const pickAddress = (index: number) => projectAddressPool[index % projectAddressPool.length];
+      const pickLocation = (index: number) => onSiteLocationLabels[index % onSiteLocationLabels.length];
+      // Sample project hero images (Unsplash public CDN — no auth required).
+      const projectImagePool: { url: string; alt: string }[] = [
+        { url: 'https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1200&q=70', alt: 'Mid-rise construction site with tower crane' },
+        { url: 'https://images.unsplash.com/photo-1486325212027-8081e485255e?auto=format&fit=crop&w=1200&q=70', alt: 'Steel-frame commercial building under construction' },
+        { url: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?auto=format&fit=crop&w=1200&q=70', alt: 'Modern glass office facade' },
+        { url: 'https://images.unsplash.com/photo-1448630360428-65456885c650?auto=format&fit=crop&w=1200&q=70', alt: 'Urban high-rise project site' },
+        { url: 'https://images.unsplash.com/photo-1581094288338-2314dddb7ece?auto=format&fit=crop&w=1200&q=70', alt: 'Warehouse and industrial facility build-out' },
+        { url: 'https://images.unsplash.com/photo-1590725140246-20acdee442be?auto=format&fit=crop&w=1200&q=70', alt: 'Healthcare facility expansion' },
+        { url: 'https://images.unsplash.com/photo-1577415124269-fc1140a69e91?auto=format&fit=crop&w=1200&q=70', alt: 'Roadway and infrastructure project' },
+        { url: 'https://images.unsplash.com/photo-1531834685032-c34bf0d84c77?auto=format&fit=crop&w=1200&q=70', alt: 'Residential mid-rise construction' },
+      ];
+      const pickProjectImage = (index: number) => projectImagePool[index % projectImagePool.length];
+      let projectAddressCounter = 0;
+
       const stats = {
         portfolios: 0,
         projects: 0,
@@ -623,6 +673,34 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         assignments: 0,
         timesheets: 0,
         keyDates: 0,
+        taskDependencies: 0,
+        costItems: 0,
+        financialEntries: 0,
+        projectComments: 0,
+        healthStatusHistory: 0,
+        statusReportHistory: 0,
+        dailyLogs: 0,
+        rfis: 0,
+        submittals: 0,
+        drawingSets: 0,
+        drawings: 0,
+        punchListItems: 0,
+        inspectionTemplates: 0,
+        inspections: 0,
+        incidents: 0,
+        observations: 0,
+        vendors: 0,
+        bidPackages: 0,
+        bids: 0,
+        bidLineItems: 0,
+        bidInvitations: 0,
+        issueResourceAssignments: 0,
+        changeOrders: 0,
+        constructionInvoices: 0,
+        meetings: 0,
+        correspondence: 0,
+        resourceSkills: 0,
+        resourceAvailability: 0,
       };
       
       const sanitizeBudget = (value: any) => {
@@ -671,6 +749,8 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
           const endDate = new Date(today);
           endDate.setDate(endDate.getDate() + 180);
           
+          const projImg = pickProjectImage(projectAddressCounter);
+          const projAddr = pickAddress(projectAddressCounter++);
           const project = await storage.createProject({
             organizationId,
             portfolioId: portfolio.id,
@@ -680,9 +760,17 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
             priority: projectTemplate.priority,
             startDate: startDate.toISOString().split('T')[0],
             endDate: endDate.toISOString().split('T')[0],
-            budget: sanitizeBudget(projectTemplate.budget),
+            budget: Number(sanitizeBudget(projectTemplate.budget)),
             health: projectTemplate.health,
             completionPercentage: projectTemplate.completionPercentage,
+            addressLine1: projAddr.addressLine1,
+            city: projAddr.city,
+            region: projAddr.region,
+            country: projAddr.country,
+            postalCode: projAddr.postalCode,
+            latitude: projAddr.latitude,
+            longitude: projAddr.longitude,
+            images: [{ url: projImg.url, alt: projImg.alt }],
             isDemo: true,
           });
           const demoCreatorName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email || 'System' : 'System';
@@ -853,6 +941,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
                 recommendation: lessonTemplate.recommendation,
                 status: lessonTemplate.status,
                 dateIdentified: identifiedDate.toISOString().split('T')[0],
+                isDemo: true,
               });
               stats.lessonsLearned++;
             }
@@ -923,6 +1012,712 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
               stats.decisions++;
             }
           }
+
+          // ============================================================
+          // Capital Projects per-project demo data
+          // ============================================================
+          const projectIdx = stats.projects; // 1-based
+          const projOnSite = pickLocation(projectIdx);
+          const padNum = (n: number, w = 3) => String(n).padStart(w, '0');
+
+          // Wrap per-project Capital Projects seeding in a transaction so a
+          // failure in one phase rolls back this project's child rows
+          // (batched/per-project transactional phase).
+          await db.transaction(async (db) => {
+          // Task dependencies: chain successive sibling tasks (FS)
+          if (selectedTypes.has('tasks') && createdTaskIds.length > 1) {
+            for (let ti = 1; ti < createdTaskIds.length; ti++) {
+              await db.insert(taskDependencies).values({
+                taskId: createdTaskIds[ti],
+                dependsOnTaskId: createdTaskIds[ti - 1],
+                dependencyType: 'finish-to-start',
+                lagDays: 0,
+                isDemo: true,
+              });
+              stats.taskDependencies++;
+            }
+          }
+
+          // Daily Logs (last 3 weekdays) + labor + equipment
+          for (let dayBack = 1; dayBack <= 5; dayBack++) {
+            const logDate = new Date(today);
+            logDate.setDate(logDate.getDate() - dayBack);
+            if (logDate.getDay() === 0 || logDate.getDay() === 6) continue;
+            const tpl = dailyLogTemplates[dayBack % dailyLogTemplates.length];
+            const [dl] = await db.insert(dailyLogs).values({
+              projectId: project.id,
+              organizationId,
+              logDate: logDate.toISOString().split('T')[0],
+              weatherCondition: tpl.weather,
+              temperature: tpl.temp,
+              windSpeed: tpl.wind,
+              precipitation: tpl.precip,
+              visitors: tpl.visitors,
+              notes: tpl.notes,
+              createdBy: userId || undefined,
+              isDemo: true,
+            }).returning();
+            stats.dailyLogs++;
+            for (const lab of dailyLogLaborTemplates) {
+              await db.insert(dailyLogLabor).values({
+                dailyLogId: dl.id,
+                company: lab.company,
+                trade: lab.trade,
+                headcount: lab.headcount,
+                hoursWorked: lab.hoursWorked,
+                isDemo: true,
+              });
+            }
+            for (const eq of dailyLogEquipmentTemplates) {
+              await db.insert(dailyLogEquipment).values({
+                dailyLogId: dl.id,
+                equipmentName: eq.equipmentName,
+                quantity: eq.quantity,
+                hoursUsed: eq.hoursUsed,
+                status: eq.status,
+                isDemo: true,
+              });
+            }
+          }
+
+          // RFIs + responses
+          for (let ri = 0; ri < rfiTemplates.length; ri++) {
+            const tpl = rfiTemplates[ri];
+            const [rfi] = await db.insert(rfis).values({
+              projectId: project.id,
+              organizationId,
+              rfiNumber: `RFI-${padNum(ri + 1)}`,
+              subject: tpl.subject,
+              question: tpl.question,
+              status: tpl.status,
+              priority: tpl.priority,
+              category: tpl.category,
+              createdBy: userId || undefined,
+              isDemo: true,
+            }).returning();
+            stats.rfis++;
+
+            // Add 1-2 responses for non-Open RFIs
+            if (tpl.status !== 'Open') {
+              await db.insert(rfiResponses).values({
+                rfiId: rfi.id,
+                responseText: 'Acknowledged — coordinating with design team for clarification. Initial guidance provided per attached sketch.',
+                isOfficial: false,
+                createdBy: userId || undefined,
+                createdByName: 'Design Team',
+                isDemo: true,
+              });
+              if (tpl.status === 'Closed' || tpl.status === 'Answered') {
+                await db.insert(rfiResponses).values({
+                  rfiId: rfi.id,
+                  responseText: 'Official response: proceed per revised detail. Drawing markup attached. No cost or schedule impact anticipated.',
+                  isOfficial: true,
+                  createdBy: userId || undefined,
+                  createdByName: 'Architect of Record',
+                  isDemo: true,
+                });
+              }
+            }
+          }
+
+          // Submittals + revisions
+          for (let si = 0; si < submittalTemplates.length; si++) {
+            const tpl = submittalTemplates[si];
+            const [sub] = await db.insert(submittals).values({
+              projectId: project.id,
+              organizationId,
+              submittalNumber: `SUB-${padNum(si + 1)}`,
+              title: tpl.title,
+              specSection: tpl.specSection,
+              type: tpl.type,
+              status: tpl.status,
+              priority: tpl.priority,
+              createdBy: userId || undefined,
+              isDemo: true,
+            }).returning();
+            stats.submittals++;
+
+            // Initial revision (always present)
+            await db.insert(submittalRevisions).values({
+              submittalId: sub.id,
+              revisionNumber: 1,
+              status: tpl.status === 'Approved' ? 'Approved' : tpl.status === 'Revise & Resubmit' ? 'Revise & Resubmit' : 'Pending',
+              notes: 'Initial submittal package — product data, shop drawings, and material certifications.',
+              reviewNotes: tpl.status === 'Revise & Resubmit'
+                ? 'Update product data sheet and re-submit per spec section requirements.'
+                : tpl.status === 'Approved'
+                  ? 'Approved as noted — proceed with fabrication.'
+                  : 'Under review by architect.',
+              createdBy: userId || undefined,
+              createdByName: 'Subcontractor',
+              isDemo: true,
+            });
+          }
+
+          // Drawing set + drawings + revisions + markups
+          for (const setTpl of drawingSetTemplates) {
+            const [ds] = await db.insert(drawingSets).values({
+              projectId: project.id,
+              organizationId,
+              name: setTpl.name,
+              discipline: setTpl.discipline,
+              description: setTpl.description,
+              createdBy: userId || undefined,
+              isDemo: true,
+            }).returning();
+            stats.drawingSets++;
+            for (const dt of drawingTemplates) {
+              const [dwg] = await db.insert(drawings).values({
+                projectId: project.id,
+                organizationId,
+                drawingSetId: ds.id,
+                drawingNumber: dt.drawingNumber,
+                title: dt.title,
+                discipline: dt.discipline,
+                status: dt.status,
+                currentRevisionNumber: 1,
+                createdBy: userId || undefined,
+                isDemo: true,
+              }).returning();
+              stats.drawings++;
+
+              // Initial revision per drawing (file URL is a demo placeholder)
+              const [rev] = await db.insert(drawingRevisions).values({
+                drawingId: dwg.id,
+                revisionNumber: 1,
+                version: 'A',
+                fileUrl: `demo://drawings/${dwg.drawingNumber}-r1.pdf`,
+                fileName: `${dwg.drawingNumber}-r1.pdf`,
+                fileSize: 1024 * 256,
+                fileType: 'application/pdf',
+                notes: 'Initial issued-for-construction revision.',
+                uploadedBy: userId || undefined,
+                uploadedByName: 'Architect of Record',
+                isDemo: true,
+              }).returning();
+
+              // One markup per drawing for demo richness
+              await db.insert(drawingMarkups).values({
+                revisionId: rev.id,
+                drawingId: dwg.id,
+                label: 'Field clarification needed at column line',
+                markupData: [
+                  { type: 'circle', x: 250, y: 320, width: 60, height: 60, color: '#ef4444', strokeWidth: 2 },
+                  { type: 'text', x: 320, y: 350, text: 'Verify dim. with field — RFI pending', color: '#ef4444' },
+                ],
+                createdBy: userId || undefined,
+                createdByName: 'Field Engineer',
+                isDemo: true,
+              });
+            }
+          }
+
+          // Punch List + photos + status history
+          for (let pi = 0; pi < punchItemTemplates.length; pi++) {
+            const tpl = punchItemTemplates[pi];
+            const due = new Date(today);
+            due.setDate(due.getDate() + 14);
+            const [punch] = await db.insert(punchItems).values({
+              projectId: project.id,
+              organizationId,
+              number: `PI-${padNum(pi + 1)}`,
+              title: tpl.title,
+              description: tpl.description,
+              location: projOnSite,
+              category: tpl.category,
+              priority: tpl.priority,
+              status: tpl.status,
+              dueDate: due.toISOString().split('T')[0],
+              createdBy: userId || undefined,
+              isDemo: true,
+            }).returning();
+            stats.punchListItems++;
+
+            // Initial status entry (Open) for all punch items
+            await db.insert(punchItemStatusHistory).values({
+              punchItemId: punch.id,
+              fromStatus: null,
+              toStatus: 'Open',
+              changedBy: userId || undefined,
+              changedByName: 'Field Superintendent',
+              isDemo: true,
+            });
+            // Transition to current status if not Open
+            if (tpl.status !== 'Open') {
+              await db.insert(punchItemStatusHistory).values({
+                punchItemId: punch.id,
+                fromStatus: 'Open',
+                toStatus: tpl.status,
+                changedBy: userId || undefined,
+                changedByName: 'Field Superintendent',
+                isDemo: true,
+              });
+            }
+
+            // Demo photo per punch item (placeholder URL)
+            await db.insert(punchItemPhotos).values({
+              punchItemId: punch.id,
+              fileUrl: `demo://punch/${punch.number}-photo.jpg`,
+              fileName: `${punch.number}-before.jpg`,
+              fileSize: 1024 * 180,
+              photoType: tpl.status === 'Closed' || tpl.status === 'Verified' ? 'after' : 'before',
+              caption: tpl.status === 'Closed' || tpl.status === 'Verified'
+                ? 'Completed work — ready for verification'
+                : 'Initial documentation of deficiency',
+              createdBy: userId || undefined,
+              isDemo: true,
+            });
+          }
+
+          // Inspection template + items, then inspection instances + results
+          const [inspTpl] = await db.insert(inspectionTemplates).values({
+            projectId: project.id,
+            organizationId,
+            name: inspectionTemplateData.template.name,
+            description: inspectionTemplateData.template.description,
+            category: inspectionTemplateData.template.category,
+            createdBy: userId || undefined,
+            isDemo: true,
+          }).returning();
+          stats.inspectionTemplates++;
+          const createdTemplateItems: { id: number; section: string | null; itemText: string }[] = [];
+          for (let ii = 0; ii < inspectionTemplateData.items.length; ii++) {
+            const it = inspectionTemplateData.items[ii];
+            const [tplItem] = await db.insert(inspectionTemplateItems).values({
+              templateId: inspTpl.id,
+              section: it.section,
+              itemText: it.itemText,
+              itemType: it.itemType,
+              sortOrder: ii,
+              isDemo: true,
+            }).returning();
+            createdTemplateItems.push({ id: tplItem.id, section: it.section, itemText: it.itemText });
+          }
+          for (let ii = 0; ii < inspectionInstanceTemplates.length; ii++) {
+            const tpl = inspectionInstanceTemplates[ii];
+            const sched = new Date(today);
+            sched.setDate(sched.getDate() - (5 - ii * 2));
+            const [insp] = await db.insert(inspections).values({
+              projectId: project.id,
+              organizationId,
+              templateId: inspTpl.id,
+              number: `INS-${padNum(ii + 1)}`,
+              title: tpl.title,
+              inspectionType: tpl.inspectionType,
+              status: tpl.status,
+              location: projOnSite,
+              scheduledDate: sched.toISOString().split('T')[0],
+              completedDate: tpl.status === 'Completed' ? sched.toISOString().split('T')[0] : null,
+              overallResult: tpl.overallResult,
+              createdBy: userId || undefined,
+              isDemo: true,
+            }).returning();
+            stats.inspections++;
+
+            // Generate one result per template item for completed inspections
+            if (tpl.status === 'Completed' && createdTemplateItems.length > 0) {
+              for (let ti = 0; ti < createdTemplateItems.length; ti++) {
+                const tplItem = createdTemplateItems[ti];
+                // Make most pass; mark a couple deficient for realism
+                const isDeficient = ti % 4 === 0 && tpl.overallResult !== 'Pass';
+                await db.insert(inspectionResults).values({
+                  inspectionId: insp.id,
+                  templateItemId: tplItem.id,
+                  itemText: tplItem.itemText,
+                  section: tplItem.section,
+                  result: isDeficient ? 'Fail' : 'Pass',
+                  notes: isDeficient ? 'Item flagged during walkthrough — corrective action issued.' : 'Compliant.',
+                  deficiencyDescription: isDeficient ? 'Installation does not meet specification — see corrective action.' : null,
+                  correctiveAction: isDeficient ? 'Subcontractor to remediate within 7 days.' : null,
+                  isDemo: true,
+                });
+              }
+            }
+          }
+
+          // Incidents + actions
+          for (let ix = 0; ix < incidentTemplates.length; ix++) {
+            const tpl = incidentTemplates[ix];
+            const incDate = new Date(today);
+            incDate.setDate(incDate.getDate() - 7 - ix);
+            const [inc] = await db.insert(incidents).values({
+              projectId: project.id,
+              organizationId,
+              number: `INC-${padNum(ix + 1)}`,
+              title: tpl.title,
+              description: tpl.description,
+              incidentDate: incDate,
+              location: projOnSite,
+              category: tpl.category,
+              severity: tpl.severity,
+              status: tpl.status,
+              rootCause: tpl.rootCause,
+              immediateActions: tpl.immediateActions,
+              createdBy: userId || undefined,
+              isDemo: true,
+            }).returning();
+            stats.incidents++;
+            for (const act of tpl.actions) {
+              await db.insert(incidentActions).values({
+                incidentId: inc.id,
+                actionType: act.actionType,
+                description: act.description,
+                status: act.status,
+                createdBy: userId || undefined,
+                isDemo: true,
+              });
+            }
+          }
+
+          // Observations + actions
+          for (let ox = 0; ox < observationTemplates.length; ox++) {
+            const tpl = observationTemplates[ox];
+            const obsDate = new Date(today);
+            obsDate.setDate(obsDate.getDate() - 3 - ox);
+            const [obs] = await db.insert(observations).values({
+              projectId: project.id,
+              organizationId,
+              number: `OBS-${padNum(ox + 1)}`,
+              title: tpl.title,
+              description: tpl.description,
+              category: tpl.category,
+              observationType: tpl.observationType,
+              location: projOnSite,
+              severity: tpl.severity,
+              status: tpl.status,
+              correctiveAction: tpl.correctiveAction,
+              observedDate: obsDate.toISOString().split('T')[0],
+              createdBy: userId || undefined,
+              isDemo: true,
+            }).returning();
+            stats.observations++;
+            for (const act of tpl.actions) {
+              await db.insert(observationActions).values({
+                observationId: obs.id,
+                actionType: act.actionType,
+                description: act.description,
+                status: act.status,
+                createdBy: userId || undefined,
+                isDemo: true,
+              });
+            }
+          }
+
+          // Change orders + line items
+          for (const tpl of changeOrderTemplates) {
+            const reqDate = new Date(today);
+            reqDate.setDate(reqDate.getDate() - 10);
+            const [co] = await db.insert(changeOrders).values({
+              projectId: project.id,
+              changeOrderNumber: tpl.changeOrderNumber,
+              title: tpl.title,
+              description: tpl.description,
+              tier: tpl.tier,
+              status: tpl.status,
+              reasonCode: tpl.reasonCode,
+              costImpact: tpl.costImpact,
+              scheduleImpactDays: tpl.scheduleImpactDays,
+              requestedBy: 'Demo PM',
+              requestedDate: reqDate.toISOString().split('T')[0],
+              createdBy: userId || undefined,
+              isDemo: true,
+            }).returning();
+            stats.changeOrders++;
+            for (let li = 0; li < tpl.lines.length; li++) {
+              const ln = tpl.lines[li];
+              await db.insert(changeOrderLineItems).values({
+                changeOrderId: co.id,
+                costCode: ln.costCode,
+                description: ln.description,
+                quantity: ln.quantity,
+                unitPrice: ln.unitPrice,
+                totalPrice: ln.totalPrice,
+                category: ln.category,
+                sortOrder: li,
+                isDemo: true,
+              });
+            }
+          }
+
+          // Construction invoices (pay applications) + line items
+          for (const tpl of constructionInvoiceTemplates) {
+            const periodTo = new Date(today);
+            const periodFrom = new Date(today);
+            periodFrom.setDate(periodFrom.getDate() - 30);
+            const [inv] = await db.insert(constructionInvoices).values({
+              projectId: project.id,
+              invoiceNumber: tpl.invoiceNumber,
+              title: tpl.title,
+              description: tpl.description,
+              contractAmount: tpl.contractAmount,
+              totalAmount: tpl.totalAmount,
+              previousBilled: tpl.previousBilled,
+              currentBilled: tpl.currentBilled,
+              balanceToFinish: tpl.balanceToFinish,
+              retainage: tpl.retainage,
+              status: tpl.status,
+              vendorName: tpl.vendorName,
+              periodFrom: periodFrom.toISOString().split('T')[0],
+              periodTo: periodTo.toISOString().split('T')[0],
+              submittedDate: periodTo.toISOString().split('T')[0],
+              createdBy: userId || undefined,
+              isDemo: true,
+            }).returning();
+            stats.constructionInvoices++;
+            for (let li = 0; li < tpl.lines.length; li++) {
+              const ln = tpl.lines[li];
+              await db.insert(constructionInvoiceLineItems).values({
+                invoiceId: inv.id,
+                costCode: ln.costCode,
+                description: ln.description,
+                scheduledValue: ln.scheduledValue,
+                previousBilled: ln.previousBilled,
+                currentBilled: ln.currentBilled,
+                balanceToFinish: ln.balanceToFinish,
+                percentComplete: ln.percentComplete,
+                sortOrder: li,
+                isDemo: true,
+              });
+            }
+          }
+
+          // Meetings + agenda + actions + minutes
+          for (let mi = 0; mi < meetingTemplates.length; mi++) {
+            const tpl = meetingTemplates[mi];
+            const mDate = new Date(today);
+            mDate.setDate(mDate.getDate() - (mi * 7 + 2));
+            const [mt] = await db.insert(meetings).values({
+              projectId: project.id,
+              meetingNumber: `MTG-${padNum(mi + 1)}`,
+              title: tpl.title,
+              meetingType: tpl.meetingType,
+              status: tpl.status,
+              date: mDate.toISOString().split('T')[0],
+              startTime: '09:00',
+              endTime: '10:00',
+              location: pickLocation(projectIdx + mi),
+              attendees: 'Owner, Architect, GC, Key Subs',
+              minutesNotes: tpl.minutesNotes,
+              createdBy: userId || undefined,
+              isDemo: true,
+            }).returning();
+            stats.meetings++;
+            for (let ai = 0; ai < tpl.agenda.length; ai++) {
+              const ag = tpl.agenda[ai];
+              await db.insert(meetingAgendaItems).values({
+                meetingId: mt.id,
+                title: ag.title,
+                presenter: ag.presenter,
+                duration: ag.duration,
+                sortOrder: ai,
+                isDemo: true,
+              });
+            }
+            const dueAct = new Date(today);
+            dueAct.setDate(dueAct.getDate() + 7);
+            for (const act of tpl.actions) {
+              await db.insert(meetingActionItems).values({
+                meetingId: mt.id,
+                projectId: project.id,
+                title: act.title,
+                assignee: act.assignee,
+                status: act.status,
+                priority: act.priority,
+                dueDate: dueAct.toISOString().split('T')[0],
+                isDemo: true,
+              });
+            }
+            await db.insert(meetingMinutes).values({
+              meetingId: mt.id,
+              projectId: project.id,
+              content: tpl.minutesContent,
+              recordedBy: userId || undefined,
+              isDemo: true,
+            });
+          }
+
+          // Correspondence
+          for (let ci = 0; ci < correspondenceTemplates.length; ci++) {
+            const tpl = correspondenceTemplates[ci];
+            const cDate = new Date(today);
+            cDate.setDate(cDate.getDate() - ci * 5);
+            await db.insert(correspondence).values({
+              projectId: project.id,
+              correspondenceNumber: `CORR-${padNum(ci + 1)}`,
+              type: tpl.type,
+              subject: tpl.subject,
+              body: tpl.body,
+              fromName: tpl.fromName,
+              toName: tpl.toName,
+              date: cDate.toISOString().split('T')[0],
+              status: tpl.status,
+              priority: tpl.priority,
+              createdBy: userId || undefined,
+              isDemo: true,
+            });
+            stats.correspondence++;
+          }
+
+          // Bid packages + line items (bids/invitations require vendors — added at org-level later)
+          for (let bi = 0; bi < bidPackageTemplates.length; bi++) {
+            const tpl = bidPackageTemplates[bi];
+            const dueBP = new Date(today);
+            dueBP.setDate(dueBP.getDate() + 21);
+            const [bp] = await db.insert(bidPackages).values({
+              projectId: project.id,
+              organizationId,
+              number: tpl.number,
+              title: tpl.title,
+              description: tpl.scope,
+              tradeCategory: tpl.tradeCategory,
+              scope: tpl.scope,
+              estimatedBudget: String(tpl.estimatedBudget),
+              dueDate: dueBP.toISOString().split('T')[0],
+              status: tpl.status,
+              createdBy: userId || undefined,
+              isDemo: true,
+            }).returning();
+            stats.bidPackages++;
+            // Note: bidLineItems require a NOT NULL bidId, so package-stage line
+            // items are deferred to the bid-invitation phase below where each
+            // submitted bid gets its own line items.
+          }
+
+          // Cost items (capital cost catalog per project) — current fiscal year
+          const fyYear = today.getFullYear();
+          const costItemRows: { id: number; tpl: typeof costItemTemplates[number] }[] = [];
+          for (const tpl of costItemTemplates) {
+            const [row] = await db.insert(costItems).values({
+              projectId: project.id,
+              name: tpl.name,
+              financialView: tpl.financialView,
+              costCategory: tpl.costCategory,
+              costSpecification: tpl.costSpecification,
+              category: tpl.category,
+              wbs: tpl.wbs,
+              fiscalYear: fyYear,
+              isDemo: true,
+            }).returning();
+            costItemRows.push({ id: row.id, tpl });
+            stats.costItems++;
+          }
+
+          // Financial entries — multi-year coverage (prior, current, next FY).
+          // Volume bounded: prior year = actuals only, current year = aop+fcst+act
+          // (act through current month), next year = aop+fcst only (no actuals).
+          const fyYears: { year: number; scenarios: string[]; capActMonth?: number }[] = [
+            { year: fyYear - 1, scenarios: ['act'] },
+            { year: fyYear, scenarios: ['aop', 'fcst', 'act'], capActMonth: today.getMonth() + 1 },
+            { year: fyYear + 1, scenarios: ['aop', 'fcst'] },
+          ];
+          for (const ci of costItemRows) {
+            for (const yr of fyYears) {
+              for (const scenario of yr.scenarios) {
+                for (let m = 1; m <= 12; m++) {
+                  let baseAmount: number;
+                  if (scenario === 'aop') {
+                    baseAmount = Math.floor(Math.random() * 8000) + 2000;
+                  } else if (scenario === 'fcst') {
+                    baseAmount = Math.floor(Math.random() * 8000) + 2200;
+                  } else {
+                    // act — capped to current month for current FY; full year for prior FY
+                    if (yr.capActMonth !== undefined && m > yr.capActMonth) continue;
+                    baseAmount = Math.floor(Math.random() * 7500) + 1800;
+                  }
+                  await db.insert(financialEntries).values({
+                    projectId: project.id,
+                    fiscalYear: yr.year,
+                    scenario,
+                    month: m,
+                    amount: baseAmount,
+                    itemKey: `demo-${ci.id}`,
+                    itemName: ci.tpl.name,
+                    financialView: ci.tpl.financialView,
+                    costCategory: ci.tpl.costCategory,
+                    costSpecification: ci.tpl.costSpecification,
+                    category: ci.tpl.category,
+                    wbs: ci.tpl.wbs,
+                    isDemo: true,
+                  });
+                  stats.financialEntries++;
+                }
+              }
+            }
+          }
+
+          // Project comments
+          for (const ct of projectCommentTemplates) {
+            await db.insert(projectComments).values({
+              projectId: project.id,
+              content: ct.content,
+              authorName: ct.authorName,
+              authorId: userId || undefined,
+              isDemo: true,
+            });
+            stats.projectComments++;
+          }
+
+          // Status report history — 8 entries spanning ~90 days
+          // (every ~12 days; satisfies the 6-12 entries / ~90-day requirement).
+          const statusEntryCount = 8;
+          const statusSpanDays = 90;
+          const statusStepDays = Math.floor(statusSpanDays / (statusEntryCount - 1));
+          const statusHealthCycle: ('Green' | 'Yellow' | 'Red')[] =
+            ['Green', 'Green', 'Yellow', 'Green', 'Yellow', 'Red', 'Yellow', 'Green'];
+          for (let wi = 0; wi < statusEntryCount; wi++) {
+            const reportDate = new Date(today);
+            reportDate.setDate(reportDate.getDate() - (wi * statusStepDays + 2));
+            const health = statusHealthCycle[wi % statusHealthCycle.length];
+            await db.insert(statusReportHistory).values({
+              projectId: project.id,
+              organizationId,
+              reportDate: reportDate.toISOString().split('T')[0],
+              reportType: 'weekly',
+              executiveSummary: health === 'Red'
+                ? 'Critical issue — recovery plan engaged; daily standups in effect.'
+                : health === 'Yellow'
+                  ? 'Schedule slip flagged — recovery plan in place. Crews on site and producing.'
+                  : 'On plan for the period. Crews productive; no significant issues.',
+              projectHealth: health,
+              projectStatus: projectTemplate.status,
+              completionPercentage: Math.max(5, projectTemplate.completionPercentage - wi * 3),
+              isDemo: true,
+            });
+            stats.statusReportHistory++;
+          }
+
+          // Health status history — 8 transitions spanning ~90 days
+          // (paralleling status reports; satisfies 6-12 entries / ~90-day window).
+          const healthEntryCount = 8;
+          const healthSpanDays = 90;
+          const healthStepDays = Math.floor(healthSpanDays / (healthEntryCount - 1));
+          const healthCycle: ('Green' | 'Yellow' | 'Red')[] =
+            ['Green', 'Green', 'Yellow', 'Green', 'Yellow', 'Red', 'Yellow', 'Green'];
+          let prevHealth: 'Green' | 'Yellow' | 'Red' = 'Green';
+          // Note: healthStatusHistory schema has no historical date column —
+          // entries will all share createdAt=now(), but the sequence of 8
+          // snapshots reflects ~90 days of project health transitions.
+          for (let hi = 0; hi < healthEntryCount; hi++) {
+            const newHealth = healthCycle[hi % healthCycle.length];
+            const daysAgo = (healthEntryCount - 1 - hi) * healthStepDays + 1;
+            await db.insert(healthStatusHistory).values({
+              projectId: project.id,
+              previousHealth: prevHealth,
+              newHealth,
+              comment: (newHealth === 'Red'
+                ? 'Critical risk surfaced at OAC — recovery actions logged'
+                : newHealth === 'Yellow'
+                  ? 'Schedule slip flagged at weekly OAC'
+                  : 'Weekly status update — on plan')
+                + ` (snapshot ~${daysAgo}d ago).`,
+              changedBy: userId || undefined,
+              changedByName: demoCreatorName,
+              isDemo: true,
+            });
+            prevHealth = newHealth;
+            stats.healthStatusHistory++;
+          }
+          }); // end per-project Capital Projects transaction
         }
       }
       
@@ -935,7 +1730,8 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         { name: 'David Kim', email: 'david.kim@demo.com', title: 'Developer', department: 'Engineering', skills: 'React,TypeScript,Node.js,PostgreSQL' },
       ];
       
-      for (const resourceTemplate of resourceTemplates) {
+      for (let rIdx = 0; rIdx < resourceTemplates.length; rIdx++) {
+        const resourceTemplate = resourceTemplates[rIdx];
         const resource = await storage.createResource({
           organizationId,
           displayName: resourceTemplate.name,
@@ -943,13 +1739,191 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
           title: resourceTemplate.title,
           department: resourceTemplate.department,
           skills: resourceTemplate.skills,
-          hourlyRate: String(Math.floor(Math.random() * 100) + 80),
+          location: resourceOfficeLocations[rIdx % resourceOfficeLocations.length],
+          hourlyRate: Math.floor(Math.random() * 100) + 80,
           isActive: true,
           isDemo: true,
         });
         createdResourceIds.push(resource.id);
         stats.resources++;
+
+        // Skills (normalized)
+        const skills = skillTemplates[rIdx % skillTemplates.length];
+        const proficiencies = ['Intermediate', 'Advanced', 'Expert'];
+        for (let si = 0; si < skills.length; si++) {
+          await db.insert(resourceSkills).values({
+            organizationId,
+            resourceId: resource.id,
+            skillName: skills[si],
+            proficiencyLevel: proficiencies[si % proficiencies.length],
+            yearsOfExperience: 2 + (si % 6),
+            isDemo: true,
+          });
+          stats.resourceSkills++;
+        }
+
+        // Availability (one PTO + one training entry within next 60 days)
+        const ptoStart = new Date(today);
+        ptoStart.setDate(ptoStart.getDate() + 14 + rIdx * 3);
+        const ptoEnd = new Date(ptoStart);
+        ptoEnd.setDate(ptoEnd.getDate() + 4);
+        await db.insert(resourceAvailability).values({
+          organizationId,
+          resourceId: resource.id,
+          startDate: ptoStart.toISOString().split('T')[0],
+          endDate: ptoEnd.toISOString().split('T')[0],
+          type: 'pto',
+          notes: 'Planned vacation',
+          status: 'approved',
+          createdBy: userId || undefined,
+          isDemo: true,
+        });
+        stats.resourceAvailability++;
+        const trnStart = new Date(today);
+        trnStart.setDate(trnStart.getDate() + 30 + rIdx * 2);
+        const trnEnd = new Date(trnStart);
+        trnEnd.setDate(trnEnd.getDate() + 1);
+        await db.insert(resourceAvailability).values({
+          organizationId,
+          resourceId: resource.id,
+          startDate: trnStart.toISOString().split('T')[0],
+          endDate: trnEnd.toISOString().split('T')[0],
+          type: 'training',
+          notes: 'Industry training / certification course',
+          status: 'approved',
+          createdBy: userId || undefined,
+          isDemo: true,
+        });
+        stats.resourceAvailability++;
       }
+
+      // Wrap org-level vendors + bid invitations in a transaction
+      // (batched transactional phase — vendor catalog + bid responses).
+      await db.transaction(async (db) => {
+      // Org-level vendors (used by Bidding & Pay-app modules)
+      const createdVendorIds: number[] = [];
+      for (const vt of vendorTemplates) {
+        const [v] = await db.insert(vendors).values({
+          organizationId,
+          companyName: vt.companyName,
+          contactName: vt.contactName,
+          email: vt.email,
+          phone: vt.phone,
+          address: vt.address,
+          city: vt.city,
+          state: vt.state,
+          zipCode: vt.zipCode,
+          tradeSpecialty: vt.tradeSpecialty,
+          licenseNumber: vt.licenseNumber,
+          bondingCapacity: vt.bondingCapacity,
+          status: 'Active',
+          rating: vt.rating,
+          createdBy: userId || undefined,
+          isDemo: true,
+        }).returning();
+        createdVendorIds.push(v.id);
+        stats.vendors++;
+
+        // Vendor prequalification (one row per vendor)
+        await db.insert(vendorPrequalifications).values({
+          vendorId: v.id,
+          organizationId,
+          safetyRating: vt.prequalified ? 5 : Math.max(3, vt.rating),
+          financialRating: vt.rating,
+          qualityRating: vt.rating,
+          experienceYears: 8 + (vt.rating * 2),
+          emrRate: vt.prequalified ? '0.78' : '0.92',
+          osha300Log: true,
+          insuranceCertificate: true,
+          bondingLetter: vt.prequalified,
+          overallScore: vt.prequalified ? 90 + vt.rating : 70 + vt.rating * 2,
+          qualificationStatus: vt.prequalified ? 'Approved' : 'Pending',
+          notes: vt.prequalified
+            ? 'Approved subcontractor — current insurance and bonding on file.'
+            : 'Documentation under review by procurement.',
+          createdBy: userId || undefined,
+          isDemo: true,
+        });
+      }
+
+      // Bid invitations + bids + bid line items per demo bid package (vendors required)
+      if (createdVendorIds.length > 0) {
+        const demoBidPackages = await db.select({ id: bidPackages.id, estimatedBudget: bidPackages.estimatedBudget })
+          .from(bidPackages)
+          .innerJoin(projects, eq(bidPackages.projectId, projects.id))
+          .where(and(eq(projects.organizationId, organizationId), eq(bidPackages.isDemo, true)));
+
+        for (let bpIdx = 0; bpIdx < demoBidPackages.length; bpIdx++) {
+          const bp = demoBidPackages[bpIdx];
+          // Invite a rotating subset of vendors per package
+          const inviteCount = Math.min(4, createdVendorIds.length);
+          const startIdx = bpIdx % createdVendorIds.length;
+          for (let invIdx = 0; invIdx < inviteCount; invIdx++) {
+            const vendorId = createdVendorIds[(startIdx + invIdx) % createdVendorIds.length];
+            const invStatus = invIdx === 0 ? 'Submitted' : invIdx === 1 ? 'Submitted' : invIdx === 2 ? 'Submitted' : 'Declined';
+            await db.insert(bidInvitations).values({
+              bidPackageId: bp.id,
+              vendorId,
+              status: invStatus,
+              respondedAt: new Date(),
+              declineReason: invStatus === 'Declined' ? 'Capacity constraints — unable to bid this cycle.' : null,
+              createdBy: userId || undefined,
+              isDemo: true,
+            });
+            stats.bidInvitations++;
+
+            if (invStatus === 'Submitted') {
+              const baseBudget = Number(bp.estimatedBudget) || 250000;
+              const variance = (invIdx - 1) * 0.05; // -5%, 0%, +5%
+              const totalAmount = Math.round(baseBudget * (1 + variance));
+              const validUntil = new Date();
+              validUntil.setDate(validUntil.getDate() + 60);
+              const [bidRow] = await db.insert(bids).values({
+                bidPackageId: bp.id,
+                vendorId,
+                totalAmount: String(totalAmount),
+                bondIncluded: true,
+                notes: invIdx === 1 ? 'Includes value-engineering options outlined in cover letter.' : 'Base bid only — see exclusions.',
+                exclusions: 'Permits, owner-furnished equipment, weekend premium time.',
+                clarifications: 'Schedule assumes site access by package due date.',
+                validUntil: validUntil.toISOString().split('T')[0],
+                status: 'Submitted',
+                evaluationScore: 80 + (invIdx === 1 ? 10 : 0) - invIdx * 2,
+                evaluationNotes: invIdx === 1 ? 'Strongest technical and commercial response.' : 'Compliant bid.',
+                isRecommended: invIdx === 1,
+                createdBy: userId || undefined,
+                isDemo: true,
+              }).returning();
+              stats.bids++;
+
+              const lineItemDefs = [
+                { description: 'Mobilization & general conditions', pct: 0.10, category: 'General Conditions' },
+                { description: 'Materials & equipment', pct: 0.55, category: 'Materials' },
+                { description: 'Labor & installation', pct: 0.30, category: 'Labor' },
+                { description: 'Closeout & demobilization', pct: 0.05, category: 'Closeout' },
+              ];
+              for (let li = 0; li < lineItemDefs.length; li++) {
+                const ln = lineItemDefs[li];
+                const lineTotal = Math.round(totalAmount * ln.pct);
+                await db.insert(bidLineItems).values({
+                  bidId: bidRow.id,
+                  bidPackageId: bp.id,
+                  description: ln.description,
+                  quantity: '1',
+                  unit: 'LS',
+                  unitPrice: String(lineTotal),
+                  totalPrice: String(lineTotal),
+                  category: ln.category,
+                  sortOrder: li,
+                  isDemo: true,
+                });
+                stats.bidLineItems++;
+              }
+            }
+          }
+        }
+      }
+      }); // end vendors + bid invitations transaction
       
       if (selectedTypes.has('assignments') && createdResourceIds.length > 0) {
         const demoTasks = await db.select({ id: tasks.id, projectId: tasks.projectId })
@@ -967,6 +1941,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
               resourceId: shuffled[i],
               allocationPercentage: i === 0 ? 80 : 40,
               role: roles[i % roles.length],
+              isDemo: true,
             });
             stats.assignments++;
           }
@@ -1001,6 +1976,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
                 hours: String(hours),
                 notes: ['Development work', 'Code review', 'Testing', 'Documentation', 'Meeting', 'Design review'][Math.floor(Math.random() * 6)],
                 status: dayOffset > 7 ? 'Approved' : dayOffset > 3 ? 'Submitted' : 'Draft',
+                isDemo: true,
               });
               stats.timesheets++;
             }
@@ -1008,6 +1984,27 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         }
       }
       
+      // Issue/risk resource assignments (1 per demo issue/risk to a rotating resource)
+      // Wrapped in transaction (batched transactional phase).
+      if (createdResourceIds.length > 0) {
+        await db.transaction(async (db) => {
+          const demoIssuesAndRisks = await db.select({ id: issues.id })
+            .from(issues)
+            .innerJoin(projects, eq(issues.projectId, projects.id))
+            .where(and(eq(projects.organizationId, organizationId), eq(issues.isDemo, true)));
+          const roles = ['Owner', 'Mitigator', 'Reviewer', 'Assignee'];
+          for (let ix = 0; ix < demoIssuesAndRisks.length; ix++) {
+            const item = demoIssuesAndRisks[ix];
+            await db.insert(issueResourceAssignments).values({
+              issueId: item.id,
+              resourceId: createdResourceIds[ix % createdResourceIds.length],
+              role: roles[ix % roles.length],
+              isDemo: true,
+            });
+          }
+        });
+      }
+
       if (selectedTypes.has('intakes')) {
         const intakeTemplates = [
           { name: 'Customer Portal Enhancement', status: 'submitted', businessUnit: 'Customer Success', funding: 'Business Funded', budget: '450000', description: 'Enhance self-service capabilities in customer portal' },

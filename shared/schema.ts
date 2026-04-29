@@ -711,6 +711,7 @@ export const healthStatusHistory = pgTable("health_status_history", {
   changedBy: varchar("changed_by").references(() => users.id), // User who made the change
   changedByName: text("changed_by_name"), // User's display name at time of change
   createdAt: timestamp("created_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 });
 
 // Note: Risks are now consolidated into the issues table with itemType = "risk"
@@ -957,6 +958,7 @@ export const taskDependencies = pgTable("task_dependencies", {
   dependencyType: text("dependency_type").default("finish-to-start"), // finish-to-start, start-to-start, finish-to-finish, start-to-finish
   lagDays: integer("lag_days").default(0), // Lag or lead time in days (negative for lead)
   createdAt: timestamp("created_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("task_dependencies_task_id_idx").on(table.taskId),
   index("task_dependencies_depends_on_idx").on(table.dependsOnTaskId),
@@ -1044,6 +1046,7 @@ export const taskResourceAssignments = pgTable("task_resource_assignments", {
   allocationPercentage: integer("allocation_percentage").default(100), // 0-100%
   role: text("role"), // Role in this specific task (e.g., "Lead", "Support")
   createdAt: timestamp("created_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("tra_task_id_idx").on(table.taskId),
   index("tra_resource_id_idx").on(table.resourceId),
@@ -1056,6 +1059,7 @@ export const issueResourceAssignments = pgTable("issue_resource_assignments", {
   resourceId: integer("resource_id").references(() => resources.id).notNull(),
   role: text("role"), // Role (e.g., "Assignee", "Reviewer", "Owner", "Mitigator")
   createdAt: timestamp("created_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("ira_issue_id_idx").on(table.issueId),
   index("ira_resource_id_idx").on(table.resourceId),
@@ -1085,6 +1089,7 @@ export const timesheetEntries = pgTable("timesheet_entries", {
   proxyUserId: varchar("proxy_user_id").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("te_task_id_idx").on(table.taskId),
   index("te_resource_id_idx").on(table.resourceId),
@@ -3315,6 +3320,7 @@ export const lessonsLearned = pgTable("lessons_learned", {
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: varchar("created_by").references(() => users.id),
   updatedAt: timestamp("updated_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 });
 
 export const insertLessonLearnedSchema = createInsertSchema(lessonsLearned).omit({
@@ -3603,6 +3609,7 @@ export const resourceAvailability = pgTable("resource_availability", {
   status: text("status").default("approved"), // pending, approved, rejected
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 });
 
 export const insertResourceAvailabilitySchema = createInsertSchema(resourceAvailability).omit({
@@ -3621,6 +3628,7 @@ export const resourceSkills = pgTable("resource_skills", {
   proficiencyLevel: text("proficiency_level"), // Beginner, Intermediate, Advanced, Expert
   yearsOfExperience: numeric("years_of_experience"),
   createdAt: timestamp("created_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 });
 
 export const insertResourceSkillSchema = createInsertSchema(resourceSkills).omit({
@@ -4000,6 +4008,7 @@ export const dailyLogs = pgTable("daily_logs", {
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("daily_logs_project_id_idx").on(table.projectId),
   index("daily_logs_org_id_idx").on(table.organizationId),
@@ -4025,6 +4034,7 @@ export const dailyLogLabor = pgTable("daily_log_labor", {
   headcount: integer("headcount").default(0),
   hoursWorked: numeric("hours_worked"),
   notes: text("notes"),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("daily_log_labor_log_id_idx").on(table.dailyLogId),
 ]);
@@ -4043,6 +4053,7 @@ export const dailyLogEquipment = pgTable("daily_log_equipment", {
   hoursUsed: numeric("hours_used"),
   status: text("status").default("Active"),
   notes: text("notes"),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("daily_log_equipment_log_id_idx").on(table.dailyLogId),
 ]);
@@ -4079,6 +4090,7 @@ export const rfis = pgTable("rfis", {
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("rfis_project_id_idx").on(table.projectId),
   index("rfis_org_id_idx").on(table.organizationId),
@@ -4109,6 +4121,7 @@ export const rfiResponses = pgTable("rfi_responses", {
   createdBy: varchar("created_by").references(() => users.id),
   createdByName: text("created_by_name"),
   createdAt: timestamp("created_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("rfi_responses_rfi_id_idx").on(table.rfiId),
 ]);
@@ -4152,6 +4165,7 @@ export const submittals = pgTable("submittals", {
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("submittals_project_id_idx").on(table.projectId),
   index("submittals_org_id_idx").on(table.organizationId),
@@ -4187,6 +4201,7 @@ export const submittalRevisions = pgTable("submittal_revisions", {
   createdBy: varchar("created_by").references(() => users.id),
   createdByName: text("created_by_name"),
   createdAt: timestamp("created_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("submittal_revisions_submittal_id_idx").on(table.submittalId),
 ]);
@@ -4212,6 +4227,7 @@ export const drawingSets = pgTable("drawing_sets", {
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("drawing_sets_project_id_idx").on(table.projectId),
   index("drawing_sets_org_id_idx").on(table.organizationId),
@@ -4245,6 +4261,7 @@ export const drawings = pgTable("drawings", {
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("drawings_project_id_idx").on(table.projectId),
   index("drawings_org_id_idx").on(table.organizationId),
@@ -4278,6 +4295,7 @@ export const drawingRevisions = pgTable("drawing_revisions", {
   uploadedBy: varchar("uploaded_by").references(() => users.id),
   uploadedByName: text("uploaded_by_name"),
   createdAt: timestamp("created_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("drawing_revisions_drawing_id_idx").on(table.drawingId),
   uniqueIndex("drawing_revisions_drawing_rev_unique").on(table.drawingId, table.revisionNumber),
@@ -4311,6 +4329,7 @@ export const drawingMarkups = pgTable("drawing_markups", {
   createdByName: text("created_by_name"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("drawing_markups_revision_id_idx").on(table.revisionId),
   index("drawing_markups_drawing_id_idx").on(table.drawingId),
@@ -4347,6 +4366,7 @@ export const punchItems = pgTable("punch_items", {
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("punch_items_project_id_idx").on(table.projectId),
   index("punch_items_org_id_idx").on(table.organizationId),
@@ -4378,6 +4398,7 @@ export const punchItemStatusHistory = pgTable("punch_item_status_history", {
   changedBy: varchar("changed_by").references(() => users.id),
   changedByName: text("changed_by_name"),
   changedAt: timestamp("changed_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("punch_item_status_history_item_id_idx").on(table.punchItemId),
 ]);
@@ -4395,6 +4416,7 @@ export const punchItemPhotos = pgTable("punch_item_photos", {
   caption: text("caption"),
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("punch_item_photos_item_id_idx").on(table.punchItemId),
 ]);
@@ -4423,6 +4445,7 @@ export const inspectionTemplates = pgTable("inspection_templates", {
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("inspection_templates_project_id_idx").on(table.projectId),
   index("inspection_templates_org_id_idx").on(table.organizationId),
@@ -4445,6 +4468,7 @@ export const inspectionTemplateItems = pgTable("inspection_template_items", {
   sortOrder: integer("sort_order").default(0),
   isRequired: boolean("is_required").default(true),
   createdAt: timestamp("created_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("inspection_template_items_template_id_idx").on(table.templateId),
 ]);
@@ -4479,6 +4503,7 @@ export const inspections = pgTable("inspections", {
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("inspections_project_id_idx").on(table.projectId),
   index("inspections_org_id_idx").on(table.organizationId),
@@ -4511,6 +4536,7 @@ export const inspectionResults = pgTable("inspection_results", {
   dueDate: date("due_date"),
   resolvedAt: timestamp("resolved_at"),
   createdAt: timestamp("created_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("inspection_results_inspection_id_idx").on(table.inspectionId),
 ]);
@@ -4553,6 +4579,7 @@ export const incidents = pgTable("incidents", {
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("incidents_project_id_idx").on(table.projectId),
   index("incidents_org_id_idx").on(table.organizationId),
@@ -4584,6 +4611,7 @@ export const incidentActions = pgTable("incident_actions", {
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("incident_actions_incident_id_idx").on(table.incidentId),
   index("incident_actions_status_idx").on(table.status),
@@ -4625,6 +4653,7 @@ export const observations = pgTable("observations", {
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("observations_project_id_idx").on(table.projectId),
   index("observations_org_id_idx").on(table.organizationId),
@@ -4656,6 +4685,7 @@ export const observationActions = pgTable("observation_actions", {
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("observation_actions_observation_id_idx").on(table.observationId),
   index("observation_actions_status_idx").on(table.status),
@@ -4694,6 +4724,7 @@ export const vendors = pgTable("vendors", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("vendors_organization_id_idx").on(table.organizationId),
   index("vendors_status_idx").on(table.status),
@@ -4729,6 +4760,7 @@ export const vendorPrequalifications = pgTable("vendor_prequalifications", {
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("vendor_prequalifications_vendor_id_idx").on(table.vendorId),
   index("vendor_prequalifications_org_id_idx").on(table.organizationId),
@@ -4766,6 +4798,7 @@ export const bidPackages = pgTable("bid_packages", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("bid_packages_project_id_idx").on(table.projectId),
   index("bid_packages_org_id_idx").on(table.organizationId),
@@ -4791,6 +4824,7 @@ export const bidInvitations = pgTable("bid_invitations", {
   declineReason: text("decline_reason"),
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("bid_invitations_bid_package_id_idx").on(table.bidPackageId),
   index("bid_invitations_vendor_id_idx").on(table.vendorId),
@@ -4825,6 +4859,7 @@ export const bids = pgTable("bids", {
   createdBy: varchar("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("bids_bid_package_id_idx").on(table.bidPackageId),
   index("bids_vendor_id_idx").on(table.vendorId),
@@ -4853,6 +4888,7 @@ export const bidLineItems = pgTable("bid_line_items", {
   category: text("category"),
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("bid_line_items_bid_id_idx").on(table.bidId),
   index("bid_line_items_bid_package_id_idx").on(table.bidPackageId),
@@ -4914,6 +4950,7 @@ export const changeOrderLineItems = pgTable("change_order_line_items", {
   category: text("category"),
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("change_order_line_items_co_id_idx").on(table.changeOrderId),
 ]);
@@ -4983,6 +5020,7 @@ export const constructionInvoiceLineItems = pgTable("construction_invoice_line_i
   percentComplete: numeric("percent_complete").default(0),
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("construction_invoice_line_items_inv_id_idx").on(table.invoiceId),
 ]);
@@ -5043,6 +5081,7 @@ export const meetingAgendaItems = pgTable("meeting_agenda_items", {
   notes: text("notes"),
   sortOrder: integer("sort_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("meeting_agenda_items_meeting_id_idx").on(table.meetingId),
 ]);
@@ -5062,6 +5101,7 @@ export const meetingActionItems = pgTable("meeting_action_items", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("meeting_action_items_meeting_id_idx").on(table.meetingId),
   index("meeting_action_items_project_id_idx").on(table.projectId),
@@ -5102,6 +5142,7 @@ export const meetingMinutes = pgTable("meeting_minutes", {
   distributedTo: text("distributed_to"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  isDemo: boolean("is_demo").default(false),
 }, (table) => [
   index("meeting_minutes_meeting_id_idx").on(table.meetingId),
   uniqueIndex("meeting_minutes_meeting_unique").on(table.meetingId),
