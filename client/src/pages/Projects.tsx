@@ -2928,16 +2928,14 @@ export function ProjectsGridView({
                         link.download = project.sourceFileName || getImportSourceDefaultDownloadName(project.sourceFileName);
                         link.click();
                       }}
-                      className="flex-shrink-0 flex items-center gap-0.5"
+                      className="flex-shrink-0"
                       title={`Download ${project.sourceFileName || "source file"}`}
                     >
                       <ImportSourceIcon sourceFileName={project.sourceFileName} className="h-4 w-4" />
-                      <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
                     </button>
                   ) : (
-                    <span className="flex-shrink-0 flex items-center gap-0.5">
+                    <span className="flex-shrink-0">
                       <ImportSourceIcon sourceFileName={project.sourceFileName} className="h-4 w-4" />
-                      <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
                     </span>
                   )}
                 </TooltipTrigger>
@@ -3079,7 +3077,6 @@ export function ProjectsGridView({
             return (
               <Badge variant="outline" className="text-xs bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300">
                 <ImportSourceIcon sourceFileName={project.sourceFileName} className="h-3 w-3 mr-1" />
-                <FileSpreadsheet className="h-2.5 w-2.5 mr-1 text-rose-500" />
                 Primavera P6
               </Badge>
             );
@@ -3087,7 +3084,6 @@ export function ProjectsGridView({
           return (
             <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
               <ImportSourceIcon sourceFileName={project.sourceFileName} className="h-3 w-3 mr-1" />
-              <FileSpreadsheet className="h-2.5 w-2.5 mr-1 text-emerald-500" />
               MS Project
             </Badge>
           );
@@ -4186,16 +4182,14 @@ function DraggableProjectCard({ project, isDraggable = true }: { project: Projec
                           link.download = project.sourceFileName || getImportSourceDefaultDownloadName(project.sourceFileName);
                           link.click();
                         }}
-                        className="flex-shrink-0 flex items-center gap-0.5"
+                        className="flex-shrink-0"
                         title={`Download ${project.sourceFileName || "source file"}`}
                       >
                         <ImportSourceIcon sourceFileName={project.sourceFileName} className="h-4 w-4" />
-                        <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
                       </button>
                     ) : (
-                      <span className="flex-shrink-0 flex items-center gap-0.5">
+                      <span className="flex-shrink-0">
                         <ImportSourceIcon sourceFileName={project.sourceFileName} className="h-4 w-4" />
-                        <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
                       </span>
                     )}
                   </TooltipTrigger>
@@ -4735,16 +4729,14 @@ export function ProjectsGanttView({ projects, organizationId }: { projects: Proj
                                         link.download = project.sourceFileName || getImportSourceDefaultDownloadName(project.sourceFileName);
                                         link.click();
                                       }}
-                                      className="flex-shrink-0 flex items-center gap-0.5"
+                                      className="flex-shrink-0"
                                       title={`Download ${project.sourceFileName || "source file"}`}
                                     >
                                       <ImportSourceIcon sourceFileName={project.sourceFileName} className="h-4 w-4" />
-                                      <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
                                     </button>
                                   ) : (
-                                    <span className="flex-shrink-0 flex items-center gap-0.5">
+                                    <span className="flex-shrink-0">
                                       <ImportSourceIcon sourceFileName={project.sourceFileName} className="h-4 w-4" />
-                                      <FileSpreadsheet className="h-3 w-3 text-emerald-500" />
                                     </span>
                                   )}
                                 </TooltipTrigger>
