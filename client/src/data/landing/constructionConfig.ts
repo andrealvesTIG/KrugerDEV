@@ -336,6 +336,7 @@ export const constructionConfig: IndustryConfig = {
   ],
   comparisonSubtitle:
     "See why capital program owners and project controls teams choose FridayReport.AI over generic PM tools that cannot do real EVM.",
+  comparisonFeatureSet: "capital-projects",
   ctaTitle: "Ready to Run Your Capital Program on Real Project Controls?",
   ctaSubtitle:
     "Join the capital program owners, controls leads, and EPC teams who replaced spreadsheets and one-off P6 reports with a live EVM platform — built to defend every EAC and forecast in front of the steering committee.",

@@ -489,7 +489,7 @@ export default function IndustryLandingPage({ config }: { config: IndustryConfig
               </p>
             </motion.div>
           </AnimatedSection>
-          <PublicFeatureComparison />
+          <PublicFeatureComparison featureSet={config.comparisonFeatureSet ?? "general"} />
         </section>
 
         <section className={cn("border-t border-border", config.colors.ctaSectionGradient)}>

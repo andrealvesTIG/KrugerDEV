@@ -109,6 +109,7 @@ export interface IndustryConfig {
   stats: IndustryStat[];
 
   comparisonSubtitle: string;
+  comparisonFeatureSet?: "general" | "capital-projects";
 
   ctaTitle: string;
   ctaSubtitle: string;
