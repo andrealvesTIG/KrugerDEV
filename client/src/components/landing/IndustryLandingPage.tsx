@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { useLocation, Link } from "wouter";
-import { Check, Menu, X, Mail, Loader2, CheckCircle, ChevronRight, Shield, Clock, Target, Zap, ArrowRight } from "lucide-react";
+import { Check, Menu, X, Mail, Loader2, CheckCircle, ChevronRight, Shield, Clock, Target, Zap, ArrowRight, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -587,6 +587,59 @@ export default function IndustryLandingPage({ config }: { config: IndustryConfig
 
           <PublicFeatureComparison featureSet={config.comparisonFeatureSet ?? "general"} />
         </section>
+
+        {config.faq && config.faq.length > 0 && (
+          <section className="bg-muted/30 border-y border-border">
+            <div className="px-6 md:px-12 lg:px-20 py-20 max-w-[1100px] mx-auto">
+              <AnimatedSection className="text-center mb-10">
+                <motion.div variants={fadeUp}>
+                  <Badge variant="outline" className="mb-4 text-sm">
+                    Common Questions
+                  </Badge>
+                  <h2
+                    className="text-3xl md:text-4xl font-bold text-foreground"
+                    style={{ fontFamily: "var(--font-display)" }}
+                  >
+                    Frequently Asked
+                  </h2>
+                </motion.div>
+              </AnimatedSection>
+              <AnimatedSection className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {config.faq.map((item, i) => (
+                  <motion.div key={i} variants={fadeUp}>
+                    <Card
+                      className="h-full border-border bg-background"
+                      data-testid={`faq-item-${i}`}
+                    >
+                      <CardContent className="p-6">
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={cn(
+                              "w-9 h-9 rounded-lg flex items-center justify-center shrink-0",
+                              config.colors.featureIconBg,
+                            )}
+                          >
+                            <HelpCircle
+                              className={cn("h-5 w-5", config.colors.featureIconText)}
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="text-base font-bold text-foreground mb-2">
+                              {item.question}
+                            </h3>
+                            <p className="text-sm text-muted-foreground leading-relaxed">
+                              {item.answer}
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </AnimatedSection>
+            </div>
+          </section>
+        )}
 
         <section className={cn("border-t border-border", config.colors.ctaSectionGradient)}>
           <div className="px-6 md:px-12 lg:px-20 py-20 lg:py-28 max-w-[1400px] mx-auto">
