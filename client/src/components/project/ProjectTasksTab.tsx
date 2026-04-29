@@ -38,6 +38,7 @@ import { DurationInput } from "@/components/ui/duration-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
@@ -312,6 +313,49 @@ function TaskCustomFieldsSection({
   );
 }
 
+function ScheduleLoadingCard({ phase, taskCount }: { phase: "fetching" | "preparing"; taskCount?: number }) {
+  const [progress, setProgress] = useState(8);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 92) return prev;
+        const increment = Math.max(0.5, (92 - prev) * 0.08);
+        return Math.min(92, prev + increment);
+      });
+    }, 180);
+    return () => clearInterval(id);
+  }, []);
+
+  const headline = phase === "fetching"
+    ? "Loading project schedule..."
+    : `Preparing ${taskCount?.toLocaleString() ?? ""} task${taskCount === 1 ? "" : "s"} for display...`;
+
+  const isLarge = (taskCount ?? 0) > 500;
+
+  return (
+    <div
+      className="flex justify-center py-12 px-4"
+      data-testid="schedule-loading-card"
+      role="status"
+      aria-live="polite"
+      aria-label={headline}
+    >
+      <div className="w-full max-w-md space-y-3">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <Loader2 className="h-4 w-4 animate-spin text-primary" aria-hidden="true" />
+          <span>{headline}</span>
+        </div>
+        <Progress value={progress} className="h-2" />
+        {isLarge && (
+          <p className="text-xs text-muted-foreground">
+            Large schedules can take a few seconds to render. Please wait...
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, projectSource, plannerPlanId, sourceFileName, sourceFileUrl, dataverseOrgId, dataverseTenantId, urlTaskId, readOnly = false, projectUpdatedAt }: { 
   projectId: number; 
   projectName?: string; 
@@ -329,6 +373,43 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
 }) {
   const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading, refetch: refetchTasks } = useTasks(projectId);
+  // Defer mounting heavy Gantt render for large schedules so the loading
+  // progress bar gets a chance to paint before the synchronous render blocks
+  // the main thread.
+  const LARGE_SCHEDULE_THRESHOLD = 500;
+  const [scheduleReady, setScheduleReady] = useState(false);
+  useEffect(() => {
+    if (isLoading || !tasks) {
+      setScheduleReady(false);
+      return;
+    }
+    if (tasks.length <= LARGE_SCHEDULE_THRESHOLD) {
+      setScheduleReady(true);
+      return;
+    }
+    setScheduleReady(false);
+    // Two rAF + macrotask hop ensures the loading UI paints before the
+    // expensive synchronous Gantt render begins.
+    let cancelled = false;
+    let outerRaf = 0;
+    let innerRaf = 0;
+    let timeoutId: number | undefined;
+    outerRaf = requestAnimationFrame(() => {
+      if (cancelled) return;
+      innerRaf = requestAnimationFrame(() => {
+        if (cancelled) return;
+        timeoutId = window.setTimeout(() => {
+          if (!cancelled) setScheduleReady(true);
+        }, 0);
+      });
+    });
+    return () => {
+      cancelled = true;
+      if (outerRaf) cancelAnimationFrame(outerRaf);
+      if (innerRaf) cancelAnimationFrame(innerRaf);
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+    };
+  }, [isLoading, tasks]);
   const { data: resources } = useResources(currentOrganization?.id ?? null);
   const { data: allTaskAssignments } = useAllTaskResourceAssignments(currentOrganization?.id ?? null);
   const { data: allCustomFieldDefs = [] } = useCustomFieldDefinitions(currentOrganization?.id ?? null);
@@ -915,7 +996,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     }
   };
 
-  if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="animate-spin" /></div>;
+  if (isLoading) return <ScheduleLoadingCard phase="fetching" />;
+  if (!scheduleReady) return <ScheduleLoadingCard phase="preparing" taskCount={tasks?.length ?? 0} />;
 
   return (
     <div 
