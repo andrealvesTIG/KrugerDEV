@@ -37,8 +37,19 @@ import {
   PenTool,
   FileSpreadsheet,
   Search,
+  X,
 } from "lucide-react";
 import { SiOracle } from "react-icons/si";
+
+type P6FileStatus = "pending" | "uploading" | "converting" | "success" | "error";
+
+interface P6FileEntry {
+  id: string;
+  file: File;
+  status: P6FileStatus;
+  error?: string;
+  projectName?: string;
+}
 
 type ProjectSource = "manual" | "planner" | "planner-premium" | "msproject" | "primavera";
 
@@ -115,7 +126,7 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
   const msProjectFileInputRef = useRef<HTMLInputElement>(null);
   const [p6PortfolioId, setP6PortfolioId] = useState<number | null>(null);
   const [isImportingP6, setIsImportingP6] = useState(false);
-  const [selectedP6File, setSelectedP6File] = useState<File | null>(null);
+  const [selectedP6Files, setSelectedP6Files] = useState<P6FileEntry[]>([]);
   const p6FileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: portfoliosFetched } = usePortfolios(portfoliosProp ? null : (organizationId ?? null));
@@ -349,75 +360,168 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
     if (file) setSelectedMsProjectFile(file);
   };
 
+  const addP6Files = (files: File[]) => {
+    const accepted: P6FileEntry[] = [];
+    const rejected: string[] = [];
+    for (const file of files) {
+      const ext = file.name.split(".").pop()?.toLowerCase();
+      if (ext === "xer" || ext === "xml") {
+        accepted.push({
+          id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
+          file,
+          status: "pending",
+        });
+      } else {
+        rejected.push(file.name);
+      }
+    }
+    if (rejected.length > 0) {
+      toast({
+        title: rejected.length === 1 ? "Unsupported File" : "Unsupported Files",
+        description: `Only .xer and P6 PM .xml files are supported. Skipped: ${rejected.join(", ")}`,
+        variant: "destructive",
+      });
+    }
+    if (accepted.length > 0) {
+      setSelectedP6Files((prev) => {
+        const seen = new Set(prev.map((e) => `${e.file.name}-${e.file.size}-${e.file.lastModified}`));
+        const fresh = accepted.filter((e) => !seen.has(`${e.file.name}-${e.file.size}-${e.file.lastModified}`));
+        return [...prev, ...fresh];
+      });
+    }
+  };
+
   const handleP6FileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) setSelectedP6File(file);
+    const files = Array.from(e.target.files ?? []);
+    if (files.length > 0) addP6Files(files);
+    if (p6FileInputRef.current) p6FileInputRef.current.value = "";
+  };
+
+  const updateP6Entry = (id: string, patch: Partial<P6FileEntry>) => {
+    setSelectedP6Files((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+  };
+
+  const removeP6Entry = (id: string) => {
+    setSelectedP6Files((prev) => prev.filter((e) => e.id !== id));
   };
 
   const handleP6Import = async () => {
-    if (!selectedP6File) {
-      toast({ title: "Select a File", description: "Please select a Primavera P6 file to import", variant: "destructive" });
+    const toProcess = selectedP6Files.filter((e) => e.status === "pending" || e.status === "error");
+    if (toProcess.length === 0) {
+      toast({
+        title: "No Files to Import",
+        description: "Please add at least one Primavera P6 file to import.",
+        variant: "destructive",
+      });
       return;
     }
+
     setIsImportingP6(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", selectedP6File);
-      if (organizationId) formData.append("organizationId", organizationId.toString());
-      if (p6PortfolioId) formData.append("portfolioId", p6PortfolioId.toString());
+    let successCount = 0;
+    let failureCount = 0;
+    let limitExceededDetails: { message?: string; resourceType?: string } | null = null;
 
-      const uploadResponse = await fetch("/api/p6-imports/upload", {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
+    for (const entry of toProcess) {
+      updateP6Entry(entry.id, { status: "uploading", error: undefined });
+      try {
+        const formData = new FormData();
+        formData.append("file", entry.file);
+        if (organizationId) formData.append("organizationId", organizationId.toString());
+        if (p6PortfolioId) formData.append("portfolioId", p6PortfolioId.toString());
 
-      if (!uploadResponse.ok) {
-        const error = await parseJsonOrThrow(uploadResponse, "Upload failed");
-        const errObj: any = new Error(error.message || "Upload failed");
-        errObj.limitExceeded = error.limitExceeded;
-        errObj.resourceType = error.resourceType;
-        throw errObj;
+        const uploadResponse = await fetch("/api/p6-imports/upload", {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        });
+
+        if (!uploadResponse.ok) {
+          const error = await parseJsonOrThrow(uploadResponse, "Upload failed");
+          const errObj: any = new Error(error.message || "Upload failed");
+          errObj.limitExceeded = error.limitExceeded;
+          errObj.resourceType = error.resourceType;
+          throw errObj;
+        }
+
+        const importRecord = await parseJsonOrThrow(uploadResponse, "Upload failed");
+
+        updateP6Entry(entry.id, { status: "converting" });
+
+        const response = await fetch(`/api/p6-imports/${importRecord.id}/convert`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: importRecord.fileName.replace(/\.[^/.]+$/, ""),
+            portfolioId: p6PortfolioId,
+          }),
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          const error = await parseJsonOrThrow(response, "Import failed");
+          const errObj: any = new Error(error.message || error.error || "Import failed");
+          errObj.limitExceeded = error.limitExceeded;
+          errObj.resourceType = error.resourceType;
+          throw errObj;
+        }
+
+        const result = await parseJsonOrThrow(response, "Import failed");
+        updateP6Entry(entry.id, {
+          status: "success",
+          projectName: result.project?.name || importRecord.fileName,
+        });
+        successCount++;
+      } catch (err: any) {
+        if (err?.limitExceeded) {
+          limitExceededDetails = { message: err.message, resourceType: err.resourceType };
+          updateP6Entry(entry.id, { status: "error", error: err.message || "Project limit reached" });
+          break;
+        }
+        updateP6Entry(entry.id, { status: "error", error: err.message || "Import failed" });
+        failureCount++;
       }
+    }
 
-      const importRecord = await parseJsonOrThrow(uploadResponse, "Upload failed");
+    setIsImportingP6(false);
 
-      const response = await fetch(`/api/p6-imports/${importRecord.id}/convert`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: importRecord.fileName.replace(/\.[^/.]+$/, ""),
-          portfolioId: p6PortfolioId,
-        }),
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        const error = await parseJsonOrThrow(response, "Import failed");
-        const errObj: any = new Error(error.message || error.error || "Import failed");
-        errObj.limitExceeded = error.limitExceeded;
-        errObj.resourceType = error.resourceType;
-        throw errObj;
-      }
-
-      const result = await parseJsonOrThrow(response, "Import failed");
-      toast({ title: "Success", description: result.message || "Project imported successfully" });
+    if (successCount > 0) {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+    }
+
+    if (limitExceededDetails) {
+      setLimitError(limitExceededDetails);
+      setLimitDialogOpen(true);
       onOpenChange(false);
-      setSelectedP6File(null);
+      setSelectedP6Files([]);
       setP6PortfolioId(null);
       setProjectSource("manual");
-    } catch (err: any) {
-      if (err?.limitExceeded) {
-        setLimitError({ message: err.message, resourceType: err.resourceType });
-        setLimitDialogOpen(true);
-        onOpenChange(false);
-      } else {
-        toast({ title: "Import Failed", description: err.message || "Could not import Primavera P6 file", variant: "destructive" });
-      }
-    } finally {
-      setIsImportingP6(false);
-      if (p6FileInputRef.current) p6FileInputRef.current.value = "";
+      return;
+    }
+
+    if (successCount > 0 && failureCount === 0) {
+      toast({
+        title: successCount === 1 ? "Project Imported" : `${successCount} Projects Imported`,
+        description:
+          successCount === 1
+            ? "Your Primavera P6 project was created successfully."
+            : `${successCount} Primavera P6 projects were created successfully.`,
+      });
+      onOpenChange(false);
+      setSelectedP6Files([]);
+      setP6PortfolioId(null);
+      setProjectSource("manual");
+    } else if (successCount > 0 && failureCount > 0) {
+      toast({
+        title: "Some imports failed",
+        description: `${successCount} succeeded, ${failureCount} failed. Remove or retry the failed files below.`,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Import Failed",
+        description: "None of the Primavera P6 files could be imported. See the per-file errors below.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -494,7 +598,7 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
             setPlannerSearchTerm("");
             setSelectedMsProjectFile(null);
             setMsProjectPortfolioId(null);
-            setSelectedP6File(null);
+            setSelectedP6Files([]);
             setP6PortfolioId(null);
           }
         }}
@@ -1306,119 +1410,179 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
                 ref={p6FileInputRef}
                 onChange={handleP6FileSelect}
                 accept=".xer,.xml"
+                multiple
                 className="hidden"
                 data-testid="input-p6-file"
               />
 
-              <div className="space-y-2">
-                <Label>Select P6 File</Label>
-                <div
-                  className={cn(
-                    "flex flex-col items-center justify-center gap-3 p-6 rounded-lg border-2 border-dashed cursor-pointer transition-all hover-elevate",
-                    selectedP6File ? "border-red-500 bg-red-500/5" : "border-border hover:border-red-500/50"
-                  )}
-                  onClick={() => p6FileInputRef.current?.click()}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const file = e.dataTransfer.files?.[0];
-                    if (file) {
-                      const ext = file.name.split('.').pop()?.toLowerCase();
-                      if (ext === 'xer' || ext === 'xml') {
-                        setSelectedP6File(file);
-                      } else {
-                        toast({
-                          title: "Unsupported File",
-                          description: "Please drop a .xer or .xml file",
-                          variant: "destructive",
-                        });
-                      }
-                    }
-                  }}
-                  data-testid="dropzone-p6"
-                >
-                  {selectedP6File ? (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <SiOracle className="h-5 w-5 text-red-600" />
-                        <span className="font-medium">{selectedP6File.name}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">{(selectedP6File.size / 1024).toFixed(1)} KB</p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedP6File(null);
-                          if (p6FileInputRef.current) p6FileInputRef.current.value = "";
+              {(() => {
+                const pendingCount = selectedP6Files.filter((e) => e.status === "pending" || e.status === "error").length;
+                const successCount = selectedP6Files.filter((e) => e.status === "success").length;
+                const inFlightCount = selectedP6Files.filter((e) => e.status === "uploading" || e.status === "converting").length;
+                const remainingCount = pendingCount + inFlightCount;
+                const hasFiles = selectedP6Files.length > 0;
+
+                return (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Select P6 Files</Label>
+                      <div
+                        className={cn(
+                          "rounded-lg border-2 border-dashed transition-all",
+                          hasFiles ? "border-red-500 bg-red-500/5 p-3" : "border-border hover:border-red-500/50 p-6 cursor-pointer hover-elevate flex flex-col items-center justify-center gap-3",
+                          isImportingP6 && "opacity-90"
+                        )}
+                        onClick={() => {
+                          if (!hasFiles && !isImportingP6) p6FileInputRef.current?.click();
                         }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (isImportingP6) return;
+                          const files = Array.from(e.dataTransfer.files ?? []);
+                          if (files.length > 0) addP6Files(files);
+                        }}
+                        data-testid="dropzone-p6"
                       >
-                        Choose Different File
+                        {hasFiles ? (
+                          <div className="space-y-2">
+                            {selectedP6Files.map((entry, idx) => {
+                              const inFlight = entry.status === "uploading" || entry.status === "converting";
+                              return (
+                                <div
+                                  key={entry.id}
+                                  className="flex items-center gap-3 p-2 rounded border bg-background"
+                                  data-testid={`p6-file-row-${idx}`}
+                                >
+                                  <SiOracle className="h-4 w-4 text-red-600 flex-shrink-0" />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate" data-testid={`p6-file-name-${idx}`}>
+                                      {entry.file.name}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground truncate">
+                                      {(entry.file.size / 1024).toFixed(1)} KB
+                                      {entry.status === "uploading" && " · Uploading…"}
+                                      {entry.status === "converting" && " · Creating project…"}
+                                      {entry.status === "success" && entry.projectName && ` · Created “${entry.projectName}”`}
+                                      {entry.status === "error" && entry.error && ` · ${entry.error}`}
+                                    </p>
+                                  </div>
+                                  {inFlight ? (
+                                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground flex-shrink-0" />
+                                  ) : entry.status === "success" ? (
+                                    <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                                  ) : entry.status === "error" ? (
+                                    <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+                                  ) : null}
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 flex-shrink-0"
+                                    disabled={isImportingP6}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      removeP6Entry(entry.id);
+                                    }}
+                                    data-testid={`button-remove-p6-file-${idx}`}
+                                    aria-label={`Remove ${entry.file.name}`}
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                            <div className="flex items-center justify-between pt-1">
+                              <p className="text-xs text-muted-foreground">
+                                {selectedP6Files.length} file{selectedP6Files.length === 1 ? "" : "s"} selected
+                              </p>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={isImportingP6}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  p6FileInputRef.current?.click();
+                                }}
+                                data-testid="button-add-more-p6"
+                              >
+                                <Plus className="mr-1 h-3.5 w-3.5" />
+                                Add more files
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <Upload className="h-8 w-8 text-muted-foreground" />
+                            <p className="text-sm text-muted-foreground">Drop files here or click to select</p>
+                            <p className="text-xs text-muted-foreground">Supports multiple .xer and P6 PM .xml files</p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Target Portfolio (Optional)</Label>
+                      <Select
+                        onValueChange={(val) => setP6PortfolioId(val === "none" ? null : parseInt(val))}
+                        value={p6PortfolioId?.toString() || "none"}
+                      >
+                        <SelectTrigger data-testid="select-p6-portfolio">
+                          <SelectValue placeholder="Select Portfolio" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No Portfolio</SelectItem>
+                          {portfolios.map((p: any) => (
+                            <SelectItem key={p.id} value={p.id.toString()}>
+                              {p.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {pendingCount > 0 && (
+                      <div className="p-3 bg-muted/30 rounded-md">
+                        <p className="text-sm">
+                          Importing will create{" "}
+                          <strong>
+                            {pendingCount} new project{pendingCount === 1 ? "" : "s"}
+                          </strong>{" "}
+                          from {pendingCount === 1 ? "this Primavera P6 schedule" : "these Primavera P6 schedules"}, including the WBS hierarchy, activities, and predecessor relationships.
+                        </p>
+                      </div>
+                    )}
+
+                    <DialogFooter>
+                      <Button
+                        onClick={handleP6Import}
+                        disabled={pendingCount === 0 || isImportingP6}
+                        className="bg-red-600 hover:bg-red-700 text-white"
+                        data-testid="button-import-p6"
+                      >
+                        {isImportingP6 ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Importing {Math.max(remainingCount, 1)} project{remainingCount === 1 ? "" : "s"}…
+                          </>
+                        ) : (
+                          <>
+                            <Download className="mr-2 h-4 w-4" />
+                            {successCount > 0 && pendingCount > 0
+                              ? `Import ${pendingCount} more project${pendingCount === 1 ? "" : "s"}`
+                              : `Import ${pendingCount || ""} project${pendingCount === 1 ? "" : "s"}`.trim()}
+                          </>
+                        )}
                       </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-8 w-8 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground">Drop a file here or click to select</p>
-                      <p className="text-xs text-muted-foreground">Supports .xer and P6 PM .xml</p>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Target Portfolio (Optional)</Label>
-                <Select
-                  onValueChange={(val) => setP6PortfolioId(val === "none" ? null : parseInt(val))}
-                  value={p6PortfolioId?.toString() || "none"}
-                >
-                  <SelectTrigger data-testid="select-p6-portfolio">
-                    <SelectValue placeholder="Select Portfolio" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No Portfolio</SelectItem>
-                    {portfolios.map((p: any) => (
-                      <SelectItem key={p.id} value={p.id.toString()}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {selectedP6File && (
-                <div className="p-3 bg-muted/30 rounded-md">
-                  <p className="text-sm">
-                    Importing <strong>{selectedP6File.name}</strong> will create a new project from this Primavera P6 schedule, including its WBS hierarchy, activities, and predecessor relationships.
-                  </p>
-                </div>
-              )}
-
-              <DialogFooter>
-                <Button
-                  onClick={handleP6Import}
-                  disabled={!selectedP6File || isImportingP6}
-                  className="bg-red-600 hover:bg-red-700 text-white"
-                  data-testid="button-import-p6"
-                >
-                  {isImportingP6 ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Importing...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="mr-2 h-4 w-4" />
-                      Import Project
-                    </>
-                  )}
-                </Button>
-              </DialogFooter>
+                    </DialogFooter>
+                  </>
+                );
+              })()}
             </div>
           )}
         </DialogContent>
