@@ -362,6 +362,26 @@ export const constructionConfig: IndustryConfig = {
   comparisonSubtitle:
     "See why capital program owners and project controls teams choose FridayReport.AI over generic PM tools that cannot do real EVM.",
   comparisonFeatureSet: "capital-projects",
+  compareLinks: {
+    badge: "Capital Programs Comparison",
+    title: "Comparing FridayReport.AI to your scheduling tool?",
+    subtitle:
+      "Side-by-side comparisons against the two scheduling tools every capital program already runs.",
+    items: [
+      {
+        label: "FridayReport.AI vs Primavera P6",
+        href: "/compare/primavera-p6",
+        description:
+          "Keep P6 schedules, add EVM rollup, AI variance detection, RFIs, change orders, cash flow, and lockdowns.",
+      },
+      {
+        label: "FridayReport.AI vs Microsoft Project",
+        href: "/compare/ms-project",
+        description:
+          "MS Project schedules plus portfolio EVM, four EAC scenarios, field execution, and audit-ready forecasts.",
+      },
+    ],
+  },
   ctaTitle: "Ready to Run Your Capital Program on Real Project Controls?",
   ctaSubtitle:
     "Join the capital program owners, controls leads, and EPC teams who replaced spreadsheets and one-off P6 reports with a live EVM platform — built to defend every EAC and forecast in front of the steering committee.",

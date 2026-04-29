@@ -117,6 +117,16 @@ export interface IndustryConfig {
 
   comparisonSubtitle: string;
   comparisonFeatureSet?: "general" | "capital-projects";
+  compareLinks?: {
+    badge?: string;
+    title?: string;
+    subtitle?: string;
+    items: {
+      label: string;
+      href: string;
+      description: string;
+    }[];
+  };
 
   ctaTitle: string;
   ctaSubtitle: string;

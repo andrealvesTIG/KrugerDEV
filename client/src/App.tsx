@@ -94,6 +94,8 @@ const Correspondence = lazy(() => import("@/pages/Correspondence"));
 const Blog = lazy(() => import("@/pages/Blog"));
 const BlogPost = lazy(() => import("@/pages/BlogPost"));
 const PowerBIAgent = lazy(() => import("@/pages/PowerBIAgent"));
+const CompareP6Page = lazy(() => import("@/pages/CompareP6Page"));
+const CompareMsProjectPage = lazy(() => import("@/pages/CompareMsProjectPage"));
 
 function PageLoader() {
   return (
@@ -361,6 +363,12 @@ function App() {
                 </Route>
                 <Route path="/capital-projects">
                   <Suspense fallback={<PageLoader />}><ConstructionLandingPage /></Suspense>
+                </Route>
+                <Route path="/compare/primavera-p6">
+                  <Suspense fallback={<PageLoader />}><CompareP6Page /></Suspense>
+                </Route>
+                <Route path="/compare/ms-project">
+                  <Suspense fallback={<PageLoader />}><CompareMsProjectPage /></Suspense>
                 </Route>
                 <Route path="/energy">
                   <Suspense fallback={<PageLoader />}><EnergyLandingPage /></Suspense>

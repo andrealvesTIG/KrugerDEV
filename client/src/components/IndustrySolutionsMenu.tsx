@@ -1,8 +1,21 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "wouter";
-import { ChevronDown, Heart, Landmark, Factory, Cpu, HardHat, Zap, Building, ArrowRight } from "lucide-react";
+import { ChevronDown, Heart, Landmark, Factory, Cpu, HardHat, Zap, Building, GitCompare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+const compareLinks = [
+  {
+    label: "vs Primavera P6",
+    description: "Side-by-side: scheduling, EVM, RFIs, change orders, cash flow.",
+    href: "/compare/primavera-p6",
+  },
+  {
+    label: "vs Microsoft Project",
+    description: "MS Project schedules + portfolio EVM, AI variance, field execution.",
+    href: "/compare/ms-project",
+  },
+];
 
 const industries = [
   {
@@ -167,10 +180,34 @@ export function IndustrySolutionsMenu({ currentPath, variant = "default" }: { cu
               );
             })}
           </div>
-          <div className="px-5 py-2.5 border-t border-border bg-muted/20">
-            <p className="text-xs text-muted-foreground">
-              Every industry solution includes AI-powered risk detection, real-time dashboards, and executive reporting.
+          <div className="px-5 pt-3 pb-3 border-t border-border bg-muted/20">
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Compare FridayReport
             </p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {compareLinks.map((c) => (
+                <Link
+                  key={c.href}
+                  href={c.href}
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    "flex items-start gap-2.5 px-3 py-2 hover:bg-muted/60 rounded-md transition-colors cursor-pointer group",
+                    currentPath === c.href && "bg-muted/70",
+                  )}
+                  data-testid={`menu-compare-${c.href.split("/").pop()}`}
+                >
+                  <GitCompare className="h-4 w-4 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-foreground/80 group-hover:text-foreground leading-tight">
+                      {c.label}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug line-clamp-2">
+                      {c.description}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -206,6 +243,33 @@ export function IndustrySolutionsMobileLinks({ onNavigate, variant = "default" }
               "text-xs line-clamp-1",
               isDark ? "text-slate-400" : "text-muted-foreground/70"
             )}>{item.description}</span>
+          </div>
+        </Link>
+      ))}
+      <p className={cn(
+        "text-xs font-semibold uppercase tracking-wider px-3 pt-3 pb-1",
+        isDark ? "text-slate-400" : "text-muted-foreground"
+      )}>Compare FridayReport</p>
+      {compareLinks.map((c) => (
+        <Link
+          key={c.href}
+          href={c.href}
+          onClick={onNavigate}
+          className={cn(
+            "flex items-start gap-3 px-3 py-2 rounded-md transition-colors cursor-pointer",
+            isDark ? "hover:bg-slate-700/60" : "hover:bg-muted/60"
+          )}
+        >
+          <GitCompare className={cn("h-4 w-4 mt-0.5 flex-shrink-0", isDark ? "text-amber-300" : "text-amber-600")} />
+          <div className="min-w-0">
+            <span className={cn(
+              "text-sm font-medium block",
+              isDark ? "text-slate-200" : "text-muted-foreground"
+            )}>{c.label}</span>
+            <span className={cn(
+              "text-xs line-clamp-1",
+              isDark ? "text-slate-400" : "text-muted-foreground/70"
+            )}>{c.description}</span>
           </div>
         </Link>
       ))}

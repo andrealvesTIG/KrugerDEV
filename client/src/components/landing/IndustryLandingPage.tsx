@@ -551,6 +551,51 @@ export default function IndustryLandingPage({ config }: { config: IndustryConfig
               </p>
             </motion.div>
           </AnimatedSection>
+
+          {config.compareLinks && config.compareLinks.items.length > 0 && (
+            <AnimatedSection className="mb-12">
+              {(config.compareLinks.title || config.compareLinks.badge) && (
+                <motion.div variants={fadeUp} className="text-center mb-6">
+                  {config.compareLinks.badge && (
+                    <Badge variant="outline" className="mb-3 text-xs">
+                      {config.compareLinks.badge}
+                    </Badge>
+                  )}
+                  {config.compareLinks.title && (
+                    <h3 className="text-xl md:text-2xl font-bold text-foreground" style={{ fontFamily: "var(--font-display)" }}>
+                      {config.compareLinks.title}
+                    </h3>
+                  )}
+                  {config.compareLinks.subtitle && (
+                    <p className="mt-2 text-sm md:text-base text-muted-foreground max-w-2xl mx-auto">
+                      {config.compareLinks.subtitle}
+                    </p>
+                  )}
+                </motion.div>
+              )}
+              <motion.div variants={fadeUp} className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl mx-auto">
+                {config.compareLinks.items.map((c) => (
+                  <Link key={c.href} href={c.href}>
+                    <Card
+                      className="h-full hover:shadow-md hover:border-primary/40 transition-all duration-200 cursor-pointer border-border"
+                      data-testid={`compare-link-${c.href.split("/").pop()}`}
+                    >
+                      <CardContent className="p-5 flex items-start gap-3">
+                        <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center shrink-0", config.colors.featureIconBg)}>
+                          <ArrowRight className={cn("h-5 w-5", config.colors.featureIconText)} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-base font-bold text-foreground">{c.label}</div>
+                          <p className="mt-1 text-sm text-muted-foreground leading-snug">{c.description}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </motion.div>
+            </AnimatedSection>
+          )}
+
           <PublicFeatureComparison featureSet={config.comparisonFeatureSet ?? "general"} />
         </section>
 

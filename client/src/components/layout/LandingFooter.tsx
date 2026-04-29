@@ -28,7 +28,8 @@ import {
   Cpu,
   HardHat,
   Zap,
-  Building
+  Building,
+  GitCompare
 } from "lucide-react";
 import logoIcon from "@assets/FridayReportAI_logo_F-symbol_1770231051194.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
@@ -140,9 +141,16 @@ const footerSections = {
       { name: "Financial Services", href: "/financial-services", icon: Landmark },
       { name: "Manufacturing", href: "/manufacturing", icon: Factory },
       { name: "Industrial Automation", href: "/industrial-automation", icon: Cpu },
-      { name: "Construction", href: "/construction", icon: HardHat },
+      { name: "Capital Projects", href: "/capital-projects", icon: HardHat },
       { name: "Energy & Utilities", href: "/energy", icon: Zap },
       { name: "Government", href: "/government", icon: Building },
+    ]
+  },
+  compare: {
+    title: "Compare",
+    links: [
+      { name: "vs Primavera P6", href: "/compare/primavera-p6", icon: GitCompare },
+      { name: "vs Microsoft Project", href: "/compare/ms-project", icon: GitCompare },
     ]
   },
   resources: {
@@ -165,7 +173,7 @@ export function LandingFooter() {
   return (
     <footer className="bg-slate-900 border-t border-slate-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-8">
           <div className="col-span-2 md:col-span-3 lg:col-span-1 mb-4 lg:mb-0">
             <div className="flex items-center gap-2 mb-4">
               <img src={logoWhite} alt="FridayReport.AI" className="h-7" />
