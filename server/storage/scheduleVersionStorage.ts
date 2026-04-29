@@ -142,6 +142,52 @@ export async function createScheduleVersionFromMppImport(
   }, exec);
 }
 
+export class ScheduleVersionDeleteError extends Error {
+  status: number;
+  constructor(message: string, status = 400) {
+    super(message);
+    this.name = "ScheduleVersionDeleteError";
+    this.status = status;
+  }
+}
+
+/**
+ * Hard-delete a schedule version row. The accompanying snapshot rows in
+ * `schedule_version_tasks` are removed automatically via the `onDelete:
+ * "cascade"` foreign key.
+ *
+ * Refuses to delete:
+ *  - the version that is currently marked as `isCurrent`
+ *  - the very first version (versionNumber === 1) so the original baseline is
+ *    always preserved
+ */
+export async function deleteScheduleVersion(versionId: number): Promise<{
+  deletedVersionNumber: number;
+  projectId: number;
+}> {
+  const version = await getScheduleVersion(versionId);
+  if (!version) {
+    throw new ScheduleVersionDeleteError("Schedule version not found", 404);
+  }
+  if (version.isCurrent) {
+    throw new ScheduleVersionDeleteError(
+      "Cannot delete the current schedule version. Restore a different version first.",
+    );
+  }
+  if (version.versionNumber === 1) {
+    throw new ScheduleVersionDeleteError(
+      "Cannot delete the original schedule version (v1).",
+    );
+  }
+
+  await db.delete(scheduleVersions).where(eq(scheduleVersions.id, versionId));
+
+  return {
+    deletedVersionNumber: version.versionNumber,
+    projectId: version.projectId,
+  };
+}
+
 export async function listScheduleVersionsForProject(projectId: number): Promise<ScheduleVersion[]> {
   return await db.select().from(scheduleVersions)
     .where(eq(scheduleVersions.projectId, projectId))

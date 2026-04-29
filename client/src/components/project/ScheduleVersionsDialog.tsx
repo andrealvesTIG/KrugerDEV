@@ -21,7 +21,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import {
   History, Eye, GitCompare, RotateCcw, Download, Loader2, Plus, Minus, Pencil,
-  CheckCircle2, FileText,
+  CheckCircle2, FileText, Trash2,
 } from "lucide-react";
 import { SiOracle } from "react-icons/si";
 import msprojectLogoPath from "@/assets/msproject-logo.png";
@@ -131,6 +131,7 @@ export default function ScheduleVersionsDialog({
   const [compareFromId, setCompareFromId] = useState<number | null>(null);
   const [compareToId, setCompareToId] = useState<number | null>(null);
   const [restoreVersion, setRestoreVersion] = useState<EnrichedScheduleVersion | null>(null);
+  const [deleteVersion, setDeleteVersion] = useState<EnrichedScheduleVersion | null>(null);
 
   // When the parent passes an initialCompare and the sheet opens, auto-load
   // the compare dialog with those versions and immediately notify the
@@ -192,6 +193,35 @@ export default function ScheduleVersionsDialog({
       toast({
         title: "Restore failed",
         description: err.message || "Could not restore version.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (versionId: number) => {
+      const res = await apiRequest(
+        "DELETE",
+        `/api/projects/${projectId}/schedule-versions/${versionId}`,
+      );
+      return res.json();
+    },
+    onSuccess: (data: { message?: string; deletedVersionNumber?: number }) => {
+      toast({
+        title: "Version deleted",
+        description:
+          data.message ||
+          (data.deletedVersionNumber != null
+            ? `Deleted v${data.deletedVersionNumber}.`
+            : "Schedule version deleted."),
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "schedule-versions"] });
+      setDeleteVersion(null);
+    },
+    onError: (err: Error) => {
+      toast({
+        title: "Delete failed",
+        description: err.message || "Could not delete version.",
         variant: "destructive",
       });
     },
@@ -334,6 +364,27 @@ export default function ScheduleVersionsDialog({
                       <Download className="h-3.5 w-3.5 mr-1.5" /> Download
                     </a>
                   )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={
+                      v.isCurrent ||
+                      v.versionNumber === 1 ||
+                      deleteMutation.isPending
+                    }
+                    onClick={() => setDeleteVersion(v)}
+                    title={
+                      v.isCurrent
+                        ? "Cannot delete the current version"
+                        : v.versionNumber === 1
+                          ? "Cannot delete the original version"
+                          : "Delete this version"
+                    }
+                    className="ml-auto text-rose-700 hover:text-rose-800 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                    data-testid={`button-delete-version-${v.versionNumber}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete
+                  </Button>
                 </div>
               </div>
             ))}
@@ -558,6 +609,44 @@ export default function ScheduleVersionsDialog({
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
               Restore
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog
+        open={deleteVersion != null}
+        onOpenChange={(o) => !o && setDeleteVersion(null)}
+      >
+        <AlertDialogContent data-testid="dialog-delete-version-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete v{deleteVersion?.versionNumber}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the snapshot of v{deleteVersion?.versionNumber}
+              {" "}({deleteVersion?.taskCount} tasks
+              {deleteVersion?.fileName ? ` from ${deleteVersion.fileName}` : ""}).
+              The current live tasks are not affected, but you will no longer be
+              able to preview, compare, or restore from this version. This action
+              cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteVersion && deleteMutation.mutate(deleteVersion.id)}
+              className="bg-rose-600 hover:bg-rose-700 focus:ring-rose-600"
+              data-testid="button-confirm-delete-version"
+            >
+              {deleteMutation.isPending && (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              )}
+              Delete version
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

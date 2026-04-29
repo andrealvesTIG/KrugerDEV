@@ -30,6 +30,8 @@ import {
   getScheduleVersionTasks as getScheduleVersionTaskRows,
   diffScheduleVersions as diffScheduleVersionsFn,
   restoreScheduleVersion as restoreScheduleVersionFn,
+  deleteScheduleVersion as deleteScheduleVersionFn,
+  ScheduleVersionDeleteError,
 } from "../storage/scheduleVersionStorage";
 
 async function teamMemberCanAccessProject(userId: string, projectId: number, organizationId: number): Promise<boolean> {
@@ -2408,6 +2410,75 @@ export function registerProjectFeatureRoutes(app: Express) {
       console.error('Error restoring schedule version:', err);
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Error restoring schedule version' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'delete', '/api/projects/:projectId/schedule-versions/:versionId', {
+    tag: 'Schedule Versions',
+    summary: 'Delete a schedule version (cascade-removes its task snapshot)',
+    parameters: [pathId('projectId'), pathId('versionId')],
+    responses: { ...r200('Version deleted', { type: 'object' }), ...idRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+
+      const projectId = Number(req.params.projectId);
+      const versionId = Number(req.params.versionId);
+
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: 'Project not found' });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const sourceVersion = await getScheduleVersionById(versionId);
+      if (!sourceVersion || sourceVersion.projectId !== projectId) {
+        return res.status(404).json({ message: 'Schedule version not found' });
+      }
+
+      try {
+        const result = await deleteScheduleVersionFn(versionId);
+
+        try {
+          const u = await storage.getUser(userId);
+          const userName = u ? `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unknown' : 'Unknown';
+          await storage.createProjectChangeLog({
+            projectId,
+            changedBy: userId,
+            changedByName: userName,
+            changeType: 'deleted',
+            changeSummary: `Deleted schedule version v${result.deletedVersionNumber}`,
+            previousValues: null,
+            newValues: null,
+          });
+        } catch (logErr) {
+          console.error('Failed to record project change log for delete:', logErr);
+        }
+
+        res.json({
+          success: true,
+          deletedVersionNumber: result.deletedVersionNumber,
+          message: `Deleted schedule version v${result.deletedVersionNumber}`,
+        });
+      } catch (err) {
+        if (err instanceof ScheduleVersionDeleteError) {
+          return res.status(err.status).json({ message: err.message });
+        }
+        throw err;
+      }
+    } catch (err) {
+      console.error('Error deleting schedule version:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error deleting schedule version' : classified.message });
     }
   });
 
