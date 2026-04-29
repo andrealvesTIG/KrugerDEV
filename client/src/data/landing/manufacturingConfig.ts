@@ -16,6 +16,33 @@ export const manufacturingConfig: IndustryConfig = {
     ogTitle: "Manufacturing Project Management Software | FridayReport.AI",
     ogDescription: "AI-powered PMO software for manufacturing operations. Free forever.",
   },
+  faq: [
+    {
+      question: "Can FridayReport.AI manage New Product Introduction (NPI) and stage-gate programs?",
+      answer:
+        "Yes. NPI, stage-gate, and product launch programs are tracked across engineering, manufacturing, supply chain, and quality — with portfolio-level visibility into which launches are on track and which are slipping against gate dates.",
+    },
+    {
+      question: "Does it handle plant expansions and capital equipment installs?",
+      answer:
+        "Yes. Greenfield builds, plant expansions, line conversions, and capex installs run as full capital projects with EVM, cash flow, change orders, RFIs, and submittals — the same controls layer used on construction programs.",
+    },
+    {
+      question: "Can it track ISO 9001, IATF 16949, and other quality program work?",
+      answer:
+        "Yes. Quality system implementations, internal audits, corrective actions, and certification programs run as milestone-driven projects with automated alerts before audit windows and a full change history for the auditors.",
+    },
+    {
+      question: "How does the AI risk detection help operations leaders?",
+      answer:
+        "The platform continuously scans portfolio health and project signals to flag risks that could disrupt production — supplier slips, qualification delays, equipment commissioning issues, and quality holds — before they hit the line.",
+    },
+    {
+      question: "Is there a free plan for manufacturing PMOs?",
+      answer:
+        "Yes. FridayReport.AI offers a free forever plan with no per-seat license tax. Plant engineering, operations, and corporate PMO teams can run their entire portfolio without an enterprise license or implementation contract.",
+    },
+  ],
   colors: {
     primary: "orange",
     secondary: "amber",

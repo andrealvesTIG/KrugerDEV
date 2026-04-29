@@ -16,6 +16,33 @@ export const financialServicesConfig: IndustryConfig = {
     ogTitle: "Financial Services Project Management Software | FridayReport.AI",
     ogDescription: "AI-powered PMO software for banks and financial institutions. Free forever.",
   },
+  faq: [
+    {
+      question: "Can FridayReport.AI manage core banking migrations and digital transformation programs?",
+      answer:
+        "Yes. Core conversions, digital banking launches, treasury / payments modernization, and cloud migration programs are tracked with milestones, dependencies, and AI-flagged risk — at both project and portfolio level.",
+    },
+    {
+      question: "Does it support SOX, FFIEC, OCC, and other regulatory compliance program tracking?",
+      answer:
+        "Yes. Regulatory programs run as milestone-driven projects with full audit trail. Every change to scope, schedule, or status is captured with who, what, and when — exactly the evidence regulators and internal audit ask for.",
+    },
+    {
+      question: "How does it handle audit-ready reporting for examiners and internal audit?",
+      answer:
+        "Every project carries a complete change log, lockable monthly status snapshots, and exportable executive reports. Saved views and scheduled report subscriptions give regulators, auditors, and the board the same source of truth instead of one-off spreadsheets.",
+    },
+    {
+      question: "Can it manage SOC 2, ISO 27001, and information security program work?",
+      answer:
+        "Yes. Security and compliance programs (SOC 2 Type II, ISO 27001, PCI DSS, third-party risk) are tracked as portfolios with milestone-level visibility, owners, and risk scoring — so the CISO can show a credible plan at every committee meeting.",
+    },
+    {
+      question: "Is there a free plan for community banks, credit unions, and fintechs?",
+      answer:
+        "Yes. FridayReport.AI offers a free forever plan with no per-seat license tax. You can run your full regulatory and digital portfolio without signing an enterprise contract or going through a long procurement cycle.",
+    },
+  ],
   colors: {
     primary: "indigo",
     secondary: "blue",

@@ -15,6 +15,33 @@ export const industrialAutomationConfig: IndustryConfig = {
     ogTitle: "Industrial Automation Project Management Software | FridayReport.AI",
     ogDescription: "AI-powered PMO software for industrial automation companies. Free forever.",
   },
+  faq: [
+    {
+      question: "Can FridayReport.AI manage SCADA modernizations and PLC migration projects?",
+      answer:
+        "Yes. DCS / SCADA upgrades, PLC migrations, HMI standardization, and historian rollouts run as full projects with milestone tracking, risk flagging, and portfolio rollup across plants and sites.",
+    },
+    {
+      question: "Does it support safety system upgrades and IEC 61511 / 62443 program work?",
+      answer:
+        "Yes. Safety Instrumented System (SIS) upgrades, IEC 61511 / 62443 cybersecurity programs, and functional safety lifecycle work are tracked as milestone-driven projects with full audit trail and lockable status snapshots.",
+    },
+    {
+      question: "Can it track MES, MOM, and OT cybersecurity rollouts across multiple plants?",
+      answer:
+        "Yes. MES, MOM, OT cybersecurity, and Industry 4.0 rollouts are tracked at site, plant, and portfolio level — with AI-flagged risk on schedule slip, dependency conflicts, and qualification delays.",
+    },
+    {
+      question: "How does it handle commissioning, FAT, and SAT milestones?",
+      answer:
+        "Each project carries its own milestone schedule with predecessors, owners, and status. Factory Acceptance Tests, Site Acceptance Tests, loop checks, and commissioning hand-offs are captured with full change history and audit trail.",
+    },
+    {
+      question: "Is there a free plan for systems integrators and EPC firms?",
+      answer:
+        "Yes. FridayReport.AI offers a free forever plan with no per-seat license tax. Integrators can run client portfolios from their first project, no enterprise contract or implementation engagement required.",
+    },
+  ],
   colors: {
     primary: "cyan",
     secondary: "slate",

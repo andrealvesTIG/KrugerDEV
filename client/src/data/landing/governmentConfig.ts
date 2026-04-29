@@ -15,6 +15,33 @@ export const governmentConfig: IndustryConfig = {
     ogTitle: "Government Project Management Software | FridayReport.AI",
     ogDescription: "AI-powered PMO software for government agencies and the public sector. Free forever.",
   },
+  faq: [
+    {
+      question: "Can FridayReport.AI manage federal, state, and local IT modernization programs?",
+      answer:
+        "Yes. IT modernization, cloud migration, legacy system retirement, and shared-services consolidation programs are tracked at project and portfolio level — with AI-flagged risk so leadership sees slippage before it ends up in a hearing or oversight letter.",
+    },
+    {
+      question: "Does it support grant compliance and infrastructure program tracking (IIJA, IRA, ARPA)?",
+      answer:
+        "Yes. Grant-funded programs are tracked with milestone-level reporting, lockable monthly status snapshots, and full audit trail — exactly what auditors, inspectors general, and grant administrators expect to see.",
+    },
+    {
+      question: "How does it handle CPIC, FITARA, and capital planning oversight?",
+      answer:
+        "Capital planning and investment control work, FITARA scorecard milestones, and TBM-aligned investment portfolios run as structured projects with rolled-up dashboards for CIO, CFO, and committee reporting.",
+    },
+    {
+      question: "Can it produce audit-ready reporting for inspectors general and oversight bodies?",
+      answer:
+        "Yes. Every project carries a complete change log, lockable monthly snapshots, scheduled report subscriptions, and exportable executive reports — so OIG, GAO, and legislative requests can be answered with the system of record, not a fresh spreadsheet.",
+    },
+    {
+      question: "Is there a free plan for government PMOs?",
+      answer:
+        "Yes. FridayReport.AI offers a free forever plan with no per-seat license tax. Agency PMOs can stand up their portfolio and start tracking work without going through a long procurement cycle first.",
+    },
+  ],
   colors: {
     primary: "slate",
     secondary: "blue",

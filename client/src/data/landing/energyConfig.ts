@@ -15,6 +15,33 @@ export const energyConfig: IndustryConfig = {
     ogTitle: "Energy & Utilities Project Management Software | FridayReport.AI",
     ogDescription: "AI-powered PMO software for energy and utility companies. Free forever.",
   },
+  faq: [
+    {
+      question: "Does FridayReport.AI support NERC CIP and FERC compliance program tracking?",
+      answer:
+        "Yes. NERC CIP milestones, FERC filing deadlines, state PUC requirements, and environmental permits are tracked alongside the underlying capital projects — with automated alerts before any deadline slips and a full change history for the audit window.",
+    },
+    {
+      question: "Can it manage grid modernization (AMI, ADMS, DERMS) deployments?",
+      answer:
+        "Yes. AMI rollouts, ADMS / DERMS implementations, substation automation, and DR / DA programs are tracked at project and portfolio level with AI-flagged risk on schedule, budget, and dependency conflicts.",
+    },
+    {
+      question: "How does it handle renewable energy portfolios (solar, wind, BESS)?",
+      answer:
+        "Solar, wind, and battery storage projects run as full capital programs with EVM, cash flow, change orders, RFIs, and submittals. A portfolio view rolls CPI / SPI and EAC across the fleet so PMO leaders see which projects need attention.",
+    },
+    {
+      question: "Can it track storm hardening, vegetation management, and reliability programs?",
+      answer:
+        "Yes. Reliability programs — storm hardening, vegetation management, undergrounding, pole replacement — are tracked as multi-year portfolios with milestone-level reporting suitable for rate-case and PUC review.",
+    },
+    {
+      question: "Is there a free plan for utility PMOs and IPPs?",
+      answer:
+        "Yes. FridayReport.AI offers a free forever plan with no per-seat license tax. IOUs, munis, co-ops, and IPPs can stand up their full portfolio without an enterprise contract or long procurement cycle.",
+    },
+  ],
   colors: {
     primary: "emerald",
     secondary: "green",

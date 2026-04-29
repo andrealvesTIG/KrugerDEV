@@ -49,6 +49,33 @@ export const constructionConfig: IndustryConfig = {
     ogDescription:
       "AI-powered Project Controls and EVM for capital programs. Primavera P6 + MS Project ready. Free forever.",
   },
+  faq: [
+    {
+      question: "Do I have to replace Primavera P6 or Microsoft Project?",
+      answer:
+        "No. FridayReport.AI imports Primavera P6 (XER) and Microsoft Project (.mpp / XML) schedules with WBS, predecessors, durations, and critical path intact. Most capital programs keep their scheduling tool of record and use FridayReport for EVM, RFIs, submittals, change orders, cash flow, and executive reporting.",
+    },
+    {
+      question: "Does FridayReport.AI handle full Earned Value Management?",
+      answer:
+        "Yes — BAC, PV, EV, AC, CPI, SPI, EAC, ETC, VAC, and TCPI are computed at the project level and rolled up bottom-up to portfolio and organization. Four standard EAC scenarios (CPI, CPI × SPI, Optimistic, Pessimistic) sit side-by-side with an editable target EAC and a live TCPI gauge.",
+    },
+    {
+      question: "Can I run RFIs, submittals, change orders, and pay apps on the same platform?",
+      answer:
+        "Yes. RFIs, submittals, change orders / PCOs, daily reports, AIA-style pay applications, drawings & markups, punch lists, and quality / safety inspections are all built in — with cost and schedule impact feeding straight back into EVM and EAC.",
+    },
+    {
+      question: "How does the AI variance detection work for capital projects?",
+      answer:
+        "The platform continuously monitors CPI / SPI thresholds, change-order velocity, and RFI aging across every project. When a project starts to drift, it is flagged in the portfolio dashboard before month-end close — so program managers have time to act, not just report.",
+    },
+    {
+      question: "Is there really a free plan for general contractors and owners?",
+      answer:
+        "Yes. FridayReport.AI offers a free forever plan with no per-seat license tax. You can sign in, import a P6 or MS Project schedule, and have live EVM, S-Curves, and a CPI × SPI quadrant chart in minutes — without an implementation contract.",
+    },
+  ],
   colors: {
     primary: "yellow",
     secondary: "amber",

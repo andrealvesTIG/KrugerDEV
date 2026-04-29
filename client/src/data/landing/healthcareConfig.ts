@@ -16,6 +16,33 @@ export const healthcareConfig: IndustryConfig = {
     ogTitle: "Healthcare Project Management Software | FridayReport.AI",
     ogDescription: "AI-powered PMO software for hospitals and health systems. Free forever.",
   },
+  faq: [
+    {
+      question: "Can FridayReport.AI manage Epic, Cerner, and other clinical IT rollouts?",
+      answer:
+        "Yes. Multi-site EHR rollouts, MyChart / patient-portal launches, and clinical IT modernization programs are tracked alongside their dependencies, milestones, and clinical-workflow risks — with portfolio-level dashboards your CIO and CMIO can both use.",
+    },
+    {
+      question: "Does it handle Joint Commission, CMS, and HIPAA compliance program tracking?",
+      answer:
+        "Yes. Joint Commission accreditation prep, CMS Conditions of Participation, HIPAA security assessments, and other regulatory programs run as milestone-driven projects with automated alerts before deadlines slip and a full change history regulators expect.",
+    },
+    {
+      question: "Can I track hospital capital projects in the same place as IT and compliance work?",
+      answer:
+        "Yes. Capital construction (new towers, renovations, equipment installs), IT modernization, and compliance programs all live in one PMO portfolio — so finance, facilities, and IT see the same plan of record instead of three disconnected spreadsheets.",
+    },
+    {
+      question: "How does the AI risk detection work for a health system PMO?",
+      answer:
+        "The platform continuously scans portfolio health, schedule slip, budget variance, and risk-register signals to flag projects that are starting to drift. C-suite leaders see the issue in their dashboard before the steering committee meets — not after.",
+    },
+    {
+      question: "Is there a free plan for hospital and health-system PMOs?",
+      answer:
+        "Yes. FridayReport.AI offers a free forever plan with no per-seat license tax. Health systems can stand up their portfolio in an afternoon and start tracking capital, IT, and compliance work without an implementation engagement.",
+    },
+  ],
   colors: {
     primary: "teal",
     secondary: "blue",
