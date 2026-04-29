@@ -1,5 +1,22 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "3R63gDsh_SA1rfmtxTms8"
+uri = "file://client/src/assets/construction/evm-dashboard.png"
+type = "image"
+title = "evm dashboard"
+
+[[generated]]
+id = "h2sT9LXeLE102eXnpAU33"
+uri = "file://client/src/assets/construction/scurve-forecast.png"
+type = "image"
+title = "scurve forecast"
+
+[[generated]]
+id = "So59svvDHWAOI6mMckSNg"
+uri = "file://client/src/assets/construction/rfi-field-execution.png"
+type = "image"
+title = "rfi field execution"
 
 [[outputs]]
 id = "0QWLdNRdz7Yf3f_OotVMD"

@@ -380,6 +380,37 @@ export default function IndustryLandingPage({ config }: { config: IndustryConfig
                 )}
               </motion.div>
             </AnimatedSection>
+            {config.projectControls.images && config.projectControls.images.length > 0 && (
+              <AnimatedSection
+                className={cn(
+                  "mb-12 grid gap-6",
+                  config.projectControls.images.length === 1
+                    ? "grid-cols-1 max-w-4xl mx-auto"
+                    : "grid-cols-1 lg:grid-cols-2"
+                )}
+              >
+                {config.projectControls.images.map((img, i) => (
+                  <motion.figure
+                    key={i}
+                    variants={fadeUp}
+                    className="rounded-xl overflow-hidden border border-border bg-background shadow-sm"
+                    data-testid={`img-project-controls-${i}`}
+                  >
+                    <img
+                      src={img.src}
+                      alt={img.alt}
+                      loading="lazy"
+                      className="w-full h-auto block"
+                    />
+                    {img.caption && (
+                      <figcaption className="px-4 py-3 text-xs text-muted-foreground border-t border-border bg-muted/30">
+                        {img.caption}
+                      </figcaption>
+                    )}
+                  </motion.figure>
+                ))}
+              </AnimatedSection>
+            )}
             <AnimatedSection className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {config.projectControls.capabilities.map((cap, i) => (
                 <motion.div key={i} variants={fadeUp}>
@@ -412,6 +443,37 @@ export default function IndustryLandingPage({ config }: { config: IndustryConfig
                   </p>
                 </motion.div>
               </AnimatedSection>
+              {config.fieldExecution.images && config.fieldExecution.images.length > 0 && (
+                <AnimatedSection
+                  className={cn(
+                    "mb-12 grid gap-6",
+                    config.fieldExecution.images.length === 1
+                      ? "grid-cols-1 max-w-4xl mx-auto"
+                      : "grid-cols-1 lg:grid-cols-2"
+                  )}
+                >
+                  {config.fieldExecution.images.map((img, i) => (
+                    <motion.figure
+                      key={i}
+                      variants={fadeUp}
+                      className="rounded-xl overflow-hidden border border-border bg-background shadow-sm"
+                      data-testid={`img-field-execution-${i}`}
+                    >
+                      <img
+                        src={img.src}
+                        alt={img.alt}
+                        loading="lazy"
+                        className="w-full h-auto block"
+                      />
+                      {img.caption && (
+                        <figcaption className="px-4 py-3 text-xs text-muted-foreground border-t border-border bg-muted/30">
+                          {img.caption}
+                        </figcaption>
+                      )}
+                    </motion.figure>
+                  ))}
+                </AnimatedSection>
+              )}
               <AnimatedSection className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                 {config.fieldExecution.capabilities.map((cap, i) => (
                   <motion.div key={i} variants={fadeUp}>

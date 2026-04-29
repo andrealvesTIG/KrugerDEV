@@ -37,12 +37,19 @@ export interface IndustryCapability {
   description: string;
 }
 
+export interface IndustryCapabilityImage {
+  src: string;
+  alt: string;
+  caption?: string;
+}
+
 export interface IndustryCapabilitySection {
   badge: string;
   title: string;
   subtitle: string;
   capabilities: IndustryCapability[];
   highlights?: string[];
+  images?: IndustryCapabilityImage[];
 }
 
 export interface IndustryConfig {

@@ -32,6 +32,9 @@ import type { IndustryConfig } from "@/components/landing/types";
 import heroImage from "@/assets/construction/hero-construction-site.webp";
 import networkImage from "@/assets/construction/construction-network.webp";
 import dashboardImage from "@/assets/construction/project-dashboard.webp";
+import evmDashboardImage from "@/assets/construction/evm-dashboard.webp";
+import scurveForecastImage from "@/assets/construction/scurve-forecast.webp";
+import rfiFieldExecutionImage from "@/assets/construction/rfi-field-execution.webp";
 import clientLogo3 from "@assets/client-logo-3.png";
 import clientLogo4 from "@assets/client-logo-4.png";
 
@@ -161,6 +164,20 @@ export const constructionConfig: IndustryConfig = {
     title: "Full PMI-Standard Earned Value Management",
     subtitle:
       "The same Project Controls engine that powers our Financials dashboards: BAC, PV, EV, AC, CPI, SPI, CV, SV, EAC, ETC, VAC, and TCPI — computed at project, portfolio, and organization level.",
+    images: [
+      {
+        src: evmDashboardImage,
+        alt: "Earned Value Analysis dashboard showing BAC, EV, AC and CPI KPIs with a CPI / SPI performance quadrant chart and a sortable per-project list",
+        caption:
+          "EV Analysis dashboard — KPI tiles for BAC, EV, AC, CPI and a CPI / SPI performance quadrant for portfolio-level variance.",
+      },
+      {
+        src: scurveForecastImage,
+        alt: "Cumulative S-Curve analysis chart with Planned Value, Earned Value, Actual Cost and Forecast EAC curves alongside CPI, CPI×SPI, optimistic and pessimistic EAC scenario cards",
+        caption:
+          "S-Curve & Forecasting view — cumulative PV / EV / AC / EAC curves with the four PMI-standard EAC scenarios.",
+      },
+    ],
     highlights: [
       "BAC",
       "PV",
@@ -231,6 +248,14 @@ export const constructionConfig: IndustryConfig = {
     title: "Construction Workflows the Field Actually Uses",
     subtitle:
       "Project Controls is half the picture. Capital projects also need the day-to-day construction modules that capture what happens on site — and feed cost and schedule impact straight back into EVM.",
+    images: [
+      {
+        src: rfiFieldExecutionImage,
+        alt: "RFI register showing open, pending and closed Requests for Information with priority, status, days open and cost impact columns plus summary KPIs for Total Open, Average Days Open and Overdue",
+        caption:
+          "RFI register — track Requests for Information with priority, status, aging and cost / schedule impact, with summary KPIs for the project team.",
+      },
+    ],
     capabilities: [
       {
         icon: Inbox,
