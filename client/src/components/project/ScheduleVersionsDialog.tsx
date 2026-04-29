@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -74,6 +74,17 @@ interface Props {
    * mode and closing this sheet.
    */
   onPreviewVersion?: (version: EnrichedScheduleVersion) => void;
+  /**
+   * When provided, the compare dialog is pre-loaded with these two version
+   * ids the next time the sheet opens. Used by the "what changed" banner
+   * to deep-link straight into the diff for the latest two versions.
+   */
+  initialCompare?: { fromId: number; toId: number } | null;
+  /**
+   * Called once the initialCompare has been consumed so the parent can
+   * clear it and avoid re-triggering on subsequent opens.
+   */
+  onInitialCompareConsumed?: () => void;
 }
 
 function formatDateLabel(d: Date | string | null | undefined): string {
@@ -113,11 +124,27 @@ export default function ScheduleVersionsDialog({
   projectId,
   isP6Imported,
   onPreviewVersion,
+  initialCompare,
+  onInitialCompareConsumed,
 }: Props) {
   const { toast } = useToast();
   const [compareFromId, setCompareFromId] = useState<number | null>(null);
   const [compareToId, setCompareToId] = useState<number | null>(null);
   const [restoreVersion, setRestoreVersion] = useState<EnrichedScheduleVersion | null>(null);
+
+  // When the parent passes an initialCompare and the sheet opens, auto-load
+  // the compare dialog with those versions and immediately notify the
+  // parent so it can clear the prop.
+  useEffect(() => {
+    if (open && initialCompare) {
+      setCompareFromId(initialCompare.fromId);
+      setCompareToId(initialCompare.toId);
+      onInitialCompareConsumed?.();
+    }
+    // We intentionally only react to `open` and `initialCompare` identity
+    // changes — onInitialCompareConsumed is treated as a stable callback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialCompare]);
 
   const versionsQuery = useQuery<EnrichedScheduleVersion[]>({
     queryKey: ["/api/projects", projectId, "schedule-versions"],

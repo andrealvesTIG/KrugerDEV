@@ -47,7 +47,7 @@ import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, AlertCircle, Calendar as CalendarIcon, Plus, Pencil, GanttChartSquare, Table, Milestone as MilestoneIcon, History, Maximize2, Minimize2, Columns3, RefreshCw, Download, Upload, ExternalLink, Search, Link2, User as UserIcon, ChevronDown, ChevronRight, RotateCcw, Eye } from "lucide-react";
+import { Loader2, AlertCircle, Calendar as CalendarIcon, Plus, Minus, Pencil, GanttChartSquare, GitCompare, Table, Milestone as MilestoneIcon, History, Maximize2, Minimize2, Columns3, RefreshCw, Download, Upload, ExternalLink, Search, Link2, User as UserIcon, ChevronDown, ChevronRight, RotateCcw, Eye } from "lucide-react";
 
 function ExpandableNoteText({ text, className }: { text: string; className?: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -472,6 +472,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   // Make Editable state (convert imported/planner to native tasks)
   const [isMakeEditableDialogOpen, setIsMakeEditableDialogOpen] = useState(false);
   const [isVersionsDialogOpen, setIsVersionsDialogOpen] = useState(false);
+  const [versionsInitialCompare, setVersionsInitialCompare] = useState<{ fromId: number; toId: number } | null>(null);
   const [previewVersion, setPreviewVersion] = useState<EnrichedScheduleVersion | null>(null);
   const [restoreFromPreview, setRestoreFromPreview] = useState<EnrichedScheduleVersion | null>(null);
 
@@ -766,6 +767,66 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     () => (versionsListQuery.data ?? []).find((v) => v.isCurrent) ?? null,
     [versionsListQuery.data],
   );
+  // Latest two versions (sorted DESC by versionNumber server-side) used to
+  // power the "what changed" summary banner.
+  const latestTwoVersions = useMemo(() => {
+    const list = versionsListQuery.data ?? [];
+    if (list.length < 2) return null;
+    return { latest: list[0], previous: list[1] };
+  }, [versionsListQuery.data]);
+  type LatestDiffSummary = {
+    addedCount: number;
+    removedCount: number;
+    changedCount: number;
+    addedHighlights: { name: string; wbs?: string | null }[];
+    removedHighlights: { name: string; wbs?: string | null }[];
+    changedHighlights: { name: string; wbs?: string | null }[];
+  };
+  const latestDiffQuery = useQuery<LatestDiffSummary>({
+    queryKey: [
+      "/api/projects", projectId, "schedule-versions", "diff",
+      latestTwoVersions?.previous.id, latestTwoVersions?.latest.id,
+      "latest-summary",
+    ],
+    enabled: latestTwoVersions != null,
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/projects/${projectId}/schedule-versions/diff?from=${latestTwoVersions!.previous.id}&to=${latestTwoVersions!.latest.id}`,
+        { credentials: "include" },
+      );
+      if (!res.ok) throw new Error("Failed to load schedule diff");
+      const data = await res.json();
+      const added = (data.added ?? []) as { name: string; wbs?: string | null }[];
+      const removed = (data.removed ?? []) as { name: string; wbs?: string | null }[];
+      const changed = (data.changed ?? []) as { after: { name: string; wbs?: string | null } }[];
+      return {
+        addedCount: added.length,
+        removedCount: removed.length,
+        changedCount: changed.length,
+        addedHighlights: added.slice(0, 3).map((t) => ({ name: t.name, wbs: t.wbs })),
+        removedHighlights: removed.slice(0, 3).map((t) => ({ name: t.name, wbs: t.wbs })),
+        changedHighlights: changed.slice(0, 3).map((c) => ({ name: c.after.name, wbs: c.after.wbs })),
+      };
+    },
+  });
+  // Per spec: hidden only when there's a single version. Once at least
+  // two versions exist on an imported (or detached former-import)
+  // project we surface the summary, even if the diff is empty —
+  // confirming "nothing changed" is itself useful information.
+  const showLatestChangesBanner =
+    previewVersion == null
+    && !isFullscreen
+    && latestTwoVersions != null
+    && (isImportedProject || !!sourceFileName)
+    && !!latestDiffQuery.data;
+  const openLatestCompare = () => {
+    if (!latestTwoVersions) return;
+    setVersionsInitialCompare({
+      fromId: latestTwoVersions.previous.id,
+      toId: latestTwoVersions.latest.id,
+    });
+    setIsVersionsDialogOpen(true);
+  };
   const isPreviewingVersion = previewVersion != null;
   const previewSchedule = useMemo(() => {
     if (!isPreviewingVersion || !previewSnapshotQuery.data) return null;
@@ -1319,6 +1380,72 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             )}
           </div>
         </div>
+      )}
+      {/* "What changed in the latest re-import" summary banner — visible on
+          imported (or detached former-imports) projects whenever there are
+          at least two versions and the latest re-import actually changed
+          something. Clicking it opens the existing compare dialog
+          pre-loaded with v(N-1) → v(N). */}
+      {showLatestChangesBanner && latestDiffQuery.data && latestTwoVersions && (
+        <button
+          type="button"
+          onClick={openLatestCompare}
+          className={cn(
+            "w-full text-left flex items-center justify-between gap-3 p-2.5 px-3 rounded-lg border transition-colors",
+            "bg-sky-50 dark:bg-sky-950/30 border-sky-200 dark:border-sky-800",
+            "hover:bg-sky-100/80 dark:hover:bg-sky-900/40 hover:border-sky-300 dark:hover:border-sky-700",
+          )}
+          data-testid="banner-latest-changes"
+          aria-label={`Since v${latestTwoVersions.previous.versionNumber}: ${latestDiffQuery.data.addedCount} added, ${latestDiffQuery.data.removedCount} removed, ${latestDiffQuery.data.changedCount} changed. Click to open the compare dialog.`}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <GitCompare className="h-4 w-4 text-sky-700 dark:text-sky-300 shrink-0" />
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-sky-900 dark:text-sky-100 flex items-center gap-2 flex-wrap">
+                <span>
+                  Since v{latestTwoVersions.previous.versionNumber}:
+                </span>
+                <span
+                  className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300"
+                  data-testid="banner-latest-changes-added"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {latestDiffQuery.data.addedCount} added
+                </span>
+                <span
+                  className="inline-flex items-center gap-1 text-rose-700 dark:text-rose-300"
+                  data-testid="banner-latest-changes-removed"
+                >
+                  <Minus className="h-3.5 w-3.5" />
+                  {latestDiffQuery.data.removedCount} removed
+                </span>
+                <span
+                  className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300"
+                  data-testid="banner-latest-changes-changed"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  {latestDiffQuery.data.changedCount} changed
+                </span>
+              </div>
+              {(() => {
+                const highlights = [
+                  ...latestDiffQuery.data.changedHighlights.map((h) => h.name),
+                  ...latestDiffQuery.data.addedHighlights.map((h) => h.name),
+                  ...latestDiffQuery.data.removedHighlights.map((h) => h.name),
+                ].filter((n): n is string => !!n).slice(0, 3);
+                if (highlights.length === 0) return null;
+                return (
+                  <div className="mt-0.5 text-xs text-sky-800/80 dark:text-sky-200/70 truncate">
+                    e.g. {highlights.join(" · ")}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+          <span className="text-xs font-medium text-sky-700 dark:text-sky-300 shrink-0 hidden sm:inline">
+            View diff →
+          </span>
+        </button>
       )}
       {/* Re-Import Dialog (MS Project or Primavera P6) */}
       <Dialog open={isReimportDialogOpen} onOpenChange={setIsReimportDialogOpen}>
@@ -2062,10 +2189,15 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           <Suspense fallback={null}>
             <ScheduleVersionsDialog
               open={isVersionsDialogOpen}
-              onOpenChange={setIsVersionsDialogOpen}
+              onOpenChange={(o) => {
+                setIsVersionsDialogOpen(o);
+                if (!o) setVersionsInitialCompare(null);
+              }}
               projectId={projectId}
               isP6Imported={isP6Imported}
               onPreviewVersion={(v) => setPreviewVersion(v)}
+              initialCompare={versionsInitialCompare}
+              onInitialCompareConsumed={() => setVersionsInitialCompare(null)}
             />
           </Suspense>
         )}
