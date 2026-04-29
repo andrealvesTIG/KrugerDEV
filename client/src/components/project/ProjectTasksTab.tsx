@@ -6,6 +6,7 @@ import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, parseD
 import { computeWbsValues } from "@/lib/taskWbs";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png";
+import { SiOracle } from "react-icons/si";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskNotesHistory } from "@/hooks/use-tasks";
 import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { useCustomFieldDefinitions, useTaskCustomFieldValues, useUpdateTaskCustomFieldValue } from "@/hooks/use-custom-fields";
@@ -443,7 +444,16 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   // Detect Premium plans by source OR by GUID-style plannerPlanId (Dataverse uses GUIDs)
   const isGuidPlanId = plannerPlanId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(plannerPlanId);
   const isPremiumPlan = projectSource === "planner_premium" || (projectSource === "planner" && isGuidPlanId);
-  const isMsProjectImported = projectSource === "imported" && !!sourceFileUrl;
+  const isImportedProject = projectSource === "imported" && !!sourceFileUrl;
+  const importKind: "p6" | "msproject" =
+    sourceFileName?.split(".").pop()?.toLowerCase() === "xer" ? "p6" : "msproject";
+  const isP6Imported = isImportedProject && importKind === "p6";
+  const importLabel = isP6Imported ? "Primavera P6" : "MS Project";
+  const importDefaultDownloadName = isP6Imported ? "project.xer" : "project.mpp";
+  const reimportAcceptAttr = isP6Imported ? ".xer,.xml" : ".mpp,.xml,.csv";
+  const reimportSupportsText = isP6Imported ? "Supports .xer, .xml" : "Supports .mpp, .xml, .csv";
+  // Kept for backward compatibility — gates the imported-project banner regardless of source.
+  const isMsProjectImported = isImportedProject;
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(projectUpdatedAt ? new Date(projectUpdatedAt) : null);
@@ -566,10 +576,10 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     }
   }, [projectId, isPlannerProject, toast]);
 
-  // MS Project re-import handler
+  // Re-import handler (MS Project or Primavera P6)
   const handleMsProjectReimport = async () => {
     if (!selectedReimportFile) {
-      toast({ title: "Select a File", description: "Please select an MS Project file to re-import", variant: "destructive" });
+      toast({ title: "Select a File", description: `Please select a ${importLabel} file to re-import`, variant: "destructive" });
       return;
     }
 
@@ -582,8 +592,13 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
         formData.append("organizationId", currentOrganization.id.toString());
       }
 
+      // Route to the appropriate upload endpoint based on the selected file extension.
+      // Both endpoints write into the shared mppImports tables, so the sync step below works for either.
+      const selectedExt = selectedReimportFile.name.split(".").pop()?.toLowerCase();
+      const uploadEndpoint = selectedExt === "xer" ? "/api/p6-imports/upload" : "/api/mpp-imports/upload";
+
       // First upload the file to create an import record
-      const uploadResponse = await fetch("/api/mpp-imports/upload", {
+      const uploadResponse = await fetch(uploadEndpoint, {
         method: "POST",
         body: formData,
         credentials: "include",
@@ -618,7 +633,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       setIsReimportDialogOpen(false);
       setSelectedReimportFile(null);
     } catch (err: any) {
-      toast({ title: "Re-import Failed", description: err.message || "Could not re-import MS Project file", variant: "destructive" });
+      toast({ title: "Re-import Failed", description: err.message || `Could not re-import ${importLabel} file`, variant: "destructive" });
     } finally {
       setIsReimporting(false);
       if (reimportFileInputRef.current) reimportFileInputRef.current.value = "";
@@ -1132,16 +1147,32 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           )}
         </div>
       )}
-      {/* MS Project imported project banner - hidden in fullscreen to save space */}
+      {/* Imported project banner (MS Project or Primavera P6) - hidden in fullscreen to save space */}
       {isMsProjectImported && !isFullscreen && (
-        <div className="p-3 rounded-lg border bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 space-y-3">
+        <div className={cn(
+          "p-3 rounded-lg border space-y-3",
+          isP6Imported
+            ? "bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800"
+            : "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800",
+        )}>
           <div className="flex items-start gap-3">
-            <img src={msprojectLogoPath} alt="Microsoft Project" className="h-6 w-6 shrink-0 mt-0.5" />
+            {isP6Imported ? (
+              <SiOracle className="h-6 w-6 shrink-0 mt-0.5 text-red-600" aria-label="Primavera P6" />
+            ) : (
+              <img src={msprojectLogoPath} alt="Microsoft Project" className="h-6 w-6 shrink-0 mt-0.5" />
+            )}
             <div className="min-w-0">
-              <span className="font-medium text-emerald-800 dark:text-emerald-200">Microsoft Project Task Management Options:</span>
+              <span className={cn(
+                "font-medium",
+                isP6Imported
+                  ? "text-rose-800 dark:text-rose-200"
+                  : "text-emerald-800 dark:text-emerald-200",
+              )}>
+                {importLabel} Task Management Options:
+              </span>
               <div className="mt-1 space-y-0.5"> 
-                <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">1. Re-Import – Edit tasks in MS Project (view-only in FridayReport)</p>
-                <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">2. Detach & Edit – Disconnect from MS Project and continue managing tasks directly in FridayReport</p> 
+                <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">1. Re-Import – Edit tasks in {importLabel} (view-only in FridayReport)</p>
+                <p className="text-sm text-gray-400 dark:text-gray-500 font-medium">2. Detach & Edit – Disconnect from {importLabel} and continue managing tasks directly in FridayReport</p> 
               </div>
             </div>
           </div>
@@ -1174,8 +1205,13 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             {sourceFileUrl && (
               <a 
                 href={sourceFileUrl}
-                download={sourceFileName || "project.mpp"}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-emerald-100 dark:bg-emerald-800 hover:bg-emerald-200 dark:hover:bg-emerald-700 text-emerald-700 dark:text-emerald-200 text-sm font-medium transition-colors border border-emerald-300 dark:border-emerald-700"
+                download={sourceFileName || importDefaultDownloadName}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors border",
+                  isP6Imported
+                    ? "bg-rose-100 dark:bg-rose-800 hover:bg-rose-200 dark:hover:bg-rose-700 text-rose-700 dark:text-rose-200 border-rose-300 dark:border-rose-700"
+                    : "bg-emerald-100 dark:bg-emerald-800 hover:bg-emerald-200 dark:hover:bg-emerald-700 text-emerald-700 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700",
+                )}
                 data-testid="button-download-source-file"
               >
                 <Download className="h-4 w-4" />
@@ -1185,16 +1221,20 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           </div>
         </div>
       )}
-      {/* MS Project Re-Import Dialog */}
+      {/* Re-Import Dialog (MS Project or Primavera P6) */}
       <Dialog open={isReimportDialogOpen} onOpenChange={setIsReimportDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <img src={msprojectLogoPath} alt="MS Project" className="h-5 w-5" />
-              Re-Import MS Project File
+              {isP6Imported ? (
+                <SiOracle className="h-5 w-5 text-red-600" aria-label="Primavera P6" />
+              ) : (
+                <img src={msprojectLogoPath} alt="MS Project" className="h-5 w-5" />
+              )}
+              Re-Import {importLabel} File
             </DialogTitle>
             <DialogDescription>
-              Upload an updated MS Project file to replace all task data for this project.
+              Upload an updated {importLabel} file to replace all task data for this project.
             </DialogDescription>
           </DialogHeader>
           
@@ -1202,7 +1242,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             type="file"
             ref={reimportFileInputRef}
             onChange={(e) => setSelectedReimportFile(e.target.files?.[0] || null)}
-            accept=".mpp,.xml,.csv"
+            accept={reimportAcceptAttr}
             className="hidden"
             data-testid="input-reimport-file"
           />
@@ -1212,8 +1252,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               className={cn(
                 "flex flex-col items-center justify-center gap-3 p-6 rounded-lg border-2 border-dashed cursor-pointer transition-all hover-elevate",
                 selectedReimportFile 
-                  ? "border-emerald-500 bg-emerald-500/5" 
-                  : "border-border hover:border-emerald-500/50"
+                  ? (isP6Imported ? "border-rose-500 bg-rose-500/5" : "border-emerald-500 bg-emerald-500/5")
+                  : (isP6Imported ? "border-border hover:border-rose-500/50" : "border-border hover:border-emerald-500/50")
               )}
               onClick={() => reimportFileInputRef.current?.click()}
               data-testid="dropzone-reimport"
@@ -1221,7 +1261,11 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               {selectedReimportFile ? (
                 <>
                   <div className="flex items-center gap-2">
-                    <img src={msprojectLogoPath} alt="MS Project" className="h-5 w-5" />
+                    {isP6Imported ? (
+                      <SiOracle className="h-5 w-5 text-red-600" aria-label="Primavera P6" />
+                    ) : (
+                      <img src={msprojectLogoPath} alt="MS Project" className="h-5 w-5" />
+                    )}
                     <span className="font-medium">{selectedReimportFile.name}</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -1244,7 +1288,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
                 <>
                   <Upload className="h-8 w-8 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">Click to select a file</p>
-                  <p className="text-xs text-muted-foreground">Supports .mpp, .xml, .csv</p>
+                  <p className="text-xs text-muted-foreground">{reimportSupportsText}</p>
                 </>
               )}
             </div>
@@ -1322,18 +1366,22 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      {/* MS Project Read-Only Task Dialog */}
+      {/* Imported Read-Only Task Dialog (MS Project or Primavera P6) */}
       <Dialog open={showMsProjectEditDialog} onOpenChange={setShowMsProjectEditDialog}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <img src={msprojectLogoPath} alt="MS Project" className="h-5 w-5" />
+              {isP6Imported ? (
+                <SiOracle className="h-5 w-5 text-red-600" aria-label="Primavera P6" />
+              ) : (
+                <img src={msprojectLogoPath} alt="MS Project" className="h-5 w-5" />
+              )}
               Read-Only Task
             </DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <p className="text-muted-foreground mb-4">
-              This task was imported from MS Project and is read-only. To update task data, use the <strong>Re-Import</strong> button to upload an updated MS Project file.
+              This task was imported from {importLabel} and is read-only. To update task data, use the <strong>Re-Import</strong> button to upload an updated {importLabel} file.
             </p>
             {editingTask && (
               <div className="p-3 bg-muted/50 rounded-md space-y-2">
