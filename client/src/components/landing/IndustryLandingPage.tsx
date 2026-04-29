@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { HoneypotField } from "@/components/HoneypotField";
 import { PublicFeatureComparison } from "@/components/PublicFeatureComparison";
 import { IndustrySolutionsMenu, IndustrySolutionsMobileLinks } from "@/components/IndustrySolutionsMenu";
+import { LandingFooter } from "@/components/layout/LandingFooter";
 import { motion, useInView } from "framer-motion";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
@@ -768,30 +769,7 @@ export default function IndustryLandingPage({ config }: { config: IndustryConfig
         </section>
       </main>
 
-      <footer className="border-t border-border py-6">
-        <div className="flex flex-wrap justify-center items-center gap-4 mb-3">
-          <a href="/terms" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-terms">Terms of Service</a>
-          <span className="text-muted-foreground">|</span>
-          <a href="/privacy" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-privacy">Privacy Statement</a>
-          <span className="text-muted-foreground">|</span>
-          <a href="/guide" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-guide">User Guide</a>
-          <span className="text-muted-foreground">|</span>
-          <a href="/media" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-media">Media</a>
-        </div>
-        <p className="text-sm text-muted-foreground text-center" data-testid="text-footer">
-          &copy; {new Date().getFullYear()} Built by{" "}
-          <a
-            href="https://trusteditgroup.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary font-medium hover:underline"
-            data-testid="link-trusted-it-group"
-          >
-            Trusted IT Group
-          </a>
-          . All rights reserved.
-        </p>
-      </footer>
+      <LandingFooter />
     </div>
   );
 }
