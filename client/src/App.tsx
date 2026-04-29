@@ -359,6 +359,9 @@ function App() {
                 <Route path="/construction">
                   <Suspense fallback={<PageLoader />}><ConstructionLandingPage /></Suspense>
                 </Route>
+                <Route path="/capital-projects">
+                  <Suspense fallback={<PageLoader />}><ConstructionLandingPage /></Suspense>
+                </Route>
                 <Route path="/energy">
                   <Suspense fallback={<PageLoader />}><EnergyLandingPage /></Suspense>
                 </Route>

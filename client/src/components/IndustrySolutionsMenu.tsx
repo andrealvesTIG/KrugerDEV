@@ -38,9 +38,9 @@ const industries = [
     bgColor: "bg-cyan-50 dark:bg-cyan-950/40",
   },
   {
-    label: "Construction & Engineering",
-    description: "Multi-site capital program management with contractor and permit tracking.",
-    href: "/construction",
+    label: "Capital Projects",
+    description: "Project Controls, EVM, P6 / MS Project schedules, RFIs, submittals, and change orders.",
+    href: "/capital-projects",
     icon: HardHat,
     color: "text-amber-600 dark:text-amber-400",
     bgColor: "bg-amber-50 dark:bg-amber-950/40",

@@ -355,6 +355,82 @@ export default function IndustryLandingPage({ config }: { config: IndustryConfig
           </div>
         </section>
 
+        {config.projectControls && (
+          <section className="px-6 md:px-12 lg:px-20 py-20 lg:py-28 max-w-[1400px] mx-auto">
+            <AnimatedSection className="text-center mb-12">
+              <motion.div variants={fadeUp}>
+                <Badge variant="outline" className="mb-4 text-sm">{config.projectControls.badge}</Badge>
+                <h2 className="text-3xl md:text-4xl font-bold text-foreground" style={{ fontFamily: "var(--font-display)" }}>
+                  {config.projectControls.title}
+                </h2>
+                <p className="mt-4 text-lg text-muted-foreground max-w-3xl mx-auto">
+                  {config.projectControls.subtitle}
+                </p>
+                {config.projectControls.highlights && config.projectControls.highlights.length > 0 && (
+                  <div className="mt-6 flex flex-wrap justify-center gap-2">
+                    {config.projectControls.highlights.map((h) => (
+                      <span
+                        key={h}
+                        className={cn("px-3 py-1 rounded-full text-xs font-mono font-semibold border", config.colors.badgeClasses)}
+                      >
+                        {h}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            </AnimatedSection>
+            <AnimatedSection className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {config.projectControls.capabilities.map((cap, i) => (
+                <motion.div key={i} variants={fadeUp}>
+                  <Card className="h-full hover:shadow-md transition-shadow duration-300 border-border">
+                    <CardContent className="p-6">
+                      <div className={cn("w-11 h-11 rounded-lg flex items-center justify-center mb-4", config.colors.featureIconBg)}>
+                        <cap.icon className={cn("h-5 w-5", config.colors.featureIconText)} />
+                      </div>
+                      <h3 className="text-base font-bold text-foreground mb-2">{cap.title}</h3>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{cap.description}</p>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))}
+            </AnimatedSection>
+          </section>
+        )}
+
+        {config.fieldExecution && (
+          <section className="bg-muted/30 border-y border-border">
+            <div className="px-6 md:px-12 lg:px-20 py-20 lg:py-28 max-w-[1400px] mx-auto">
+              <AnimatedSection className="text-center mb-12">
+                <motion.div variants={fadeUp}>
+                  <Badge variant="outline" className="mb-4 text-sm">{config.fieldExecution.badge}</Badge>
+                  <h2 className="text-3xl md:text-4xl font-bold text-foreground" style={{ fontFamily: "var(--font-display)" }}>
+                    {config.fieldExecution.title}
+                  </h2>
+                  <p className="mt-4 text-lg text-muted-foreground max-w-3xl mx-auto">
+                    {config.fieldExecution.subtitle}
+                  </p>
+                </motion.div>
+              </AnimatedSection>
+              <AnimatedSection className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                {config.fieldExecution.capabilities.map((cap, i) => (
+                  <motion.div key={i} variants={fadeUp}>
+                    <Card className="h-full hover:shadow-md transition-shadow duration-300 border-border bg-background">
+                      <CardContent className="p-6">
+                        <div className={cn("w-11 h-11 rounded-lg flex items-center justify-center mb-4", config.colors.featureIconBg)}>
+                          <cap.icon className={cn("h-5 w-5", config.colors.featureIconText)} />
+                        </div>
+                        <h3 className="text-base font-bold text-foreground mb-2">{cap.title}</h3>
+                        <p className="text-sm text-muted-foreground leading-relaxed">{cap.description}</p>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </AnimatedSection>
+            </div>
+          </section>
+        )}
+
         <section className="px-6 md:px-12 lg:px-20 py-20 lg:py-28 max-w-[1400px] mx-auto">
           <AnimatedSection className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
             {config.stats.map((stat, i) => (

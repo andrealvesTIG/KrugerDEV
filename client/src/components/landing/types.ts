@@ -31,6 +31,20 @@ export interface IndustryCtaItem {
   text: string;
 }
 
+export interface IndustryCapability {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}
+
+export interface IndustryCapabilitySection {
+  badge: string;
+  title: string;
+  subtitle: string;
+  capabilities: IndustryCapability[];
+  highlights?: string[];
+}
+
 export interface IndustryConfig {
   slug: string;
   routePath: string;
@@ -99,6 +113,9 @@ export interface IndustryConfig {
   ctaTitle: string;
   ctaSubtitle: string;
   ctaItems: IndustryCtaItem[];
+
+  projectControls?: IndustryCapabilitySection;
+  fieldExecution?: IndustryCapabilitySection;
 
   signupSubtitle: string;
   emailPlaceholder: string;
