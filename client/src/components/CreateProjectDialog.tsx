@@ -120,9 +120,23 @@ interface CreateProjectDialogProps {
   organizationId?: number;
   portfolios?: any[];
   onProjectCreated?: (projectId: number) => void;
+  initialWorkflowId?: number | null;
+  initialSource?: ProjectSource;
+  initialP6Files?: File[];
+  initialMsProjectFile?: File | null;
 }
 
-export function CreateProjectDialog({ open, onOpenChange, organizationId, portfolios: portfoliosProp, onProjectCreated }: CreateProjectDialogProps) {
+export function CreateProjectDialog({
+  open,
+  onOpenChange,
+  organizationId,
+  portfolios: portfoliosProp,
+  onProjectCreated,
+  initialWorkflowId,
+  initialSource,
+  initialP6Files,
+  initialMsProjectFile,
+}: CreateProjectDialogProps) {
   const { toast } = useToast();
   const createMutation = useCreateProject();
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
@@ -339,6 +353,33 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
       form.setValue("organizationId", organizationId);
     }
   }, [organizationId, form]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (initialSource) {
+      setProjectSource(initialSource);
+    }
+    // Seed the file slot for the requested source and clear the opposite slot
+    // so a previous in-session selection (e.g. an MS Project file from a prior
+    // drop) cannot leak into a new Primavera P6 import.
+    if (initialSource === "primavera") {
+      if (initialP6Files && initialP6Files.length > 0) {
+        setSelectedP6Files(
+          initialP6Files.map((file) => ({
+            id: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
+            file,
+            status: "pending" as P6FileStatus,
+          })),
+        );
+      }
+      setSelectedMsProjectFile(null);
+    } else if (initialSource === "msproject") {
+      if (initialMsProjectFile) {
+        setSelectedMsProjectFile(initialMsProjectFile);
+      }
+      setSelectedP6Files([]);
+    }
+  }, [open, initialSource, initialP6Files, initialMsProjectFile]);
 
   const onSubmit = (data: InsertProject) => {
     const cleanedData = {

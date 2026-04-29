@@ -1110,6 +1110,11 @@ export default function Projects() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [pendingWorkflowId, setPendingWorkflowId] = useState<number | null>(null);
+  const [pendingImportSource, setPendingImportSource] = useState<"primavera" | "msproject" | undefined>(undefined);
+  const [pendingP6Files, setPendingP6Files] = useState<File[] | undefined>(undefined);
+  const [pendingMsProjectFile, setPendingMsProjectFile] = useState<File | null | undefined>(undefined);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
   const openCreateProject = (workflowId: number | null) => {
     const wf = workflowId != null
       ? (outerProjectWorkflows || []).find(w => w.id === workflowId)
@@ -1121,6 +1126,7 @@ export default function Projects() {
     setPendingWorkflowId(workflowId);
     setIsDialogOpen(true);
   };
+
   const [search, setSearch] = useState("");
   
   // Check if user is admin for current organization
@@ -1144,6 +1150,144 @@ export default function Projects() {
   const updateCfValue = useUpdateProjectCustomFieldValue();
   const createProject = useCreateProject();
   const { toast } = useToast();
+
+  // ---- Drag-and-drop project file detection ------------------------------
+  // Sniff the first ~2KB of an XML file's text to decide whether it's a P6
+  // PMXML export or an MS Project XML export. Defaults to P6 when ambiguous,
+  // matching the existing CreateProjectDialog behavior for .xml files.
+  const sniffXmlSchedule = useCallback(async (file: File): Promise<"primavera" | "msproject"> => {
+    try {
+      const slice = file.slice(0, 4096);
+      const text = await slice.text();
+      const lower = text.toLowerCase();
+      if (lower.includes("schemas.microsoft.com/project")) return "msproject";
+      if (lower.includes("apibusinessobjects") || lower.includes("primavera")) return "primavera";
+      return "primavera";
+    } catch {
+      return "primavera";
+    }
+  }, []);
+
+  const handleScheduleFilesDropped = useCallback(async (files: File[]) => {
+    if (files.length === 0) return;
+
+    type Kind = "primavera" | "msproject";
+    const classified: { file: File; kind: Kind | null }[] = [];
+
+    for (const file of files) {
+      const ext = file.name.split(".").pop()?.toLowerCase() || "";
+      let kind: Kind | null = null;
+      if (ext === "xer") kind = "primavera";
+      else if (ext === "mpp") kind = "msproject";
+      else if (ext === "xml") kind = await sniffXmlSchedule(file);
+      classified.push({ file, kind });
+    }
+
+    const rejected = classified.filter(c => !c.kind).map(c => c.file.name);
+    const accepted = classified.filter((c): c is { file: File; kind: Kind } => c.kind !== null);
+
+    if (accepted.length === 0) {
+      toast({
+        title: "Unsupported file type",
+        description: "Drop .mpp, .xer, or P6 .xml files to import a project schedule.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const mppCount = accepted.filter(c => c.kind === "msproject").length;
+    const xerCount = accepted.filter(c => c.kind === "primavera").length;
+
+    // Mixed types are not supported in a single import flow — pick the
+    // dominant kind and warn the user that the others were skipped.
+    let chosen: Kind;
+    let usedFiles: File[];
+    let droppedForMix: string[] = [];
+
+    if (mppCount > 0 && xerCount > 0) {
+      chosen = mppCount >= xerCount ? "msproject" : "primavera";
+      usedFiles = accepted.filter(c => c.kind === chosen).map(c => c.file);
+      droppedForMix = accepted.filter(c => c.kind !== chosen).map(c => c.file.name);
+    } else {
+      chosen = mppCount > 0 ? "msproject" : "primavera";
+      usedFiles = accepted.map(c => c.file);
+    }
+
+    if (chosen === "msproject" && usedFiles.length > 1) {
+      // MS Project import handles one file at a time today.
+      droppedForMix.push(...usedFiles.slice(1).map(f => f.name));
+      usedFiles = usedFiles.slice(0, 1);
+    }
+
+    const skipped = [...rejected, ...droppedForMix];
+    if (skipped.length > 0) {
+      toast({
+        title: "Some files were skipped",
+        description: `Importing ${chosen === "msproject" ? "MS Project" : "Primavera P6"} — skipped: ${skipped.join(", ")}`,
+      });
+    } else {
+      toast({
+        title: chosen === "msproject" ? "MS Project file detected" : "Primavera P6 file detected",
+        description: usedFiles.length === 1
+          ? `Preparing to import ${usedFiles[0].name}.`
+          : `Preparing to import ${usedFiles.length} files.`,
+      });
+    }
+
+    setPendingWorkflowId(null);
+    setPendingImportSource(chosen);
+    if (chosen === "primavera") {
+      setPendingP6Files(usedFiles);
+      setPendingMsProjectFile(null);
+    } else {
+      setPendingMsProjectFile(usedFiles[0]);
+      setPendingP6Files([]);
+    }
+    setIsDialogOpen(true);
+  }, [sniffXmlSchedule, toast]);
+
+  // Only trigger our overlay when the user drags actual files in from outside
+  // the browser — internal drag operations (kanban cards, resizers, etc.)
+  // never put "Files" in dataTransfer.types.
+  const dragHasFiles = (e: React.DragEvent) => {
+    const types = e.dataTransfer?.types;
+    if (!types) return false;
+    for (let i = 0; i < types.length; i++) {
+      if (types[i] === "Files") return true;
+    }
+    return false;
+  };
+
+  const handlePageDragEnter = (e: React.DragEvent) => {
+    if (!dragHasFiles(e)) return;
+    e.preventDefault();
+    dragCounterRef.current += 1;
+    setIsDragOver(true);
+  };
+
+  const handlePageDragOver = (e: React.DragEvent) => {
+    if (!dragHasFiles(e)) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+  };
+
+  const handlePageDragLeave = (e: React.DragEvent) => {
+    if (!dragHasFiles(e)) return;
+    e.preventDefault();
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) setIsDragOver(false);
+  };
+
+  const handlePageDrop = (e: React.DragEvent) => {
+    if (!dragHasFiles(e)) return;
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setIsDragOver(false);
+    const files = Array.from(e.dataTransfer?.files ?? []);
+    if (files.length > 0) handleScheduleFilesDropped(files);
+  };
+  // ---- end drag-and-drop -------------------------------------------------
+
   const [deleteProjectId, setDeleteProjectId] = useState<number | null>(null);
   const [riskAssessProjectId, setRiskAssessProjectId] = useState<number | null>(null);
   const [isImporting, setIsImporting] = useState(false);
@@ -1614,6 +1758,28 @@ export default function Projects() {
   };
 
   return (
+    <div
+      className="relative"
+      onDragEnter={handlePageDragEnter}
+      onDragOver={handlePageDragOver}
+      onDragLeave={handlePageDragLeave}
+      onDrop={handlePageDrop}
+      data-testid="projects-page-dropzone"
+    >
+      {isDragOver && (
+        <div
+          className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-primary/10 backdrop-blur-sm"
+          data-testid="projects-drag-overlay"
+        >
+          <div className="pointer-events-none mx-4 max-w-md rounded-xl border-2 border-dashed border-primary bg-card/95 p-8 text-center shadow-2xl">
+            <Upload className="mx-auto mb-3 h-10 w-10 text-primary" />
+            <h2 className="text-lg font-semibold text-foreground">Drop your project schedule</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              We'll detect <span className="font-medium">.mpp</span>, <span className="font-medium">.xer</span>, and P6 <span className="font-medium">.xml</span> files and start the matching import for you.
+            </p>
+          </div>
+        </div>
+      )}
     <PageTransition className="space-y-8">
       <FadeIn className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -1739,12 +1905,20 @@ export default function Projects() {
             open={isDialogOpen}
             onOpenChange={(o) => {
               setIsDialogOpen(o);
-              if (!o) setPendingWorkflowId(null);
+              if (!o) {
+                setPendingWorkflowId(null);
+                setPendingImportSource(undefined);
+                setPendingP6Files(undefined);
+                setPendingMsProjectFile(undefined);
+              }
             }}
             portfolios={portfolios || []}
             organizationId={currentOrganization?.id}
             onProjectCreated={(projectId) => navigate(`/projects/${projectId}`)}
             initialWorkflowId={pendingWorkflowId}
+            initialSource={pendingImportSource}
+            initialP6Files={pendingP6Files}
+            initialMsProjectFile={pendingMsProjectFile}
           />
         </div>
       </FadeIn>
@@ -2144,6 +2318,7 @@ export default function Projects() {
         </DialogContent>
       </Dialog>
     </PageTransition>
+    </div>
   );
 }
 
