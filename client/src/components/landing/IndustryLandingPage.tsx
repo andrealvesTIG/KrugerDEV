@@ -7,6 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
@@ -604,38 +610,46 @@ export default function IndustryLandingPage({ config }: { config: IndustryConfig
                   </h2>
                 </motion.div>
               </AnimatedSection>
-              <AnimatedSection className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {config.faq.map((item, i) => (
-                  <motion.div key={i} variants={fadeUp}>
-                    <Card
-                      className="h-full border-border bg-background"
-                      data-testid={`faq-item-${i}`}
-                    >
-                      <CardContent className="p-6">
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={cn(
-                              "w-9 h-9 rounded-lg flex items-center justify-center shrink-0",
-                              config.colors.featureIconBg,
-                            )}
-                          >
-                            <HelpCircle
-                              className={cn("h-5 w-5", config.colors.featureIconText)}
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="text-base font-bold text-foreground mb-2">
+              <AnimatedSection className="max-w-3xl mx-auto">
+                <motion.div variants={fadeUp}>
+                  <Accordion
+                    type="single"
+                    collapsible
+                    className="flex flex-col gap-3"
+                  >
+                    {config.faq.map((item, i) => (
+                      <AccordionItem
+                        key={i}
+                        value={`faq-${i}`}
+                        className="border border-border rounded-xl bg-background overflow-hidden"
+                        data-testid={`faq-item-${i}`}
+                      >
+                        <AccordionTrigger className="px-5 py-4 hover:no-underline text-left gap-4">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div
+                              className={cn(
+                                "w-9 h-9 rounded-lg flex items-center justify-center shrink-0",
+                                config.colors.featureIconBg,
+                              )}
+                            >
+                              <HelpCircle
+                                className={cn("h-5 w-5", config.colors.featureIconText)}
+                              />
+                            </div>
+                            <h3 className="text-base font-bold text-foreground">
                               {item.question}
                             </h3>
-                            <p className="text-sm text-muted-foreground leading-relaxed">
-                              {item.answer}
-                            </p>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))}
+                        </AccordionTrigger>
+                        <AccordionContent className="px-5 pb-5 pt-0">
+                          <p className="text-sm text-muted-foreground leading-relaxed pl-12">
+                            {item.answer}
+                          </p>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                </motion.div>
               </AnimatedSection>
             </div>
           </section>
