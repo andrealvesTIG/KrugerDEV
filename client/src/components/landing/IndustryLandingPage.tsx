@@ -283,24 +283,6 @@ export default function IndustryLandingPage({ config }: { config: IndustryConfig
           </div>
         </section>
 
-        <section className="border-y border-border bg-muted/30">
-          <div className="px-6 md:px-12 lg:px-20 py-10 max-w-[1400px] mx-auto">
-            <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase mb-6 text-center">
-              {config.trustedByText}
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-12 md:gap-20">
-              <img src={config.images.clientLogo3} alt="Client" className="h-8 md:h-10 w-auto object-contain grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-300 dark:invert" />
-              <img src={config.images.clientLogo4} alt="Client" className="h-8 md:h-10 w-auto object-contain grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-300 dark:invert" />
-              {config.trustedByOrgs.map((org, i) => (
-                <div key={i} className="flex items-center gap-2 opacity-60">
-                  <org.icon className="h-6 w-6 text-muted-foreground" />
-                  <span className="text-sm font-medium text-muted-foreground">{org.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
         <section className="px-6 md:px-12 lg:px-20 py-20 lg:py-28 max-w-[1400px] mx-auto">
           <AnimatedSection className="text-center mb-16">
             <motion.div variants={fadeUp}>
