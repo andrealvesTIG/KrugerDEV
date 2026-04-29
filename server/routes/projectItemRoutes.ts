@@ -5,7 +5,7 @@ import { db } from "../db";
 import { z } from "zod";
 import Papa from "papaparse";
 import { and, desc, asc, eq } from "drizzle-orm";
-import { issues, tasks, projects, portfolios, type Task, RISK_TRACKED_FIELDS, TASK_STATUSES, TASK_PRIORITIES } from "@shared/schema";
+import { issues, tasks, projects, portfolios, type Task, type InsertRisk, type UpdateRiskRequest, RISK_TRACKED_FIELDS, TASK_STATUSES, TASK_PRIORITIES } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -90,7 +90,7 @@ export function registerProjectItemRoutes(app: Express) {
           });
         }
       }
-      const risk = await storage.createRisk(input);
+      const risk = await storage.createRisk(input as InsertRisk);
       
       // Log change
       const user = userId ? await storage.getUser(userId) : null;
@@ -139,7 +139,7 @@ export function registerProjectItemRoutes(app: Express) {
       }
       
       const input = api.risks.update.input.parse(req.body);
-      const updated = await storage.updateRisk(riskId, input);
+      const updated = await storage.updateRisk(riskId, input as UpdateRiskRequest);
       
       // Track changes - field names MUST match Drizzle camelCase columns on issues
       const trackedFields = RISK_TRACKED_FIELDS;
@@ -970,13 +970,13 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       for (const assignment of assignments) {
         const allocationPct = assignment.allocationPercentage ?? 100;
         const weeklyCapacityStr = assignment.resource?.weeklyCapacity;
-        const weeklyCapacity = weeklyCapacityStr ? parseFloat(weeklyCapacityStr) : 40;
+        const weeklyCapacity = weeklyCapacityStr != null ? Number(weeklyCapacityStr) : 40;
         const dailyHours = weeklyCapacity / 5;
         const hoursForResource = (allocationPct / 100) * dailyHours * duration;
         totalEstimatedHours += hoursForResource;
       }
       const roundedHours = Math.round(totalEstimatedHours * 100) / 100;
-      await storage.updateTask(taskId, { estimatedHours: String(roundedHours) });
+      await storage.updateTask(taskId, { estimatedHours: roundedHours });
     } else {
       await storage.updateTask(taskId, { estimatedHours: null });
     }
@@ -1085,18 +1085,22 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
     }
     
+    const taskTypeUpdates: Array<{ id: number; taskType: string }> = [];
     for (const task of allTasks) {
       if (task.isSummary && !childrenByParent.has(task.id)) {
         batchUpdates.push({
           id: task.id,
           isSummary: false,
-          taskType: task.isMilestone ? 'Milestone' : 'Work',
         });
+        taskTypeUpdates.push({ id: task.id, taskType: task.isMilestone ? 'Milestone' : 'Work' });
       }
     }
 
     if (batchUpdates.length > 0) {
       await storage.batchUpdateTaskFields(batchUpdates);
+    }
+    for (const { id, taskType } of taskTypeUpdates) {
+      await storage.updateTask(id, { taskType });
     }
     
     const durationFixes: import('../storage/taskStorage').BatchTaskFieldUpdate[] = [];
@@ -1143,7 +1147,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     return taskList.map(t => {
       const tsHours = hoursMap.get(t.id);
       if (tsHours !== undefined && tsHours > 0) {
-        return { ...t, actualHours: String(tsHours) };
+        return { ...t, actualHours: tsHours };
       }
       return t;
     });
@@ -1838,7 +1842,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         } else if (input.status === "In Progress" && previousTask.status === "Completed") {
           input.progress = 50;
         }
-      } else if (input.progress !== undefined && input.progress !== (previousTask.progress ?? 0)) {
+      } else if (input.progress != null && input.progress !== (previousTask.progress ?? 0)) {
         if (incomingStatus === "Not Started" && input.progress > 0) {
           input.status = "In Progress";
         }
@@ -3105,7 +3109,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         const parentTaskId = csvIndexToTaskId.get(parentIndex);
         if (!parentTaskId || parentTaskId === taskId) continue;
         try {
-          await storage.updateTask(taskId, { parentTaskId });
+          await storage.updateTask(taskId, { parentId: parentTaskId });
           parentLinksSet++;
         } catch (parentErr: any) {
           console.error('Error setting parent task link:', parentErr);

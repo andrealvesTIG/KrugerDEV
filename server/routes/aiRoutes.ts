@@ -153,7 +153,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
         status: aiResult.project.status || "Initiation",
         priority: aiResult.project.priority || "Medium",
         health: aiResult.project.health || "Green",
-        budget: String(aiResult.project.budget || 0),
+        budget: Number(aiResult.project.budget || 0),
         startDate: today.toISOString().split('T')[0],
         source: "ai_generated",
       };
@@ -480,7 +480,7 @@ Return ONLY valid JSON.`;
             status: proj.status || "Initiation",
             priority: proj.priority || "Medium",
             health: proj.health || "Green",
-            budget: String(proj.budget || 0),
+            budget: Number(proj.budget || 0),
             startDate: today.toISOString().split('T')[0],
             source: "ai_generated",
           };
@@ -505,7 +505,7 @@ Return ONLY valid JSON.`;
           status: aiResult.items.project.status || "Initiation",
           priority: aiResult.items.project.priority || "Medium",
           health: aiResult.items.project.health || "Green",
-          budget: String(aiResult.items.project.budget || 0),
+          budget: Number(aiResult.items.project.budget || 0),
           startDate: today.toISOString().split('T')[0],
           source: "ai_generated",
         };
@@ -1056,7 +1056,7 @@ Return ONLY valid JSON.`;
             status: proj.status || "Initiation",
             priority: proj.priority || "Medium",
             health: proj.health || "Green",
-            budget: String(proj.budget || 0),
+            budget: Number(proj.budget || 0),
             startDate: today.toISOString().split('T')[0],
             source: "ai_generated",
           });
@@ -1077,7 +1077,7 @@ Return ONLY valid JSON.`;
           status: proj.status || "Initiation",
           priority: proj.priority || "Medium",
           health: proj.health || "Green",
-          budget: String(proj.budget || 0),
+          budget: Number(proj.budget || 0),
           startDate: today.toISOString().split('T')[0],
           source: "ai_generated",
         });

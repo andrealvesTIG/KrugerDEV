@@ -194,7 +194,7 @@ export function registerRfiRoutes(app: Express) {
           fromUserId: userId,
           fromUserName: creatorName,
           actionUrl: `/projects/${projectId}?tab=rfis`,
-          metadata: { rfiId: rfi.id, rfiNumber: rfi.rfiNumber },
+          metadata: JSON.stringify({ rfiId: rfi.id, rfiNumber: rfi.rfiNumber }),
         });
       }
 
@@ -357,7 +357,7 @@ export function registerRfiRoutes(app: Express) {
           fromUserId: userId,
           fromUserName: userName,
           actionUrl: `/projects/${projectId}?tab=rfis`,
-          metadata: { rfiId, rfiNumber: rfi.rfiNumber },
+          metadata: JSON.stringify({ rfiId, rfiNumber: rfi.rfiNumber }),
         });
       }
 

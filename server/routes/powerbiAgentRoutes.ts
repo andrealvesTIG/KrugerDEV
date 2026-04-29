@@ -403,7 +403,7 @@ export function registerPowerBIAgentRoutes(app: Express) {
       const transcript = messages.map(m => ({
         role: m.role as "user" | "assistant",
         content: m.content,
-        attachments: m.attachments ?? null,
+        attachments: m.attachments ?? undefined,
       }));
 
       let assistantBuffer = "";

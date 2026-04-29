@@ -29,13 +29,9 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null;
 const FLUSH_INTERVAL_MS = 5000;
 const MAX_BATCH = 30;
 
-interface CryptoWithRandomUUID extends Crypto {
-  randomUUID(): string;
-}
-
 function uuid(): string {
-  if (typeof crypto !== 'undefined' && typeof (crypto as CryptoWithRandomUUID).randomUUID === 'function') {
-    return (crypto as CryptoWithRandomUUID).randomUUID();
+  if (typeof crypto !== 'undefined' && typeof (crypto as Crypto & { randomUUID?: () => string }).randomUUID === 'function') {
+    return (crypto as Crypto & { randomUUID: () => string }).randomUUID();
   }
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
     const r = (Math.random() * 16) | 0;

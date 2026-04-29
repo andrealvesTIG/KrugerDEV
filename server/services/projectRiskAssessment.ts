@@ -116,7 +116,7 @@ export async function generateProjectRiskAssessment(
       priority: t.priority,
       startDate: t.startDate,
       endDate: t.endDate,
-      completionPercentage: t.completionPercentage,
+      completionPercentage: t.progress,
       assignee: t.assignee,
     })),
     risks: risks.map(r => ({

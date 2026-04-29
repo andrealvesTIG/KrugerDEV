@@ -219,7 +219,7 @@ export function registerSubmittalRoutes(app: Express) {
           fromUserId: userId,
           fromUserName: userName,
           actionUrl: `/projects/${projectId}?tab=submittals`,
-          metadata: { submittalId: result.id, submittalNumber: result.submittalNumber },
+          metadata: JSON.stringify({ submittalId: result.id, submittalNumber: result.submittalNumber }),
         });
       }
 
@@ -314,7 +314,7 @@ export function registerSubmittalRoutes(app: Express) {
             fromUserId: userId,
             fromUserName: userName,
             actionUrl: `/projects/${projectId}?tab=submittals`,
-            metadata: { submittalId, submittalNumber: existing.submittalNumber, status: parsed.status },
+            metadata: JSON.stringify({ submittalId, submittalNumber: existing.submittalNumber, status: parsed.status }),
           });
         }
       }
@@ -487,7 +487,7 @@ export function registerSubmittalRoutes(app: Express) {
           fromUserId: userId,
           fromUserName: userName,
           actionUrl: `/projects/${projectId}?tab=submittals`,
-          metadata: { submittalId, submittalNumber: submittal.submittalNumber, status: parsed.status },
+          metadata: JSON.stringify({ submittalId, submittalNumber: submittal.submittalNumber, status: parsed.status }),
         });
       }
 

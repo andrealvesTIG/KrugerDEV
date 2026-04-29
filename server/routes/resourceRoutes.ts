@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and, sql, gte, lte } from "drizzle-orm";
-import { taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, notifications, resourceAvailability } from "@shared/schema";
+import { taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, notifications, resourceAvailability, magicLinkTokens } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,

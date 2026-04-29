@@ -73,7 +73,7 @@ export default function ConstructionInvoices() {
   const openEdit = (inv: ConstructionInvoice) => {
     setEditingInvoice(inv); setFormProjectId(inv.projectId); setFormTitle(inv.title);
     setFormDescription(inv.description || ""); setFormStatus(inv.status);
-    setFormCurrentBilled(inv.currentBilled || ""); setFormRetainage(inv.retainage || "");
+    setFormCurrentBilled(inv.currentBilled != null ? String(inv.currentBilled) : ""); setFormRetainage(inv.retainage != null ? String(inv.retainage) : "");
     setFormPeriodFrom(inv.periodFrom || ""); setFormPeriodTo(inv.periodTo || "");
     setFormVendorName(inv.vendorName || ""); setFormNotes(inv.notes || "");
     setIsDialogOpen(true);

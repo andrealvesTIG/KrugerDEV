@@ -2184,8 +2184,8 @@ const ProjectGanttTaskRowTimeline = memo(function ProjectGanttTaskRowTimeline({
   precomputedDates?: { start: Date | null; end: Date | null; baselineStart: Date | null; baselineEnd: Date | null };
 }) {
   const hasValidDates = task.startDate && task.endDate;
-  const start = precomputedDates?.start ?? (hasValidDates ? parseISO(task.startDate) : null);
-  const end = precomputedDates?.end ?? (hasValidDates ? parseISO(task.endDate) : null);
+  const start = precomputedDates?.start ?? (hasValidDates ? parseISO(task.startDate!) : null);
+  const end = precomputedDates?.end ?? (hasValidDates ? parseISO(task.endDate!) : null);
   
   const hasBaseline = task.baselineStartDate && task.baselineEndDate;
   const baselineStart = precomputedDates?.baselineStart ?? (hasBaseline ? parseISO(task.baselineStartDate!) : null);
@@ -3854,25 +3854,25 @@ function ProjectGanttView({
               parentId: baseParentId,
               status: (rowData.status as string) || 'Not Started',
               progress: (rowData.progress as number) ?? 0,
-              ...(rowData.priority && { priority: rowData.priority as string }),
-              ...(rowData.description && { description: rowData.description as string }),
-              ...(rowData.taskNumber && { taskNumber: rowData.taskNumber as string }),
-              ...(rowData.notes && { notes: rowData.notes as string }),
-              ...(rowData.taskType && { taskType: rowData.taskType as string }),
-              ...(rowData.isMilestone !== undefined && { isMilestone: rowData.isMilestone as boolean }),
-              ...(rowData.category && { category: rowData.category as string }),
-              ...(rowData.phase && { phase: rowData.phase as string }),
-              ...(rowData.baselineStartDate && { baselineStartDate: rowData.baselineStartDate as string }),
-              ...(rowData.baselineEndDate && { baselineEndDate: rowData.baselineEndDate as string }),
-              ...(rowData.actualStartDate && { actualStartDate: rowData.actualStartDate as string }),
-              ...(rowData.actualEndDate && { actualEndDate: rowData.actualEndDate as string }),
-              ...(rowData.constraintType && { constraintType: rowData.constraintType as string }),
-              ...(rowData.constraintDate && { constraintDate: rowData.constraintDate as string }),
-              ...(rowData.cost !== undefined && { cost: rowData.cost as number }),
-              ...(rowData.actualCost !== undefined && { actualCost: rowData.actualCost as number }),
-              ...(rowData.actualHours !== undefined && { actualHours: rowData.actualHours as number }),
-              ...(rowData.remainingHours !== undefined && { remainingHours: rowData.remainingHours as number }),
-              ...(rowData.labels && { labels: rowData.labels as string }),
+              ...(rowData.priority ? { priority: rowData.priority as string } : {}),
+              ...(rowData.description ? { description: rowData.description as string } : {}),
+              ...(rowData.taskNumber ? { taskNumber: rowData.taskNumber as string } : {}),
+              ...(rowData.notes ? { notes: rowData.notes as string } : {}),
+              ...(rowData.taskType ? { taskType: rowData.taskType as string } : {}),
+              ...(rowData.isMilestone !== undefined ? { isMilestone: rowData.isMilestone as boolean } : {}),
+              ...(rowData.category ? { category: rowData.category as string } : {}),
+              ...(rowData.phase ? { phase: rowData.phase as string } : {}),
+              ...(rowData.baselineStartDate ? { baselineStartDate: rowData.baselineStartDate as string } : {}),
+              ...(rowData.baselineEndDate ? { baselineEndDate: rowData.baselineEndDate as string } : {}),
+              ...(rowData.actualStartDate ? { actualStartDate: rowData.actualStartDate as string } : {}),
+              ...(rowData.actualEndDate ? { actualEndDate: rowData.actualEndDate as string } : {}),
+              ...(rowData.constraintType ? { constraintType: rowData.constraintType as string } : {}),
+              ...(rowData.constraintDate ? { constraintDate: rowData.constraintDate as string } : {}),
+              ...(rowData.cost !== undefined ? { cost: rowData.cost as number } : {}),
+              ...(rowData.actualCost !== undefined ? { actualCost: rowData.actualCost as number } : {}),
+              ...(rowData.actualHours !== undefined ? { actualHours: rowData.actualHours as number } : {}),
+              ...(rowData.remainingHours !== undefined ? { remainingHours: rowData.remainingHours as number } : {}),
+              ...(rowData.labels ? { labels: rowData.labels as string } : {}),
             });
             createdCount++;
             createdTaskIds.push(newTask.id);
@@ -3922,14 +3922,14 @@ function ProjectGanttView({
                   resourceType: 'Employee',
                 });
                 resId = newRes.id;
-                resourceNameToId.set(key, resId);
+                resourceNameToId.set(key, resId!);
               } catch {
                 invalidCells.push(`Resource "${name}": failed to create`);
                 continue;
               }
             }
 
-            resolvedIds.push(resId);
+            resolvedIds.push(resId!);
           }
 
           if (resolvedIds.length > 0) {
@@ -4868,6 +4868,7 @@ function ProjectGanttView({
           dependencyType: depType,
           lagDays: depLag,
           createdAt: new Date(),
+          isDemo: false,
         });
         existingDepSet.add(depKey);
         pushActionToUndoStack({ type: 'addDependency', taskId: successorTask.id, dependsOnTaskId: predecessorTask.id, projectId });
@@ -5242,8 +5243,8 @@ function ProjectGanttView({
       actualEndDate: null,
       durationDays: earliestStart && latestEnd ? 
         calculateDurationInWorkingDays(earliestStart, latestEnd) : null,
-      estimatedHours: totalEstimatedHours > 0 ? String(totalEstimatedHours) : null,
-      actualHours: totalActualHours > 0 ? String(totalActualHours) : null,
+      estimatedHours: totalEstimatedHours > 0 ? totalEstimatedHours : null,
+      actualHours: totalActualHours > 0 ? totalActualHours : null,
       remainingHours: null,
       progress: avgProgress,
       status: 'In Progress',
@@ -5256,8 +5257,8 @@ function ProjectGanttView({
       isMilestone: false,
       isSummary: true,
       isCritical: false,
-      cost: totalCost > 0 ? String(totalCost) : null,
-      actualCost: totalActualCost > 0 ? String(totalActualCost) : null,
+      cost: totalCost > 0 ? totalCost : null,
+      actualCost: totalActualCost > 0 ? totalActualCost : null,
       phase: null,
       category: null,
       labels: null,
@@ -5609,7 +5610,7 @@ function ProjectGanttView({
       const actualStart = t.actualStartDate ? parseISO(t.actualStartDate) : null;
       const actualEnd = t.actualEndDate ? parseISO(t.actualEndDate) : null;
       const constraintDate = t.constraintDate ? parseISO(t.constraintDate) : null;
-      const duration = t.durationDays != null ? t.durationDays : ((start && end) ? (t.startDate === t.endDate ? 0 : calculateDurationInWorkingDays(t.startDate, t.endDate)) : null);
+      const duration = t.durationDays != null ? t.durationDays : ((start && end) ? (t.startDate === t.endDate ? 0 : calculateDurationInWorkingDays(t.startDate!, t.endDate!)) : null);
       map.set(t.id, {
         start,
         end,

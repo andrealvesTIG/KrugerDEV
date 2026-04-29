@@ -1137,8 +1137,8 @@ export function CreateProjectDialog({
                   if (patch.region !== undefined) form.setValue("region", patch.region, { shouldDirty: true });
                   if (patch.country !== undefined) form.setValue("country", patch.country, { shouldDirty: true });
                   if (patch.postalCode !== undefined) form.setValue("postalCode", patch.postalCode, { shouldDirty: true });
-                  if (patch.latitude !== undefined) form.setValue("latitude", patch.latitude, { shouldDirty: true });
-                  if (patch.longitude !== undefined) form.setValue("longitude", patch.longitude, { shouldDirty: true });
+                  if (patch.latitude !== undefined) form.setValue("latitude", patch.latitude == null ? null : Number(patch.latitude), { shouldDirty: true });
+                  if (patch.longitude !== undefined) form.setValue("longitude", patch.longitude == null ? null : Number(patch.longitude), { shouldDirty: true });
                   if (patch.images !== undefined) form.setValue("images", patch.images, { shouldDirty: true });
                 }}
               />

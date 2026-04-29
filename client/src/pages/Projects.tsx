@@ -312,7 +312,7 @@ interface ProjectsListViewProps {
   filterView?: ProjectFilterView;
   onFilterViewChange?: (filterView: ProjectFilterView) => void;
   organizationId?: number | null;
-  statusList?: string[];
+  statusList?: readonly string[];
   portfolioId?: number | null;
 }
 
@@ -1522,7 +1522,7 @@ export default function Projects() {
             health: validHealth as "Green" | "Yellow" | "Red",
             startDate: startDateRaw || null,
             endDate: endDateRaw || null,
-            budget: budgetRaw,
+            budget: Number(budgetRaw),
             completionPercentage: Math.min(100, Math.max(0, completionRaw))
           });
           imported++;
@@ -2552,7 +2552,7 @@ export function ProjectsGridView({
   onExitFullscreen?: () => void;
   filterView?: ProjectFilterView;
   onFilterViewChange?: (filterView: ProjectFilterView) => void;
-  statusList?: string[];
+  statusList?: readonly string[];
 }) {
   const PROJECT_STATUS_LIST = statusList;
   const { toast } = useToast();
@@ -2979,7 +2979,7 @@ export function ProjectsGridView({
         if (editValue.trim()) updateData.name = editValue;
         break;
       case "budget":
-        updateData.budget = editValue;
+        updateData.budget = editValue ? Number(editValue) : undefined;
         break;
       case "description":
         updateData.description = editValue;
@@ -4082,7 +4082,7 @@ export function ProjectsKanbanView({
           if (cfDef) {
             if (cfDef.fieldType === "select" && cfDef.options) {
               try {
-                const options: string[] = JSON.parse(cfDef.options);
+                const options: string[] = Array.isArray(cfDef.options) ? cfDef.options : JSON.parse(cfDef.options as unknown as string);
                 const cols = options.map(opt => ({ id: opt, label: opt, color: defaultColor }));
                 cols.push({ id: "__unset__", label: "Not Set", color: defaultColor });
                 return cols;

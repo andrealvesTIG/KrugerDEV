@@ -890,6 +890,8 @@ export default function Issues() {
                 id: editingIssue.id,
                 projectId: editingIssue.projectId,
                 ...data,
+                costExposure: data.costExposure ? Number(data.costExposure) : null,
+                riskScore: data.riskScore ? Number(data.riskScore) : null,
               }, {
                 onSuccess: () => {
                   updateIssueResources.mutate({ issueId: editingIssue.id, resourceIds: editResourceIds });

@@ -372,7 +372,6 @@ export function TrendAnalysisDashboard() {
                   stroke="#3b82f6" 
                   fill="#3b82f6" 
                   fillOpacity={0.3}
-                  strokeDasharray={(d: any) => d.type === 'forecast' ? '5 5' : '0'}
                 />
               </AreaChart>
             </ResponsiveContainer>

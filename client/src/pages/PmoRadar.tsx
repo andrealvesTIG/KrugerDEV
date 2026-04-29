@@ -525,7 +525,7 @@ export default function PmoRadar() {
 
   const handleRiskSubmit = useCallback((data: RiskFormData) => {
     if (!editingRisk) return;
-    updateRisk.mutate({ id: editingRisk.id, projectId: editingRisk.projectId, ...data }, {
+    updateRisk.mutate({ id: editingRisk.id, projectId: editingRisk.projectId, ...data, costExposure: data.costExposure ? Number(data.costExposure) : null, riskScore: data.riskScore ? Number(data.riskScore) : null }, {
       onSuccess: () => {
         updateRiskResources.mutate({ riskId: editingRisk.id, resourceIds: selectedResourceIds });
         toast({ title: "Success", description: "Item updated" });

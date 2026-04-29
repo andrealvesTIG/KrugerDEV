@@ -149,7 +149,7 @@ export async function createTimesheetEntry(entry: InsertTimesheetEntry): Promise
         .limit(1);
       
       if (existing) {
-        const newHours = String(Number(existing.hours) + Number(entry.hours));
+        const newHours = Number(existing.hours) + Number(entry.hours);
         const [updated] = await db.update(timesheetEntries)
           .set({ hours: newHours, notes: entry.notes || existing.notes, updatedAt: new Date() })
           .where(eq(timesheetEntries.id, existing.id))

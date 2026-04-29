@@ -320,7 +320,7 @@ export default function Resources() {
             title: (row["Title"] || row["title"] || "").toString().trim() || null,
             department: (row["Department"] || row["department"] || "").toString().trim() || null,
             skills: (row["Skills"] || row["skills"] || "").toString().trim() || null,
-            hourlyRate: (row["Hourly Rate"] || row["hourlyRate"] || row["Rate"] || "").toString().trim() || null,
+            hourlyRate: (() => { const v = (row["Hourly Rate"] || row["hourlyRate"] || row["Rate"] || "").toString().trim(); return v ? Number(v) : null; })(),
             isActive: (row["Active"] || row["active"] || "Yes").toString().toLowerCase() !== "no",
             notes: (row["Notes"] || row["notes"] || "").toString().trim() || null
           });

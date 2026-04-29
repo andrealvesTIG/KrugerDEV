@@ -48,7 +48,9 @@ const addPhotoSchema = z.object({
   caption: z.string().max(1000).nullable().optional(),
 }).strict();
 
-async function getNextPunchNumberSafe(tx: typeof db, projectId: number): Promise<string> {
+type DbTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+async function getNextPunchNumberSafe(tx: DbTransaction, projectId: number): Promise<string> {
   await tx.execute(
     sql`SELECT id FROM ${punchItems} WHERE ${punchItems.projectId} = ${projectId} ORDER BY id DESC LIMIT 1 FOR UPDATE`
   );

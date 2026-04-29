@@ -215,14 +215,14 @@ export default function CorrespondenceTab({ projectId }: { projectId: number }) 
                   <h3 className="font-semibold truncate">{item.subject as string}</h3>
                   <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
                     <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{item.date as string}</span>
-                    {(item.fromName || item.toName) && (
+                    {Boolean(item.fromName || item.toName) && (
                       <span className="flex items-center gap-1">
                         {item.fromName as string}
-                        {item.fromName && item.toName && <ArrowRight className="h-3 w-3" />}
+                        {Boolean(item.fromName && item.toName) && <ArrowRight className="h-3 w-3" />}
                         {item.toName as string}
                       </span>
                     )}
-                    {item.attachments && (
+                    {Boolean(item.attachments) && (
                       <span className="flex items-center gap-1"><FileText className="h-3.5 w-3.5" />{(item.attachments as string).split(",").length} attachment(s)</span>
                     )}
                   </div>
@@ -275,18 +275,18 @@ export default function CorrespondenceTab({ projectId }: { projectId: number }) 
 
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div><span className="text-muted-foreground">Date:</span> {detailItem.date as string}</div>
-                {detailItem.fromName && <div><span className="text-muted-foreground">From:</span> {detailItem.fromName as string}{detailItem.fromEmail ? ` <${detailItem.fromEmail as string}>` : ""}</div>}
-                {detailItem.toName && <div><span className="text-muted-foreground">To:</span> {detailItem.toName as string}{detailItem.toEmail ? ` <${detailItem.toEmail as string}>` : ""}</div>}
+                {Boolean(detailItem.fromName) && <div><span className="text-muted-foreground">From:</span> {detailItem.fromName as string}{detailItem.fromEmail ? ` <${detailItem.fromEmail as string}>` : ""}</div>}
+                {Boolean(detailItem.toName) && <div><span className="text-muted-foreground">To:</span> {detailItem.toName as string}{detailItem.toEmail ? ` <${detailItem.toEmail as string}>` : ""}</div>}
               </div>
 
-              {detailItem.body && (
+              {Boolean(detailItem.body) && (
                 <div>
                   <h4 className="font-medium text-sm mb-1">Body</h4>
                   <div className="text-sm bg-muted/50 p-3 rounded whitespace-pre-wrap">{detailItem.body as string}</div>
                 </div>
               )}
 
-              {detailItem.attachments && (
+              {Boolean(detailItem.attachments) && (
                 <div>
                   <h4 className="font-medium text-sm mb-1">Attachments</h4>
                   <div className="flex flex-wrap gap-2">
@@ -299,7 +299,7 @@ export default function CorrespondenceTab({ projectId }: { projectId: number }) 
                 </div>
               )}
 
-              {detailItem.notes && (
+              {Boolean(detailItem.notes) && (
                 <div>
                   <h4 className="font-medium text-sm mb-1">Notes</h4>
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap">{detailItem.notes as string}</p>

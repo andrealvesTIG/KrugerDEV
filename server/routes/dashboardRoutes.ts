@@ -703,10 +703,13 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
         resourceAvailability: 0,
       };
       
-      const sanitizeBudget = (value: any) => {
-        if (typeof value === 'number') return String(value);
-        if (typeof value === 'string') return value.replace(/,/g, '');
-        return '0';
+      const sanitizeBudget = (value: any): number => {
+        if (typeof value === 'number') return value;
+        if (typeof value === 'string') {
+          const n = Number(value.replace(/,/g, ''));
+          return Number.isFinite(n) ? n : 0;
+        }
+        return 0;
       };
       
       const today = new Date();
@@ -760,7 +763,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
             priority: projectTemplate.priority,
             startDate: startDate.toISOString().split('T')[0],
             endDate: endDate.toISOString().split('T')[0],
-            budget: Number(sanitizeBudget(projectTemplate.budget)),
+            budget: sanitizeBudget(projectTemplate.budget),
             health: projectTemplate.health,
             completionPercentage: projectTemplate.completionPercentage,
             addressLine1: projAddr.addressLine1,
@@ -813,7 +816,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
               impact: riskTemplate.impact,
               status: riskTemplate.status,
               mitigationPlan: riskTemplate.mitigationPlan,
-              costExposure: riskTemplate.costExposure || null,
+              costExposure: riskTemplate.costExposure ? sanitizeBudget(riskTemplate.costExposure) : null,
               isDemo: true,
             });
             stats.risks++;
@@ -847,9 +850,9 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
               description: issueTemplate.description,
               priority: issueTemplate.priority,
               status: issueTemplate.status,
-              type: issueTemplate.type,
+              type: issueTemplate.type as ("Bug" | "Enhancement" | "Task" | "Question" | "Defect" | "Support" | undefined),
               assignee: issueTemplate.assignee,
-              costExposure: issueTemplate.costExposure || null,
+              costExposure: issueTemplate.costExposure ? sanitizeBudget(issueTemplate.costExposure) : null,
               isDemo: true,
             });
             stats.issues++;
@@ -891,7 +894,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
                 requestedBy: 'Demo User',
                 requestedDate: requestedDate.toISOString().split('T')[0],
                 impact: crTemplate.impact,
-                estimatedCost: String(crTemplate.estimatedCost || 0),
+                estimatedCost: Number(crTemplate.estimatedCost || 0),
                 estimatedEffort: crTemplate.estimatedEffort,
                 isDemo: true,
               });
@@ -980,8 +983,8 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
                 category: benefitTemplate.category,
                 benefitType: benefitTemplate.benefitType,
                 status: benefitTemplate.status,
-                targetValue: benefitTemplate.targetValue,
-                actualValue: benefitTemplate.actualValue || null,
+                targetValue: benefitTemplate.targetValue != null ? Number(benefitTemplate.targetValue) : undefined,
+                actualValue: benefitTemplate.actualValue != null ? Number(benefitTemplate.actualValue) : null,
                 measurementMethod: benefitTemplate.measurementMethod,
                 targetDate: targetDate.toISOString().split('T')[0],
                 isDemo: true,
@@ -2004,7 +2007,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
                 taskId: task.id,
                 projectId: task.projectId,
                 entryDate: entryDate.toISOString().split('T')[0],
-                hours: String(hours),
+                hours: Number(hours),
                 notes: ['Development work', 'Code review', 'Testing', 'Documentation', 'Meeting', 'Design review'][Math.floor(Math.random() * 6)],
                 status: dayOffset > 7 ? 'Approved' : dayOffset > 3 ? 'Submitted' : 'Draft',
                 isDemo: true,
@@ -2055,7 +2058,7 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
             status: intakeTemplate.status,
             businessUnit: intakeTemplate.businessUnit,
             fundingSource: intakeTemplate.funding,
-            estimatedBudget: intakeTemplate.budget,
+            estimatedBudget: intakeTemplate.budget != null ? Number(intakeTemplate.budget) : undefined,
             currentStep: intakeTemplate.status === 'approved' ? 'pmo_approved' : 'basic_info',
             basicInfoComplete: true,
             isDemo: true,

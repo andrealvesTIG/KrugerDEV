@@ -116,7 +116,7 @@ export function ScoringCriteriaSection({ organizationId }: { organizationId: num
         name: form.name.trim(),
         description: form.description.trim() || null,
         category: form.category,
-        weight: form.weight,
+        weight: parseFloat(form.weight) || 1,
         minScore: form.minScore,
         maxScore: form.maxScore,
         scoringGuidelines: form.scoringGuidelines.trim() || null,

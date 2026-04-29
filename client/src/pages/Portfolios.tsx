@@ -565,7 +565,8 @@ function CreatePortfolioDialog({ open, onOpenChange, organizationId }: { open: b
   });
 
   const onSubmit = (data: InsertPortfolio) => {
-    createMutation.mutate({ ...data, organizationId: organizationId || null }, {
+    if (!organizationId) return;
+    createMutation.mutate({ ...data, organizationId }, {
       onSuccess: () => {
         toast({ title: "Success", description: "Portfolio created successfully" });
         onOpenChange(false);

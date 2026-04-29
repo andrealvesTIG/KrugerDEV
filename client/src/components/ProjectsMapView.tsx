@@ -305,8 +305,8 @@ export function ProjectsMapView({ projects, portfolios }: Props) {
     const withCoords: Array<ProjectWithLocation & { _lat: number; _lng: number }> = [];
     const missing: ProjectWithLocation[] = [];
     for (const p of projects) {
-      const lat = p.latitude != null && p.latitude !== "" ? Number(p.latitude) : NaN;
-      const lng = p.longitude != null && p.longitude !== "" ? Number(p.longitude) : NaN;
+      const lat = p.latitude != null && (p.latitude as unknown) !== "" ? Number(p.latitude) : NaN;
+      const lng = p.longitude != null && (p.longitude as unknown) !== "" ? Number(p.longitude) : NaN;
       if (!isNaN(lat) && !isNaN(lng)) {
         withCoords.push({ ...p, _lat: lat, _lng: lng });
       } else {

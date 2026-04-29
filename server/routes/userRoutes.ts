@@ -6,6 +6,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { z } from "zod";
 import { eq, and, desc, asc as ascOrder, sql, inArray } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import multer from "multer";
 import { users, taskResourceAssignments, issues, resources, tasks, projects, portfolios, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION, type Task, unconSelfieLeads } from "@shared/schema";
 import { USER_ROLES, type User } from "@shared/models/auth";
@@ -269,7 +270,7 @@ export function registerUserRoutes(app: Express) {
         }
       }
       const { firstName, lastName, email, jobTitle, pmiId, linkedinUrl, publicProfileEnabled } = req.body;
-      const updateData: Record<string, any> = { updatedAt: new Date() };
+      const updateData: Partial<typeof users.$inferInsert> = { updatedAt: new Date() };
       if (firstName !== undefined) updateData.firstName = firstName;
       if (lastName !== undefined) updateData.lastName = lastName;
       if (email !== undefined) {
@@ -323,7 +324,7 @@ export function registerUserRoutes(app: Express) {
 
       const sortField = typeof req.query.sort === 'string' ? req.query.sort : 'createdAt';
       const sortDirection = req.query.sortDir === 'asc' ? 'asc' : 'desc';
-      const validSortFields: Record<string, typeof unconSelfieLeads.name> = {
+      const validSortFields: Record<string, AnyPgColumn> = {
         name: unconSelfieLeads.name,
         email: unconSelfieLeads.email,
         interviewer: unconSelfieLeads.interviewer,
@@ -331,18 +332,18 @@ export function registerUserRoutes(app: Express) {
       };
       const sortColumn = validSortFields[sortField] || unconSelfieLeads.createdAt;
 
-      let baseQuery = db.select().from(unconSelfieLeads);
-      let countQuery = db.select({ count: sql`count(*)::int` }).from(unconSelfieLeads);
+      const baseQuery = db.select().from(unconSelfieLeads).$dynamic();
+      const countQuery = db.select({ count: sql`count(*)::int` }).from(unconSelfieLeads).$dynamic();
       if (searchQ) {
         const pattern = `%${searchQ}%`;
         const searchCondition = sql`(${unconSelfieLeads.name} ILIKE ${pattern} OR ${unconSelfieLeads.email} ILIKE ${pattern} OR ${unconSelfieLeads.interviewer} ILIKE ${pattern})`;
-        baseQuery = baseQuery.where(searchCondition) as typeof baseQuery;
-        countQuery = countQuery.where(searchCondition) as typeof countQuery;
+        baseQuery.where(searchCondition);
+        countQuery.where(searchCondition);
       }
       const [countResult] = await countQuery;
-      const total = countResult?.count ?? 0;
+      const total = Number(countResult?.count ?? 0);
       const orderFn = sortDirection === 'asc' ? ascOrder : desc;
-      const leads = await (baseQuery as any)
+      const leads = await baseQuery
         .orderBy(orderFn(sortColumn))
         .limit(limit)
         .offset(offset);
@@ -1265,7 +1266,7 @@ export function registerUserRoutes(app: Express) {
 
       const { avatarUrl, avatarEmoji } = req.body;
       
-      const updateData: any = { updatedAt: new Date() };
+      const updateData: Partial<typeof users.$inferInsert> = { updatedAt: new Date() };
       
       if (avatarUrl !== undefined) {
         // For image uploads, set avatarUrl (primary) and profileImageUrl (legacy)

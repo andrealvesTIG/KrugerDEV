@@ -209,7 +209,7 @@ export function registerMeetingRoutes(app: Express) {
         .where(eq(meetingAgendaItems.meetingId, created.id))
         .orderBy(asc(meetingAgendaItems.sortOrder));
 
-      logUserActivity(userId, "meeting_created", projectId, { meetingId: created.id });
+      logUserActivity(userId, "meeting_created", "meeting", created.id, { projectId });
 
       res.status(201).json({ ...created, agendaItems: agendaList, actionItems: [] });
     } catch (err: unknown) {
@@ -284,7 +284,7 @@ export function registerMeetingRoutes(app: Express) {
         .where(eq(meetingActionItems.meetingId, meetingId))
         .orderBy(asc(meetingActionItems.createdAt));
 
-      logUserActivity(userId, "meeting_updated", projectId, { meetingId });
+      logUserActivity(userId, "meeting_updated", "meeting", meetingId, { projectId });
 
       res.json({ ...updated, agendaItems: agendaList, actionItems: actionItemsList });
     } catch (err: unknown) {
@@ -314,7 +314,7 @@ export function registerMeetingRoutes(app: Express) {
 
       if (!deleted) return res.status(404).json({ message: "Meeting not found" });
 
-      logUserActivity(userId, "meeting_deleted", projectId, { meetingId });
+      logUserActivity(userId, "meeting_deleted", "meeting", meetingId, { projectId });
 
       res.json({ message: "Meeting deleted" });
     } catch (err: unknown) {
@@ -348,7 +348,7 @@ export function registerMeetingRoutes(app: Express) {
         projectId,
       }).returning();
 
-      logUserActivity(userId, "meeting_action_item_created", projectId, { meetingId, actionItemId: created.id });
+      logUserActivity(userId, "meeting_action_item_created", "meeting_action_item", created.id, { projectId, meetingId });
 
       res.status(201).json(created);
     } catch (err: unknown) {
@@ -388,7 +388,7 @@ export function registerMeetingRoutes(app: Express) {
 
       if (!updated) return res.status(404).json({ message: "Action item not found" });
 
-      logUserActivity(userId, "meeting_action_item_updated", projectId, { actionItemId });
+      logUserActivity(userId, "meeting_action_item_updated", "meeting_action_item", actionItemId, { projectId });
 
       res.json(updated);
     } catch (err: unknown) {
@@ -509,7 +509,7 @@ export function registerMeetingRoutes(app: Express) {
         .set({ minutesRecordedAt: new Date(), minutesRecordedBy: userId, updatedAt: new Date() })
         .where(eq(meetings.id, meetingId));
 
-      logUserActivity(userId, "meeting_minutes_recorded", projectId, { meetingId });
+      logUserActivity(userId, "meeting_minutes_recorded", "meeting", meetingId, { projectId });
 
       res.json(result);
     } catch (err: unknown) {
@@ -620,7 +620,7 @@ export function registerMeetingRoutes(app: Express) {
         });
       }
 
-      logUserActivity(userId, "meeting_minutes_distributed", projectId, { meetingId, recipientCount: parsed.data.recipients.length });
+      logUserActivity(userId, "meeting_minutes_distributed", "meeting", meetingId, { projectId, recipientCount: parsed.data.recipients.length });
 
       res.json({ message: `Minutes distributed to ${successCount} of ${parsed.data.recipients.length} recipients`, successCount });
     } catch (err: unknown) {

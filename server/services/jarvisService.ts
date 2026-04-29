@@ -863,11 +863,14 @@ async function handleToolCall(
   }
 }
 
-function sanitizeResourceFields(r: any): Record<string, any> {
+type ResourceInsert = typeof resources.$inferInsert;
+type ResourceSanitizedFields = Partial<Omit<ResourceInsert, "organizationId">>;
+
+function sanitizeResourceFields(r: Record<string, unknown>): ResourceSanitizedFields {
   const validTypes = ["Employee", "Contractor", "Vendor", "Equipment", "Material"];
   const validLevels = ["Junior", "Mid-Level", "Senior", "Lead", "Principal"];
 
-  const fields: Record<string, any> = {};
+  const fields: ResourceSanitizedFields = {};
   if (typeof r.displayName === "string" && r.displayName.trim()) {
     fields.displayName = r.displayName.trim().slice(0, 200);
   }
@@ -881,8 +884,10 @@ function sanitizeResourceFields(r: any): Record<string, any> {
   if (typeof r.location === "string") fields.location = r.location.trim().slice(0, 200);
   if (typeof r.skills === "string") fields.skills = r.skills.slice(0, 1000);
   if (typeof r.experienceLevel === "string" && validLevels.includes(r.experienceLevel)) fields.experienceLevel = r.experienceLevel;
-  if (typeof r.hourlyRate === "string" && !isNaN(Number(r.hourlyRate))) fields.hourlyRate = r.hourlyRate;
-  if (typeof r.weeklyCapacity === "string" && !isNaN(Number(r.weeklyCapacity))) fields.weeklyCapacity = r.weeklyCapacity;
+  if (typeof r.hourlyRate === "string" && !isNaN(Number(r.hourlyRate))) fields.hourlyRate = Number(r.hourlyRate);
+  else if (typeof r.hourlyRate === "number") fields.hourlyRate = r.hourlyRate;
+  if (typeof r.weeklyCapacity === "string" && !isNaN(Number(r.weeklyCapacity))) fields.weeklyCapacity = Number(r.weeklyCapacity);
+  else if (typeof r.weeklyCapacity === "number") fields.weeklyCapacity = r.weeklyCapacity;
   if (typeof r.availability === "number" && r.availability >= 0 && r.availability <= 100) fields.availability = Math.round(r.availability);
   if (typeof r.isBillable === "boolean") fields.isBillable = r.isBillable;
 
@@ -911,6 +916,7 @@ async function handleOrgScopedToolCall(
 
       const [created] = await db.insert(resources).values({
         organizationId: orgId,
+        displayName: fields.displayName!,
         ...fields,
       }).returning({ id: resources.id, displayName: resources.displayName });
 
@@ -931,19 +937,19 @@ async function handleOrgScopedToolCall(
       }
 
       const skipped: string[] = [];
-      const resourceValues = resourceList
-        .filter((r: any, idx: number) => {
-          const fields = sanitizeResourceFields(r);
-          if (!fields.displayName) {
-            skipped.push(`Row ${idx + 1}: missing or invalid display name`);
-            return false;
-          }
-          return true;
-        })
-        .map((r: any) => ({
+      const resourceValues: ResourceInsert[] = [];
+      resourceList.forEach((r: Record<string, unknown>, idx: number) => {
+        const fields = sanitizeResourceFields(r);
+        if (!fields.displayName) {
+          skipped.push(`Row ${idx + 1}: missing or invalid display name`);
+          return;
+        }
+        resourceValues.push({
           organizationId: orgId,
-          ...sanitizeResourceFields(r),
-        }));
+          displayName: fields.displayName,
+          ...fields,
+        });
+      });
 
       if (resourceValues.length === 0) {
         return JSON.stringify({ success: false, message: "No valid resources found — each resource needs at least a display name." });

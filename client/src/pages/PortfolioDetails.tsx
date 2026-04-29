@@ -1377,7 +1377,7 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
   const onEditSubmit = async (data: RiskFormData) => {
     if (!editingRisk) return;
     try {
-      await updateRisk.mutateAsync({ id: editingRisk.id, projectId: editingRisk.projectId, ...data });
+      await updateRisk.mutateAsync({ id: editingRisk.id, projectId: editingRisk.projectId, ...data, costExposure: data.costExposure ? Number(data.costExposure) : null, riskScore: data.riskScore ? Number(data.riskScore) : null });
       updateRiskResources.mutate({ riskId: editingRisk.id, resourceIds: selectedResourceIds });
       toast({ title: "Success", description: "Risk updated successfully" });
       setEditingRisk(null);
@@ -1512,7 +1512,7 @@ function RisksTab({ portfolioId, portfolioName, onRiskAssessmentClick, onRecalcu
                     <td className="p-3">
                       <div className="flex items-center gap-2">
                         {risk.escalatedToPortfolio && (
-                          <ArrowUpToLine className="h-4 w-4 text-amber-600 flex-shrink-0" title="Escalated to Portfolio" />
+                          <span title="Escalated to Portfolio"><ArrowUpToLine className="h-4 w-4 text-amber-600 flex-shrink-0" /></span>
                         )}
                         <div>
                           <p className="font-medium hover:text-primary">{risk.title}</p>
@@ -2096,7 +2096,7 @@ function IssuesTab({ portfolioId }: { portfolioId: number }) {
                     <td className="p-3">
                       <div className="flex items-center gap-2">
                         {issue.escalatedToPortfolio && (
-                          <ArrowUpToLine className="h-4 w-4 text-rose-600 flex-shrink-0" title="Escalated to Portfolio" />
+                          <span title="Escalated to Portfolio"><ArrowUpToLine className="h-4 w-4 text-rose-600 flex-shrink-0" /></span>
                         )}
                         <div>
                           <p className="font-medium hover:text-primary">{issue.title}</p>

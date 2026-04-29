@@ -16,19 +16,19 @@ const createChangeOrderSchema = z.object({
   tier: z.enum(["PCO", "COR", "CO"]).default("PCO"),
   status: z.enum(["Draft", "Pending", "Under Review", "Approved", "Rejected", "Void"]).default("Draft"),
   reasonCode: z.string().max(200).nullable().optional(),
-  costImpact: z.string().nullable().optional(),
+  costImpact: z.number().nullable().optional(),
   scheduleImpactDays: z.number().int().nullable().optional(),
-  originalContractAmount: z.string().nullable().optional(),
-  revisedContractAmount: z.string().nullable().optional(),
+  originalContractAmount: z.number().nullable().optional(),
+  revisedContractAmount: z.number().nullable().optional(),
   requestedBy: z.string().max(500).nullable().optional(),
   requestedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   notes: z.string().max(10000).nullable().optional(),
   lineItems: z.array(z.object({
     costCode: z.string().max(100).nullable().optional(),
     description: z.string().min(1).max(1000),
-    quantity: z.string().nullable().optional(),
-    unitPrice: z.string().nullable().optional(),
-    totalPrice: z.string().nullable().optional(),
+    quantity: z.number().nullable().optional(),
+    unitPrice: z.number().nullable().optional(),
+    totalPrice: z.number().nullable().optional(),
     category: z.string().max(200).nullable().optional(),
     sortOrder: z.number().int().optional(),
   })).optional(),
@@ -118,16 +118,16 @@ export function registerChangeOrderRoutes(app: Express) {
 
       const approvedCostImpact = allOrders
         .filter(o => o.status === "Approved" && o.tier === "CO")
-        .reduce((sum, o) => sum + parseFloat(o.costImpact || "0"), 0);
+        .reduce((sum, o) => sum + (o.costImpact ?? 0), 0);
 
       const totalCostImpact = allOrders
-        .reduce((sum, o) => sum + parseFloat(o.costImpact || "0"), 0);
+        .reduce((sum, o) => sum + (o.costImpact ?? 0), 0);
 
       const totalScheduleImpact = allOrders
         .filter(o => o.status === "Approved")
         .reduce((sum, o) => sum + (o.scheduleImpactDays || 0), 0);
 
-      const originalContract = parseFloat(project.contractTotal || "0");
+      const originalContract = (project.contractTotal ?? 0);
       const revisedContract = originalContract + approvedCostImpact;
 
       res.json({
@@ -186,23 +186,23 @@ export function registerChangeOrderRoutes(app: Express) {
           approved: tierOrders.filter(o => o.status === "Approved").length,
           pending: tierOrders.filter(o => ["Pending", "Under Review"].includes(o.status)).length,
           rejected: tierOrders.filter(o => o.status === "Rejected").length,
-          totalCostImpact: tierOrders.reduce((sum, o) => sum + parseFloat(o.costImpact || "0"), 0),
-          approvedCostImpact: tierOrders.filter(o => o.status === "Approved").reduce((sum, o) => sum + parseFloat(o.costImpact || "0"), 0),
+          totalCostImpact: tierOrders.reduce((sum, o) => sum + (o.costImpact ?? 0), 0),
+          approvedCostImpact: tierOrders.filter(o => o.status === "Approved").reduce((sum, o) => sum + (o.costImpact ?? 0), 0),
           totalScheduleImpact: tierOrders.filter(o => o.status === "Approved").reduce((sum, o) => sum + (o.scheduleImpactDays || 0), 0),
         };
       });
 
-      const originalContract = parseFloat(project.contractTotal || "0");
+      const originalContract = (project.contractTotal ?? 0);
       const totalApprovedImpact = allOrders
         .filter(o => o.status === "Approved" && o.tier === "CO")
-        .reduce((sum, o) => sum + parseFloat(o.costImpact || "0"), 0);
+        .reduce((sum, o) => sum + (o.costImpact ?? 0), 0);
 
       const reasonCodeBreakdown: Record<string, { count: number; totalCost: number }> = {};
       for (const o of allOrders) {
         const code = o.reasonCode || "Unspecified";
         if (!reasonCodeBreakdown[code]) reasonCodeBreakdown[code] = { count: 0, totalCost: 0 };
         reasonCodeBreakdown[code].count++;
-        reasonCodeBreakdown[code].totalCost += parseFloat(o.costImpact || "0");
+        reasonCodeBreakdown[code].totalCost += (o.costImpact ?? 0);
       }
 
       const log = allOrders.map(o => ({
@@ -304,7 +304,7 @@ export function registerChangeOrderRoutes(app: Express) {
         );
       }
 
-      logUserActivity(userId, "change_order_created", projectId, { changeOrderId: co.id, tier: co.tier });
+      logUserActivity(userId, "change_order_created", "change_order", co.id, { projectId, tier: co.tier });
 
       const lineItemsList = await db.select()
         .from(changeOrderLineItems)
@@ -363,7 +363,7 @@ export function registerChangeOrderRoutes(app: Express) {
         }
       }
 
-      logUserActivity(userId, "change_order_updated", projectId, { changeOrderId });
+      logUserActivity(userId, "change_order_updated", "change_order", changeOrderId, { projectId });
 
       const lineItemsList = await db.select()
         .from(changeOrderLineItems)
@@ -447,11 +447,11 @@ export function registerChangeOrderRoutes(app: Express) {
         .set({ status: "Void", updatedAt: new Date() })
         .where(eq(changeOrders.id, changeOrderId));
 
-      logUserActivity(userId, "change_order_promoted", projectId, {
+      logUserActivity(userId, "change_order_promoted", "change_order", promoted.id, {
+        projectId,
         from: existing.tier,
         to: nextTier,
         originalId: changeOrderId,
-        newId: promoted.id,
       });
 
       const lineItemsList = await db.select()
@@ -506,7 +506,7 @@ export function registerChangeOrderRoutes(app: Express) {
         .returning();
 
       if (existing.tier === "CO" && existing.costImpact) {
-        const costImpact = parseFloat(existing.costImpact || "0");
+        const costImpact = (existing.costImpact ?? 0);
         if (costImpact !== 0) {
           await db.insert(projectFinancials).values({
             projectId,
@@ -515,14 +515,14 @@ export function registerChangeOrderRoutes(app: Express) {
             description: `Approved change order (${existing.tier}) cost impact`,
             fiscalYear: now.getFullYear(),
             fiscalPeriod: `Q${Math.ceil((now.getMonth() + 1) / 3)}`,
-            budgetAmount: String(costImpact),
-            plannedAmount: String(costImpact),
-            actualAmount: String(costImpact),
+            budgetAmount: costImpact,
+            plannedAmount: costImpact,
+            actualAmount: costImpact,
           });
         }
       }
 
-      logUserActivity(userId, "change_order_approved", projectId, { changeOrderId, tier: existing.tier });
+      logUserActivity(userId, "change_order_approved", "change_order", changeOrderId, { projectId, tier: existing.tier });
 
       res.json(approved);
     } catch (err: unknown) {
@@ -552,7 +552,7 @@ export function registerChangeOrderRoutes(app: Express) {
 
       if (!deleted) return res.status(404).json({ message: "Change order not found" });
 
-      logUserActivity(userId, "change_order_deleted", projectId, { changeOrderId });
+      logUserActivity(userId, "change_order_deleted", "change_order", changeOrderId, { projectId });
       res.json({ message: "Change order deleted" });
     } catch (err: unknown) {
       const classified = classifyError(err);

@@ -175,7 +175,7 @@ function SingleRevisionPane({
 
   return (
     <div
-      ref={containerRef}
+      ref={containerRef as React.LegacyRef<HTMLDivElement>}
       className="flex-1 overflow-hidden relative"
       onWheel={onWheel}
       onMouseDown={onMouseDown}
@@ -205,7 +205,7 @@ function SingleRevisionPane({
 
         {showMarkups && (
           <svg
-            ref={svgRef}
+            ref={svgRef as React.LegacyRef<SVGSVGElement>}
             className="absolute inset-0 w-full h-full pointer-events-none"
             style={{ overflow: "visible" }}
           >

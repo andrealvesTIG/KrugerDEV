@@ -596,8 +596,8 @@ export function FinancialTableRow({
           {isEditing ? (
             <Input
               type="number"
-              value={editValues.budgetAmount || ""}
-              onChange={(e) => setEditValues({ ...editValues, budgetAmount: e.target.value })}
+              value={editValues.budgetAmount ?? ""}
+              onChange={(e) => setEditValues({ ...editValues, budgetAmount: Number(e.target.value) })}
               className="w-24 h-7 text-xs text-right"
               data-testid="input-edit-budget"
             />
@@ -609,8 +609,8 @@ export function FinancialTableRow({
           {isEditing ? (
             <Input
               type="number"
-              value={editValues.plannedAmount || ""}
-              onChange={(e) => setEditValues({ ...editValues, plannedAmount: e.target.value })}
+              value={editValues.plannedAmount ?? ""}
+              onChange={(e) => setEditValues({ ...editValues, plannedAmount: Number(e.target.value) })}
               className="w-24 h-7 text-xs text-right"
               data-testid="input-edit-planned"
             />
@@ -622,8 +622,8 @@ export function FinancialTableRow({
           {isEditing ? (
             <Input
               type="number"
-              value={editValues.actualAmount || ""}
-              onChange={(e) => setEditValues({ ...editValues, actualAmount: e.target.value })}
+              value={editValues.actualAmount ?? ""}
+              onChange={(e) => setEditValues({ ...editValues, actualAmount: Number(e.target.value) })}
               className="w-24 h-7 text-xs text-right"
               data-testid="input-edit-actual"
             />
@@ -677,8 +677,8 @@ export function FinancialTableRow({
                 {isEditing ? (
                   <Input
                     type="number"
-                    value={editValues.plannedAmount || ""}
-                    onChange={(e) => setEditValues({ ...editValues, plannedAmount: e.target.value })}
+                    value={editValues.plannedAmount ?? ""}
+                    onChange={(e) => setEditValues({ ...editValues, plannedAmount: Number(e.target.value) })}
                     className="h-8 text-base md:text-sm text-right w-full"
                     data-testid="input-edit-planned-mobile"
                   />
@@ -691,8 +691,8 @@ export function FinancialTableRow({
                 {isEditing ? (
                   <Input
                     type="number"
-                    value={editValues.actualAmount || ""}
-                    onChange={(e) => setEditValues({ ...editValues, actualAmount: e.target.value })}
+                    value={editValues.actualAmount ?? ""}
+                    onChange={(e) => setEditValues({ ...editValues, actualAmount: Number(e.target.value) })}
                     className="h-8 text-base md:text-sm text-right w-full"
                     data-testid="input-edit-actual-mobile"
                   />
@@ -1839,7 +1839,7 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
   const { toast } = useToast();
   
   const [showAddCriteria, setShowAddCriteria] = useState(false);
-  const [newCriteria, setNewCriteria] = useState({ name: '', description: '', category: 'Strategic', weight: '1', minScore: 0, maxScore: 10 });
+  const [newCriteria, setNewCriteria] = useState({ name: '', description: '', category: 'Strategic', weight: 1, minScore: 0, maxScore: 10 });
   const [localScores, setLocalScores] = useState<Record<number, { score: number; justification: string }>>({});
   const [editingWeightId, setEditingWeightId] = useState<number | null>(null);
   const [editingWeightValue, setEditingWeightValue] = useState('');
@@ -1860,7 +1860,7 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
       await createCriteria.mutateAsync({ organizationId, data: newCriteria });
       toast({ title: "Criteria added" });
       setShowAddCriteria(false);
-      setNewCriteria({ name: '', description: '', category: 'Strategic', weight: '1', minScore: 0, maxScore: 10 });
+      setNewCriteria({ name: '', description: '', category: 'Strategic', weight: 1, minScore: 0, maxScore: 10 });
     } catch {
       toast({ title: "Error", description: "Failed to add criteria", variant: "destructive" });
     }
@@ -1894,9 +1894,9 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
     }
   };
 
-  const startEditWeight = (c: { id: number; weight: string | null }) => {
+  const startEditWeight = (c: { id: number; weight: number | string | null }) => {
     setEditingWeightId(c.id);
-    setEditingWeightValue(String(c.weight || '1'));
+    setEditingWeightValue(String(c.weight ?? '1'));
   };
 
   const handleSaveWeight = async (criteriaId: number) => {
@@ -1906,7 +1906,7 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
       return;
     }
     try {
-      await updateCriteria.mutateAsync({ id: criteriaId, organizationId, data: { weight: editingWeightValue } });
+      await updateCriteria.mutateAsync({ id: criteriaId, organizationId, data: { weight: parsed } });
       toast({ title: "Weight updated" });
       setEditingWeightId(null);
     } catch {
@@ -2005,7 +2005,7 @@ export function ScoringTab({ projectId, organizationId }: { projectId: number; o
               </div>
               <div>
                 <Label>Weight</Label>
-                <Input type="number" value={newCriteria.weight} onChange={e => setNewCriteria(p => ({ ...p, weight: e.target.value }))} data-testid="input-criteria-weight" />
+                <Input type="number" value={newCriteria.weight} onChange={e => setNewCriteria(p => ({ ...p, weight: Number(e.target.value) || 0 }))} data-testid="input-criteria-weight" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
@@ -2159,8 +2159,8 @@ export function BenefitsTab({ projectId }: { projectId: number }) {
           category: form.category, 
           benefitType: form.benefitType, 
           unit: form.unit, 
-          targetValue: form.targetValue || null, 
-          actualValue: form.actualValue || null, 
+          targetValue: form.targetValue ? Number(form.targetValue) : null, 
+          actualValue: form.actualValue ? Number(form.actualValue) : null, 
           targetDate: form.targetDate || null, 
           status: form.status 
         } 
@@ -2185,8 +2185,8 @@ export function BenefitsTab({ projectId }: { projectId: number }) {
           category: form.category,
           benefitType: form.benefitType,
           unit: form.unit,
-          targetValue: form.targetValue || null,
-          actualValue: form.actualValue || null,
+          targetValue: form.targetValue ? Number(form.targetValue) : null,
+          actualValue: form.actualValue ? Number(form.actualValue) : null,
           targetDate: form.targetDate || null,
           status: form.status,
         }
@@ -2925,7 +2925,7 @@ interface Dynamics365Invoice {
   customerAddress: string;
 }
 
-export function InvoicesTab({ projectId, organizationId, contractTotal }: { projectId: number; organizationId: number | undefined; contractTotal?: string | null }) {
+export function InvoicesTab({ projectId, organizationId, contractTotal }: { projectId: number; organizationId: number | undefined; contractTotal?: number | string | null }) {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<ProjectInvoice | null>(null);
@@ -2939,12 +2939,12 @@ export function InvoicesTab({ projectId, organizationId, contractTotal }: { proj
   const [selectedDynamicsInvoice, setSelectedDynamicsInvoice] = useState<Dynamics365Invoice | null>(null);
   const [dynamics365EnvUrl, setDynamics365EnvUrl] = useState('');
   const [isEditingContractTotal, setIsEditingContractTotal] = useState(false);
-  const [contractTotalInput, setContractTotalInput] = useState(contractTotal || '0');
+  const [contractTotalInput, setContractTotalInput] = useState(contractTotal != null ? String(contractTotal) : '0');
   const [isSavingContractTotal, setIsSavingContractTotal] = useState(false);
   const { mutateAsync: updateProject } = useUpdateProject();
 
   useEffect(() => {
-    setContractTotalInput(contractTotal || '0');
+    setContractTotalInput(contractTotal != null ? String(contractTotal) : '0');
   }, [contractTotal]);
 
   const { data: invoices = [], isLoading, refetch: refetchInvoices } = useQuery<ProjectInvoice[]>({
@@ -3127,7 +3127,7 @@ export function InvoicesTab({ projectId, organizationId, contractTotal }: { proj
       invoiceNumber: formData.get('invoiceNumber') as string,
       title: formData.get('title') as string,
       description: formData.get('description') as string,
-      amount: formData.get('amount') as string || '0',
+      amount: Number(formData.get('amount') || 0),
       currency: formData.get('currency') as string || 'USD',
       status: formData.get('status') as string || 'Draft',
       invoiceDate: formData.get('invoiceDate') as string || null,
@@ -3179,15 +3179,15 @@ export function InvoicesTab({ projectId, organizationId, contractTotal }: { proj
         : `/objects/${invoice.fileUrl}`;
   };
 
-  const formatCurrency = (amount: string | null, currency: string | null) => {
-    if (!amount) return '-';
-    return sharedFormatCurrency(amount, { showCents: true, currency: currency || 'USD' });
+  const formatCurrency = (amount: number | string | null, currency: string | null) => {
+    if (amount == null || amount === '') return '-';
+    return sharedFormatCurrency(String(amount), { showCents: true, currency: currency || 'USD' });
   };
 
   const invoiceFinancials = useMemo(() => {
-    const total = parseFloat(contractTotal || '0');
-    const invoiced = invoices.reduce((sum, inv) => sum + parseFloat(inv.amount || '0'), 0);
-    const paid = invoices.filter(inv => inv.status === 'Paid').reduce((sum, inv) => sum + parseFloat(inv.amount || '0'), 0);
+    const total = Number(contractTotal ?? 0);
+    const invoiced = invoices.reduce((sum, inv) => sum + Number(inv.amount ?? 0), 0);
+    const paid = invoices.filter(inv => inv.status === 'Paid').reduce((sum, inv) => sum + Number(inv.amount ?? 0), 0);
     const remaining = total - invoiced;
     return { total, invoiced, paid, remaining };
   }, [contractTotal, invoices]);
@@ -3195,7 +3195,7 @@ export function InvoicesTab({ projectId, organizationId, contractTotal }: { proj
   const handleContractTotalSave = async () => {
     setIsSavingContractTotal(true);
     try {
-      await updateProject({ id: projectId, contractTotal: contractTotalInput });
+      await updateProject({ id: projectId, contractTotal: contractTotalInput ? Number(contractTotalInput) : null });
       toast({ title: "Success", description: "Contract total updated" });
       setIsEditingContractTotal(false);
     } catch {
@@ -3246,7 +3246,7 @@ export function InvoicesTab({ projectId, organizationId, contractTotal }: { proj
                   <Button size="sm" variant="ghost" onClick={handleContractTotalSave} disabled={isSavingContractTotal} data-testid="button-save-contract-total">
                     {isSavingContractTotal ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => { setIsEditingContractTotal(false); setContractTotalInput(contractTotal || '0'); }} disabled={isSavingContractTotal} data-testid="button-cancel-contract-total">
+                  <Button size="sm" variant="ghost" onClick={() => { setIsEditingContractTotal(false); setContractTotalInput(String(contractTotal ?? '0')); }} disabled={isSavingContractTotal} data-testid="button-cancel-contract-total">
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
@@ -3746,7 +3746,7 @@ export function InvoicesTab({ projectId, organizationId, contractTotal }: { proj
                     invoiceNumber: selectedDynamicsInvoice.invoiceNumber,
                     title: selectedDynamicsInvoice.name,
                     description: selectedDynamicsInvoice.description || '',
-                    amount: String(selectedDynamicsInvoice.amount || 0),
+                    amount: Number(selectedDynamicsInvoice.amount || 0),
                     currency: 'USD',
                     status: selectedDynamicsInvoice.status === 'Paid' ? 'Paid' : 
                             selectedDynamicsInvoice.status === 'Cancelled' ? 'Cancelled' : 'Draft',

@@ -196,15 +196,15 @@ export default function SimulationReportDialog({
     }
   };
 
-  const filterButtons: { value: FilterType; label: string; count: number }[] = [
-    { value: "all", label: "All", count: log.length },
-    { value: "closed", label: "Closed", count: actionCounts["closed"] || 0 },
-    { value: "mitigated", label: "Mitigated", count: actionCounts["mitigated"] || 0 },
-    { value: "removed", label: "Resolved", count: actionCounts["removed"] || 0 },
-    { value: "escalated", label: "Escalated", count: actionCounts["escalated"] || 0 },
-    { value: "in_progress", label: "In Progress", count: actionCounts["in_progress"] || 0 },
-    { value: "new_emerged", label: "New", count: actionCounts["new_emerged"] || 0 },
-  ].filter(f => f.value === "all" || f.count > 0);
+  const filterButtons: { value: FilterType; label: string; count: number }[] = ([
+    { value: "all" as FilterType, label: "All", count: log.length },
+    { value: "closed" as FilterType, label: "Closed", count: actionCounts["closed"] || 0 },
+    { value: "mitigated" as FilterType, label: "Mitigated", count: actionCounts["mitigated"] || 0 },
+    { value: "removed" as FilterType, label: "Resolved", count: actionCounts["removed"] || 0 },
+    { value: "escalated" as FilterType, label: "Escalated", count: actionCounts["escalated"] || 0 },
+    { value: "in_progress" as FilterType, label: "In Progress", count: actionCounts["in_progress"] || 0 },
+    { value: "new_emerged" as FilterType, label: "New", count: actionCounts["new_emerged"] || 0 },
+  ] as { value: FilterType; label: string; count: number }[]).filter(f => f.value === "all" || f.count > 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

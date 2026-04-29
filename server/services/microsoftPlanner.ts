@@ -228,7 +228,7 @@ const ENTRA_ID_SCOPES = [
   "offline_access",
 ];
 
-function getEntraRedirectUri(req: Express.Request): string {
+function getEntraRedirectUri(req: Request): string {
   const protocol = req.headers["x-forwarded-proto"] || req.protocol || "http";
   const host = req.get("host") || "localhost:5000";
   return `${protocol}://${host}/api/entra/callback`;

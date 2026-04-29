@@ -473,7 +473,7 @@ export function registerTimesheetRoutes(app: Express) {
         taskId,
         projectId,
         entryDate,
-        hours: String(hours),
+        hours: Number(hours),
         notes,
         status: 'Draft',
       });
@@ -483,7 +483,7 @@ export function registerTimesheetRoutes(app: Express) {
         entryId: entry.id,
         action: 'create',
         actorId: userId,
-        after: { hours: String(hours), notes, taskId, projectId, entryDate },
+        after: { hours: Number(hours), notes, taskId, projectId, entryDate },
       });
 
       res.status(201).json(entry);
@@ -645,7 +645,7 @@ export function registerTimesheetRoutes(app: Express) {
           
           const beforeSnapshot = { hours: existing.hours, notes: existing.notes };
           const updated = await storage.updateTimesheetEntry(entry.id, {
-            hours: String(hoursNum),
+            hours: hoursNum,
             notes: entry.notes,
           });
           results.push(updated);
@@ -656,7 +656,7 @@ export function registerTimesheetRoutes(app: Express) {
             action: 'update',
             actorId: userId,
             before: beforeSnapshot,
-            after: { hours: String(hoursNum), notes: entry.notes },
+            after: { hours: hoursNum, notes: entry.notes },
           });
         } else if (hoursNum > 0) {
           const isAssigned = await validateTaskAssignment(entry.taskId);
@@ -687,7 +687,7 @@ export function registerTimesheetRoutes(app: Express) {
             if (existingEntry.status === 'Draft' || existingEntry.status === 'Rejected') {
               const beforeSnapshot = { hours: existingEntry.hours, notes: existingEntry.notes };
               const updated = await storage.updateTimesheetEntry(existingEntry.id, {
-                hours: String(hoursNum),
+                hours: hoursNum,
                 notes: entry.notes,
               });
               results.push(updated);
@@ -698,7 +698,7 @@ export function registerTimesheetRoutes(app: Express) {
                 action: 'update',
                 actorId: userId,
                 before: beforeSnapshot,
-                after: { hours: String(hoursNum), notes: entry.notes },
+                after: { hours: hoursNum, notes: entry.notes },
               });
             } else {
               errors.push({ index: idx, taskId: entry.taskId, entryDate: entry.entryDate, message: `Entry is ${existingEntry.status} and cannot be edited` });
@@ -713,7 +713,7 @@ export function registerTimesheetRoutes(app: Express) {
             taskId: entry.taskId,
             projectId: entry.projectId,
             entryDate: entry.entryDate,
-            hours: String(entry.hours),
+            hours: Number(entry.hours),
             notes: entry.notes,
             status: 'Draft',
           });
@@ -724,7 +724,7 @@ export function registerTimesheetRoutes(app: Express) {
             entryId: created.id,
             action: 'create',
             actorId: userId,
-            after: { hours: String(entry.hours), notes: entry.notes, taskId: entry.taskId, entryDate: entry.entryDate },
+            after: { hours: Number(entry.hours), notes: entry.notes, taskId: entry.taskId, entryDate: entry.entryDate },
           });
         }
       }
@@ -810,7 +810,7 @@ export function registerTimesheetRoutes(app: Express) {
 
       const beforeSnapshot = { hours: entry.hours, notes: entry.notes };
       const updated = await storage.updateTimesheetEntry(id, {
-        hours: hours !== undefined ? String(parseFloat(hours)) : undefined,
+        hours: hours !== undefined ? parseFloat(hours) : undefined,
         notes,
       });
 
@@ -1545,9 +1545,9 @@ export function registerTimesheetRoutes(app: Express) {
 
       const settings = await storage.upsertTimesheetSettings({
         organizationId,
-        minWeeklyHours: minWeeklyHours !== undefined ? String(minWeeklyHours) : undefined,
-        maxWeeklyHours: maxWeeklyHours !== undefined ? String(maxWeeklyHours) : undefined,
-        overtimeThreshold: overtimeThreshold !== undefined ? String(overtimeThreshold) : undefined,
+        minWeeklyHours: minWeeklyHours !== undefined ? Number(minWeeklyHours) : undefined,
+        maxWeeklyHours: maxWeeklyHours !== undefined ? Number(maxWeeklyHours) : undefined,
+        overtimeThreshold: overtimeThreshold !== undefined ? Number(overtimeThreshold) : undefined,
         gracePeriodDays: gracePeriodDays !== undefined ? Number(gracePeriodDays) : undefined,
         mandatoryNotes: mandatoryNotes !== undefined ? Boolean(mandatoryNotes) : undefined,
       });
@@ -1909,7 +1909,7 @@ export function registerTimesheetRoutes(app: Express) {
         taskId,
         projectId,
         entryDate,
-        hours: String(hoursNum),
+        hours: hoursNum,
         notes,
         status: 'Draft',
         proxyUserId: userId,
@@ -1921,7 +1921,7 @@ export function registerTimesheetRoutes(app: Express) {
         action: 'proxy_create',
         actorId: userId,
         targetUserId: targetResource.userId!,
-        after: { hours: String(hoursNum), notes, taskId, projectId, entryDate },
+        after: { hours: hoursNum, notes, taskId, projectId, entryDate },
         metadata: { proxyUserId: userId, targetResourceId },
       });
 
@@ -2152,8 +2152,8 @@ export function registerTimesheetRoutes(app: Express) {
         const delegateRes = resources.find(r => r.userId === d.delegateId);
         return {
           ...d,
-          delegatorName: delegatorRes?.displayName || delegatorRes?.name || 'Unknown',
-          delegateName: delegateRes?.displayName || delegateRes?.name || 'Unknown',
+          delegatorName: delegatorRes?.displayName || 'Unknown',
+          delegateName: delegateRes?.displayName || 'Unknown',
         };
       });
       res.json(enriched);
@@ -2648,7 +2648,7 @@ export function registerTimesheetRoutes(app: Express) {
         const entryResource = resources.find(r => r.id === entry.resourceId);
         const managerId = entryResource?.managerId || 'unassigned';
         const managerResource = resources.find(r => r.userId === managerId);
-        const managerName = managerResource?.displayName || managerResource?.name || (managerId === 'unassigned' ? 'Unassigned' : 'Unknown');
+        const managerName = managerResource?.displayName || (managerId === 'unassigned' ? 'Unassigned' : 'Unknown');
 
         if (!managerMetrics[managerId]) {
           managerMetrics[managerId] = { managerId, managerName, resolvedCount: 0, totalTurnaroundMs: 0, exceedingSla: 0, pendingExceedingSla: 0, totalSubmitted: 0, totalApproved: 0, totalRejected: 0, totalPending: 0 };
@@ -3004,7 +3004,7 @@ export function registerTimesheetRoutes(app: Express) {
         resourceId: userResource.id,
         categoryId,
         entryDate,
-        hours: String(hoursNum),
+        hours: hoursNum,
         notes,
         status: 'Draft'
       });
@@ -3055,8 +3055,8 @@ export function registerTimesheetRoutes(app: Express) {
 
       // Only allow updating hours and notes
       const { hours, notes } = req.body;
-      const updates: { hours?: string; notes?: string } = {};
-      if (hours !== undefined) updates.hours = String(Number(hours));
+      const updates: { hours?: number; notes?: string } = {};
+      if (hours !== undefined) updates.hours = Number(hours);
       if (notes !== undefined) updates.notes = notes;
 
       const updated = await storage.updateNonProjectTimeEntry(id, updates);

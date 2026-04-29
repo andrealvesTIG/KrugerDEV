@@ -216,7 +216,7 @@ export async function getAllMilestones(): Promise<Milestone[]> {
 }
 
 export async function createMilestone(milestone: InsertMilestone): Promise<Milestone> {
-  const taskData: Partial<typeof tasks.$inferInsert> = {
+  const taskData: typeof tasks.$inferInsert = {
     projectId: milestone.projectId,
     name: milestone.title,
     description: milestone.description ?? null,
@@ -272,7 +272,7 @@ export async function updateMilestone(id: number, updates: UpdateMilestoneReques
       taskUpdates.status = updates.completed ? 'Completed' : 'Not Started';
     }
     if (updates.completed && updates.actualCompletionDate === undefined) {
-      taskUpdates.actualEndDate = new Date();
+      taskUpdates.actualEndDate = new Date().toISOString().split('T')[0];
     }
     if (!updates.completed) {
       taskUpdates.actualEndDate = null;

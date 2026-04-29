@@ -130,7 +130,7 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, wo
       businessUnit: businessUnit,
       submitterId: user?.id,
       currentStep: "intake_capture",
-      workflowId: workflowId ? parseInt(workflowId) : undefined,
+      workflowId: workflowId ?? undefined,
     });
   };
 

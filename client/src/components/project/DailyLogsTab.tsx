@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useDailyLogs, useDailyLogSummary, useDailyLog, useCreateDailyLog, useUpdateDailyLog, useDeleteDailyLog } from "@/hooks/use-daily-logs";
-import type { DailyLogWithDetails } from "@/hooks/use-daily-logs";
+import type { DailyLogWithDetails, CreateDailyLogInput, UpdateDailyLogInput } from "@/hooks/use-daily-logs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -152,7 +152,7 @@ export default function DailyLogsTab({ projectId }: { projectId: number }) {
         onClose={() => setIsCreateOpen(false)}
         onSubmit={async (data) => {
           try {
-            await createMutation.mutateAsync(data);
+            await createMutation.mutateAsync(data as CreateDailyLogInput);
             toast({ title: "Daily log created" });
             setIsCreateOpen(false);
           } catch (err) {
@@ -179,7 +179,7 @@ export default function DailyLogsTab({ projectId }: { projectId: number }) {
           logId={selectedLogId}
           onSubmit={async (data) => {
             try {
-              await updateMutation.mutateAsync({ logId: selectedLogId, data });
+              await updateMutation.mutateAsync({ logId: selectedLogId, data: data as UpdateDailyLogInput });
               toast({ title: "Daily log updated" });
               setIsEditOpen(false);
               setSelectedLogId(null);
@@ -238,7 +238,7 @@ function SummaryCard({ icon, label, value }: { icon: React.ReactNode; label: str
   );
 }
 
-function DailyLogRow({ log, onView, onEdit, onDelete }: { log: DailyLogWithDetails; onView: () => void; onEdit: () => void; onDelete: () => void }) {
+function DailyLogRow({ log, onView, onEdit, onDelete }: { log: DailyLogWithDetails | import("@shared/schema").DailyLog; onView: () => void; onEdit: () => void; onDelete: () => void }) {
   const weatherIcon = log.weatherCondition ? getWeatherEmoji(log.weatherCondition) : null;
 
   return (

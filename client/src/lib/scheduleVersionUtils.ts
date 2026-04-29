@@ -144,6 +144,7 @@ export function snapshotsToPreviewSchedule(
         dependencyType: depTypeMap[p.type] || "finish-to-start",
         lagDays: Math.round(Number(p.lagDays) || 0),
         createdAt: null,
+        isDemo: false,
       };
       dependencies.push(dep);
     }

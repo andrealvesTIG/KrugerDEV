@@ -31,7 +31,7 @@ function importTasksToVersionTaskRows(
     startDate: t.startDate ?? null,
     endDate: t.finishDate ?? null,
     duration: t.duration ?? null,
-    durationDays: t.durationDays != null ? String(t.durationDays) : null,
+    durationDays: t.durationDays != null ? Number(t.durationDays) : null,
     progress: t.percentComplete ?? 0,
     status: t.percentComplete === 100 ? "Completed" :
             (t.percentComplete && t.percentComplete > 0) ? "In Progress" : "Not Started",
@@ -41,9 +41,9 @@ function importTasksToVersionTaskRows(
     parentExternalId: t.parentTaskId ?? null,
     predecessors: t.predecessors ?? null,
     notes: t.notes ?? null,
-    workHours: t.workHours != null ? String(t.workHours) : null,
-    actualWorkHours: t.actualWorkHours != null ? String(t.actualWorkHours) : null,
-    remainingWorkHours: t.remainingWorkHours != null ? String(t.remainingWorkHours) : null,
+    workHours: t.workHours != null ? Number(t.workHours) : null,
+    actualWorkHours: t.actualWorkHours != null ? Number(t.actualWorkHours) : null,
+    remainingWorkHours: t.remainingWorkHours != null ? Number(t.remainingWorkHours) : null,
     taskIndex: i + 1,
   }));
 }
@@ -421,9 +421,9 @@ export async function restoreScheduleVersion(
         isSummary,
         isMilestone,
         taskType,
-        estimatedHours: t.workHours ? String(t.workHours) : null,
-        actualHours: t.actualWorkHours ? String(t.actualWorkHours) : null,
-        remainingHours: t.remainingWorkHours ? String(t.remainingWorkHours) : null,
+        estimatedHours: t.workHours ? Number(t.workHours) : null,
+        actualHours: t.actualWorkHours ? Number(t.actualWorkHours) : null,
+        remainingHours: t.remainingWorkHours ? Number(t.remainingWorkHours) : null,
         parentId: null,
       }).returning();
 

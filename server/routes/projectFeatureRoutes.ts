@@ -80,6 +80,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     try {
       const projectId = Number(req.params.projectId);
       const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       
       const project = await storage.getProject(projectId);
       if (!project) return res.status(404).json({ message: "Project not found" });
@@ -238,6 +239,7 @@ export function registerProjectFeatureRoutes(app: Express) {
     try {
       const projectId = Number(req.params.projectId);
       const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
       
       const project = await storage.getProject(projectId);
       if (!project) return res.status(404).json({ message: "Project not found" });
@@ -1647,12 +1649,12 @@ export function registerProjectFeatureRoutes(app: Express) {
           isSummary: task.isSummary || false,
           isMilestone: task.isMilestone || false,
           notes: task.notes,
-          workHours: task.workHours?.toString() || null,
-          actualWorkHours: task.actualWorkHours?.toString() || null,
-          remainingWorkHours: task.remainingWorkHours?.toString() || null,
-          cost: task.cost != null ? task.cost.toString() : null,
-          actualCost: task.actualCost != null ? task.actualCost.toString() : null,
-          remainingCost: task.remainingCost != null ? task.remainingCost.toString() : null,
+          workHours: task.workHours ?? null,
+          actualWorkHours: task.actualWorkHours ?? null,
+          remainingWorkHours: task.remainingWorkHours ?? null,
+          cost: task.cost ?? null,
+          actualCost: task.actualCost ?? null,
+          remainingCost: task.remainingCost ?? null,
           predecessors: task.predecessors && task.predecessors.length > 0 ? JSON.stringify(task.predecessors) : null,
         }));
         await storage.createMppImportTasks(taskRecords);
@@ -1777,7 +1779,6 @@ export function registerProjectFeatureRoutes(app: Express) {
         description,
         status,
         priority,
-        importedBy: userId || null,
       });
       
       const mppUser = userId ? await storage.getUser(userId) : null;
@@ -1931,12 +1932,12 @@ export function registerProjectFeatureRoutes(app: Express) {
           isSummary: task.isSummary || false,
           isMilestone: task.isMilestone || false,
           notes: task.notes,
-          workHours: task.workHours?.toString() || null,
-          actualWorkHours: task.actualWorkHours?.toString() || null,
-          remainingWorkHours: task.remainingWorkHours?.toString() || null,
-          cost: task.cost != null ? task.cost.toString() : null,
-          actualCost: task.actualCost != null ? task.actualCost.toString() : null,
-          remainingCost: task.remainingCost != null ? task.remainingCost.toString() : null,
+          workHours: task.workHours ?? null,
+          actualWorkHours: task.actualWorkHours ?? null,
+          remainingWorkHours: task.remainingWorkHours ?? null,
+          cost: task.cost ?? null,
+          actualCost: task.actualCost ?? null,
+          remainingCost: task.remainingCost ?? null,
           predecessors: task.predecessors && task.predecessors.length > 0
             ? JSON.stringify(task.predecessors)
             : null,
@@ -2089,7 +2090,6 @@ export function registerProjectFeatureRoutes(app: Express) {
         description,
         status,
         priority,
-        importedBy: userId || null,
       });
 
       // Record usage after successful creation
@@ -2618,7 +2618,7 @@ export function registerProjectFeatureRoutes(app: Express) {
           isMilestone: task.isMilestone || false,
           predecessors: task.predecessors && task.predecessors.length > 0 ? JSON.stringify(task.predecessors) : null,
           notes: task.notes,
-          workHours: task.workHours?.toString() || null,
+          workHours: task.workHours ?? null,
         }));
         await storage.createProjectTemplateItems(items);
       }
@@ -2696,7 +2696,7 @@ export function registerProjectFeatureRoutes(app: Express) {
             description: task.description,
             startDate: task.startDate,
             endDate: task.endDate,
-            duration: task.duration,
+            duration: task.durationDays,
             durationDays: task.durationDays,
             outlineLevel: task.outlineLevel || 1,
             parentTaskId: task.parentId,
@@ -2704,7 +2704,7 @@ export function registerProjectFeatureRoutes(app: Express) {
             isMilestone: task.taskType === 'Milestone',
             predecessors: deps && deps.length > 0 ? JSON.stringify(deps) : null,
             notes: task.notes,
-            workHours: task.estimatedHours?.toString() || null,
+            workHours: task.estimatedHours != null ? Number(task.estimatedHours) : null,
           });
         }
       }
@@ -2903,7 +2903,7 @@ export function registerProjectFeatureRoutes(app: Express) {
           isMilestone: item.isMilestone,
           predecessors: item.predecessors,
           notes: item.notes,
-          workHours: item.workHours?.toString() || null,
+          workHours: item.workHours ?? null,
         }));
         await storage.createProjectTemplateItems(newItems);
       }
@@ -3061,7 +3061,7 @@ export function registerProjectFeatureRoutes(app: Express) {
           isMilestone: task.isMilestone || false,
           predecessors: task.predecessors && task.predecessors.length > 0 ? JSON.stringify(task.predecessors) : null,
           notes: task.notes,
-          workHours: task.workHours?.toString() || null,
+          workHours: task.workHours ?? null,
         }));
         await storage.createProjectTemplateItems(items);
       }
@@ -3140,7 +3140,7 @@ export function registerProjectFeatureRoutes(app: Express) {
         priority: priority || 'Medium',
         startDate: startDate || null,
         endDate: null,
-        budget: "0",
+        budget: 0,
         managerId: userId,
         source: 'manual',
       });
@@ -3195,7 +3195,6 @@ export function registerProjectFeatureRoutes(app: Express) {
             wbs: item.wbs,
             startDate: taskStartDate,
             endDate: taskEndDate,
-            duration: item.duration,
             durationDays: item.durationDays,
             outlineLevel: item.outlineLevel,
             parentId: item.parentTaskId && oldIdToNewId.has(item.parentTaskId) ? oldIdToNewId.get(item.parentTaskId)! : null,

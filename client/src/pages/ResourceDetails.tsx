@@ -471,7 +471,7 @@ export default function ResourceDetails() {
                         <Input 
                           type="number"
                           value={editValues.hourlyRate || ""} 
-                          onChange={e => setEditValues(prev => ({ ...prev, hourlyRate: e.target.value }))}
+                          onChange={e => setEditValues(prev => ({ ...prev, hourlyRate: e.target.value ? Number(e.target.value) : null }))}
                           data-testid="input-hourly-rate"
                         />
                       ) : (
@@ -485,7 +485,7 @@ export default function ResourceDetails() {
                         <Input 
                           type="number"
                           value={editValues.weeklyCapacity || ""} 
-                          onChange={e => setEditValues(prev => ({ ...prev, weeklyCapacity: e.target.value }))}
+                          onChange={e => setEditValues(prev => ({ ...prev, weeklyCapacity: e.target.value ? Number(e.target.value) : null }))}
                           data-testid="input-weekly-capacity"
                         />
                       ) : (

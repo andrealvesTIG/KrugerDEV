@@ -49,7 +49,7 @@ export async function checkDueDateNotifications(): Promise<number> {
         organizationId: rfi.organizationId,
         projectId: rfi.projectId,
         actionUrl: `/projects/${rfi.projectId}?tab=rfis`,
-        metadata: { rfiId: rfi.id, rfiNumber: rfi.rfiNumber, dueDate: rfi.dueDate },
+        metadata: JSON.stringify({ rfiId: rfi.id, rfiNumber: rfi.rfiNumber, dueDate: rfi.dueDate }),
       });
       notificationCount++;
     } catch {
@@ -90,7 +90,7 @@ export async function checkDueDateNotifications(): Promise<number> {
         organizationId: sub.organizationId,
         projectId: sub.projectId,
         actionUrl: `/projects/${sub.projectId}?tab=submittals`,
-        metadata: { submittalId: sub.id, submittalNumber: sub.submittalNumber, requiredDate: sub.requiredDate },
+        metadata: JSON.stringify({ submittalId: sub.id, submittalNumber: sub.submittalNumber, requiredDate: sub.requiredDate }),
       });
       notificationCount++;
     } catch {

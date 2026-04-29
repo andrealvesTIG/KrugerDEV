@@ -788,31 +788,33 @@ export async function getPowerBIIntakeRequest(id: number, orgId: number) {
 
 export async function convertPowerBIRequestToIntake(id: number, orgId: number, userId: string) {
   return db.transaction(async (tx) => {
-    const [request] = await tx.execute(
-      sql`SELECT * FROM ${powerbiIntakeRequests} WHERE ${powerbiIntakeRequests.id} = ${id} AND ${powerbiIntakeRequests.organizationId} = ${orgId} FOR UPDATE`
-    ) as any[];
+    const [request] = await tx
+      .select()
+      .from(powerbiIntakeRequests)
+      .where(and(eq(powerbiIntakeRequests.id, id), eq(powerbiIntakeRequests.organizationId, orgId)))
+      .for("update");
     if (!request) throw new Error("Power BI request not found");
-    if (request.project_intake_id) throw new Error("This request already has a linked project intake");
+    if (request.projectIntakeId) throw new Error("This request already has a linked project intake");
 
     const dp: string[] = [];
     if (request.description) dp.push(request.description);
     dp.push(`\n--- Power BI Scoping Details ---`);
-    dp.push(`Report Type: ${request.report_type || "N/A"}`);
-    if (request.number_of_pages) dp.push(`Pages: ${request.number_of_pages} main${request.number_of_drill_down_pages ? ` + ${request.number_of_drill_down_pages} drill-down` : ""}`);
-    if (request.number_of_data_sources) dp.push(`Data Sources (${request.number_of_data_sources}): ${request.data_sources || "N/A"}`);
+    dp.push(`Report Type: ${request.reportType || "N/A"}`);
+    if (request.numberOfPages) dp.push(`Pages: ${request.numberOfPages} main${request.numberOfDrillDownPages ? ` + ${request.numberOfDrillDownPages} drill-down` : ""}`);
+    if (request.numberOfDataSources) dp.push(`Data Sources (${request.numberOfDataSources}): ${request.dataSources || "N/A"}`);
     if (request.integrations) dp.push(`Integrations: ${request.integrations}`);
-    if (request.calculation_complexity) dp.push(`Calculation Complexity: ${request.calculation_complexity}`);
-    if (request.refresh_frequency) dp.push(`Refresh Frequency: ${request.refresh_frequency}`);
-    if (request.filters_and_slicers) dp.push(`Filters & Slicers: ${request.filters_and_slicers}`);
-    if (request.visual_requirements) dp.push(`Visual/UX Requirements: ${request.visual_requirements}`);
-    if (request.security_requirements) dp.push(`Security / RLS: ${request.security_requirements}`);
-    if (request.target_delivery_date) dp.push(`Target Delivery: ${request.target_delivery_date}`);
-    if (request.additional_notes) dp.push(`Additional Notes: ${request.additional_notes}`);
-    dp.push(`\nPower BI Request Ref: ${request.request_number}`);
+    if (request.calculationComplexity) dp.push(`Calculation Complexity: ${request.calculationComplexity}`);
+    if (request.refreshFrequency) dp.push(`Refresh Frequency: ${request.refreshFrequency}`);
+    if (request.filtersAndSlicers) dp.push(`Filters & Slicers: ${request.filtersAndSlicers}`);
+    if (request.visualRequirements) dp.push(`Visual/UX Requirements: ${request.visualRequirements}`);
+    if (request.securityRequirements) dp.push(`Security / RLS: ${request.securityRequirements}`);
+    if (request.targetDeliveryDate) dp.push(`Target Delivery: ${request.targetDeliveryDate}`);
+    if (request.additionalNotes) dp.push(`Additional Notes: ${request.additionalNotes}`);
+    dp.push(`\nPower BI Request Ref: ${request.requestNumber}`);
 
-    const eb = request.effort_breakdown as Record<string, number> | null;
-    const rr = request.estimated_effort_hours
-      ? `Estimated effort: ${request.estimated_effort_hours} hours${eb ? "\n" + Object.entries(eb).map(([k, v]) => `${k}: ${v}h`).join("\n") : ""}`
+    const eb = request.effortBreakdown as Record<string, number> | null;
+    const rr = request.estimatedEffortHours
+      ? `Estimated effort: ${request.estimatedEffortHours} hours${eb ? "\n" + Object.entries(eb).map(([k, v]) => `${k}: ${v}h`).join("\n") : ""}`
       : null;
 
     const year = new Date().getFullYear();
@@ -824,13 +826,13 @@ export async function convertPowerBIRequestToIntake(id: number, orgId: number, u
     const [pi] = await tx.insert(projectIntakes).values({
       organizationId: orgId,
       intakeNumber,
-      projectName: request.report_name || "Untitled Power BI Report",
+      projectName: request.reportName || "Untitled Power BI Report",
       submitterId: userId,
       description: dp.join("\n"),
       status: "draft",
       currentStep: "intake_capture",
       resourceRequirements: rr,
-      implementationTimeline: request.target_delivery_date || null,
+      implementationTimeline: request.targetDeliveryDate || null,
     }).returning();
 
     await tx.update(powerbiIntakeRequests).set({ projectIntakeId: pi.id }).where(eq(powerbiIntakeRequests.id, id));

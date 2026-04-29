@@ -999,7 +999,7 @@ async function seedDatabase() {
       priority: "High",
       startDate: "2025-01-01",
       endDate: "2025-06-30",
-      budget: "450000",
+      budget: 450000,
       managerId: null,
       health: "Green",
       completionPercentage: 45
@@ -1015,7 +1015,7 @@ async function seedDatabase() {
       priority: "Critical",
       startDate: "2025-02-15",
       endDate: "2025-09-15",
-      budget: "800000",
+      budget: 800000,
       managerId: null,
       health: "Yellow",
       completionPercentage: 15
@@ -1032,7 +1032,7 @@ async function seedDatabase() {
       priority: "High",
       startDate: "2024-11-01",
       endDate: "2025-05-31",
-      budget: "350000",
+      budget: 350000,
       managerId: null,
       health: "Green",
       completionPercentage: 60
@@ -1048,7 +1048,7 @@ async function seedDatabase() {
       priority: "Medium",
       startDate: "2024-10-15",
       endDate: "2025-04-30",
-      budget: "280000",
+      budget: 280000,
       managerId: null,
       health: "Red",
       completionPercentage: 35
@@ -1064,7 +1064,7 @@ async function seedDatabase() {
       priority: "High",
       startDate: "2025-03-01",
       endDate: "2025-07-31",
-      budget: "180000",
+      budget: 180000,
       managerId: null,
       health: "Green",
       completionPercentage: 5
@@ -1081,7 +1081,7 @@ async function seedDatabase() {
       priority: "Critical",
       startDate: "2024-12-01",
       endDate: "2025-06-30",
-      budget: "400000",
+      budget: 400000,
       managerId: null,
       health: "Yellow",
       completionPercentage: 40
@@ -1097,7 +1097,7 @@ async function seedDatabase() {
       priority: "Medium",
       startDate: "2024-09-01",
       endDate: "2025-01-31",
-      budget: "120000",
+      budget: 120000,
       managerId: null,
       health: "Green",
       completionPercentage: 90
@@ -1354,7 +1354,7 @@ async function seedDatabase() {
       impact: "High",
       status: "Open",
       mitigationPlan: "Early review of App Store guidelines, implement in-app purchase where required, thorough privacy policy review.",
-      costExposure: "75000",
+      costExposure: 75000,
     });
 
     await storage.createRisk({
@@ -1365,7 +1365,7 @@ async function seedDatabase() {
       impact: "High",
       status: "Mitigated",
       mitigationPlan: "Implement fallback payment processor (PayPal), add offline cart persistence, display helpful error messages.",
-      costExposure: "120000",
+      costExposure: 120000,
     });
 
     await storage.createRisk({
@@ -1376,7 +1376,7 @@ async function seedDatabase() {
       impact: "Medium",
       status: "Open",
       mitigationPlan: "Implement connection pooling, add Redis pub/sub for horizontal scaling, load testing at 10x expected traffic.",
-      costExposure: "45000",
+      costExposure: 45000,
     });
 
     await storage.createRisk({
@@ -1387,7 +1387,7 @@ async function seedDatabase() {
       impact: "High",
       status: "Open",
       mitigationPlan: "Extensive data validation scripts, parallel run of old and new systems, rollback plan within 24 hours.",
-      costExposure: "200000",
+      costExposure: 200000,
     });
 
     await storage.createRisk({
@@ -1398,7 +1398,7 @@ async function seedDatabase() {
       impact: "High",
       status: "Open",
       mitigationPlan: "Start with basic Kubernetes networking, gradually introduce Istio features, extensive monitoring with Prometheus/Grafana.",
-      costExposure: "85000",
+      costExposure: 85000,
     });
 
     await storage.createRisk({
@@ -1409,7 +1409,7 @@ async function seedDatabase() {
       impact: "Medium",
       status: "Open",
       mitigationPlan: "Implement Kubecost for cost monitoring, use spot instances for non-critical workloads, regular right-sizing reviews.",
-      costExposure: "60000",
+      costExposure: 60000,
     });
 
     await storage.createRisk({
@@ -1420,7 +1420,7 @@ async function seedDatabase() {
       impact: "Critical",
       status: "Open",
       mitigationPlan: "Continuous security scanning with Snyk, internal penetration testing before audit, dedicated security sprint buffer.",
-      costExposure: "350000",
+      costExposure: 350000,
     });
 
     // ==================== ISSUES ====================
@@ -1434,7 +1434,7 @@ async function seedDatabase() {
       status: "In Progress",
       type: "Bug",
       assignee: "James Wilson",
-      costExposure: "15000",
+      costExposure: 15000,
     });
 
     await storage.createIssue({
@@ -1445,7 +1445,7 @@ async function seedDatabase() {
       status: "Open",
       type: "Enhancement",
       assignee: null,
-      costExposure: "8000",
+      costExposure: 8000,
     });
 
     await storage.createIssue({
@@ -1456,7 +1456,7 @@ async function seedDatabase() {
       status: "Open",
       type: "Bug",
       assignee: "Maria Garcia",
-      costExposure: "95000",
+      costExposure: 95000,
     });
 
     // SaaS Dashboard Issues
@@ -1468,7 +1468,7 @@ async function seedDatabase() {
       status: "In Progress",
       type: "Bug",
       assignee: "David Park",
-      costExposure: "12000",
+      costExposure: 12000,
     });
 
     await storage.createIssue({
@@ -1479,7 +1479,7 @@ async function seedDatabase() {
       status: "Open",
       type: "Enhancement",
       assignee: null,
-      costExposure: "3000",
+      costExposure: 3000,
     });
 
     await storage.createIssue({
@@ -1490,7 +1490,7 @@ async function seedDatabase() {
       status: "Open",
       type: "Bug",
       assignee: "Emma Thompson",
-      costExposure: "35000",
+      costExposure: 35000,
     });
 
     // CRM Issues
@@ -1502,7 +1502,7 @@ async function seedDatabase() {
       status: "In Progress",
       type: "Bug",
       assignee: "Backend Team",
-      costExposure: "20000",
+      costExposure: 20000,
     });
 
     await storage.createIssue({
@@ -1513,7 +1513,7 @@ async function seedDatabase() {
       status: "Open",
       type: "Task",
       assignee: null,
-      costExposure: "10000",
+      costExposure: 10000,
     });
 
     // Kubernetes Issues
@@ -1525,7 +1525,7 @@ async function seedDatabase() {
       status: "In Progress",
       type: "Bug",
       assignee: "Chris Lee",
-      costExposure: "150000",
+      costExposure: 150000,
     });
 
     await storage.createIssue({
@@ -1536,7 +1536,7 @@ async function seedDatabase() {
       status: "Open",
       type: "Task",
       assignee: "Jennifer Wu",
-      costExposure: "5000",
+      costExposure: 5000,
     });
 
     await storage.createIssue({
@@ -1547,7 +1547,7 @@ async function seedDatabase() {
       status: "Open",
       type: "Enhancement",
       assignee: "Robert Taylor",
-      costExposure: "25000",
+      costExposure: 25000,
     });
 
     // CI/CD Issues
@@ -1559,7 +1559,7 @@ async function seedDatabase() {
       status: "Resolved",
       type: "Bug",
       assignee: "DevOps Team",
-      costExposure: "18000",
+      costExposure: 18000,
     });
 
     await storage.createIssue({
@@ -1570,7 +1570,7 @@ async function seedDatabase() {
       status: "Closed",
       type: "Enhancement",
       assignee: "DevOps Team",
-      costExposure: "7000",
+      costExposure: 7000,
     });
 
   }
@@ -1615,7 +1615,7 @@ async function logUserActivity(
       userId,
       action,
       entityType: entityType ?? null,
-      entityId: entityId ?? null,
+      entityId: entityId !== undefined ? String(entityId) : null,
       metadata: metadata ?? null,
       ipAddress: req?.ip ?? null,
       userAgent: req?.headers?.['user-agent'] ?? null,

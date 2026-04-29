@@ -82,7 +82,7 @@ export default function ChangeOrders() {
   const openEdit = (co: ChangeOrder) => {
     setEditingCO(co); setFormProjectId(co.projectId); setFormTitle(co.title);
     setFormDescription(co.description || ""); setFormTier(co.tier); setFormStatus(co.status);
-    setFormReasonCode(co.reasonCode || ""); setFormCostImpact(co.costImpact || "");
+    setFormReasonCode(co.reasonCode || ""); setFormCostImpact(co.costImpact != null ? String(co.costImpact) : "");
     setFormScheduleImpact(String(co.scheduleImpactDays || "")); setFormRequestedBy(co.requestedBy || "");
     setFormNotes(co.notes || ""); setIsDialogOpen(true);
   };

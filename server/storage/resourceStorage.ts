@@ -485,14 +485,14 @@ export async function updateTaskResourceAssignments(taskId: number, resourceIds:
     for (const resource of assignedResources) {
       const assignment = assignmentData.find(a => a.resourceId === resource.id);
       const allocationPct = assignment?.allocationPercentage ?? 100;
-      const weeklyCapacity = parseFloat(resource.weeklyCapacity || "40");
+      const weeklyCapacity = Number(resource.weeklyCapacity ?? 40);
       const dailyCapacity = weeklyCapacity / 5;
       const resourceHours = (allocationPct / 100) * dailyCapacity * durationDays;
       totalEstimatedHours += resourceHours;
     }
     
     await tx.update(tasks)
-      .set({ estimatedHours: String(Math.round(totalEstimatedHours * 100) / 100) })
+      .set({ estimatedHours: Math.round(totalEstimatedHours * 100) / 100 })
       .where(eq(tasks.id, taskId));
   });
 }

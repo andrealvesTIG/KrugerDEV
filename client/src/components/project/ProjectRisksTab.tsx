@@ -418,10 +418,27 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
             onSubmit={(data: RiskFormData) => {
               if (!editingRisk) return;
               setEditRiskSubmitError(null);
-              const escalationData = escalateToPortfolio 
-                ? { escalatedToPortfolio: true, escalatedAt: editingRisk.escalatedToPortfolio ? editingRisk.escalatedAt : new Date().toISOString() }
-                : { escalatedToPortfolio: false, escalatedAt: null };
-              updateRisk.mutate({ id: editingRisk.id, projectId, ...data, ...escalationData }, {
+              const escalatedAt = escalateToPortfolio
+                ? (editingRisk.escalatedToPortfolio
+                    ? (editingRisk.escalatedAt ? new Date(editingRisk.escalatedAt) : new Date())
+                    : new Date())
+                : null;
+              const payload = {
+                id: editingRisk.id,
+                projectId,
+                title: data.title,
+                description: data.description,
+                probability: data.probability,
+                impact: data.impact,
+                status: data.status,
+                mitigationPlan: data.mitigationPlan,
+                dueDate: data.dueDate || null,
+                costExposure: data.costExposure ? Number(data.costExposure) : null,
+                riskScore: data.riskScore ? Number(data.riskScore) : null,
+                escalatedToPortfolio: escalateToPortfolio,
+                escalatedAt,
+              };
+              updateRisk.mutate(payload, {
                 onSuccess: () => {
                   updateRiskResources.mutate({ riskId: editingRisk.id, resourceIds: selectedResourceIds });
                   toast({ title: "Success", description: "Risk updated" });

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Loader2, History, ChevronDown, ChevronUp, Sparkles, ArrowUpToLine } from "lucide-react";
 import { Link } from "wouter";
-import { RISK_STATUSES } from "@shared/schema";
+import { RISK_STATUSES, type Risk } from "@shared/schema";
 import { applyServerErrorsToForm } from "@/lib/serverErrors";
 
 const riskFormSchema = z.object({
@@ -41,22 +41,10 @@ export interface ChangeLogEntry {
 export interface EditRiskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  risk: {
-    id: number;
-    projectId: number;
-    title: string;
-    description?: string | null;
-    probability?: string | null;
-    impact?: string | null;
-    status?: string | null;
-    dueDate?: string | null;
-    costExposure?: string | null;
-    riskScore?: number | null;
-    mitigationPlan?: string | null;
-    escalatedToPortfolio?: boolean | null;
-    escalatedAt?: Date | string | null;
-    itemType?: string | null;
-  } | null;
+  risk: (Pick<Risk, "id" | "projectId" | "title"> & Partial<Omit<Risk, "id" | "projectId" | "title">> & {
+    /** Allow legacy callers that still pass costExposure as a string. */
+    costExposure?: Risk["costExposure"] | string;
+  }) | null;
   onSubmit: (data: RiskFormData) => void;
   isSubmitting?: boolean;
   projectLink?: { name: string; id: number } | null;
@@ -141,7 +129,7 @@ export function EditRiskDialog({
         impact: risk.impact || "Medium",
         status: risk.status || "Open",
         dueDate: risk.dueDate ? risk.dueDate.substring(0, 10) : "",
-        costExposure: risk.costExposure || "",
+        costExposure: risk.costExposure != null ? String(risk.costExposure) : "",
         riskScore: risk.riskScore ? String(risk.riskScore) : "",
         mitigationPlan: risk.mitigationPlan || "",
       });

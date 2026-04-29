@@ -324,7 +324,7 @@ export async function setupProjectOnlineRoutes(app: Express) {
           health: "Green",
           startDate: p.StartDate ? new Date(p.StartDate).toISOString().split("T")[0] : null,
           endDate: p.FinishDate ? new Date(p.FinishDate).toISOString().split("T")[0] : null,
-          budget: "0",
+          budget: 0,
           completionPercentage: Math.round(p.PercentComplete || 0),
           source: "imported",
         });

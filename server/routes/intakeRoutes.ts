@@ -22,7 +22,7 @@ function dispatchIntakeStepTransitionEmails(args: {
   nextWorkflowId: number | null;
   previousStep: string | null;
   nextStep: string | null;
-  actorUserId: string;
+  actorUserId: string | undefined;
 }): void {
   const { intakeId, intakeNumber, projectName, organizationId, previousWorkflowId, nextWorkflowId, previousStep, nextStep, actorUserId } = args;
   if (!organizationId) return;
@@ -47,7 +47,7 @@ function dispatchIntakeStepTransitionEmails(args: {
 
       let actorName: string | null = null;
       try {
-        const actor = await storage.getUser(actorUserId);
+        const actor = actorUserId ? await storage.getUser(actorUserId) : null;
         actorName = actor ? (`${actor.firstName || ''} ${actor.lastName || ''}`.trim() || actor.email || null) : null;
       } catch (lookupErr) {
         console.error("Failed to look up actor for intake step transition email:", lookupErr);
@@ -199,7 +199,7 @@ export function registerIntakeRoutes(app: Express) {
         previousWorkflowId: null,
         nextWorkflowId: intake.workflowId ?? null,
         previousStep: null,
-        nextStep: intake.currentStep,
+        nextStep: intake.currentStep ?? null,
         actorUserId: userId,
       });
 

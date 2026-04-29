@@ -121,7 +121,7 @@ export default function ChangeOrdersTab({ projectId }: { projectId: number }) {
     setFormTier(co.tier);
     setFormStatus(co.status);
     setFormReasonCode(co.reasonCode || "");
-    setFormCostImpact(co.costImpact || "");
+    setFormCostImpact(co.costImpact != null ? String(co.costImpact) : "");
     setFormScheduleImpact(String(co.scheduleImpactDays || ""));
     setFormRequestedBy(co.requestedBy || "");
     setFormRequestedDate(co.requestedDate || "");

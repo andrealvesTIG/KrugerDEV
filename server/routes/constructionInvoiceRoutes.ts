@@ -10,15 +10,17 @@ import {
   logUserActivity,
 } from "./helpers";
 
+const numericInput = z.union([z.number(), z.string()]).transform((v) => typeof v === "string" ? Number(v) : v);
+
 const createInvoiceSchema = z.object({
   title: z.string().min(1).max(500),
   description: z.string().max(10000).nullable().optional(),
-  contractAmount: z.string().nullable().optional(),
-  totalAmount: z.string().nullable().optional(),
-  previousBilled: z.string().nullable().optional(),
-  currentBilled: z.string().nullable().optional(),
-  balanceToFinish: z.string().nullable().optional(),
-  retainage: z.string().nullable().optional(),
+  contractAmount: numericInput.nullable().optional(),
+  totalAmount: numericInput.nullable().optional(),
+  previousBilled: numericInput.nullable().optional(),
+  currentBilled: numericInput.nullable().optional(),
+  balanceToFinish: numericInput.nullable().optional(),
+  retainage: numericInput.nullable().optional(),
   status: z.enum(["Draft", "Submitted", "Under Review", "Approved", "Paid", "Rejected"]).default("Draft"),
   periodFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   periodTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
@@ -28,11 +30,11 @@ const createInvoiceSchema = z.object({
   lineItems: z.array(z.object({
     costCode: z.string().max(100).nullable().optional(),
     description: z.string().min(1).max(1000),
-    scheduledValue: z.string().nullable().optional(),
-    previousBilled: z.string().nullable().optional(),
-    currentBilled: z.string().nullable().optional(),
-    balanceToFinish: z.string().nullable().optional(),
-    percentComplete: z.string().nullable().optional(),
+    scheduledValue: numericInput.nullable().optional(),
+    previousBilled: numericInput.nullable().optional(),
+    currentBilled: numericInput.nullable().optional(),
+    balanceToFinish: numericInput.nullable().optional(),
+    percentComplete: numericInput.nullable().optional(),
     sortOrder: z.number().int().optional(),
   })).optional(),
 }).strict();
@@ -113,24 +115,24 @@ export function registerConstructionInvoiceRoutes(app: Express) {
           isNull(changeOrders.deletedAt),
         ));
 
-      const originalContract = parseFloat(project.contractTotal || "0");
+      const originalContract = (project.contractTotal ?? 0);
       const approvedChanges = allChangeOrders
         .filter(co => co.status === "Approved" && co.tier === "CO")
-        .reduce((sum, co) => sum + parseFloat(co.costImpact || "0"), 0);
+        .reduce((sum, co) => sum + (co.costImpact ?? 0), 0);
       const revisedContract = originalContract + approvedChanges;
 
       const totalBilled = allInvoices
         .filter(inv => ["Approved", "Paid"].includes(inv.status))
-        .reduce((sum, inv) => sum + parseFloat(inv.currentBilled || "0"), 0);
+        .reduce((sum, inv) => sum + (inv.currentBilled ?? 0), 0);
 
       const totalPaid = allInvoices
         .filter(inv => inv.status === "Paid")
-        .reduce((sum, inv) => sum + parseFloat(inv.paidAmount || inv.currentBilled || "0"), 0);
+        .reduce((sum, inv) => sum + (inv.paidAmount ?? inv.currentBilled ?? 0), 0);
 
       const balanceRemaining = revisedContract - totalBilled;
       const pendingInvoices = allInvoices.filter(inv => ["Draft", "Submitted", "Under Review"].includes(inv.status)).length;
       const totalRetainage = allInvoices
-        .reduce((sum, inv) => sum + parseFloat(inv.retainage || "0"), 0);
+        .reduce((sum, inv) => sum + (inv.retainage ?? 0), 0);
 
       res.json({
         originalContract,
@@ -168,8 +170,8 @@ export function registerConstructionInvoiceRoutes(app: Express) {
       const today = new Date();
       type AgingEntry = {
         id: number; invoiceNumber: string | null; title: string; vendorName: string | null;
-        status: string; submittedDate: string | null; currentBilled: string | null;
-        paidAmount: string | null; outstanding: number; daysOld: number;
+        status: string; submittedDate: string | null; currentBilled: number | null;
+        paidAmount: number | null; outstanding: number; daysOld: number;
       };
       const buckets: Record<string, AgingEntry[]> = { current: [], days1to30: [], days31to60: [], days61to90: [], over90: [] };
       const unpaid = allInvoices.filter(inv => inv.status !== "Paid" && inv.status !== "Draft" && inv.status !== "Void");
@@ -177,7 +179,7 @@ export function registerConstructionInvoiceRoutes(app: Express) {
       for (const inv of unpaid) {
         const refDate = inv.submittedDate ? new Date(inv.submittedDate) : (inv.createdAt || today);
         const daysOld = Math.floor((today.getTime() - new Date(refDate).getTime()) / (1000 * 60 * 60 * 24));
-        const outstanding = parseFloat(inv.currentBilled || "0") - parseFloat(inv.paidAmount || "0");
+        const outstanding = (inv.currentBilled ?? 0) - (inv.paidAmount ?? 0);
         const entry = {
           id: inv.id,
           invoiceNumber: inv.invoiceNumber,
@@ -204,8 +206,8 @@ export function registerConstructionInvoiceRoutes(app: Express) {
       }
 
       const totalOutstanding = Object.values(bucketTotals).reduce((s, v) => s + v, 0);
-      const totalBilled = allInvoices.reduce((s, inv) => s + parseFloat(inv.currentBilled || "0"), 0);
-      const totalPaid = allInvoices.filter(inv => inv.status === "Paid").reduce((s, inv) => s + parseFloat(inv.paidAmount || inv.currentBilled || "0"), 0);
+      const totalBilled = allInvoices.reduce((s, inv) => s + (inv.currentBilled ?? 0), 0);
+      const totalPaid = allInvoices.filter(inv => inv.status === "Paid").reduce((s, inv) => s + (inv.paidAmount ?? inv.currentBilled ?? 0), 0);
 
       res.json({
         projectName: project.name,
@@ -289,7 +291,7 @@ export function registerConstructionInvoiceRoutes(app: Express) {
         );
       }
 
-      logUserActivity(userId, "construction_invoice_created", projectId, { invoiceId: invoice.id });
+      logUserActivity(userId, "construction_invoice_created", "construction_invoice", invoice.id, { projectId });
 
       const lineItemsList = await db.select()
         .from(constructionInvoiceLineItems)
@@ -355,7 +357,7 @@ export function registerConstructionInvoiceRoutes(app: Express) {
         }
       }
 
-      logUserActivity(userId, "construction_invoice_updated", projectId, { invoiceId });
+      logUserActivity(userId, "construction_invoice_updated", "construction_invoice", invoiceId, { projectId });
 
       const lineItemsList = await db.select()
         .from(constructionInvoiceLineItems)
@@ -380,7 +382,7 @@ export function registerConstructionInvoiceRoutes(app: Express) {
       if (!project) return res.status(403).json({ message: "Access denied" });
 
       const paymentSchema = z.object({
-        paidAmount: z.string().min(1),
+        paidAmount: numericInput,
         paidDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
         notes: z.string().max(10000).optional(),
       });
@@ -418,8 +420,8 @@ export function registerConstructionInvoiceRoutes(app: Express) {
         ))
         .returning();
 
-      logUserActivity(userId, "construction_invoice_payment_recorded", projectId, {
-        invoiceId,
+      logUserActivity(userId, "construction_invoice_payment_recorded", "construction_invoice", invoiceId, {
+        projectId,
         paidAmount: parsed.paidAmount,
         paidDate: parsed.paidDate || now.toISOString().split("T")[0],
       });
@@ -452,7 +454,7 @@ export function registerConstructionInvoiceRoutes(app: Express) {
 
       if (!deleted) return res.status(404).json({ message: "Invoice not found" });
 
-      logUserActivity(userId, "construction_invoice_deleted", projectId, { invoiceId });
+      logUserActivity(userId, "construction_invoice_deleted", "construction_invoice", invoiceId, { projectId });
       res.json({ message: "Invoice deleted" });
     } catch (err: unknown) {
       const classified = classifyError(err);

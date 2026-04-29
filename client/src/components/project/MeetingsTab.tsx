@@ -512,9 +512,9 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
                     <h3 className="font-semibold truncate">{meeting.title as string}</h3>
                     <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground flex-wrap">
                       <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{meeting.date as string}</span>
-                      {meeting.startTime && <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{meeting.startTime as string}{meeting.endTime ? ` - ${meeting.endTime as string}` : ""}</span>}
-                      {meeting.location && <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{meeting.location as string}</span>}
-                      {meeting.attendees && <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />{(meeting.attendees as string).split(",").length} attendees</span>}
+                      {Boolean(meeting.startTime) && <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" />{meeting.startTime as string}{meeting.endTime ? ` - ${meeting.endTime as string}` : ""}</span>}
+                      {Boolean(meeting.location) && <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{meeting.location as string}</span>}
+                      {Boolean(meeting.attendees) && <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />{(meeting.attendees as string).split(",").length} attendees</span>}
                     </div>
                   </div>
                   <div onClick={e => e.stopPropagation()}>
@@ -563,13 +563,13 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <Badge className={actionStatusColor(item.status as string)} variant="secondary">{item.status as string}</Badge>
-                      {item.priority && <Badge variant="outline">{item.priority as string}</Badge>}
+                      {Boolean(item.priority) && <Badge variant="outline">{item.priority as string}</Badge>}
                     </div>
                     <h3 className="font-semibold">{item.title as string}</h3>
-                    {item.description && <p className="text-sm text-muted-foreground mt-1">{item.description as string}</p>}
+                    {Boolean(item.description) && <p className="text-sm text-muted-foreground mt-1">{item.description as string}</p>}
                     <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                      {item.assignee && <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />{item.assignee as string}</span>}
-                      {item.dueDate && <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />Due: {item.dueDate as string}</span>}
+                      {Boolean(item.assignee) && <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />{item.assignee as string}</span>}
+                      {Boolean(item.dueDate) && <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />Due: {item.dueDate as string}</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -608,12 +608,12 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
 
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div><span className="text-muted-foreground">Date:</span> {detailMeeting.date as string}</div>
-                {detailMeeting.startTime && <div><span className="text-muted-foreground">Time:</span> {detailMeeting.startTime as string}{detailMeeting.endTime ? ` - ${detailMeeting.endTime as string}` : ""}</div>}
-                {detailMeeting.location && <div><span className="text-muted-foreground">Location:</span> {detailMeeting.location as string}</div>}
-                {detailMeeting.attendees && <div className="col-span-2"><span className="text-muted-foreground">Attendees:</span> {detailMeeting.attendees as string}</div>}
+                {Boolean(detailMeeting.startTime) && <div><span className="text-muted-foreground">Time:</span> {detailMeeting.startTime as string}{detailMeeting.endTime ? ` - ${detailMeeting.endTime as string}` : ""}</div>}
+                {Boolean(detailMeeting.location) && <div><span className="text-muted-foreground">Location:</span> {detailMeeting.location as string}</div>}
+                {Boolean(detailMeeting.attendees) && <div className="col-span-2"><span className="text-muted-foreground">Attendees:</span> {detailMeeting.attendees as string}</div>}
               </div>
 
-              {detailMeeting.description && (
+              {Boolean(detailMeeting.description) && (
                 <div>
                   <h4 className="font-medium text-sm mb-1">Description</h4>
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap">{detailMeeting.description as string}</p>
@@ -629,18 +629,18 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
                         <div className="flex items-center gap-2">
                           <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{idx + 1}</span>
                           <span className="font-medium text-sm">{ai.title as string}</span>
-                          {ai.duration && <span className="text-xs text-muted-foreground">{ai.duration as number} min</span>}
+                          {Boolean(ai.duration) && <span className="text-xs text-muted-foreground">{ai.duration as number} min</span>}
                         </div>
-                        {ai.presenter && <p className="text-xs text-muted-foreground mt-1">Presenter: {ai.presenter as string}</p>}
-                        {ai.description && <p className="text-xs text-muted-foreground mt-1">{ai.description as string}</p>}
-                        {ai.notes && <p className="text-xs mt-1 bg-muted/50 p-2 rounded">{ai.notes as string}</p>}
+                        {Boolean(ai.presenter) && <p className="text-xs text-muted-foreground mt-1">Presenter: {ai.presenter as string}</p>}
+                        {Boolean(ai.description) && <p className="text-xs text-muted-foreground mt-1">{ai.description as string}</p>}
+                        {Boolean(ai.notes) && <p className="text-xs mt-1 bg-muted/50 p-2 rounded">{ai.notes as string}</p>}
                       </div>
                     ))}
                   </div>
                 </div>
               ) : null}
 
-              {detailMeeting.minutesNotes && (
+              {Boolean(detailMeeting.minutesNotes) && (
                 <div>
                   <h4 className="font-medium text-sm mb-1">Meeting Minutes</h4>
                   <div className="text-sm bg-muted/50 p-3 rounded whitespace-pre-wrap">{detailMeeting.minutesNotes as string}</div>
@@ -659,8 +659,8 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
                             <span className="font-medium text-sm">{ai.title as string}</span>
                           </div>
                           <div className="flex gap-4 text-xs text-muted-foreground mt-1">
-                            {ai.assignee && <span>Assigned: {ai.assignee as string}</span>}
-                            {ai.dueDate && <span>Due: {ai.dueDate as string}</span>}
+                            {Boolean(ai.assignee) && <span>Assigned: {ai.assignee as string}</span>}
+                            {Boolean(ai.dueDate) && <span>Due: {ai.dueDate as string}</span>}
                           </div>
                         </div>
                         {(ai.status as string) !== "Completed" && (

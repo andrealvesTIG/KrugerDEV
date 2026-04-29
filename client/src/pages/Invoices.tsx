@@ -125,13 +125,13 @@ export default function Invoices() {
     if (!invoices) return { total: 0, totalAmount: 0, paid: 0, paidAmount: 0, pending: 0, pendingAmount: 0, overdue: 0, overdueAmount: 0 };
     
     const total = invoices.length;
-    const totalAmount = invoices.reduce((sum, inv) => sum + (parseFloat(inv.amount || "0")), 0);
+    const totalAmount = invoices.reduce((sum, inv) => sum + (Number(inv.amount ?? 0)), 0);
     const paid = invoices.filter(inv => inv.status === "Paid");
-    const paidAmount = paid.reduce((sum, inv) => sum + (parseFloat(inv.amount || "0")), 0);
+    const paidAmount = paid.reduce((sum, inv) => sum + (Number(inv.amount ?? 0)), 0);
     const pending = invoices.filter(inv => ["Draft", "Sent"].includes(inv.status || ""));
-    const pendingAmount = pending.reduce((sum, inv) => sum + (parseFloat(inv.amount || "0")), 0);
+    const pendingAmount = pending.reduce((sum, inv) => sum + (Number(inv.amount ?? 0)), 0);
     const overdue = invoices.filter(inv => inv.status === "Overdue");
-    const overdueAmount = overdue.reduce((sum, inv) => sum + (parseFloat(inv.amount || "0")), 0);
+    const overdueAmount = overdue.reduce((sum, inv) => sum + (Number(inv.amount ?? 0)), 0);
     
     return {
       total,
@@ -164,7 +164,7 @@ export default function Invoices() {
       title: invoice.title,
       description: invoice.description || "",
       invoiceNumber: invoice.invoiceNumber || "",
-      amount: invoice.amount || "0",
+      amount: invoice.amount != null ? String(invoice.amount) : "0",
       currency: invoice.currency || "USD",
       status: invoice.status || "Draft",
       invoiceDate: invoice.invoiceDate || "",

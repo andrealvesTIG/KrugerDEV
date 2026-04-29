@@ -152,7 +152,7 @@ export default function RFIsTab({ projectId }: { projectId: number }) {
         onClose={() => setIsCreateOpen(false)}
         onSubmit={async (data) => {
           try {
-            await createMutation.mutateAsync(data);
+            await createMutation.mutateAsync(data as CreateRfiInput);
             toast({ title: "RFI created" });
             setIsCreateOpen(false);
           } catch (err) {
@@ -395,7 +395,7 @@ function RfiForm({
 function CreateRfiDialog({ open, onClose, onSubmit, isLoading }: {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: CreateRfiInput) => void;
+  onSubmit: (data: CreateRfiInput | UpdateRfiInput) => void;
   isLoading: boolean;
 }) {
   return (

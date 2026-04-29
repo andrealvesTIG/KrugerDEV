@@ -72,6 +72,10 @@ import type {
   ProjectScore, InsertProjectScore,
   PortfolioScoringConfig,
   LessonLearned, InsertLessonLearned,
+  ProjectBenefit, InsertProjectBenefit,
+  ProjectDecision, InsertProjectDecision,
+  TaskCustomFieldValue, InsertTaskCustomFieldValue,
+  ResourceCustomFieldValue, InsertResourceCustomFieldValue,
 } from "@shared/schema";
 import type { BillingTransaction, InsertBillingTransaction } from "@shared/models/billing";
 
@@ -193,7 +197,7 @@ export interface IProjectStorage {
   updateMilestone(id: number, updates: UpdateMilestoneRequest): Promise<Milestone>;
   deleteMilestone(id: number): Promise<void>;
   getIssues(projectId: number): Promise<Issue[]>;
-  getAllIssues(): Promise<Issue[]>;
+  getAllIssues(itemType?: 'issue' | 'risk' | 'all'): Promise<Issue[]>;
   getIssue(id: number): Promise<Issue | undefined>;
   createIssue(issue: InsertIssue): Promise<Issue>;
   updateIssue(id: number, updates: UpdateIssueRequest): Promise<Issue>;
@@ -581,10 +585,28 @@ export interface IMiscStorage {
   upsertPortfolioScoringConfig(portfolioId: number, criteriaId: number, aggregationMethod: string): Promise<PortfolioScoringConfig>;
   getAllProjectScoresForProjects(projectIds: number[]): Promise<ProjectScore[]>;
   getLessonsLearned(projectId: number): Promise<LessonLearned[]>;
+  getAllLessonsLearned(organizationId: number): Promise<LessonLearned[]>;
   getLessonLearned(id: number): Promise<LessonLearned | undefined>;
   createLessonLearned(lesson: InsertLessonLearned): Promise<LessonLearned>;
   updateLessonLearned(id: number, updates: Partial<InsertLessonLearned>): Promise<LessonLearned>;
   deleteLessonLearned(id: number): Promise<void>;
+  getProjectBenefits(projectId: number): Promise<ProjectBenefit[]>;
+  getProjectBenefit(id: number): Promise<ProjectBenefit | undefined>;
+  createProjectBenefit(benefit: InsertProjectBenefit): Promise<ProjectBenefit>;
+  updateProjectBenefit(id: number, updates: Partial<InsertProjectBenefit>): Promise<ProjectBenefit>;
+  deleteProjectBenefit(id: number): Promise<void>;
+  getProjectDecisions(projectId: number): Promise<ProjectDecision[]>;
+  getProjectDecision(id: number): Promise<ProjectDecision | undefined>;
+  createProjectDecision(decision: InsertProjectDecision): Promise<ProjectDecision>;
+  updateProjectDecision(id: number, updates: Partial<InsertProjectDecision>): Promise<ProjectDecision>;
+  deleteProjectDecision(id: number): Promise<void>;
+  getTaskCustomFieldValues(taskId: number): Promise<TaskCustomFieldValue[]>;
+  getProjectTaskCustomFieldValues(projectId: number): Promise<TaskCustomFieldValue[]>;
+  upsertTaskCustomFieldValue(value: InsertTaskCustomFieldValue): Promise<TaskCustomFieldValue>;
+  deleteTaskCustomFieldValue(taskId: number, fieldDefinitionId: number): Promise<void>;
+  getResourceCustomFieldValues(resourceId: number): Promise<ResourceCustomFieldValue[]>;
+  upsertResourceCustomFieldValue(value: InsertResourceCustomFieldValue): Promise<ResourceCustomFieldValue>;
+  deleteResourceCustomFieldValue(resourceId: number, fieldDefinitionId: number): Promise<void>;
 }
 
 export interface IStorage extends

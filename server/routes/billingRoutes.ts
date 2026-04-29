@@ -1701,10 +1701,11 @@ export async function registerBillingRoutes(app: Express) {
                 } else {
                   
                   // Return detailed error to help debug
+                  const availablePlansList = await db.select().from(plans);
                   return res.status(400).json({
                     message: "PayPal plan ID not found in database. Please use 'Sync PayPal Plans' in Super Admin.",
                     paypalPlanId: paypalPlanIdFromSub,
-                    availablePlans: allPlans.map(p => ({ code: p.code, paypalPlanId: p.paypalPlanId }))
+                    availablePlans: availablePlansList.map((p: typeof plans.$inferSelect) => ({ code: p.code, paypalPlanId: p.paypalPlanId }))
                   });
                 }
               }

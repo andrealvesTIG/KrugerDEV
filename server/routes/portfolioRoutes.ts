@@ -453,7 +453,7 @@ export function registerPortfolioRoutes(app: Express) {
         return res.status(400).json({ message: 'Invalid key date data', errors: formatZodErrors(parsed.error) });
       }
       const keyDate = await storage.createPortfolioKeyDate(parsed.data);
-      logUserActivity(userId, 'portfolio_key_date_created', { portfolioId, keyDateId: keyDate.id });
+      logUserActivity(userId, 'portfolio_key_date_created', 'portfolio_key_date', keyDate.id, { portfolioId });
       res.status(201).json(keyDate);
     } catch (err) {
       const classified = classifyError(err);
@@ -491,7 +491,7 @@ export function registerPortfolioRoutes(app: Express) {
         return res.status(400).json({ message: 'Invalid key date data', errors: formatZodErrors(parsed.error) });
       }
       const updated = await storage.updatePortfolioKeyDate(keyDateId, parsed.data);
-      logUserActivity(userId, 'portfolio_key_date_updated', { portfolioId, keyDateId });
+      logUserActivity(userId, 'portfolio_key_date_updated', 'portfolio_key_date', keyDateId, { portfolioId });
       res.json(updated);
     } catch (err) {
       const classified = classifyError(err);
@@ -524,7 +524,7 @@ export function registerPortfolioRoutes(app: Express) {
         return res.status(404).json({ message: 'Key date not found' });
       }
       await storage.deletePortfolioKeyDate(keyDateId, userId);
-      logUserActivity(userId, 'portfolio_key_date_deleted', { portfolioId, keyDateId });
+      logUserActivity(userId, 'portfolio_key_date_deleted', 'portfolio_key_date', keyDateId, { portfolioId });
       res.status(204).send();
     } catch (err) {
       const classified = classifyError(err);

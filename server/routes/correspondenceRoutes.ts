@@ -129,7 +129,7 @@ export function registerCorrespondenceRoutes(app: Express) {
         return item;
       });
 
-      logUserActivity(userId, "correspondence_created", projectId, { correspondenceId: created.id });
+      logUserActivity(userId, "correspondence_created", "correspondence", created.id, { projectId });
 
       res.status(201).json(created);
     } catch (err: unknown) {
@@ -164,7 +164,7 @@ export function registerCorrespondenceRoutes(app: Express) {
 
       if (!updated) return res.status(404).json({ message: "Correspondence not found" });
 
-      logUserActivity(userId, "correspondence_updated", projectId, { correspondenceId });
+      logUserActivity(userId, "correspondence_updated", "correspondence", correspondenceId, { projectId });
 
       res.json(updated);
     } catch (err: unknown) {
@@ -194,7 +194,7 @@ export function registerCorrespondenceRoutes(app: Express) {
 
       if (!deleted) return res.status(404).json({ message: "Correspondence not found" });
 
-      logUserActivity(userId, "correspondence_deleted", projectId, { correspondenceId });
+      logUserActivity(userId, "correspondence_deleted", "correspondence", correspondenceId, { projectId });
 
       res.json({ message: "Correspondence deleted" });
     } catch (err: unknown) {

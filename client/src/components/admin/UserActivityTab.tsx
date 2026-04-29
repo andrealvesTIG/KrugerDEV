@@ -1,4 +1,4 @@
-import { useState, useMemo, Fragment } from "react";
+import React, { useState, useMemo, Fragment } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useExcludedEmailDomains } from "@/hooks/use-excluded-email-domains";
 import { EmailDomainExclusionControl } from "@/components/dashboard/EmailDomainExclusionControl";
@@ -223,7 +223,7 @@ function OverviewView({ data }: { data: KpiData }) {
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={lifecycleData}>
                 <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis dataKey="label" tick={{ fontSize: 10, angle: -30, textAnchor: 'end' }} height={60} />
+                <XAxis dataKey="label" tick={{ fontSize: 10, angle: -30, textAnchor: 'end' } as React.SVGProps<SVGTextElement> & { angle: number }} height={60} />
                 <YAxis yAxisId="retention" tick={{ fontSize: 11 }} label={{ value: 'Retention %', angle: -90, position: 'insideLeft', style: { fontSize: 11 } }} />
                 <YAxis yAxisId="actions" orientation="right" tick={{ fontSize: 11 }} label={{ value: 'Avg Actions', angle: 90, position: 'insideRight', style: { fontSize: 11 } }} />
                 <Tooltip contentStyle={tooltipStyle} />
@@ -333,7 +333,7 @@ function CohortsView({ data }: { data: KpiData }) {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis dataKey="label" tick={{ fontSize: 10, angle: -30, textAnchor: 'end' }} height={60} />
+                <XAxis dataKey="label" tick={{ fontSize: 10, angle: -30, textAnchor: 'end' } as React.SVGProps<SVGTextElement> & { angle: number }} height={60} />
                 <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                 <Tooltip contentStyle={tooltipStyle} />
                 <Legend />
@@ -485,7 +485,7 @@ function RetentionView({ data }: { data: KpiData }) {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={cohortSizes}>
                   <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                  <XAxis dataKey="label" tick={{ fontSize: 10, angle: -30, textAnchor: 'end' }} height={60} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10, angle: -30, textAnchor: 'end' } as React.SVGProps<SVGTextElement> & { angle: number }} height={60} />
                   <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                   <Tooltip contentStyle={tooltipStyle} />
                   <Bar dataKey="users" name="Users" fill="#6366f1" radius={[4, 4, 0, 0]} />
@@ -559,7 +559,7 @@ function EngagementView({ data }: { data: KpiData }) {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={intensityData}>
                 <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis dataKey="label" tick={{ fontSize: 10, angle: -30, textAnchor: 'end' }} height={60} />
+                <XAxis dataKey="label" tick={{ fontSize: 10, angle: -30, textAnchor: 'end' } as React.SVGProps<SVGTextElement> & { angle: number }} height={60} />
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip contentStyle={tooltipStyle} />
                 <Bar dataKey="avgActions" name="Avg Actions/User" radius={[4, 4, 0, 0]}>
@@ -636,7 +636,7 @@ function EngagementView({ data }: { data: KpiData }) {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis dataKey="label" tick={{ fontSize: 10, angle: -30, textAnchor: 'end' }} height={60} />
+                <XAxis dataKey="label" tick={{ fontSize: 10, angle: -30, textAnchor: 'end' } as React.SVGProps<SVGTextElement> & { angle: number }} height={60} />
                 <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                 <Tooltip contentStyle={tooltipStyle} />
                 <Area type="monotone" dataKey="activeUsers" name="Active Users" stroke="#f59e0b" fill="url(#activeGradient)" strokeWidth={2} />

@@ -3470,7 +3470,7 @@ export default function Timesheets() {
             taskId: Number(taskId),
             projectId: taskData.project.id,
             entryDate: dateKey,
-            hours: String(hours),
+            hours: Number(hours),
             notes,
           });
         }

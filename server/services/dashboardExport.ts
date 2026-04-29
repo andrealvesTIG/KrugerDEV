@@ -1,4 +1,5 @@
 import pptxgenjs from "pptxgenjs";
+type PptxTableRow = pptxgenjs.TableRow;
 const PptxGenJS = (pptxgenjs as any).default || pptxgenjs;
 import PDFDocument from "pdfkit";
 import { storage } from "../storage";
@@ -15,7 +16,7 @@ interface DashboardData {
   items?: Array<Record<string, any>>;
   charts?: {
     health?: { healthy: number; atRisk: number; critical: number };
-    status?: { planning: number; execution: number; closing: number; initiation: number };
+    status?: { planning: number; execution: number; closing: number; initiation: number; billing?: number };
     priorities?: { critical: number; high: number; medium: number; low: number };
     allocation?: { available: number; assigned: number; overallocated: number };
     departments?: Array<{ name: string; count: number }>;
@@ -583,7 +584,7 @@ export async function generateDashboardPowerPoint(data: DashboardData): Promise<
   const tableStartY = data.charts ? chartStartY + 1.95 : chartStartY;
   
   if (data.items && data.items.length > 0) {
-    const tableData: PptxGenJS.TableRow[] = [];
+    const tableData: PptxTableRow[] = [];
     const headers = Object.keys(data.items[0]).slice(0, 6);
     
     slide.addText("Top Items", {

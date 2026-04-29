@@ -80,7 +80,7 @@ export async function approveProjectIntake(id: number, approvedBy: string): Prom
     portfolioId: intake.portfolioId,
     name: intake.projectName,
     description: intake.description,
-    budget: intake.estimatedBudget || "0",
+    budget: intake.estimatedBudget ?? 0,
     status: "Initiation",
     priority: "Medium",
     health: "Green",
@@ -224,7 +224,7 @@ export async function convertMppImportToProject(
       startDate: projectStartDate,
       endDate: projectEndDate,
       health: "Green",
-      budget: projectBudgetTotal > 0 ? projectBudgetTotal.toString() : "0",
+      budget: projectBudgetTotal > 0 ? projectBudgetTotal : 0,
       completionPercentage: 0,
       source: "imported",
       sourceFileName: mppImportRecord.fileName,
@@ -244,18 +244,16 @@ export async function convertMppImportToProject(
       const isSummary = importedTask.isSummary || false;
       const isMilestone = importedTask.isMilestone || false;
       const taskType = isSummary ? "Summary" : isMilestone ? "Milestone" : "Work";
-      const workHoursStr = importedTask.workHours ? importedTask.workHours.toString() : null;
-      const actualWorkHoursStr = importedTask.actualWorkHours ? importedTask.actualWorkHours.toString() : null;
-      const remainingWorkHoursStr = importedTask.remainingWorkHours ? importedTask.remainingWorkHours.toString() : null;
+      const workHoursNum = importedTask.workHours != null ? Number(importedTask.workHours) : null;
+      const actualWorkHoursNum = importedTask.actualWorkHours != null ? Number(importedTask.actualWorkHours) : null;
+      const remainingWorkHoursNum = importedTask.remainingWorkHours != null ? Number(importedTask.remainingWorkHours) : null;
       // Cost columns are nullable numerics on the imported tasks. Pass them
       // through to tasks.cost / tasks.actualCost so they show in the Gantt
-      // view's Cost / Actual Cost columns. Numeric values are truthy strings
-      // returned from getMppImportTasks (numeric -> string in pg), so use
-      // Number() to normalize before checking presence.
+      // view's Cost / Actual Cost columns.
       const importedCostNum = importedTask.cost != null ? Number(importedTask.cost) : null;
       const importedActualCostNum = importedTask.actualCost != null ? Number(importedTask.actualCost) : null;
-      const costStr = importedCostNum != null && !isNaN(importedCostNum) ? importedCostNum.toString() : null;
-      const actualCostStr = importedActualCostNum != null && !isNaN(importedActualCostNum) ? importedActualCostNum.toString() : null;
+      const costNum = importedCostNum != null && !isNaN(importedCostNum) ? importedCostNum : null;
+      const actualCostNum = importedActualCostNum != null && !isNaN(importedActualCostNum) ? importedActualCostNum : null;
 
       const [newTask] = await tx.insert(tasks).values({
         projectId: newProject.id,
@@ -273,11 +271,11 @@ export async function convertMppImportToProject(
         isSummary,
         isMilestone,
         taskType,
-        estimatedHours: workHoursStr,
-        actualHours: actualWorkHoursStr,
-        remainingHours: remainingWorkHoursStr,
-        cost: costStr,
-        actualCost: actualCostStr,
+        estimatedHours: workHoursNum,
+        actualHours: actualWorkHoursNum,
+        remainingHours: remainingWorkHoursNum,
+        cost: costNum,
+        actualCost: actualCostNum,
         parentId: null,
       }).returning();
 
@@ -472,15 +470,15 @@ export async function syncMppImportToProject(
     const isSummary = importedTask.isSummary || false;
     const isMilestone = importedTask.isMilestone || false;
     const taskType = isSummary ? "Summary" : isMilestone ? "Milestone" : "Work";
-    const workHoursStr = importedTask.workHours ? importedTask.workHours.toString() : null;
-    const actualWorkHoursStr = importedTask.actualWorkHours ? importedTask.actualWorkHours.toString() : null;
-    const remainingWorkHoursStr = importedTask.remainingWorkHours ? importedTask.remainingWorkHours.toString() : null;
+    const workHoursNum = importedTask.workHours != null ? Number(importedTask.workHours) : null;
+    const actualWorkHoursNum = importedTask.actualWorkHours != null ? Number(importedTask.actualWorkHours) : null;
+    const remainingWorkHoursNum = importedTask.remainingWorkHours != null ? Number(importedTask.remainingWorkHours) : null;
     // Mirror cost handling from convertMppImportToProject above so re-syncs
     // also update tasks.cost / tasks.actualCost from the latest P6 file.
     const importedCostNum = importedTask.cost != null ? Number(importedTask.cost) : null;
     const importedActualCostNum = importedTask.actualCost != null ? Number(importedTask.actualCost) : null;
-    const costStr = importedCostNum != null && !isNaN(importedCostNum) ? importedCostNum.toString() : null;
-    const actualCostStr = importedActualCostNum != null && !isNaN(importedActualCostNum) ? importedActualCostNum.toString() : null;
+    const costNum = importedCostNum != null && !isNaN(importedCostNum) ? importedCostNum : null;
+    const actualCostNum = importedActualCostNum != null && !isNaN(importedActualCostNum) ? importedActualCostNum : null;
 
     const taskData = {
       name: importedTask.taskName,
@@ -497,11 +495,11 @@ export async function syncMppImportToProject(
       isSummary,
       isMilestone,
       taskType,
-      estimatedHours: workHoursStr,
-      actualHours: actualWorkHoursStr,
-      remainingHours: remainingWorkHoursStr,
-      cost: costStr,
-      actualCost: actualCostStr,
+      estimatedHours: workHoursNum,
+      actualHours: actualWorkHoursNum,
+      remainingHours: remainingWorkHoursNum,
+      cost: costNum,
+      actualCost: actualCostNum,
     };
 
     let existingTask = importedTask.wbs ? existingByWbs.get(importedTask.wbs) : undefined;
