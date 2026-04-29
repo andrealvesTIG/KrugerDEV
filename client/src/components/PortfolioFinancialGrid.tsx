@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { ChevronRight, ChevronDown, Loader2, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -618,7 +619,15 @@ function ProjectGroupRows({
           <div className="flex items-center gap-2 min-w-0">
             <Chevron className="h-4 w-4 text-muted-foreground shrink-0" />
             <FolderKanban className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span className="truncate min-w-0 flex-1" title={group.projectName}>{group.projectName}</span>
+            <Link
+              href={`/projects/${group.projectId}`}
+              onClick={(e) => e.stopPropagation()}
+              className="truncate min-w-0 flex-1 hover:underline hover:text-primary"
+              title={group.projectName}
+              data-testid={`link-project-${group.projectId}`}
+            >
+              {group.projectName}
+            </Link>
             <Badge variant="outline" className="ml-1 text-[10px] font-normal shrink-0">
               {group.rows.filter(r => r.type === "item").length}
             </Badge>
