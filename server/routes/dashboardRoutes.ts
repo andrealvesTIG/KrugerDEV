@@ -1848,16 +1848,24 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
 
       // Bid invitations + bids + bid line items per demo bid package (vendors required)
       if (createdVendorIds.length > 0) {
-        const demoBidPackages = await db.select({ id: bidPackages.id, estimatedBudget: bidPackages.estimatedBudget })
+        const demoBidPackages = await db.select({
+          id: bidPackages.id,
+          estimatedBudget: bidPackages.estimatedBudget,
+          status: bidPackages.status,
+        })
           .from(bidPackages)
           .innerJoin(projects, eq(bidPackages.projectId, projects.id))
           .where(and(eq(projects.organizationId, organizationId), eq(bidPackages.isDemo, true)));
 
         for (let bpIdx = 0; bpIdx < demoBidPackages.length; bpIdx++) {
           const bp = demoBidPackages[bpIdx];
+          const isAwardedPackage = bp.status === 'Awarded';
           // Invite a rotating subset of vendors per package
           const inviteCount = Math.min(4, createdVendorIds.length);
           const startIdx = bpIdx % createdVendorIds.length;
+          let recommendedBidId: number | null = null;
+          let recommendedVendorId: number | null = null;
+          let recommendedAmount: number | null = null;
           for (let invIdx = 0; invIdx < inviteCount; invIdx++) {
             const vendorId = createdVendorIds[(startIdx + invIdx) % createdVendorIds.length];
             const invStatus = invIdx === 0 ? 'Submitted' : invIdx === 1 ? 'Submitted' : invIdx === 2 ? 'Submitted' : 'Declined';
@@ -1878,23 +1886,32 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
               const totalAmount = Math.round(baseBudget * (1 + variance));
               const validUntil = new Date();
               validUntil.setDate(validUntil.getDate() + 60);
+              const isRecommended = invIdx === 1;
+              // For an awarded bid package the recommended bid is also the
+              // accepted award so the UI reflects the full lifecycle.
+              const bidStatus = isRecommended && isAwardedPackage ? 'Awarded' : 'Submitted';
               const [bidRow] = await db.insert(bids).values({
                 bidPackageId: bp.id,
                 vendorId,
                 totalAmount: String(totalAmount),
                 bondIncluded: true,
-                notes: invIdx === 1 ? 'Includes value-engineering options outlined in cover letter.' : 'Base bid only — see exclusions.',
+                notes: isRecommended ? 'Includes value-engineering options outlined in cover letter.' : 'Base bid only — see exclusions.',
                 exclusions: 'Permits, owner-furnished equipment, weekend premium time.',
                 clarifications: 'Schedule assumes site access by package due date.',
                 validUntil: validUntil.toISOString().split('T')[0],
-                status: 'Submitted',
-                evaluationScore: 80 + (invIdx === 1 ? 10 : 0) - invIdx * 2,
-                evaluationNotes: invIdx === 1 ? 'Strongest technical and commercial response.' : 'Compliant bid.',
-                isRecommended: invIdx === 1,
+                status: bidStatus,
+                evaluationScore: 80 + (isRecommended ? 10 : 0) - invIdx * 2,
+                evaluationNotes: isRecommended ? 'Strongest technical and commercial response.' : 'Compliant bid.',
+                isRecommended,
                 createdBy: userId || undefined,
                 isDemo: true,
               }).returning();
               stats.bids++;
+              if (isRecommended) {
+                recommendedBidId = bidRow.id;
+                recommendedVendorId = vendorId;
+                recommendedAmount = totalAmount;
+              }
 
               const lineItemDefs = [
                 { description: 'Mobilization & general conditions', pct: 0.10, category: 'General Conditions' },
@@ -1920,6 +1937,20 @@ Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 ke
                 stats.bidLineItems++;
               }
             }
+          }
+          // Stamp the awarded vendor / amount / date on the bid package so the
+          // BiddingTab "Awarded Amount" + "Awarded Date" fields render.
+          if (isAwardedPackage && recommendedBidId !== null && recommendedVendorId !== null) {
+            const awardedDate = new Date();
+            awardedDate.setDate(awardedDate.getDate() - 7);
+            await db.update(bidPackages)
+              .set({
+                awardedVendorId: recommendedVendorId,
+                awardedAmount: String(recommendedAmount ?? 0),
+                awardedDate: awardedDate.toISOString().split('T')[0],
+                updatedAt: new Date(),
+              })
+              .where(eq(bidPackages.id, bp.id));
           }
         }
       }

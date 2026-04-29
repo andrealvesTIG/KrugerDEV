@@ -269,7 +269,7 @@ export const bidPackageTemplates = [
     ],
   },
   {
-    number: 'BP-26-00', title: 'Bid Package — Electrical', tradeCategory: 'Electrical', status: 'Bidding',
+    number: 'BP-26-00', title: 'Bid Package — Electrical', tradeCategory: 'Electrical', status: 'Open',
     scope: 'All electrical work including service entrance, distribution, branch wiring, lighting, low-voltage.',
     estimatedBudget: 1350000,
     lines: [
