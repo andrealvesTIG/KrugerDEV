@@ -2,16 +2,15 @@ import { useUserJourney } from "@/hooks/use-user-journey";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle2, Circle, X, Rocket, FolderPlus, ListTodo, Users, Sparkles, LayoutDashboard, Bot } from "lucide-react";
+import { CheckCircle2, Circle, X, Rocket, FolderPlus, ListTodo, Users, LayoutDashboard, Bot } from "lucide-react";
 import { useLocation } from "wouter";
 
 const CHECKLIST_ITEMS = [
   { key: "create_project", label: "Create your first project", icon: FolderPlus, href: "/projects" },
   { key: "add_task", label: "Add a task to a project", icon: ListTodo, href: "/projects" },
   { key: "assign_member", label: "Assign a team member", icon: Users, href: "/resources" },
-  { key: "use_ai", label: "Try AI features", icon: Sparkles, href: null },
   { key: "explore_dashboard", label: "Explore the dashboard", icon: LayoutDashboard, href: "/dashboards" },
-  { key: "meet_copilot", label: "Meet Friday Report", icon: Bot, href: null },
+  { key: "meet_copilot", label: "Meet Friday Report AI Agent", icon: Bot, href: null },
 ];
 
 export function GettingStartedChecklist() {

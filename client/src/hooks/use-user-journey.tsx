@@ -38,7 +38,7 @@ function notifyUpdate() {
   }
 }
 
-const ALL_CHECKLIST_ITEMS = ["create_project", "add_task", "assign_member", "use_ai", "explore_dashboard", "meet_copilot"];
+const ALL_CHECKLIST_ITEMS = ["create_project", "add_task", "assign_member", "explore_dashboard", "meet_copilot"];
 
 /**
  * Standalone tracker that can be called from anywhere (mutation hooks, etc.).

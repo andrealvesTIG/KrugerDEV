@@ -70,7 +70,6 @@ export interface AICreateButtonHandle {
 
 export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonProps>(function AICreateButton({ projectId: scopedProjectId, projectName: scopedProjectName, variant = "default" }, ref) {
   const { currentOrganization } = useOrganization();
-  const { trackChecklistEvent } = useUserJourney();
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -254,7 +253,6 @@ export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonPro
       return response.json();
     },
     onSuccess: async (data: any) => {
-      trackChecklistEvent("use_ai");
       toast({
         title: "Created Successfully",
         description: data.message || "Items created",
