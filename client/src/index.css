@@ -255,3 +255,19 @@
 .status-blue {
   @apply bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800;
 }
+
+/* Leaflet stacks panes/controls at z-index 200–1000 by default which sits
+   ABOVE Radix Dialog's z-50 overlay. That made the Projects map page bleed
+   through the "Create New Project" dialog. Re-base every leaflet layer below
+   z-50 while preserving the relative stacking order between tiles, markers,
+   popups and controls. */
+.leaflet-pane         { z-index: 1; }
+.leaflet-tile-pane    { z-index: 1; }
+.leaflet-overlay-pane { z-index: 2; }
+.leaflet-shadow-pane  { z-index: 3; }
+.leaflet-marker-pane  { z-index: 4; }
+.leaflet-tooltip-pane { z-index: 5; }
+.leaflet-popup-pane   { z-index: 6; }
+.leaflet-control      { z-index: 7; }
+.leaflet-top,
+.leaflet-bottom       { z-index: 10; }
