@@ -74,6 +74,24 @@ interface DataversePlan {
   isPremium: boolean;
 }
 
+async function parseJsonOrThrow(response: Response, fallbackMessage: string): Promise<any> {
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    const text = await response.text().catch(() => "");
+    if (text.trim().startsWith("<")) {
+      throw new Error(
+        `${fallbackMessage}: server returned an HTML page (HTTP ${response.status}). The page may be out of date — try refreshing your browser.`
+      );
+    }
+    throw new Error(`${fallbackMessage} (HTTP ${response.status})`);
+  }
+  try {
+    return await response.json();
+  } catch {
+    throw new Error(`${fallbackMessage}: invalid JSON response from server (HTTP ${response.status})`);
+  }
+}
+
 interface CreateProjectDialogProps {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -355,14 +373,14 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
       });
 
       if (!uploadResponse.ok) {
-        const error = await uploadResponse.json();
+        const error = await parseJsonOrThrow(uploadResponse, "Upload failed");
         const errObj: any = new Error(error.message || "Upload failed");
         errObj.limitExceeded = error.limitExceeded;
         errObj.resourceType = error.resourceType;
         throw errObj;
       }
 
-      const importRecord = await uploadResponse.json();
+      const importRecord = await parseJsonOrThrow(uploadResponse, "Upload failed");
 
       const response = await fetch(`/api/p6-imports/${importRecord.id}/convert`, {
         method: "POST",
@@ -375,14 +393,14 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = await parseJsonOrThrow(response, "Import failed");
         const errObj: any = new Error(error.message || error.error || "Import failed");
         errObj.limitExceeded = error.limitExceeded;
         errObj.resourceType = error.resourceType;
         throw errObj;
       }
 
-      const result = await response.json();
+      const result = await parseJsonOrThrow(response, "Import failed");
       toast({ title: "Success", description: result.message || "Project imported successfully" });
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       onOpenChange(false);
@@ -422,11 +440,11 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
       });
 
       if (!uploadResponse.ok) {
-        const error = await uploadResponse.json();
+        const error = await parseJsonOrThrow(uploadResponse, "Upload failed");
         throw new Error(error.message || "Upload failed");
       }
 
-      const importRecord = await uploadResponse.json();
+      const importRecord = await parseJsonOrThrow(uploadResponse, "Upload failed");
 
       const response = await fetch(`/api/mpp-imports/${importRecord.id}/convert`, {
         method: "POST",
@@ -439,11 +457,11 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Import failed");
+        const error = await parseJsonOrThrow(response, "Import failed");
+        throw new Error(error.error || error.message || "Import failed");
       }
 
-      const result = await response.json();
+      const result = await parseJsonOrThrow(response, "Import failed");
       toast({ title: "Success", description: result.message || "Project imported successfully" });
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       onOpenChange(false);
