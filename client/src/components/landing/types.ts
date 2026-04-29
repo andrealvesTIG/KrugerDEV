@@ -52,6 +52,11 @@ export interface IndustryCapabilitySection {
   images?: IndustryCapabilityImage[];
 }
 
+export interface IndustryFaqItem {
+  question: string;
+  answer: string;
+}
+
 export interface IndustryConfig {
   slug: string;
   routePath: string;
@@ -62,6 +67,8 @@ export interface IndustryConfig {
     ogTitle: string;
     ogDescription: string;
   };
+
+  faq?: IndustryFaqItem[];
 
   colors: {
     primary: string;

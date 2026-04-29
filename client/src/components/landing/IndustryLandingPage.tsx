@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useLocation, Link } from "wouter";
 import { Check, Menu, X, Mail, Loader2, CheckCircle, ChevronRight, Shield, Clock, Target, Zap, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,10 @@ import { LandingFooter } from "@/components/layout/LandingFooter";
 import { motion, useInView } from "framer-motion";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
+import { SeoHead, buildFaqJsonLd } from "@/components/seo/SeoHead";
 import type { IndustryConfig } from "./types";
+
+const SITE_ORIGIN = "https://fridayreport.ai";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -126,37 +129,22 @@ export default function IndustryLandingPage({ config }: { config: IndustryConfig
     document.getElementById(`${config.slug}-signup`)?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  useEffect(() => {
-    const prevTitle = document.title;
-    document.title = config.seo.title;
-
-    function upsertMeta(attr: string, key: string, content: string) {
-      let el = document.querySelector(`meta[${attr}="${key}"]`);
-      if (el) {
-        el.setAttribute("content", content);
-      } else {
-        el = document.createElement("meta");
-        el.setAttribute(attr, key);
-        el.setAttribute("content", content);
-        document.head.appendChild(el);
-      }
-    }
-
-    upsertMeta("name", "description", config.seo.description);
-    upsertMeta("property", "og:title", config.seo.ogTitle);
-    upsertMeta("property", "og:description", config.seo.ogDescription);
-    upsertMeta("property", "og:type", "website");
-    upsertMeta("property", "og:url", window.location.href);
-
-    return () => {
-      document.title = prevTitle;
-    };
-  }, [config.seo]);
-
   const HeroIcon = config.heroIcon;
+  const canonicalUrl = `${SITE_ORIGIN}${config.routePath}`;
+  const faqJsonLd =
+    config.faq && config.faq.length > 0 ? buildFaqJsonLd(config.faq) : undefined;
 
   return (
     <div className="min-h-screen bg-background">
+      <SeoHead
+        title={config.seo.title}
+        description={config.seo.description}
+        canonicalUrl={canonicalUrl}
+        ogTitle={config.seo.ogTitle}
+        ogDescription={config.seo.ogDescription}
+        ogType="website"
+        jsonLd={faqJsonLd}
+      />
       <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="flex items-center justify-between gap-4 flex-wrap px-6 py-4 md:px-12 lg:px-20 max-w-[1400px] mx-auto">
           <a href="https://fridayreport.ai" target="_blank" rel="noopener noreferrer">
