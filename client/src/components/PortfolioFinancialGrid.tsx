@@ -248,23 +248,28 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
         expanded,
         costConfig,
       );
-      // Per-project monthly aggregates: walk the raw entries once and bucket
-      // amounts into [typeKey][fiscalIdx]. Cheap (O(entries)) and avoids
-      // re-deriving from the rendered row tree.
+      // Per-project monthly aggregates: derive from the same row tree the
+      // children are rendered from so the project header row is GUARANTEED to
+      // equal sum(top-level rows) per scenario per fiscal-month. Walking the
+      // raw entries here would double-convert calendar→fiscal indices (the
+      // server already relabels `e.month` to the fiscal-month number 1..12),
+      // which previously made the header disagree with the children.
       const monthlyByType: Record<string, number[]> = {};
       for (const k of typeKeys) monthlyByType[k] = Array(12).fill(0);
-      for (const e of g.entries) {
-        const idx = calendarToFiscalIdx.get(e.month);
-        if (idx == null) continue;
-        const bucket = monthlyByType[e.scenario];
-        if (!bucket) continue;
-        bucket[idx] += Number(e.amount) || 0;
+      for (const r of rows) {
+        if (r.level !== 0) continue; // top-level (View) rows only — they
+        // already roll up every category/specification/item beneath them.
+        for (const k of typeKeys) {
+          const src = r.monthlyByType[k];
+          if (!src) continue;
+          for (let i = 0; i < 12; i++) monthlyByType[k][i] += src[i] ?? 0;
+        }
       }
       groups.push({ projectId: pid, projectName: g.name, rows, grandTotalByType, monthlyByType, expandedKeys: expanded });
     }
     groups.sort((a, b) => a.projectName.localeCompare(b.projectName));
     return groups;
-  }, [entries, typeKeys, costConfig, innerExpanded, calendarToFiscalIdx]);
+  }, [entries, typeKeys, costConfig, innerExpanded]);
 
   // Portfolio-level totals across all included projects (year totals + monthly).
   const portfolioTotals = useMemo(() => {
