@@ -279,6 +279,22 @@ export async function convertMppImportToProject(
       }
     }
 
+    // Collect all dependencies in memory, deduping (newTaskId, depTaskId) pairs
+    // and dropping self-references. This avoids per-row inserts whose individual
+    // failures would poison the outer transaction (Postgres aborts the whole
+    // tx on any failed statement, code 25P02), which previously caused the
+    // final mppImports UPDATE to fail for larger XER files.
+    const depTypeMap: Record<string, string> = {
+      'FS': 'finish-to-start',
+      'SS': 'start-to-start',
+      'FF': 'finish-to-finish',
+      'SF': 'start-to-finish',
+    };
+    const allDepRows: Array<{ taskId: number; dependsOnTaskId: number; dependencyType: string; lagDays: number }> = [];
+    const seenDepKeys = new Set<string>();
+    let skippedSelfRefs = 0;
+    let skippedDupes = 0;
+
     for (const importedTask of importedTasks) {
       if (!importedTask.taskId) continue;
       const newTaskId = taskIdMapping.get(importedTask.taskId);
@@ -287,8 +303,8 @@ export async function convertMppImportToProject(
       let predecessorList: Array<{ predecessorTaskId: number; type: string; lagDays: number }> = [];
       if (importedTask.predecessors) {
         try {
-          predecessorList = typeof importedTask.predecessors === 'string' 
-            ? JSON.parse(importedTask.predecessors) 
+          predecessorList = typeof importedTask.predecessors === 'string'
+            ? JSON.parse(importedTask.predecessors)
             : [];
         } catch (e) {
           predecessorList = [];
@@ -298,25 +314,29 @@ export async function convertMppImportToProject(
       for (const pred of predecessorList) {
         const depTaskId = taskIdMapping.get(pred.predecessorTaskId);
         if (!depTaskId) continue;
+        if (depTaskId === newTaskId) { skippedSelfRefs++; continue; }
 
-        const typeMap: Record<string, string> = {
-          'FS': 'finish-to-start',
-          'SS': 'start-to-start',
-          'FF': 'finish-to-finish',
-          'SF': 'start-to-finish',
-        };
+        const key = `${newTaskId}->${depTaskId}`;
+        if (seenDepKeys.has(key)) { skippedDupes++; continue; }
+        seenDepKeys.add(key);
 
-        try {
-          await tx.insert(taskDependencies).values({
-            taskId: newTaskId,
-            dependsOnTaskId: depTaskId,
-            dependencyType: typeMap[pred.type] || 'finish-to-start',
-            lagDays: pred.lagDays || 0,
-          });
-        } catch (depError) {
-          console.log(`Skipped duplicate dependency: task ${newTaskId} -> ${depTaskId}`);
-        }
+        allDepRows.push({
+          taskId: newTaskId,
+          dependsOnTaskId: depTaskId,
+          dependencyType: depTypeMap[pred.type] || 'finish-to-start',
+          lagDays: pred.lagDays || 0,
+        });
       }
+    }
+
+    if (allDepRows.length > 0) {
+      const DEP_CHUNK_SIZE = 500;
+      for (let i = 0; i < allDepRows.length; i += DEP_CHUNK_SIZE) {
+        await tx.insert(taskDependencies).values(allDepRows.slice(i, i + DEP_CHUNK_SIZE));
+      }
+    }
+    if (skippedSelfRefs > 0 || skippedDupes > 0) {
+      console.log(`[convertMppImportToProject] dependencies: inserted ${allDepRows.length}, skipped ${skippedSelfRefs} self-refs, ${skippedDupes} duplicates`);
     }
 
     const actualTaskCount = importedTasks.length;
@@ -473,6 +493,16 @@ export async function syncMppImportToProject(
     }
   }
 
+  // Same pre-dedupe + bulk insert approach as convertMppImportToProject above.
+  const syncDepTypeMap: Record<string, string> = {
+    'FS': 'finish-to-start',
+    'SS': 'start-to-start',
+    'FF': 'finish-to-finish',
+    'SF': 'start-to-finish',
+  };
+  const syncDepRows: Array<{ taskId: number; dependsOnTaskId: number; dependencyType: string; lagDays: number }> = [];
+  const syncSeenDepKeys = new Set<string>();
+
   for (const importedTask of importedTasks) {
     if (!importedTask.taskId) continue;
     const newTaskId = taskIdMapping.get(importedTask.taskId);
@@ -492,24 +522,25 @@ export async function syncMppImportToProject(
     for (const pred of predecessorList) {
       const depTaskId = taskIdMapping.get(pred.predecessorTaskId);
       if (!depTaskId) continue;
+      if (depTaskId === newTaskId) continue;
 
-      const typeMap: Record<string, string> = {
-        'FS': 'finish-to-start',
-        'SS': 'start-to-start',
-        'FF': 'finish-to-finish',
-        'SF': 'start-to-finish',
-      };
+      const key = `${newTaskId}->${depTaskId}`;
+      if (syncSeenDepKeys.has(key)) continue;
+      syncSeenDepKeys.add(key);
 
-      try {
-        await db.insert(taskDependencies).values({
-          taskId: newTaskId,
-          dependsOnTaskId: depTaskId,
-          dependencyType: typeMap[pred.type] || 'finish-to-start',
-          lagDays: pred.lagDays || 0,
-        });
-      } catch (depError) {
-        console.log(`Skipped duplicate dependency: task ${newTaskId} -> ${depTaskId}`);
-      }
+      syncDepRows.push({
+        taskId: newTaskId,
+        dependsOnTaskId: depTaskId,
+        dependencyType: syncDepTypeMap[pred.type] || 'finish-to-start',
+        lagDays: pred.lagDays || 0,
+      });
+    }
+  }
+
+  if (syncDepRows.length > 0) {
+    const SYNC_DEP_CHUNK_SIZE = 500;
+    for (let i = 0; i < syncDepRows.length; i += SYNC_DEP_CHUNK_SIZE) {
+      await db.insert(taskDependencies).values(syncDepRows.slice(i, i + SYNC_DEP_CHUNK_SIZE));
     }
   }
 
