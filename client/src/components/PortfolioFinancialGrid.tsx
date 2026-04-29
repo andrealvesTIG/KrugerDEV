@@ -5,6 +5,7 @@ import { ChevronRight, ChevronDown, Loader2, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CompactCurrency } from "@/components/CompactCurrency";
 import type { FinancialEntry, FinancialTypesConfig, FinancialType, CostItemCategoriesConfig } from "@shared/schema";
 import { DEFAULT_FINANCIAL_TYPES, DEFAULT_COST_ITEM_CATEGORIES } from "@shared/schema";
 import {
@@ -485,9 +486,13 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
                     <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider ${palette.activeBg} ${palette.activeText}`}>
                       {t.label}
                     </span>
-                    <span className="text-[12px] font-extrabold tabular-nums text-amber-950 dark:text-amber-50">
-                      <MoneyCell value={allYearsSummary.totals[t.key] ?? 0} />
-                    </span>
+                    <CompactCurrency
+                      value={allYearsSummary.totals[t.key] ?? 0}
+                      className="text-[13px] font-extrabold tabular-nums text-amber-950 dark:text-amber-50"
+                    />
+                    {(allYearsSummary.totals[t.key] ?? 0) === 0 && (
+                      <span className="sr-only">No data</span>
+                    )}
                   </div>
                 );
               })}
