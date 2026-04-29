@@ -201,6 +201,34 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
     },
   });
 
+  // All-years feed (no fiscalYear filter). Used only for the "All Years"
+  // summary strip — we don't try to render monthly columns across years
+  // because months only make sense inside a single FY.
+  const { data: allYearsEntries = [] } = useQuery<PortfolioFinancialEntry[]>({
+    queryKey: ["/api/portfolios", portfolioId, "financial-entries", "all-years"],
+    queryFn: async () => {
+      const res = await fetch(`/api/portfolios/${portfolioId}/financial-entries`);
+      if (!res.ok) throw new Error("Failed to fetch portfolio financial entries");
+      return res.json();
+    },
+  });
+
+  // Aggregate the all-years feed: per-scenario totals across every entry,
+  // and the distinct set of fiscal years present so we can show the span
+  // (e.g. "FY2024 - FY2026") in the summary header.
+  const allYearsSummary = useMemo(() => {
+    const totals: Record<string, number> = {};
+    for (const k of typeKeys) totals[k] = 0;
+    const years = new Set<number>();
+    for (const e of allYearsEntries) {
+      years.add(e.fiscalYear);
+      const v = Number(e.amount ?? 0);
+      if (totals[e.scenario] != null) totals[e.scenario] += v;
+    }
+    const sortedYears = Array.from(years).sort((a, b) => a - b);
+    return { totals, years: sortedYears };
+  }, [allYearsEntries, typeKeys]);
+
   // Lightweight project list, used to distinguish "portfolio has no projects"
   // from "portfolio has projects but no financial entries" in the empty state.
   const { data: portfolioProjects = [] } = useQuery<Array<{ id: number; name: string }>>({
@@ -421,6 +449,52 @@ export default function PortfolioFinancialGrid({ portfolioId }: PortfolioFinanci
           </Button>
         </div>
       </div>
+
+      {/* All-Years Totals strip — portfolio-wide aggregate across every
+          fiscal year present in the data, broken down per scenario. Lives
+          outside the FY-specific table because months only make sense
+          within one FY. Hidden when there's no all-years data yet. */}
+      {allYearsSummary.years.length > 0 && (
+        <div
+          className="rounded-lg border bg-gradient-to-br from-amber-50/60 to-card dark:from-amber-900/15 dark:to-card p-3"
+          data-testid="portfolio-all-years-summary"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-900 dark:text-amber-100">
+                Portfolio Total — All Years
+              </span>
+              <Badge variant="outline" className="text-[10px] font-normal">
+                {allYearsSummary.years.length === 1
+                  ? `FY${allYearsSummary.years[0]}`
+                  : `FY${allYearsSummary.years[0]} – FY${allYearsSummary.years[allYearsSummary.years.length - 1]}`}
+              </Badge>
+              <span className="text-[10px] text-muted-foreground">
+                {projectGroups.length} {projectGroups.length === 1 ? "project" : "projects"} in this view
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {enabledTypes.map(t => {
+                const palette = getTypePalette(t.key);
+                return (
+                  <div
+                    key={`ay-${t.key}`}
+                    className={`flex items-center gap-2 rounded-md border border-border/60 bg-card px-2.5 py-1.5 shadow-sm`}
+                    data-testid={`portfolio-all-years-${t.key}`}
+                  >
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider ${palette.activeBg} ${palette.activeText}`}>
+                      {t.label}
+                    </span>
+                    <span className="text-[12px] font-extrabold tabular-nums text-amber-950 dark:text-amber-50">
+                      <MoneyCell value={allYearsSummary.totals[t.key] ?? 0} />
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Match the per-project grid: rounded card, frozen first column with a
           subtle right-edge shadow, monthBorder/typeBorder distinction so each
