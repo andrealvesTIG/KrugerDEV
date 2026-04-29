@@ -145,7 +145,25 @@ export async function createMppImportTask(task: InsertMppImportTask): Promise<Mp
 
 export async function createMppImportTasks(taskList: InsertMppImportTask[]): Promise<MppImportTask[]> {
   if (taskList.length === 0) return [];
-  return await db.insert(mppImportTasks).values(taskList).returning();
+  // Postgres has a hard limit of 65,535 bind parameters per query. With ~19
+  // columns per row this caps a single insert at ~3,400 rows. Chunk well below
+  // that to leave headroom for future schema additions and to avoid memory
+  // spikes on very large schedules (e.g. P6 imports with thousands of tasks).
+  const CHUNK_SIZE = 1000;
+  if (taskList.length <= CHUNK_SIZE) {
+    return await db.insert(mppImportTasks).values(taskList).returning();
+  }
+  // Wrap the chunked inserts in a transaction so partial failures don't leave
+  // a half-imported task list under the parent import record.
+  return await db.transaction(async (tx) => {
+    const inserted: MppImportTask[] = [];
+    for (let i = 0; i < taskList.length; i += CHUNK_SIZE) {
+      const chunk = taskList.slice(i, i + CHUNK_SIZE);
+      const rows = await tx.insert(mppImportTasks).values(chunk).returning();
+      inserted.push(...rows);
+    }
+    return inserted;
+  });
 }
 
 export async function deleteMppImportTasks(importId: number): Promise<void> {
