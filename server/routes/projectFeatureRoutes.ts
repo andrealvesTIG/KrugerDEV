@@ -24,6 +24,13 @@ import {
   type ParsedMppTask,
 } from "./helpers";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
+import {
+  listScheduleVersionsForProject,
+  getScheduleVersion as getScheduleVersionById,
+  getScheduleVersionTasks as getScheduleVersionTaskRows,
+  diffScheduleVersions as diffScheduleVersionsFn,
+  restoreScheduleVersion as restoreScheduleVersionFn,
+} from "../storage/scheduleVersionStorage";
 
 async function teamMemberCanAccessProject(userId: string, projectId: number, organizationId: number): Promise<boolean> {
   if (!await isTeamMemberInOrg(userId, organizationId)) return true;
@@ -1725,6 +1732,7 @@ export function registerProjectFeatureRoutes(app: Express) {
         description,
         status,
         priority,
+        importedBy: userId || null,
       });
       
       const mppUser = userId ? await storage.getUser(userId) : null;
@@ -1990,6 +1998,7 @@ export function registerProjectFeatureRoutes(app: Express) {
         description,
         status,
         priority,
+        importedBy: userId || null,
       });
 
       // Record usage after successful creation
@@ -2082,6 +2091,7 @@ export function registerProjectFeatureRoutes(app: Express) {
 
       const result = await storage.syncMppImportToProject(id, Number(projectId), {
         syncMode: syncMode || 'merge',
+        importedBy: userId || null,
       });
 
       const response = {
@@ -2090,9 +2100,11 @@ export function registerProjectFeatureRoutes(app: Express) {
         tasksAdded: result.tasksAdded,
         tasksUpdated: result.tasksUpdated,
         tasksRemoved: result.tasksRemoved,
+        scheduleVersionId: result.scheduleVersionId,
+        scheduleVersionNumber: result.scheduleVersionNumber,
         message: `Synced to "${result.project.name}": ${result.tasksAdded} added, ${result.tasksUpdated} updated, ${result.tasksRemoved} removed`,
       };
-      
+
       return res.json(response);
     } catch (err: any) {
       console.error("Error syncing MPP import to project:", err?.message || err);
@@ -2115,6 +2127,199 @@ export function registerProjectFeatureRoutes(app: Express) {
       console.error("Error deleting MPP import:", err);
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? "Error deleting import" : classified.message });
+    }
+  });
+
+  // =========== SCHEDULE VERSIONS ===========
+  // Version history snapshots for imported schedules (MS Project / Primavera P6).
+  // Each (re-)import or restore creates a new version row in schedule_versions
+  // plus a snapshot of the file's tasks in schedule_version_tasks.
+
+  apiRoute(app, 'get', '/api/projects/:projectId/schedule-versions', {
+    tag: 'Schedule Versions',
+    summary: 'List schedule version history for a project',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Schedule versions', { type: 'array' }), ...idRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const projectId = Number(req.params.projectId);
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: 'Project not found' });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const versions = await listScheduleVersionsForProject(projectId);
+
+      // Decorate with importer display name (best effort)
+      const userIds = Array.from(new Set(versions.map(v => v.importedBy).filter((x): x is string => !!x)));
+      const userMap = new Map<string, string>();
+      for (const uid of userIds) {
+        try {
+          const u = await storage.getUser(uid);
+          if (u) {
+            const display = `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unknown';
+            userMap.set(uid, display);
+          }
+        } catch { /* ignore */ }
+      }
+
+      const enriched = versions.map(v => ({
+        ...v,
+        importedByName: v.importedBy ? (userMap.get(v.importedBy) || 'Unknown') : null,
+      }));
+
+      res.json(enriched);
+    } catch (err) {
+      console.error('Error listing schedule versions:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error listing schedule versions' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'get', '/api/projects/:projectId/schedule-versions/:versionId/tasks', {
+    tag: 'Schedule Versions',
+    summary: 'Get tasks for a specific schedule version (read-only snapshot)',
+    parameters: [pathId('projectId'), pathId('versionId')],
+    responses: { ...r200('Snapshot tasks', { type: 'array' }), ...idRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const projectId = Number(req.params.projectId);
+      const versionId = Number(req.params.versionId);
+
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: 'Project not found' });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const version = await getScheduleVersionById(versionId);
+      if (!version || version.projectId !== projectId) {
+        return res.status(404).json({ message: 'Schedule version not found' });
+      }
+
+      const snapshotTasks = await getScheduleVersionTaskRows(versionId);
+      res.json({ version, tasks: snapshotTasks });
+    } catch (err) {
+      console.error('Error fetching schedule version tasks:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error fetching schedule version tasks' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'get', '/api/projects/:projectId/schedule-versions/diff', {
+    tag: 'Schedule Versions',
+    summary: 'Diff two schedule versions for a project',
+    parameters: [pathId('projectId'), qInt('from', true, 'From version ID'), qInt('to', true, 'To version ID')],
+    responses: { ...r200('Diff result', { type: 'object' }), ...idRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const projectId = Number(req.params.projectId);
+      const fromId = Number(req.query.from);
+      const toId = Number(req.query.to);
+      if (!fromId || !toId) {
+        return res.status(400).json({ message: 'Both from and to version IDs are required' });
+      }
+
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: 'Project not found' });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const [fromVer, toVer] = await Promise.all([
+        getScheduleVersionById(fromId),
+        getScheduleVersionById(toId),
+      ]);
+      if (!fromVer || fromVer.projectId !== projectId) return res.status(404).json({ message: 'From version not found' });
+      if (!toVer || toVer.projectId !== projectId) return res.status(404).json({ message: 'To version not found' });
+
+      const diff = await diffScheduleVersionsFn(fromId, toId);
+      res.json(diff);
+    } catch (err) {
+      console.error('Error diffing schedule versions:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error diffing schedule versions' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'post', '/api/projects/:projectId/schedule-versions/:versionId/restore', {
+    tag: 'Schedule Versions',
+    summary: 'Restore a schedule version (creates a new version snapshot)',
+    parameters: [pathId('projectId'), pathId('versionId')],
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Version restored', { type: 'object' }), ...idRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+
+      const projectId = Number(req.params.projectId);
+      const versionId = Number(req.params.versionId);
+
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: 'Project not found' });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      if (!await teamMemberCanAccessProject(userId, projectId, project.organizationId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+
+      const sourceVersion = await getScheduleVersionById(versionId);
+      if (!sourceVersion || sourceVersion.projectId !== projectId) {
+        return res.status(404).json({ message: 'Schedule version not found' });
+      }
+
+      const result = await restoreScheduleVersionFn(versionId, userId);
+
+      // Record a project change log entry
+      try {
+        const u = await storage.getUser(userId);
+        const userName = u ? `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email || 'Unknown' : 'Unknown';
+        await storage.createProjectChangeLog({
+          projectId,
+          changedBy: userId,
+          changedByName: userName,
+          changeType: 'updated',
+          changeSummary: `Restored schedule version v${sourceVersion.versionNumber} (created v${result.newVersion.versionNumber}) — ${result.tasksRestored} tasks`,
+          previousValues: null,
+          newValues: null,
+        });
+      } catch (logErr) {
+        console.error('Failed to record project change log for restore:', logErr);
+      }
+
+      res.json({
+        success: true,
+        newVersion: result.newVersion,
+        tasksRestored: result.tasksRestored,
+        message: `Restored to v${sourceVersion.versionNumber}; ${result.tasksRestored} tasks loaded as new v${result.newVersion.versionNumber}`,
+      });
+    } catch (err) {
+      console.error('Error restoring schedule version:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error restoring schedule version' : classified.message });
     }
   });
 

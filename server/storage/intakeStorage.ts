@@ -17,6 +17,7 @@ import {
 import { eq, and, desc, asc, isNull, sql } from "drizzle-orm";
 import { getProject } from "./projectStorage";
 import { getTasks, deleteAllTasksForProject } from "./taskStorage";
+import { createScheduleVersionFromImportTasks } from "./scheduleVersionStorage";
 
 export async function getProjectIntakes(organizationId: number): Promise<ProjectIntake[]> {
   return await db.select().from(projectIntakes)
@@ -179,6 +180,7 @@ export async function convertMppImportToProject(
     description?: string;
     status?: string;
     priority?: string;
+    importedBy?: string | null;
   }
 ): Promise<{ project: Project; taskCount: number }> {
   const mppImportRecord = await getMppImport(importId);
@@ -387,6 +389,24 @@ export async function convertMppImportToProject(
       .set({ completionPercentage: avgProgress, status: derivedStatus })
       .where(eq(projects.id, newProject.id));
 
+    // Create initial schedule version snapshot for this project
+    try {
+      await createScheduleVersionFromImportTasks({
+        projectId: newProject.id,
+        organizationId: projectData.organizationId,
+        mppImportId: importId,
+        fileName: mppImportRecord.fileName,
+        fileType: mppImportRecord.fileType || 'xml',
+        fileUrl: mppImportRecord.fileUrl ?? null,
+        importedBy: projectData.importedBy ?? mppImportRecord.importedBy ?? null,
+        importedTasks,
+        summary: 'Initial import',
+      }, tx);
+    } catch (snapshotErr) {
+      console.error('[convertMppImportToProject] schedule version snapshot failed:', snapshotErr);
+      throw snapshotErr;
+    }
+
     return { project: newProject, taskCount: importedTasks.length };
   });
 }
@@ -396,8 +416,9 @@ export async function syncMppImportToProject(
   projectId: number,
   options?: {
     syncMode?: 'merge' | 'replace';
+    importedBy?: string | null;
   }
-): Promise<{ project: Project; tasksAdded: number; tasksUpdated: number; tasksRemoved: number }> {
+): Promise<{ project: Project; tasksAdded: number; tasksUpdated: number; tasksRemoved: number; scheduleVersionId?: number; scheduleVersionNumber?: number }> {
   const mppImportRecord = await getMppImport(importId);
   if (!mppImportRecord) {
     throw new Error("Import not found");
@@ -632,11 +653,30 @@ export async function syncMppImportToProject(
 
   const updatedProject = await getProject(projectId);
 
-  return { 
-    project: updatedProject!, 
-    tasksAdded, 
-    tasksUpdated, 
-    tasksRemoved 
+  // Create a new schedule version snapshot for this re-import. Per task spec,
+  // every successful re-import must produce a numbered ScheduleVersion, so
+  // any failure here propagates to the route handler instead of being
+  // silently swallowed.
+  const summary = `Re-import (${syncMode}): ${tasksAdded} added, ${tasksUpdated} updated, ${tasksRemoved} removed`;
+  const newVersion = await createScheduleVersionFromImportTasks({
+    projectId,
+    organizationId: mppImportRecord.organizationId,
+    mppImportId: importId,
+    fileName: mppImportRecord.fileName,
+    fileType: mppImportRecord.fileType || 'xml',
+    fileUrl: mppImportRecord.fileUrl ?? null,
+    importedBy: options?.importedBy ?? mppImportRecord.importedBy ?? null,
+    importedTasks,
+    summary,
+  });
+
+  return {
+    project: updatedProject!,
+    tasksAdded,
+    tasksUpdated,
+    tasksRemoved,
+    scheduleVersionId: newVersion.id,
+    scheduleVersionNumber: newVersion.versionNumber,
   };
 }
 

@@ -16,8 +16,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useSidebarState } from "@/components/layout/Sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useForm, Controller } from "react-hook-form";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { snapshotsToPreviewSchedule } from "@/lib/scheduleVersionUtils";
+import type { ScheduleVersion, ScheduleVersionTask } from "@shared/schema";
+import type { EnrichedScheduleVersion } from "@/components/project/ScheduleVersionsDialog";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { applyServerErrorsToForm } from "@/lib/serverErrors";
 import { insertTaskSchema, TASK_STATUSES, TASK_STATUS, DEFAULT_TASK_STATUS } from "@shared/schema";
@@ -27,6 +30,7 @@ import { TaskDependenciesSection, type TaskDependenciesSectionHandle, type Pendi
 import { CrossProjectReferences } from "@/components/CrossProjectReferences";
 import { useUpdateTaskDependency, useAddTaskDependency, useRemoveTaskDependency } from "@/hooks/use-tasks";
 const ProjectGanttView = lazy(() => import("@/components/project/ProjectGanttView"));
+const ScheduleVersionsDialog = lazy(() => import("@/components/project/ScheduleVersionsDialog"));
 import ProjectKanbanView, { ProjectTaskHistoryDialog } from "@/components/project/ProjectKanbanView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -43,7 +47,7 @@ import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, AlertCircle, Calendar as CalendarIcon, Plus, Pencil, GanttChartSquare, Table, Milestone as MilestoneIcon, History, Maximize2, Minimize2, Columns3, RefreshCw, Download, Upload, ExternalLink, Search, Link2, User as UserIcon, ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
+import { Loader2, AlertCircle, Calendar as CalendarIcon, Plus, Pencil, GanttChartSquare, Table, Milestone as MilestoneIcon, History, Maximize2, Minimize2, Columns3, RefreshCw, Download, Upload, ExternalLink, Search, Link2, User as UserIcon, ChevronDown, ChevronRight, RotateCcw, Eye } from "lucide-react";
 
 function ExpandableNoteText({ text, className }: { text: string; className?: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -467,6 +471,37 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   
   // Make Editable state (convert imported/planner to native tasks)
   const [isMakeEditableDialogOpen, setIsMakeEditableDialogOpen] = useState(false);
+  const [isVersionsDialogOpen, setIsVersionsDialogOpen] = useState(false);
+  const [previewVersion, setPreviewVersion] = useState<EnrichedScheduleVersion | null>(null);
+  const [restoreFromPreview, setRestoreFromPreview] = useState<EnrichedScheduleVersion | null>(null);
+
+  const restorePreviewMutation = useMutation({
+    mutationFn: async (versionId: number) => {
+      const response = await apiRequest(
+        "POST",
+        `/api/projects/${projectId}/schedule-versions/${versionId}/restore`,
+      );
+      return response.json();
+    },
+    onSuccess: (data: { message?: string; tasksRestored?: number }) => {
+      toast({
+        title: "Version restored",
+        description: data.message || `Restored ${data.tasksRestored ?? 0} tasks.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "schedule-versions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId, "tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      setRestoreFromPreview(null);
+      setPreviewVersion(null);
+    },
+    onError: (err: Error) => {
+      toast({
+        title: "Restore failed",
+        description: err.message || "Could not restore version.",
+        variant: "destructive",
+      });
+    },
+  });
   
   const makeEditableMutation = useMutation({
     mutationFn: async () => {
@@ -712,17 +747,45 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     return () => document.removeEventListener('keydown', handler);
   }, [isFullscreen, setSidebarCollapsed]);
   
+  // Schedule-version preview: when active, the tasks list shown in the
+  // table/Gantt is replaced with the snapshot from the previewed version
+  // and rendered read-only.
+  const previewSnapshotQuery = useQuery<{ version: ScheduleVersion; tasks: ScheduleVersionTask[] }>({
+    queryKey: ["/api/projects", projectId, "schedule-versions", previewVersion?.id, "tasks"],
+    enabled: previewVersion != null,
+  });
+  // Fetch versions eagerly whenever the project has any imported source
+  // (live or detached) so the "Versions (vN)" button label is correct on
+  // first render without waiting for the dialog to open.
+  const versionsListQuery = useQuery<EnrichedScheduleVersion[]>({
+    queryKey: ["/api/projects", projectId, "schedule-versions"],
+    enabled: isMsProjectImported || !!sourceFileName
+      || previewVersion != null || isVersionsDialogOpen,
+  });
+  const liveVersion = useMemo(
+    () => (versionsListQuery.data ?? []).find((v) => v.isCurrent) ?? null,
+    [versionsListQuery.data],
+  );
+  const isPreviewingVersion = previewVersion != null;
+  const previewSchedule = useMemo(() => {
+    if (!isPreviewingVersion || !previewSnapshotQuery.data) return null;
+    return snapshotsToPreviewSchedule(previewSnapshotQuery.data.tasks);
+  }, [isPreviewingVersion, previewSnapshotQuery.data]);
+
   const filteredTasks = useMemo(() => {
-    if (!tasks) return [];
-    if (!searchQuery.trim()) return tasks;
+    const sourceTasks: Task[] | null | undefined = isPreviewingVersion
+      ? previewSchedule?.tasks ?? null
+      : tasks;
+    if (!sourceTasks) return [];
+    if (!searchQuery.trim()) return sourceTasks;
     const query = normalizeSearch(searchQuery);
-    return tasks.filter(task => 
+    return sourceTasks.filter((task) =>
       normalizeSearch(task.name).includes(query) ||
       normalizeSearch(task.description).includes(query) ||
       normalizeSearch(task.assignee).includes(query) ||
       normalizeSearch(task.status).includes(query)
     );
-  }, [tasks, searchQuery]);
+  }, [tasks, searchQuery, isPreviewingVersion, previewSchedule]);
   
   // Only sync selectedResourceIds from server on INITIAL load for a task
   // Don't overwrite user changes when query refetches
@@ -1147,6 +1210,26 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           )}
         </div>
       )}
+      {/* Detached project: still allow browsing schedule version history */}
+      {!isMsProjectImported && !isFullscreen && !!sourceFileName && (
+        <div className="flex items-center justify-between gap-3 p-2 px-3 rounded-lg border border-dashed bg-muted/30 text-sm">
+          <div className="flex items-center gap-2 min-w-0">
+            <History className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-muted-foreground truncate">
+              Originally imported from <span className="font-medium text-foreground">{sourceFileName}</span> — version history is preserved.
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsVersionsDialogOpen(true)}
+            data-testid="button-schedule-versions-detached"
+          >
+            <History className="h-4 w-4 mr-2" />
+            Versions{liveVersion ? ` (v${liveVersion.versionNumber})` : ""}
+          </Button>
+        </div>
+      )}
       {/* Imported project banner (MS Project or Primavera P6) - hidden in fullscreen to save space */}
       {isMsProjectImported && !isFullscreen && (
         <div className={cn(
@@ -1200,6 +1283,22 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               </TooltipTrigger>
               <TooltipContent side="bottom" className="max-w-xs">
                 <p>Detach this project from the imported file and make it fully editable. This removes the import link but keeps all tasks and data.</p>
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsVersionsDialogOpen(true)}
+                  data-testid="button-schedule-versions"
+                >
+                  <History className="h-4 w-4 mr-2" />
+                  Versions{liveVersion ? ` (v${liveVersion.versionNumber})` : ""}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs">
+                <p>Browse, preview, compare, restore, and download every imported version of this schedule.</p>
               </TooltipContent>
             </Tooltip>
             {sourceFileUrl && (
@@ -1958,7 +2057,122 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           open={isHistoryOpen} 
           onOpenChange={setIsHistoryOpen} 
         />
+
+        {isVersionsDialogOpen && (
+          <Suspense fallback={null}>
+            <ScheduleVersionsDialog
+              open={isVersionsDialogOpen}
+              onOpenChange={setIsVersionsDialogOpen}
+              projectId={projectId}
+              isP6Imported={isP6Imported}
+              onPreviewVersion={(v) => setPreviewVersion(v)}
+            />
+          </Suspense>
+        )}
       </div>
+
+      {isPreviewingVersion && (
+        <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700" data-testid="banner-version-preview">
+          <div className="text-sm text-amber-900 dark:text-amber-200 min-w-0 flex items-center gap-2 flex-wrap">
+            <Eye className="h-4 w-4 shrink-0" />
+            <span className="font-medium">
+              Previewing v{previewVersion?.versionNumber} (read-only)
+            </span>
+            {liveVersion && (
+              <span className="text-amber-800/80 dark:text-amber-300/80">
+                — currently live v{liveVersion.versionNumber}
+              </span>
+            )}
+            {previewVersion?.fileName && (
+              <span className="text-amber-800/80 dark:text-amber-300/80 truncate">
+                · {previewVersion.fileName}
+              </span>
+            )}
+            {previewSnapshotQuery.isLoading && (
+              <Loader2 className="inline-block h-3.5 w-3.5 animate-spin" />
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsVersionsDialogOpen(true)}
+              data-testid="button-preview-back-to-versions"
+            >
+              <History className="h-3.5 w-3.5 mr-1.5" />
+              All Versions
+            </Button>
+            {previewVersion && !previewVersion.isCurrent && (
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() => setRestoreFromPreview(previewVersion)}
+                disabled={restorePreviewMutation.isPending}
+                data-testid="button-restore-from-preview"
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                Restore this version
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setPreviewVersion(null)}
+              data-testid="button-exit-version-preview"
+            >
+              Exit Preview
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <AlertDialog
+        open={restoreFromPreview != null}
+        onOpenChange={(o) => !o && setRestoreFromPreview(null)}
+      >
+        <AlertDialogContent data-testid="dialog-restore-preview-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Restore v{restoreFromPreview?.versionNumber}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will replace the current schedule with the snapshot from
+              v{restoreFromPreview?.versionNumber}{" "}
+              ({restoreFromPreview?.taskCount} tasks). The current tasks will be
+              archived and a new version will be created so you can always restore
+              again later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={restorePreviewMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (restoreFromPreview) {
+                  restorePreviewMutation.mutate(restoreFromPreview.id);
+                }
+              }}
+              disabled={restorePreviewMutation.isPending}
+              data-testid="button-confirm-restore-from-preview"
+            >
+              {restorePreviewMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Restoring...
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Restore Version
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className={cn(isFullscreen && "flex-1 min-h-0 flex flex-col")}>
       {view === "table" ? (
         <Suspense fallback={<div className="flex h-64 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
@@ -1972,7 +2186,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           projectStartDate={projectStartDate}
           projectEndDate={projectEndDate}
           hideTimeline={true}
-          isReadOnly={readOnly}
+          isReadOnly={readOnly || isPreviewingVersion}
+          dependenciesOverride={isPreviewingVersion ? (previewSchedule?.dependencies ?? []) : undefined}
           onCreateTask={(name) => {
             const todayStr = format(new Date(), 'yyyy-MM-dd');
             createTask.mutate({
@@ -1999,7 +2214,8 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           isFullscreen={isFullscreen}
           projectStartDate={projectStartDate}
           projectEndDate={projectEndDate}
-          isReadOnly={readOnly}
+          isReadOnly={readOnly || isPreviewingVersion}
+          dependenciesOverride={isPreviewingVersion ? (previewSchedule?.dependencies ?? []) : undefined}
           onCreateTask={(name) => {
             const todayStr = format(new Date(), 'yyyy-MM-dd');
             createTask.mutate({
@@ -2023,7 +2239,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
           projectId={projectId}
           resources={teamResources}
           allResources={resources}
-          isReadOnly={readOnly}
+          isReadOnly={readOnly || isPreviewingVersion}
           onResourceAssign={(taskId, resourceIds) => {
             const task = tasks?.find(t => t.id === taskId);
             updateTaskResources.mutate({ taskId, resourceIds, expectedUpdatedAt: task?.updatedAt ? new Date(task.updatedAt).toISOString() : undefined });

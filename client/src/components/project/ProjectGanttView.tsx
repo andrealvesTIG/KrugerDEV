@@ -16,7 +16,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import type { Task, TaskResourceAssignment, Resource, SchedulingDefaults } from "@shared/schema";
+import type { Task, TaskResourceAssignment, Resource, SchedulingDefaults, TaskDependency } from "@shared/schema";
 import { computeWbsValues } from "@/lib/taskWbs";
 import { ResourceAssignment, ResourceAllocation } from "@/components/ResourceAssignment";
 import { MicrosoftContactCard } from "@/components/MicrosoftContactCard";
@@ -2450,6 +2450,7 @@ function ProjectGanttView({
   projectEndDate,
   hideTimeline = false,
   isReadOnly = false,
+  dependenciesOverride,
 }: { 
   tasks: Task[]; 
   onTaskClick: (task: Task) => void;
@@ -2463,6 +2464,13 @@ function ProjectGanttView({
   projectEndDate?: string | null;
   hideTimeline?: boolean;
   isReadOnly?: boolean;
+  /**
+   * When provided, replaces the dependencies fetched from the
+   * `/api/projects/:id/dependencies` endpoint. Used by schedule-version
+   * preview so the Gantt's CPM and dependency lines reflect the snapshot
+   * rather than the current live state.
+   */
+  dependenciesOverride?: TaskDependency[];
 }) {
   const updateTask = useUpdateTask();
   const reorderTask = useReorderTask();
@@ -4337,9 +4345,15 @@ function ProjectGanttView({
     return () => document.removeEventListener('keydown', handler);
   }, [handleUndo, handleRedo, handleGridCopy, selectedTaskIds, focusedCell, visibleColumns, getEditableColumns, triggerCellEdit, editingCell, updateTask, isReadOnly, selectionRange, bulkUpdate, taskCfValuesMap, handleCustomFieldChange, updateTaskCfValue, projectId, toast, pushActionToUndoStack, pushToUndoStack]);
 
-  // Fetch project dependencies and calculate CPM
-  const { data: projectDependenciesData } = useProjectDependencies(projectId);
-  const projectDependencies = Array.isArray(projectDependenciesData) ? projectDependenciesData : [];
+  // Fetch project dependencies and calculate CPM. When the parent passes
+  // dependenciesOverride (schedule-version preview mode), use those instead
+  // of the live API result so CPM and dep lines reflect the snapshot.
+  const { data: projectDependenciesData } = useProjectDependencies(
+    dependenciesOverride !== undefined ? 0 : projectId,
+  );
+  const projectDependencies = dependenciesOverride !== undefined
+    ? dependenciesOverride
+    : Array.isArray(projectDependenciesData) ? projectDependenciesData : [];
   
   // Calculate CPM results when tasks or dependencies change
   const cpmResults = useMemo(() => {

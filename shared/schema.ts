@@ -2096,6 +2096,52 @@ export const mppImportTasks = pgTable("mpp_import_tasks", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Schedule Versions - Snapshot history for imported schedules (MS Project / Primavera P6)
+export const scheduleVersions = pgTable("schedule_versions", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  versionNumber: integer("version_number").notNull(),
+  mppImportId: integer("mpp_import_id").references(() => mppImports.id, { onDelete: "set null" }),
+  fileName: text("file_name").notNull(),
+  fileType: text("file_type").notNull().default("xml"),
+  fileUrl: text("file_url"),
+  importedBy: varchar("imported_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  taskCount: integer("task_count").default(0),
+  isCurrent: boolean("is_current").default(false),
+  restoreOfVersionId: integer("restore_of_version_id"),
+  summary: text("summary"),
+}, (table) => [
+  uniqueIndex("schedule_versions_project_version_idx").on(table.projectId, table.versionNumber),
+]);
+
+// Schedule Version Tasks - Snapshot of tasks captured at a particular version
+export const scheduleVersionTasks = pgTable("schedule_version_tasks", {
+  id: serial("id").primaryKey(),
+  versionId: integer("version_id").references(() => scheduleVersions.id, { onDelete: "cascade" }).notNull(),
+  externalId: integer("external_id"),
+  wbs: text("wbs"),
+  name: text("name").notNull(),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  duration: text("duration"),
+  durationDays: numeric("duration_days"),
+  progress: integer("progress").default(0),
+  status: text("status"),
+  isSummary: boolean("is_summary").default(false),
+  isMilestone: boolean("is_milestone").default(false),
+  outlineLevel: integer("outline_level").default(1),
+  parentExternalId: integer("parent_external_id"),
+  predecessors: text("predecessors"),
+  notes: text("notes"),
+  workHours: numeric("work_hours"),
+  actualWorkHours: numeric("actual_work_hours"),
+  remainingWorkHours: numeric("remaining_work_hours"),
+  taskIndex: integer("task_index").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Organization-specific integration settings
 // Tokens are encrypted at rest via server/lib/tokenEncryption.ts
 export const organizationIntegrations = pgTable("organization_integrations", {
@@ -2404,6 +2450,8 @@ export const insertMultiYearWbsSchema = createInsertSchema(multiYearWbs).omit({ 
 export const insertProjectIntakeSchema = createInsertSchema(projectIntakes).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMppImportSchema = createInsertSchema(mppImports).omit({ id: true, createdAt: true, lastSyncedAt: true });
 export const insertMppImportTaskSchema = createInsertSchema(mppImportTasks).omit({ id: true, createdAt: true });
+export const insertScheduleVersionSchema = createInsertSchema(scheduleVersions).omit({ id: true, createdAt: true });
+export const insertScheduleVersionTaskSchema = createInsertSchema(scheduleVersionTasks).omit({ id: true, createdAt: true });
 export const insertChangeRequestSchema = createInsertSchema(changeRequests).omit({ id: true, createdAt: true });
 export const insertProjectDocumentSchema = createInsertSchema(projectDocuments).omit({ id: true, createdAt: true, updatedAt: true });
 
@@ -2527,6 +2575,12 @@ export type InsertMppImport = z.infer<typeof insertMppImportSchema>;
 
 export type MppImportTask = typeof mppImportTasks.$inferSelect;
 export type InsertMppImportTask = z.infer<typeof insertMppImportTaskSchema>;
+
+export type ScheduleVersion = typeof scheduleVersions.$inferSelect;
+export type InsertScheduleVersion = z.infer<typeof insertScheduleVersionSchema>;
+
+export type ScheduleVersionTask = typeof scheduleVersionTasks.$inferSelect;
+export type InsertScheduleVersionTask = z.infer<typeof insertScheduleVersionTaskSchema>;
 
 export type ChangeRequest = typeof changeRequests.$inferSelect;
 export type InsertChangeRequest = z.infer<typeof insertChangeRequestSchema>;

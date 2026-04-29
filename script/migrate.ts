@@ -499,6 +499,105 @@ async function migrate() {
       SELECT MAX(id) FROM external_shares GROUP BY object_type, object_id, shared_with_user_id
     )`,
     `CREATE UNIQUE INDEX IF NOT EXISTS external_shares_obj_user_idx ON external_shares (object_type, object_id, shared_with_user_id)`,
+
+    // Schedule version history for imported schedules (Task #23)
+    `CREATE TABLE IF NOT EXISTS schedule_versions (
+      id SERIAL PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      organization_id INTEGER NOT NULL REFERENCES organizations(id),
+      version_number INTEGER NOT NULL,
+      mpp_import_id INTEGER REFERENCES mpp_imports(id) ON DELETE SET NULL,
+      file_name TEXT NOT NULL,
+      file_type TEXT NOT NULL DEFAULT 'xml',
+      file_url TEXT,
+      imported_by VARCHAR REFERENCES users(id),
+      created_at TIMESTAMP DEFAULT NOW(),
+      task_count INTEGER DEFAULT 0,
+      is_current BOOLEAN DEFAULT FALSE,
+      restore_of_version_id INTEGER,
+      summary TEXT
+    )`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS schedule_versions_project_version_idx ON schedule_versions (project_id, version_number)`,
+    `CREATE INDEX IF NOT EXISTS schedule_versions_project_idx ON schedule_versions (project_id)`,
+    `CREATE INDEX IF NOT EXISTS schedule_versions_org_idx ON schedule_versions (organization_id)`,
+
+    `CREATE TABLE IF NOT EXISTS schedule_version_tasks (
+      id SERIAL PRIMARY KEY,
+      version_id INTEGER NOT NULL REFERENCES schedule_versions(id) ON DELETE CASCADE,
+      external_id INTEGER,
+      wbs TEXT,
+      name TEXT NOT NULL,
+      start_date DATE,
+      end_date DATE,
+      duration TEXT,
+      duration_days NUMERIC,
+      progress INTEGER DEFAULT 0,
+      status TEXT,
+      is_summary BOOLEAN DEFAULT FALSE,
+      is_milestone BOOLEAN DEFAULT FALSE,
+      outline_level INTEGER DEFAULT 1,
+      parent_external_id INTEGER,
+      predecessors TEXT,
+      notes TEXT,
+      work_hours NUMERIC,
+      actual_work_hours NUMERIC,
+      remaining_work_hours NUMERIC,
+      task_index INTEGER DEFAULT 0,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`,
+    `CREATE INDEX IF NOT EXISTS schedule_version_tasks_version_idx ON schedule_version_tasks (version_id)`,
+
+    // Backfill v1 versions for existing imported projects that don't yet have a snapshot.
+    // We pick exactly ONE mpp_imports row per project (most-recently synced, then
+    // most-recently created) so the (project_id, version_number=1) unique index
+    // is never violated when a project has multiple historical imports.
+    `INSERT INTO schedule_versions (project_id, organization_id, version_number, mpp_import_id, file_name, file_type, file_url, imported_by, created_at, task_count, is_current, summary)
+     SELECT DISTINCT ON (mi.project_id)
+       mi.project_id, mi.organization_id, 1, mi.id, mi.file_name, mi.file_type, mi.file_url,
+       mi.imported_by, COALESCE(mi.last_synced_at, mi.created_at, NOW()),
+       mi.task_count, TRUE, 'Initial import (backfilled)'
+     FROM mpp_imports mi
+     WHERE mi.project_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM schedule_versions sv WHERE sv.project_id = mi.project_id)
+     ORDER BY mi.project_id,
+              COALESCE(mi.last_synced_at, mi.created_at) DESC NULLS LAST,
+              mi.id DESC`,
+
+    `INSERT INTO schedule_version_tasks (
+       version_id, external_id, wbs, name, start_date, end_date, duration, duration_days,
+       progress, status, is_summary, is_milestone, outline_level, parent_external_id,
+       predecessors, notes, work_hours, actual_work_hours, remaining_work_hours, task_index, created_at
+     )
+     SELECT
+       sv.id,
+       mit.task_id,
+       mit.wbs,
+       mit.task_name,
+       mit.start_date,
+       mit.finish_date,
+       mit.duration,
+       mit.duration_days,
+       COALESCE(mit.percent_complete, 0),
+       CASE
+         WHEN mit.percent_complete = 100 THEN 'Completed'
+         WHEN COALESCE(mit.percent_complete, 0) > 0 THEN 'In Progress'
+         ELSE 'Not Started'
+       END,
+       COALESCE(mit.is_summary, FALSE),
+       COALESCE(mit.is_milestone, FALSE),
+       COALESCE(mit.outline_level, 1),
+       mit.parent_task_id,
+       mit.predecessors,
+       mit.notes,
+       mit.work_hours,
+       mit.actual_work_hours,
+       mit.remaining_work_hours,
+       0,
+       COALESCE(mit.created_at, NOW())
+     FROM schedule_versions sv
+     JOIN mpp_import_tasks mit ON mit.import_id = sv.mpp_import_id
+     WHERE sv.summary = 'Initial import (backfilled)'
+       AND NOT EXISTS (SELECT 1 FROM schedule_version_tasks svt WHERE svt.version_id = sv.id)`,
   ];
 
   for (const sql of migrations) {
