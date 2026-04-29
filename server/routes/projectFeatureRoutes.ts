@@ -1671,7 +1671,7 @@ export function registerProjectFeatureRoutes(app: Express) {
       }
       
       const id = Number(req.params.id);
-      const { name, portfolioId, description, status, priority } = req.body;
+      const { name, portfolioId, description, status, priority, onConflict } = req.body;
       
       // Get the import to verify it exists and get organizationId
       const mppImport = await storage.getMppImport(id);
@@ -1690,7 +1690,31 @@ export function registerProjectFeatureRoutes(app: Express) {
       if (!name) {
         return res.status(400).json({ message: "Project name is required" });
       }
-      
+
+      // Same-name conflict handling: prompt | overwrite | skip
+      const conflictMode: 'prompt' | 'overwrite' | 'skip' =
+        onConflict === 'overwrite' || onConflict === 'skip' ? onConflict : 'prompt';
+      const existingProject = await storage.findActiveProjectByNameInOrg(mppImport.organizationId, name);
+      if (existingProject) {
+        if (conflictMode === 'prompt') {
+          return res.status(409).json({
+            conflict: true,
+            message: `A project named "${existingProject.name}" already exists.`,
+            existingProject: { id: existingProject.id, name: existingProject.name },
+          });
+        }
+        if (conflictMode === 'skip') {
+          return res.json({
+            success: true,
+            skipped: true,
+            existingProject: { id: existingProject.id, name: existingProject.name },
+            message: `Skipped — project "${existingProject.name}" already exists.`,
+          });
+        }
+        // overwrite: soft-delete the existing project, then proceed
+        await storage.deleteProject(existingProject.id);
+      }
+
       const result = await storage.convertMppImportToProject(id, {
         organizationId: mppImport.organizationId,
         portfolioId: portfolioId ? Number(portfolioId) : undefined,
@@ -1888,7 +1912,7 @@ export function registerProjectFeatureRoutes(app: Express) {
       }
 
       const id = Number(req.params.id);
-      const { name, portfolioId, description, status, priority } = req.body;
+      const { name, portfolioId, description, status, priority, onConflict } = req.body;
 
       const importRecord = await storage.getMppImport(id);
       if (!importRecord) {
@@ -1912,8 +1936,31 @@ export function registerProjectFeatureRoutes(app: Express) {
         return res.status(400).json({ message: "Project name is required" });
       }
 
-      // Check project limit before creating the new project from this import
-      {
+      // Same-name conflict handling: prompt | overwrite | skip
+      const conflictMode: 'prompt' | 'overwrite' | 'skip' =
+        onConflict === 'overwrite' || onConflict === 'skip' ? onConflict : 'prompt';
+      const existingProject = await storage.findActiveProjectByNameInOrg(importRecord.organizationId, name);
+      if (existingProject) {
+        if (conflictMode === 'prompt') {
+          return res.status(409).json({
+            conflict: true,
+            message: `A project named "${existingProject.name}" already exists.`,
+            existingProject: { id: existingProject.id, name: existingProject.name },
+          });
+        }
+        if (conflictMode === 'skip') {
+          return res.json({
+            success: true,
+            skipped: true,
+            existingProject: { id: existingProject.id, name: existingProject.name },
+            message: `Skipped — project "${existingProject.name}" already exists.`,
+          });
+        }
+      }
+
+      // Check project limit only when we're actually going to create a new project.
+      // Overwrite first soft-deletes the existing project so net project count is unchanged.
+      if (!existingProject) {
         const { checkAndEnforceLimit, METER_CODES } = await import("../services/billing");
         const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.PROJECTS, 1, importRecord.organizationId);
         if (!limitCheck.allowed) {
@@ -1923,6 +1970,11 @@ export function registerProjectFeatureRoutes(app: Express) {
             resourceType: "projects",
           });
         }
+      }
+
+      // overwrite: soft-delete the existing project, then proceed
+      if (existingProject) {
+        await storage.deleteProject(existingProject.id);
       }
 
       const result = await storage.convertMppImportToProject(id, {

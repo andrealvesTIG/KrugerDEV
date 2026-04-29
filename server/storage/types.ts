@@ -175,6 +175,7 @@ export interface IPortfolioStorage {
 export interface IProjectStorage {
   getProjects(organizationId?: number, portfolioId?: number, isInternal?: boolean, options?: { limit?: number; offset?: number }): Promise<Project[]>;
   getProject(id: number): Promise<Project | undefined>;
+  findActiveProjectByNameInOrg(organizationId: number, name: string): Promise<Project | undefined>;
   createProject(project: InsertProject): Promise<Project>;
   updateProject(id: number, updates: UpdateProjectRequest): Promise<Project>;
   deleteProject(id: number): Promise<void>;

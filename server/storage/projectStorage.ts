@@ -44,6 +44,22 @@ export async function getProject(id: number): Promise<Project | undefined> {
   return project;
 }
 
+export async function findActiveProjectByNameInOrg(
+  organizationId: number,
+  name: string,
+): Promise<Project | undefined> {
+  const trimmed = name.trim();
+  if (!trimmed) return undefined;
+  const [project] = await db.select().from(projects).where(
+    and(
+      eq(projects.organizationId, organizationId),
+      isNull(projects.deletedAt),
+      sql`lower(${projects.name}) = lower(${trimmed})`,
+    ),
+  ).limit(1);
+  return project;
+}
+
 export async function createProject(project: InsertProject): Promise<Project> {
   const [newProject] = await db.insert(projects).values({
     ...project,

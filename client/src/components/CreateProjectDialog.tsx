@@ -41,7 +41,17 @@ import {
 } from "lucide-react";
 import { SiOracle } from "react-icons/si";
 
-type P6FileStatus = "pending" | "uploading" | "converting" | "success" | "error";
+type P6FileStatus = "pending" | "uploading" | "converting" | "success" | "error" | "skipped";
+
+type ConflictResolution = "overwrite" | "skip" | "cancel";
+
+interface ConflictPromptState {
+  fileName: string;
+  proposedName: string;
+  existingProjectName: string;
+  supportsApplyToAll: boolean;
+  pending: boolean;
+}
 
 interface P6FileEntry {
   id: string;
@@ -49,6 +59,7 @@ interface P6FileEntry {
   status: P6FileStatus;
   error?: string;
   projectName?: string;
+  existingProjectName?: string;
 }
 
 type ProjectSource = "manual" | "planner" | "planner-premium" | "msproject" | "primavera";
@@ -128,6 +139,26 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
   const [isImportingP6, setIsImportingP6] = useState(false);
   const [selectedP6Files, setSelectedP6Files] = useState<P6FileEntry[]>([]);
   const p6FileInputRef = useRef<HTMLInputElement>(null);
+  const [conflictPrompt, setConflictPrompt] = useState<ConflictPromptState | null>(null);
+  const [conflictApplyToAll, setConflictApplyToAll] = useState(false);
+  const conflictResolverRef = useRef<((choice: { resolution: ConflictResolution; applyToAll: boolean }) => void) | null>(null);
+  const askConflictResolution = (
+    promptState: Omit<ConflictPromptState, "pending">,
+  ): Promise<{ resolution: ConflictResolution; applyToAll: boolean }> => {
+    return new Promise((resolve) => {
+      conflictResolverRef.current = resolve;
+      setConflictApplyToAll(false);
+      setConflictPrompt({ ...promptState, pending: true });
+    });
+  };
+  const finishConflictPrompt = (resolution: ConflictResolution) => {
+    const resolver = conflictResolverRef.current;
+    const applyToAll = conflictApplyToAll;
+    conflictResolverRef.current = null;
+    setConflictPrompt(null);
+    setConflictApplyToAll(false);
+    if (resolver) resolver({ resolution, applyToAll });
+  };
 
   const { data: portfoliosFetched } = usePortfolios(portfoliosProp ? null : (organizationId ?? null));
   const portfolios = portfoliosProp ?? portfoliosFetched ?? [];
@@ -419,10 +450,13 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
     setIsImportingP6(true);
     let successCount = 0;
     let failureCount = 0;
+    let skippedCount = 0;
     let limitExceededDetails: { message?: string; resourceType?: string } | null = null;
+    let cancelRemaining = false;
+    let batchConflictChoice: "overwrite" | "skip" | null = null;
 
-    for (const entry of toProcess) {
-      updateP6Entry(entry.id, { status: "uploading", error: undefined });
+    outer: for (const entry of toProcess) {
+      updateP6Entry(entry.id, { status: "uploading", error: undefined, existingProjectName: undefined });
       try {
         const formData = new FormData();
         formData.append("file", entry.file);
@@ -444,33 +478,78 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
         }
 
         const importRecord = await parseJsonOrThrow(uploadResponse, "Upload failed");
+        const proposedName = importRecord.fileName.replace(/\.[^/.]+$/, "");
 
         updateP6Entry(entry.id, { status: "converting" });
 
-        const response = await fetch(`/api/p6-imports/${importRecord.id}/convert`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: importRecord.fileName.replace(/\.[^/.]+$/, ""),
-            portfolioId: p6PortfolioId,
-          }),
-          credentials: "include",
-        });
+        // Conflict-resolution loop: first attempt may return 409, then we re-attempt
+        // with the user's chosen action (or the batch-wide choice if "apply to all" is set).
+        let onConflict: "overwrite" | "skip" | undefined = batchConflictChoice ?? undefined;
+        let attemptResult: any = null;
+        // Up to 2 attempts: first to discover conflict, second after user resolves it.
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const response = await fetch(`/api/p6-imports/${importRecord.id}/convert`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: proposedName,
+              portfolioId: p6PortfolioId,
+              ...(onConflict ? { onConflict } : {}),
+            }),
+            credentials: "include",
+          });
 
-        if (!response.ok) {
-          const error = await parseJsonOrThrow(response, "Import failed");
-          const errObj: any = new Error(error.message || error.error || "Import failed");
-          errObj.limitExceeded = error.limitExceeded;
-          errObj.resourceType = error.resourceType;
-          throw errObj;
+          if (response.status === 409) {
+            const conflictPayload: any = await parseJsonOrThrow(response, "Conflict");
+            const existingName = conflictPayload?.existingProject?.name || proposedName;
+            const choice = await askConflictResolution({
+              fileName: entry.file.name,
+              proposedName,
+              existingProjectName: existingName,
+              supportsApplyToAll: true,
+            });
+            if (choice.resolution === "cancel") {
+              updateP6Entry(entry.id, { status: "pending" });
+              cancelRemaining = true;
+              break outer;
+            }
+            if (choice.applyToAll) batchConflictChoice = choice.resolution;
+            onConflict = choice.resolution;
+            continue;
+          }
+
+          if (!response.ok) {
+            const error = await parseJsonOrThrow(response, "Import failed");
+            const errObj: any = new Error(error.message || error.error || "Import failed");
+            errObj.limitExceeded = error.limitExceeded;
+            errObj.resourceType = error.resourceType;
+            throw errObj;
+          }
+
+          attemptResult = await parseJsonOrThrow(response, "Import failed");
+          break;
         }
 
-        const result = await parseJsonOrThrow(response, "Import failed");
-        updateP6Entry(entry.id, {
-          status: "success",
-          projectName: result.project?.name || importRecord.fileName,
-        });
-        successCount++;
+        if (!attemptResult) {
+          // Should not happen — defensive fallback
+          updateP6Entry(entry.id, { status: "error", error: "Could not resolve project conflict" });
+          failureCount++;
+          continue;
+        }
+
+        if (attemptResult.skipped) {
+          updateP6Entry(entry.id, {
+            status: "skipped",
+            existingProjectName: attemptResult.existingProject?.name || proposedName,
+          });
+          skippedCount++;
+        } else {
+          updateP6Entry(entry.id, {
+            status: "success",
+            projectName: attemptResult.project?.name || importRecord.fileName,
+          });
+          successCount++;
+        }
       } catch (err: any) {
         if (err?.limitExceeded) {
           limitExceededDetails = { message: err.message, resourceType: err.resourceType };
@@ -498,13 +577,22 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
       return;
     }
 
-    if (successCount > 0 && failureCount === 0) {
+    const skippedSuffix = skippedCount > 0 ? `, ${skippedCount} skipped` : "";
+
+    if (cancelRemaining) {
+      toast({
+        title: "Import Cancelled",
+        description: `Import was cancelled. ${successCount} succeeded, ${failureCount} failed${skippedSuffix}. Remaining files were not processed.`,
+        variant: successCount > 0 ? undefined : "destructive",
+      });
+    } else if (successCount > 0 && failureCount === 0) {
       toast({
         title: successCount === 1 ? "Project Imported" : `${successCount} Projects Imported`,
         description:
-          successCount === 1
+          (successCount === 1
             ? "Your Primavera P6 project was created successfully."
-            : `${successCount} Primavera P6 projects were created successfully.`,
+            : `${successCount} Primavera P6 projects were created successfully.`) +
+          (skippedCount > 0 ? ` ${skippedCount} duplicate${skippedCount === 1 ? "" : "s"} skipped.` : ""),
       });
       onOpenChange(false);
       setSelectedP6Files([]);
@@ -513,8 +601,13 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
     } else if (successCount > 0 && failureCount > 0) {
       toast({
         title: "Some imports failed",
-        description: `${successCount} succeeded, ${failureCount} failed. Remove or retry the failed files below.`,
+        description: `${successCount} succeeded, ${failureCount} failed${skippedSuffix}. Remove or retry the failed files below.`,
         variant: "destructive",
+      });
+    } else if (failureCount === 0 && skippedCount > 0) {
+      toast({
+        title: skippedCount === 1 ? "Import Skipped" : "All Imports Skipped",
+        description: `${skippedCount} file${skippedCount === 1 ? "" : "s"} skipped because a project with the same name already exists.`,
       });
     } else {
       toast({
@@ -549,25 +642,63 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
       }
 
       const importRecord = await parseJsonOrThrow(uploadResponse, "Upload failed");
+      const proposedName = importRecord.fileName.replace(/\.[^/.]+$/, "");
 
-      const response = await fetch(`/api/mpp-imports/${importRecord.id}/convert`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: importRecord.fileName.replace(/\.[^/.]+$/, ""),
-          portfolioId: msProjectPortfolioId,
-        }),
-        credentials: "include",
-      });
+      // Conflict-resolution loop (single file → no "apply to all")
+      let onConflict: "overwrite" | "skip" | undefined = undefined;
+      let result: any = null;
+      let cancelled = false;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const response = await fetch(`/api/mpp-imports/${importRecord.id}/convert`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: proposedName,
+            portfolioId: msProjectPortfolioId,
+            ...(onConflict ? { onConflict } : {}),
+          }),
+          credentials: "include",
+        });
 
-      if (!response.ok) {
-        const error = await parseJsonOrThrow(response, "Import failed");
-        throw new Error(error.error || error.message || "Import failed");
+        if (response.status === 409) {
+          const conflictPayload: any = await parseJsonOrThrow(response, "Conflict");
+          const choice = await askConflictResolution({
+            fileName: selectedMsProjectFile.name,
+            proposedName,
+            existingProjectName: conflictPayload?.existingProject?.name || proposedName,
+            supportsApplyToAll: false,
+          });
+          if (choice.resolution === "cancel") {
+            cancelled = true;
+            break;
+          }
+          onConflict = choice.resolution;
+          continue;
+        }
+
+        if (!response.ok) {
+          const error = await parseJsonOrThrow(response, "Import failed");
+          throw new Error(error.error || error.message || "Import failed");
+        }
+
+        result = await parseJsonOrThrow(response, "Import failed");
+        break;
       }
 
-      const result = await parseJsonOrThrow(response, "Import failed");
-      toast({ title: "Success", description: result.message || "Project imported successfully" });
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      if (cancelled) {
+        toast({ title: "Import Cancelled", description: "MS Project import was cancelled." });
+        return;
+      }
+
+      if (result?.skipped) {
+        toast({
+          title: "Import Skipped",
+          description: `Skipped — a project named "${result.existingProject?.name || proposedName}" already exists.`,
+        });
+      } else {
+        toast({ title: "Success", description: result?.message || "Project imported successfully" });
+        queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      }
       onOpenChange(false);
       setSelectedMsProjectFile(null);
       setMsProjectPortfolioId(null);
@@ -588,6 +719,80 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
         resourceType={limitError?.resourceType}
         message={limitError?.message}
       />
+      <Dialog
+        open={!!conflictPrompt}
+        onOpenChange={(o) => {
+          if (!o && conflictPrompt) {
+            // Treat outside-click / Esc as "skip this one" to avoid stranding the loop.
+            finishConflictPrompt("skip");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md" data-testid="dialog-import-conflict">
+          <DialogHeader>
+            <DialogTitle>Project already exists</DialogTitle>
+          </DialogHeader>
+          {conflictPrompt && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                A project named{" "}
+                <span className="font-medium text-foreground">“{conflictPrompt.existingProjectName}”</span>{" "}
+                already exists. What would you like to do with{" "}
+                <span className="font-medium text-foreground">{conflictPrompt.fileName}</span>?
+              </p>
+              <ul className="text-xs text-muted-foreground space-y-1 pl-4 list-disc">
+                <li>
+                  <span className="font-medium text-foreground">Overwrite</span> — replace the existing
+                  project with the imported one.
+                </li>
+                <li>
+                  <span className="font-medium text-foreground">Skip</span> — keep the existing project
+                  and skip this file.
+                </li>
+              </ul>
+              {conflictPrompt.supportsApplyToAll && (
+                <div className="flex items-center gap-2 pt-1">
+                  <Checkbox
+                    id="conflict-apply-to-all"
+                    checked={conflictApplyToAll}
+                    onCheckedChange={(v) => setConflictApplyToAll(v === true)}
+                    data-testid="checkbox-conflict-apply-to-all"
+                  />
+                  <Label htmlFor="conflict-apply-to-all" className="text-sm font-normal cursor-pointer">
+                    Apply this choice to all remaining duplicates in this import
+                  </Label>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => finishConflictPrompt("cancel")}
+              data-testid="button-conflict-cancel"
+            >
+              Cancel import
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => finishConflictPrompt("skip")}
+              data-testid="button-conflict-skip"
+            >
+              Skip
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => finishConflictPrompt("overwrite")}
+              data-testid="button-conflict-overwrite"
+            >
+              Overwrite
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog
         open={open}
         onOpenChange={(o) => {
@@ -1468,6 +1673,7 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
                                       {entry.status === "uploading" && " · Uploading…"}
                                       {entry.status === "converting" && " · Creating project…"}
                                       {entry.status === "success" && entry.projectName && ` · Created “${entry.projectName}”`}
+                                      {entry.status === "skipped" && ` · Skipped — project “${entry.existingProjectName || entry.file.name}” already exists`}
                                       {entry.status === "error" && entry.error && ` · ${entry.error}`}
                                     </p>
                                   </div>
@@ -1475,6 +1681,8 @@ export function CreateProjectDialog({ open, onOpenChange, organizationId, portfo
                                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground flex-shrink-0" />
                                   ) : entry.status === "success" ? (
                                     <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                                  ) : entry.status === "skipped" ? (
+                                    <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />
                                   ) : entry.status === "error" ? (
                                     <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
                                   ) : null}
