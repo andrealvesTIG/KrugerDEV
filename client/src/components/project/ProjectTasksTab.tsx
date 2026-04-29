@@ -467,6 +467,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const [isReimportDialogOpen, setIsReimportDialogOpen] = useState(false);
   const [isReimporting, setIsReimporting] = useState(false);
   const [selectedReimportFile, setSelectedReimportFile] = useState<File | null>(null);
+  const [isReimportDragActive, setIsReimportDragActive] = useState(false);
   const reimportFileInputRef = useRef<HTMLInputElement>(null);
   
   // Make Editable state (convert imported/planner to native tasks)
@@ -1477,11 +1478,52 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
             <div 
               className={cn(
                 "flex flex-col items-center justify-center gap-3 p-6 rounded-lg border-2 border-dashed cursor-pointer transition-all hover-elevate",
-                selectedReimportFile 
+                isReimportDragActive
+                  ? (isP6Imported ? "border-rose-500 bg-rose-500/10 ring-2 ring-rose-500/30" : "border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/30")
+                  : selectedReimportFile 
                   ? (isP6Imported ? "border-rose-500 bg-rose-500/5" : "border-emerald-500 bg-emerald-500/5")
                   : (isP6Imported ? "border-border hover:border-rose-500/50" : "border-border hover:border-emerald-500/50")
               )}
               onClick={() => reimportFileInputRef.current?.click()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+                if (!isReimportDragActive) setIsReimportDragActive(true);
+              }}
+              onDragEnter={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsReimportDragActive(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+                setIsReimportDragActive(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsReimportDragActive(false);
+                const file = e.dataTransfer?.files?.[0];
+                if (!file) return;
+                const ext = file.name.split(".").pop()?.toLowerCase();
+                const allowed = reimportAcceptAttr
+                  .split(",")
+                  .map((s) => s.trim().replace(/^\./, "").toLowerCase())
+                  .filter(Boolean);
+                if (!ext || !allowed.includes(ext)) {
+                  toast({
+                    title: "Unsupported file type",
+                    description: `Please drop a ${reimportSupportsText.replace(/^Supports /, "")} file.`,
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                setSelectedReimportFile(file);
+                if (reimportFileInputRef.current) reimportFileInputRef.current.value = "";
+              }}
               data-testid="dropzone-reimport"
             >
               {selectedReimportFile ? (
