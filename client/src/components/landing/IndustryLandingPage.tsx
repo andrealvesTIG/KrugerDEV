@@ -768,36 +768,29 @@ export default function IndustryLandingPage({ config }: { config: IndustryConfig
         </section>
       </main>
 
-      <footer className="border-t border-border py-8 bg-muted/20">
-        <div className="px-6 md:px-12 lg:px-20 max-w-[1400px] mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-3">
-              <img src={logoBlack} alt="FridayReport.AI" className="h-6 object-contain dark:invert" />
-              <span className="text-sm text-muted-foreground">{config.footerLabel}</span>
-            </div>
-            <div className="flex flex-wrap justify-center items-center gap-4">
-              <a href="/terms" className="text-sm text-muted-foreground hover:text-foreground hover:underline">Terms of Service</a>
-              <span className="text-muted-foreground">|</span>
-              <a href="/privacy" className="text-sm text-muted-foreground hover:text-foreground hover:underline">Privacy Statement</a>
-              <span className="text-muted-foreground">|</span>
-              <a href="/guide" className="text-sm text-muted-foreground hover:text-foreground hover:underline">User Guide</a>
-              <span className="text-muted-foreground">|</span>
-              <a href={`/signup?source=${config.slug}`} className="text-sm text-muted-foreground hover:text-foreground hover:underline">General Sign Up</a>
-            </div>
-          </div>
-          <p className="text-sm text-muted-foreground text-center mt-6">
-            &copy; {new Date().getFullYear()} Built by{" "}
-            <a
-              href="https://trusteditgroup.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary font-medium hover:underline"
-            >
-              Trusted IT Group
-            </a>
-            . All rights reserved.
-          </p>
+      <footer className="border-t border-border py-6">
+        <div className="flex flex-wrap justify-center items-center gap-4 mb-3">
+          <a href="/terms" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-terms">Terms of Service</a>
+          <span className="text-muted-foreground">|</span>
+          <a href="/privacy" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-privacy">Privacy Statement</a>
+          <span className="text-muted-foreground">|</span>
+          <a href="/guide" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-guide">User Guide</a>
+          <span className="text-muted-foreground">|</span>
+          <a href="/media" className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="link-footer-media">Media</a>
         </div>
+        <p className="text-sm text-muted-foreground text-center" data-testid="text-footer">
+          &copy; {new Date().getFullYear()} Built by{" "}
+          <a
+            href="https://trusteditgroup.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary font-medium hover:underline"
+            data-testid="link-trusted-it-group"
+          >
+            Trusted IT Group
+          </a>
+          . All rights reserved.
+        </p>
       </footer>
     </div>
   );
