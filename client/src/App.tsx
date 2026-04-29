@@ -96,6 +96,9 @@ const BlogPost = lazy(() => import("@/pages/BlogPost"));
 const PowerBIAgent = lazy(() => import("@/pages/PowerBIAgent"));
 const CompareP6Page = lazy(() => import("@/pages/CompareP6Page"));
 const CompareMsProjectPage = lazy(() => import("@/pages/CompareMsProjectPage"));
+const CompareProcorePage = lazy(() => import("@/pages/CompareProcorePage"));
+const CompareAconexPage = lazy(() => import("@/pages/CompareAconexPage"));
+const CompareAstaPage = lazy(() => import("@/pages/CompareAstaPage"));
 
 function PageLoader() {
   return (
@@ -369,6 +372,15 @@ function App() {
                 </Route>
                 <Route path="/compare/ms-project">
                   <Suspense fallback={<PageLoader />}><CompareMsProjectPage /></Suspense>
+                </Route>
+                <Route path="/compare/procore">
+                  <Suspense fallback={<PageLoader />}><CompareProcorePage /></Suspense>
+                </Route>
+                <Route path="/compare/aconex">
+                  <Suspense fallback={<PageLoader />}><CompareAconexPage /></Suspense>
+                </Route>
+                <Route path="/compare/asta">
+                  <Suspense fallback={<PageLoader />}><CompareAstaPage /></Suspense>
                 </Route>
                 <Route path="/energy">
                   <Suspense fallback={<PageLoader />}><EnergyLandingPage /></Suspense>

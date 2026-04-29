@@ -14,6 +14,9 @@ import {
   Mail,
   ChevronRight,
   HelpCircle,
+  HardHat,
+  FolderTree,
+  CalendarRange,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,6 +108,27 @@ function CompetitorLogo({ slug, bg, text }: { slug: string; bg: string; text: st
         alt="Microsoft Project"
         className="h-12 w-12 md:h-14 md:w-14 rounded-xl object-contain shadow-md bg-white p-1"
       />
+    );
+  }
+  if (slug === "procore") {
+    return (
+      <div className={cn("h-12 w-12 md:h-14 md:w-14 rounded-xl flex items-center justify-center shadow-md", bg, text)}>
+        <HardHat className="h-6 w-6 md:h-7 md:w-7" />
+      </div>
+    );
+  }
+  if (slug === "aconex") {
+    return (
+      <div className={cn("h-12 w-12 md:h-14 md:w-14 rounded-xl flex items-center justify-center shadow-md", bg, text)}>
+        <FolderTree className="h-6 w-6 md:h-7 md:w-7" />
+      </div>
+    );
+  }
+  if (slug === "asta") {
+    return (
+      <div className={cn("h-12 w-12 md:h-14 md:w-14 rounded-xl flex items-center justify-center shadow-md", bg, text)}>
+        <CalendarRange className="h-6 w-6 md:h-7 md:w-7" />
+      </div>
     );
   }
   return (

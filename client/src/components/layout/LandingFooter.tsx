@@ -151,6 +151,9 @@ const footerSections = {
     links: [
       { name: "vs Primavera P6", href: "/compare/primavera-p6", icon: GitCompare },
       { name: "vs Microsoft Project", href: "/compare/ms-project", icon: GitCompare },
+      { name: "vs Procore", href: "/compare/procore", icon: GitCompare },
+      { name: "vs Oracle Aconex", href: "/compare/aconex", icon: GitCompare },
+      { name: "vs Asta Powerproject", href: "/compare/asta", icon: GitCompare },
     ]
   },
   resources: {

@@ -364,9 +364,9 @@ export const constructionConfig: IndustryConfig = {
   comparisonFeatureSet: "capital-projects",
   compareLinks: {
     badge: "Capital Programs Comparison",
-    title: "Comparing FridayReport.AI to your scheduling tool?",
+    title: "Comparing FridayReport.AI to your PM tool?",
     subtitle:
-      "Side-by-side comparisons against the two scheduling tools every capital program already runs.",
+      "Side-by-side comparisons against the scheduling, construction management, and document control platforms every capital program already evaluates.",
     items: [
       {
         label: "FridayReport.AI vs Primavera P6",
@@ -379,6 +379,24 @@ export const constructionConfig: IndustryConfig = {
         href: "/compare/ms-project",
         description:
           "MS Project schedules plus portfolio EVM, four EAC scenarios, field execution, and audit-ready forecasts.",
+      },
+      {
+        label: "FridayReport.AI vs Procore",
+        href: "/compare/procore",
+        description:
+          "Procore covers the field. We add owner-side EVM, P6 / MSP import, AI variance detection, and cash flow.",
+      },
+      {
+        label: "FridayReport.AI vs Oracle Aconex",
+        href: "/compare/aconex",
+        description:
+          "Aconex owns documents. We own the controls layer: portfolio EVM, schedule integration, AI variance, change orders.",
+      },
+      {
+        label: "FridayReport.AI vs Asta Powerproject",
+        href: "/compare/asta",
+        description:
+          "Keep Asta schedules. Add portfolio EVM, four EAC scenarios, AI variance detection, RFIs, and change orders.",
       },
     ],
   },

@@ -15,6 +15,21 @@ const compareLinks = [
     description: "MS Project schedules + portfolio EVM, AI variance, field execution.",
     href: "/compare/ms-project",
   },
+  {
+    label: "vs Procore",
+    description: "Field execution + owner-side EVM, four EAC scenarios, AI variance.",
+    href: "/compare/procore",
+  },
+  {
+    label: "vs Oracle Aconex",
+    description: "Document control + project controls: EVM, schedule integration, cash flow.",
+    href: "/compare/aconex",
+  },
+  {
+    label: "vs Asta Powerproject",
+    description: "Asta schedules + portfolio EVM, AI variance, RFIs, change orders.",
+    href: "/compare/asta",
+  },
 ];
 
 const industries = [
