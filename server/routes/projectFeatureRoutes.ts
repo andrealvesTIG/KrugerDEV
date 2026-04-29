@@ -1721,8 +1721,51 @@ export function registerProjectFeatureRoutes(app: Express) {
             message: `Skipped — project "${existingProject.name}" already exists.`,
           });
         }
-        // overwrite: soft-delete the existing project, then proceed
-        await storage.deleteProject(existingProject.id);
+        // overwrite: re-import the file into the existing project so the
+        // schedule-version history (and other project metadata) is preserved.
+        // Project-level access check — org access alone isn't enough; team
+        // members may have a restricted project scope and must not be able to
+        // overwrite a project they otherwise can't open.
+        if (!await teamMemberCanAccessProject(userId, existingProject.id, existingProject.organizationId)) {
+          return res.status(403).json({ message: 'Access denied to the existing project' });
+        }
+        // syncMppImportToProject in 'replace' mode swaps out the tasks and
+        // appends a new numbered ScheduleVersion snapshot for this file.
+        const syncResult = await storage.syncMppImportToProject(id, existingProject.id, {
+          syncMode: 'replace',
+          importedBy: userId || null,
+        });
+
+        const ovrUser = userId ? await storage.getUser(userId) : null;
+        const ovrUserName = ovrUser
+          ? `${ovrUser.firstName || ''} ${ovrUser.lastName || ''}`.trim() || ovrUser.email || 'Unknown'
+          : 'System';
+        const ovrFileName = mppImport.fileName || 'MS Project file';
+        const ovrVersionLabel = syncResult.scheduleVersionNumber != null
+          ? ` (v${syncResult.scheduleVersionNumber})`
+          : '';
+        await storage.createProjectChangeLog({
+          projectId: syncResult.project.id,
+          changedBy: userId || null,
+          changedByName: ovrUserName,
+          changeType: 'updated',
+          changeSummary: `Project "${syncResult.project.name}" overwritten by ${ovrUserName} — re-imported from ${ovrFileName}${ovrVersionLabel}`,
+          previousValues: null,
+          newValues: null,
+        });
+
+        return res.json({
+          success: true,
+          overwritten: true,
+          project: syncResult.project,
+          taskCount: syncResult.tasksAdded,
+          tasksAdded: syncResult.tasksAdded,
+          tasksUpdated: syncResult.tasksUpdated,
+          tasksRemoved: syncResult.tasksRemoved,
+          scheduleVersionId: syncResult.scheduleVersionId,
+          scheduleVersionNumber: syncResult.scheduleVersionNumber,
+          message: `Overwrote "${syncResult.project.name}" with ${syncResult.tasksAdded} tasks${ovrVersionLabel}`,
+        });
       }
 
       const result = await storage.convertMppImportToProject(id, {
@@ -1973,7 +2016,8 @@ export function registerProjectFeatureRoutes(app: Express) {
       }
 
       // Check project limit only when we're actually going to create a new project.
-      // Overwrite first soft-deletes the existing project so net project count is unchanged.
+      // Overwrite re-imports into the existing project (no new project row), so the
+      // net project count is unchanged.
       if (!existingProject) {
         const { checkAndEnforceLimit, METER_CODES } = await import("../services/billing");
         const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.PROJECTS, 1, importRecord.organizationId);
@@ -1986,9 +2030,54 @@ export function registerProjectFeatureRoutes(app: Express) {
         }
       }
 
-      // overwrite: soft-delete the existing project, then proceed
+      const p6SourceLabel = importRecord.fileType === 'xer' ? 'Primavera P6 XER' : 'Primavera P6 XML';
+
+      // overwrite: re-import into the existing project so the schedule-version
+      // history (and any other project metadata) is preserved. The replace
+      // sync mode swaps out the tasks and appends a new numbered
+      // ScheduleVersion snapshot for this file.
       if (existingProject) {
-        await storage.deleteProject(existingProject.id);
+        // Project-level access check — org access alone isn't enough; team
+        // members may have a restricted project scope and must not be able to
+        // overwrite a project they otherwise can't open.
+        if (!await teamMemberCanAccessProject(userId, existingProject.id, existingProject.organizationId)) {
+          return res.status(403).json({ message: 'Access denied to the existing project' });
+        }
+        const syncResult = await storage.syncMppImportToProject(id, existingProject.id, {
+          syncMode: 'replace',
+          importedBy: userId || null,
+        });
+
+        const ovrUser = await storage.getUser(userId);
+        const ovrUserName = ovrUser
+          ? `${ovrUser.firstName || ''} ${ovrUser.lastName || ''}`.trim() || ovrUser.email || 'Unknown'
+          : 'System';
+        const ovrFileName = importRecord.fileName || p6SourceLabel;
+        const ovrVersionLabel = syncResult.scheduleVersionNumber != null
+          ? ` (v${syncResult.scheduleVersionNumber})`
+          : '';
+        await storage.createProjectChangeLog({
+          projectId: syncResult.project.id,
+          changedBy: userId,
+          changedByName: ovrUserName,
+          changeType: 'updated',
+          changeSummary: `Project "${syncResult.project.name}" overwritten by ${ovrUserName} — re-imported from ${ovrFileName} (${p6SourceLabel})${ovrVersionLabel}`,
+          previousValues: null,
+          newValues: null,
+        });
+
+        return res.json({
+          success: true,
+          overwritten: true,
+          project: syncResult.project,
+          taskCount: syncResult.tasksAdded,
+          tasksAdded: syncResult.tasksAdded,
+          tasksUpdated: syncResult.tasksUpdated,
+          tasksRemoved: syncResult.tasksRemoved,
+          scheduleVersionId: syncResult.scheduleVersionId,
+          scheduleVersionNumber: syncResult.scheduleVersionNumber,
+          message: `Overwrote "${syncResult.project.name}" with ${syncResult.tasksAdded} tasks${ovrVersionLabel}`,
+        });
       }
 
       const result = await storage.convertMppImportToProject(id, {
@@ -2011,14 +2100,13 @@ export function registerProjectFeatureRoutes(app: Express) {
       const p6UserName = p6User
         ? `${p6User.firstName || ''} ${p6User.lastName || ''}`.trim() || p6User.email || 'Unknown'
         : 'System';
-      const sourceLabel = importRecord.fileType === 'xer' ? 'Primavera P6 XER' : 'Primavera P6 XML';
-      const sourceFileName = importRecord.fileName || sourceLabel;
+      const sourceFileName = importRecord.fileName || p6SourceLabel;
       await storage.createProjectChangeLog({
         projectId: result.project.id,
         changedBy: userId,
         changedByName: p6UserName,
         changeType: 'created',
-        changeSummary: `Project "${result.project.name}" created by ${p6UserName} — imported from ${sourceFileName} (${sourceLabel})`,
+        changeSummary: `Project "${result.project.name}" created by ${p6UserName} — imported from ${sourceFileName} (${p6SourceLabel})`,
         previousValues: null,
         newValues: null,
       });

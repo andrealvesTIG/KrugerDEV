@@ -438,7 +438,7 @@ export interface IIntakeStorage {
   createMppImportTasks(tasks: InsertMppImportTask[]): Promise<MppImportTask[]>;
   deleteMppImportTasks(importId: number): Promise<void>;
   convertMppImportToProject(importId: number, projectData: { organizationId: number; portfolioId?: number; name: string; description?: string; status?: string; priority?: string }): Promise<{ project: Project; taskCount: number }>;
-  syncMppImportToProject(importId: number, projectId: number, options?: { syncMode?: 'merge' | 'replace' }): Promise<{ project: Project; tasksAdded: number; tasksUpdated: number; tasksRemoved: number }>;
+  syncMppImportToProject(importId: number, projectId: number, options?: { syncMode?: 'merge' | 'replace'; importedBy?: string | null }): Promise<{ project: Project; tasksAdded: number; tasksUpdated: number; tasksRemoved: number; scheduleVersionId?: number; scheduleVersionNumber?: number }>;
   getIntakeWorkflowSteps(organizationId: number, workflowId?: number | null): Promise<IntakeWorkflowStep[]>;
   upsertIntakeWorkflowSteps(organizationId: number, steps: InsertIntakeWorkflowStep[], workflowId?: number | null): Promise<IntakeWorkflowStep[]>;
   resetIntakeWorkflowToDefaults(organizationId: number, workflowId?: number | null): Promise<IntakeWorkflowStep[]>;
