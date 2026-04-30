@@ -334,7 +334,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
                   data-testid="button-ai-mode-toggle"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
-                  <span>AI</span>
+                  <span>AI Mode</span>
                 </button>
               </TooltipTrigger>
               <TooltipContent side="bottom">

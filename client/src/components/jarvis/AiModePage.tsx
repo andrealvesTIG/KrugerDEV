@@ -233,7 +233,7 @@ export default function AiModePage() {
                 data-testid="button-ai-mode-toggle-active"
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                <span>AI</span>
+                <span>AI Mode</span>
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
