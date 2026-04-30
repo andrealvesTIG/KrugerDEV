@@ -1283,7 +1283,7 @@ interface PlanData {
   id: number;
   code: string;
   name: string;
-  monthlyPriceCents: number | null;
+  annualPriceCents: number | null;
   maxSeats: number | null;
   extraSeatPriceCents: number | null;
   displayOrder: number | null;
@@ -1291,7 +1291,7 @@ interface PlanData {
     meterCode: string;
     meterName: string;
     ruleType: string;
-    includedUnitsMonthly: number | null;
+    includedUnitsAnnual: number | null;
     hardCapUnits: number | null;
   }[];
 }
@@ -1304,7 +1304,7 @@ interface PlansResponse {
 function getMeterValue(rules: PlanData['meterRules'], meterCode: string): { quota: number | null; hasOverage: boolean } {
   const quota = rules.find(r => r.meterCode === meterCode && r.ruleType === 'INCLUDED_QUOTA');
   const hasOverage = rules.some(r => r.meterCode === meterCode && r.ruleType === 'METERED_OVERAGE');
-  return { quota: quota?.includedUnitsMonthly ?? null, hasOverage };
+  return { quota: quota?.includedUnitsAnnual ?? null, hasOverage };
 }
 
 function getHardCap(rules: PlanData['meterRules'], meterCode: string): number | null {
@@ -1353,7 +1353,7 @@ function getPlanFeatures(plan: PlanData, creditCosts: CreditCostData[]): string[
     const resourceCost = getCreditCostForType(creditCosts, 'resource');
     const portfolios = Math.floor(creditsVal / portfolioCost);
     const resources = Math.floor(creditsVal / resourceCost);
-    features.push(`${creditsVal.toLocaleString()} credits/month`);
+    features.push(`${creditsVal.toLocaleString()} credits/year`);
     features.push(`~${portfolios} portfolios, ~${resources} resources`);
   } else if (isCustom) {
     features.push("Custom credit allocation");
@@ -1361,7 +1361,7 @@ function getPlanFeatures(plan: PlanData, creditCosts: CreditCostData[]): string[
 
   const aiRuns = getMeterValue(rules, 'ai_runs');
   if (aiRuns.quota && !isCustom) {
-    features.push(`${aiRuns.quota.toLocaleString()} AI runs/month`);
+    features.push(`${aiRuns.quota.toLocaleString()} AI runs/year`);
   } else if (isCustom) {
     features.push("Unlimited AI runs");
   }
@@ -1449,10 +1449,10 @@ function PricingSection({ scrollToSignIn }: { scrollToSignIn: () => void }) {
               const features = getPlanFeatures(plan, creditCosts);
               const priceDisplay = isCustom
                 ? 'Contact'
-                : plan.monthlyPriceCents != null
-                  ? formatCurrency(plan.monthlyPriceCents / 100, { showCents: true })
+                : plan.annualPriceCents != null
+                  ? formatCurrency(plan.annualPriceCents / 100, { showCents: true })
                   : '$0';
-              const subtitle = isFree ? 'Forever free' : isCustom ? 'Custom pricing' : 'per month';
+              const subtitle = isFree ? 'Forever free' : isCustom ? 'Custom pricing' : 'per year';
 
               return (
                 <div

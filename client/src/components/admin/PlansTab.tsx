@@ -22,7 +22,7 @@ import { formatCurrency } from "@/lib/format";
   code: string;
   name: string;
   description: string | null;
-  monthlyPriceCents: number | null;
+  annualPriceCents: number | null;
   maxSeats: number | null;
   extraSeatPriceCents: number | null;
   isActive: boolean | null;
@@ -42,7 +42,7 @@ interface PlanMeterRule {
   planId: number;
   meterId: number;
   ruleType: string;
-  includedUnitsMonthly: number | null;
+  includedUnitsAnnual: number | null;
   hardCapUnits: number | null;
   overageUnitPriceMicrocents: number | null;
   isSharedPool: boolean | null;
@@ -62,7 +62,7 @@ export function PlansTab() {
   const [editingRules, setEditingRules] = useState<PlanMeterRule[]>([]);
   const [loadingRules, setLoadingRules] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [newPlan, setNewPlan] = useState({ code: "", name: "", description: "", monthlyPriceCents: 0, maxSeats: "" });
+  const [newPlan, setNewPlan] = useState({ code: "", name: "", description: "", annualPriceCents: 0, maxSeats: "" });
   const [deletePlanId, setDeletePlanId] = useState<number | null>(null);
   const [isSyncingPayPal, setIsSyncingPayPal] = useState(false);
   const [isInitializingSeats, setIsInitializingSeats] = useState(false);
@@ -178,14 +178,14 @@ export function PlansTab() {
   };
 
   const createPlan = useMutation({
-    mutationFn: async (data: { code: string; name: string; description?: string; monthlyPriceCents?: number; maxSeats?: number }) => {
+    mutationFn: async (data: { code: string; name: string; description?: string; annualPriceCents?: number; maxSeats?: number }) => {
       return apiRequest('POST', '/api/admin/plans', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/billing/plans'] });
       toast({ title: "Success", description: "Plan created successfully" });
       setIsCreateOpen(false);
-      setNewPlan({ code: "", name: "", description: "", monthlyPriceCents: 0, maxSeats: "" });
+      setNewPlan({ code: "", name: "", description: "", annualPriceCents: 0, maxSeats: "" });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to create plan", variant: "destructive" });
@@ -207,7 +207,7 @@ export function PlansTab() {
   });
 
   const updatePlan = useMutation({
-    mutationFn: async (data: { id: number; name?: string; description?: string; monthlyPriceCents?: number | null; maxSeats?: number; extraSeatPriceCents?: number | null }) => {
+    mutationFn: async (data: { id: number; name?: string; description?: string; annualPriceCents?: number | null; maxSeats?: number; extraSeatPriceCents?: number | null }) => {
       return apiRequest('PUT', `/api/admin/plans/${data.id}`, data);
     },
     onSuccess: () => {
@@ -221,7 +221,7 @@ export function PlansTab() {
   });
 
   const updateRule = useMutation({
-    mutationFn: async (data: { planId: number; ruleId: number; includedUnitsMonthly?: number; hardCapUnits?: number; overageUnitPriceMicrocents?: number }) => {
+    mutationFn: async (data: { planId: number; ruleId: number; includedUnitsAnnual?: number; hardCapUnits?: number; overageUnitPriceMicrocents?: number }) => {
       const { planId, ruleId, ...updates } = data;
       return apiRequest('PUT', `/api/admin/plans/${planId}/rules/${ruleId}`, updates);
     },
@@ -267,7 +267,7 @@ export function PlansTab() {
   const formatPrice = (cents: number | null) => {
     if (cents === null) return "Contact Us";
     if (cents === 0) return "Free";
-    return `${formatCurrency(cents / 100, { showCents: true })}/mo`;
+    return `${formatCurrency(cents / 100, { showCents: true })}/year`;
   };
 
   const formatOveragePrice = (microcents: number | null) => {
@@ -340,7 +340,7 @@ export function PlansTab() {
               <TableRow>
                 <TableHead className="w-16">Order</TableHead>
                 <TableHead>Plan</TableHead>
-                <TableHead>Monthly Price</TableHead>
+                <TableHead>Annual Price</TableHead>
                 <TableHead>Max Seats</TableHead>
                 <TableHead>Extra Seat Price</TableHead>
                 <TableHead>Status</TableHead>
@@ -379,14 +379,14 @@ export function PlansTab() {
                     <div className="text-sm text-muted-foreground">{plan.code}</div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={plan.monthlyPriceCents ? "default" : "secondary"}>
-                      {formatPrice(plan.monthlyPriceCents)}
+                    <Badge variant={plan.annualPriceCents ? "default" : "secondary"}>
+                      {formatPrice(plan.annualPriceCents)}
                     </Badge>
                   </TableCell>
                   <TableCell>{plan.maxSeats || "Unlimited"}</TableCell>
                   <TableCell>
                     {plan.extraSeatPriceCents !== null 
-                      ? `${formatCurrency(plan.extraSeatPriceCents / 100, { showCents: true })}/mo`
+                      ? `${formatCurrency(plan.extraSeatPriceCents / 100, { showCents: true })}/year`
                       : "N/A"}
                   </TableCell>
                   <TableCell>
@@ -460,28 +460,28 @@ export function PlansTab() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="plan-price">Monthly Price ($)</Label>
+                  <Label htmlFor="plan-price">Annual Price ($)</Label>
                   <div className="space-y-2">
                     <Input
                       id="plan-price"
                       type="number"
                       step="0.01"
-                      value={editingPlan.monthlyPriceCents === null ? "" : (editingPlan.monthlyPriceCents || 0) / 100}
+                      value={editingPlan.annualPriceCents === null ? "" : (editingPlan.annualPriceCents || 0) / 100}
                       onChange={(e) => setEditingPlan({ 
                         ...editingPlan, 
-                        monthlyPriceCents: Math.round(parseFloat(e.target.value || "0") * 100) 
+                        annualPriceCents: Math.round(parseFloat(e.target.value || "0") * 100) 
                       })}
-                      disabled={editingPlan.monthlyPriceCents === null}
-                      placeholder={editingPlan.monthlyPriceCents === null ? "Contact Us" : "0.00"}
+                      disabled={editingPlan.annualPriceCents === null}
+                      placeholder={editingPlan.annualPriceCents === null ? "Contact Us" : "0.00"}
                       data-testid="input-plan-price"
                     />
                     <div className="flex items-center gap-2">
                       <Checkbox
                         id="contact-us-pricing"
-                        checked={editingPlan.monthlyPriceCents === null}
+                        checked={editingPlan.annualPriceCents === null}
                         onCheckedChange={(checked) => setEditingPlan({
                           ...editingPlan,
-                          monthlyPriceCents: checked ? null : 0
+                          annualPriceCents: checked ? null : 0
                         })}
                         data-testid="checkbox-contact-us-pricing"
                       />
@@ -515,7 +515,7 @@ export function PlansTab() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="plan-extra-seat-price">Extra Seat Price (cents/month)</Label>
+                  <Label htmlFor="plan-extra-seat-price">Extra Seat Price (cents/year)</Label>
                   <Input
                     id="plan-extra-seat-price"
                     type="number"
@@ -528,7 +528,7 @@ export function PlansTab() {
                     data-testid="input-plan-extra-seat-price"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Price per additional seat per month (e.g., 500 = $5.00/seat/month). Leave empty to disable extra seats.
+                    Price per additional seat per year (e.g., 5400 = $54.00/seat/year). Leave empty to disable extra seats.
                   </p>
                 </div>
               </div>
@@ -556,7 +556,7 @@ export function PlansTab() {
                         <div className="p-4 border rounded-lg bg-muted/30 space-y-4">
                           <div className="flex items-center gap-2">
                             <Wallet className="h-5 w-5 text-primary" />
-                            <span className="font-medium">Monthly Credits</span>
+                            <span className="font-medium">Annual Credits</span>
                           </div>
                           
                           <div className="grid grid-cols-2 gap-4">
@@ -565,11 +565,11 @@ export function PlansTab() {
                                 <Label className="text-sm">Included Credits</Label>
                                 <Input
                                   type="number"
-                                  value={quotaRule.includedUnitsMonthly || ""}
+                                  value={quotaRule.includedUnitsAnnual || ""}
                                   onChange={(e) => {
                                     const newRules = editingRules.map(r => 
                                       r.id === quotaRule.id 
-                                        ? { ...r, includedUnitsMonthly: parseInt(e.target.value) || null } 
+                                        ? { ...r, includedUnitsAnnual: parseInt(e.target.value) || null } 
                                         : r
                                     );
                                     setEditingRules(newRules);
@@ -660,21 +660,21 @@ export function PlansTab() {
                           )}
                           
                           {/* Capacity Estimates */}
-                          {quotaRule?.includedUnitsMonthly && (
+                          {quotaRule?.includedUnitsAnnual && (
                             <div className="pt-3 border-t">
-                              <p className="text-xs font-medium text-muted-foreground mb-2">Estimated Capacity (with {quotaRule.includedUnitsMonthly.toLocaleString()} credits)</p>
+                              <p className="text-xs font-medium text-muted-foreground mb-2">Estimated Capacity (with {quotaRule.includedUnitsAnnual.toLocaleString()} credits)</p>
                               <div className="flex flex-wrap gap-3 text-xs">
                                 <span className="px-2 py-1 rounded bg-muted">
-                                  {Math.floor(quotaRule.includedUnitsMonthly / 5)} projects
+                                  {Math.floor(quotaRule.includedUnitsAnnual / 5)} projects
                                 </span>
                                 <span className="px-2 py-1 rounded bg-muted">
-                                  {Math.floor(quotaRule.includedUnitsMonthly / 1)} tasks
+                                  {Math.floor(quotaRule.includedUnitsAnnual / 1)} tasks
                                 </span>
                                 <span className="px-2 py-1 rounded bg-muted">
-                                  {Math.floor(quotaRule.includedUnitsMonthly / 1)} issues
+                                  {Math.floor(quotaRule.includedUnitsAnnual / 1)} issues
                                 </span>
                                 <span className="px-2 py-1 rounded bg-muted">
-                                  {Math.floor(quotaRule.includedUnitsMonthly / 3)} AI runs
+                                  {Math.floor(quotaRule.includedUnitsAnnual / 3)} AI runs
                                 </span>
                               </div>
                             </div>
@@ -716,11 +716,11 @@ export function PlansTab() {
                                       <Input
                                         type="number"
                                         className="w-20"
-                                        value={rule.includedUnitsMonthly || ""}
+                                        value={rule.includedUnitsAnnual || ""}
                                         onChange={(e) => {
                                           const newRules = editingRules.map(r => 
                                             r.id === rule.id 
-                                              ? { ...r, includedUnitsMonthly: parseInt(e.target.value) || null } 
+                                              ? { ...r, includedUnitsAnnual: parseInt(e.target.value) || null } 
                                               : r
                                           );
                                           setEditingRules(newRules);
@@ -766,7 +766,7 @@ export function PlansTab() {
                       id: editingPlan.id,
                       name: editingPlan.name,
                       description: editingPlan.description || undefined,
-                      monthlyPriceCents: editingPlan.monthlyPriceCents,
+                      annualPriceCents: editingPlan.annualPriceCents,
                       maxSeats: editingPlan.maxSeats || undefined,
                       extraSeatPriceCents: editingPlan.extraSeatPriceCents,
                     });
@@ -775,7 +775,7 @@ export function PlansTab() {
                     const promises = editingRules.map(rule => {
                       const updates: any = {};
                       if (rule.ruleType === 'INCLUDED_QUOTA') {
-                        updates.includedUnitsMonthly = rule.includedUnitsMonthly ?? undefined;
+                        updates.includedUnitsAnnual = rule.includedUnitsAnnual ?? undefined;
                       } else if (rule.ruleType === 'HARD_CAP') {
                         updates.hardCapUnits = rule.hardCapUnits ?? undefined;
                       } else if (rule.ruleType === 'METERED_OVERAGE') {
@@ -835,12 +835,12 @@ export function PlansTab() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Monthly Price ($)</Label>
+                <Label>Annual Price ($)</Label>
                 <Input
                   type="number"
                   step="0.01"
-                  value={newPlan.monthlyPriceCents / 100}
-                  onChange={(e) => setNewPlan({ ...newPlan, monthlyPriceCents: Math.round(parseFloat(e.target.value || "0") * 100) })}
+                  value={newPlan.annualPriceCents / 100}
+                  onChange={(e) => setNewPlan({ ...newPlan, annualPriceCents: Math.round(parseFloat(e.target.value || "0") * 100) })}
                   placeholder="0.00"
                   data-testid="input-new-plan-price"
                 />
@@ -864,7 +864,7 @@ export function PlansTab() {
                 code: newPlan.code,
                 name: newPlan.name,
                 description: newPlan.description || undefined,
-                monthlyPriceCents: newPlan.monthlyPriceCents,
+                annualPriceCents: newPlan.annualPriceCents,
                 maxSeats: newPlan.maxSeats ? parseInt(newPlan.maxSeats) : undefined,
               })}
               disabled={!newPlan.code || !newPlan.name || createPlan.isPending}

@@ -97,7 +97,7 @@ export function LimitExceededDialog({
                 <span>Add Extra Seat</span>
               </div>
               <p className="text-sm text-muted-foreground">
-                Add one team member seat for {formatPrice(extraSeatPriceCents)}/month. This will be added to your monthly subscription.
+                Add one team member seat for {formatPrice(extraSeatPriceCents)}/year. This will be added to your annual subscription.
               </p>
               <Button 
                 onClick={onPurchaseExtraSeat} 
@@ -105,7 +105,7 @@ export function LimitExceededDialog({
                 className="w-full"
                 data-testid="button-purchase-extra-seat"
               >
-                {isPurchasing ? "Adding Seat..." : `Add Seat for ${formatPrice(extraSeatPriceCents)}/month`}
+                {isPurchasing ? "Adding Seat..." : `Add Seat for ${formatPrice(extraSeatPriceCents)}/year`}
               </Button>
             </div>
           )}
@@ -117,7 +117,7 @@ export function LimitExceededDialog({
             <p className="text-sm text-muted-foreground">
               {isSeatsLimit 
                 ? "Higher plans include more team member seats and additional features for your organization."
-                : "Higher plans include more monthly credits and additional features. Credits reset at the start of each billing cycle."}
+                : "Higher plans include more annual credits and additional features. Credits reset at the start of each billing cycle."}
             </p>
           </div>
         </div>

@@ -37,13 +37,13 @@ interface BillingCycleHistory {
   usage: CycleUsageRollup[];
 }
 
-interface PlanWithRules extends Omit<Plan, 'monthlyPriceCents'> {
-  monthlyPriceCents?: number | null;
+interface PlanWithRules extends Omit<Plan, 'annualPriceCents'> {
+  annualPriceCents?: number | null;
   meterRules?: Array<{
     meterCode: string;
     meterName: string;
     ruleType: string;
-    includedUnitsMonthly: number | null;
+    includedUnitsAnnual: number | null;
     hardCapUnits: number | null;
     overageUnitPriceMicrocents: number | null;
   }>;
@@ -142,7 +142,7 @@ function formatPlanPrice(cents: number | null | undefined, isContactUs?: boolean
 }
 
 function isContactUsPlan(plan: PlanWithRules): boolean {
-  return plan.monthlyPriceCents === null;
+  return plan.annualPriceCents === null;
 }
 
 function getLimit(rules: PlanWithRules['meterRules'], meterCode: string): { included: number | null; hardCap: number | null; overage: number | null } {
@@ -156,8 +156,8 @@ function getLimit(rules: PlanWithRules['meterRules'], meterCode: string): { incl
   let overage: number | null = null;
   
   for (const rule of meterRules) {
-    if (rule.ruleType === "INCLUDED_QUOTA" && rule.includedUnitsMonthly) {
-      included = rule.includedUnitsMonthly;
+    if (rule.ruleType === "INCLUDED_QUOTA" && rule.includedUnitsAnnual) {
+      included = rule.includedUnitsAnnual;
     }
     if (rule.ruleType === "HARD_CAP" && rule.hardCapUnits) {
       hardCap = rule.hardCapUnits;
@@ -183,8 +183,6 @@ function formatLimit(limits: { included: number | null; hardCap: number | null; 
   return "Unlimited";
 }
 
-type BillingPeriod = "monthly" | "yearly";
-
 // Exported content component for use in OrgSettings
 export function BillingContent() {
   const { user, isLoading: authLoading } = useAuth();
@@ -192,7 +190,6 @@ export function BillingContent() {
   const { toast } = useToast();
   const [changePlanDialog, setChangePlanDialog] = useState<PlanWithRules | null>(null);
   const [activeTab, setActiveTab] = useState("billing");
-  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("monthly");
   const [processingPayPalReturn, setProcessingPayPalReturn] = useState(false);
   const paypalReturnProcessed = useRef(false);
 
@@ -288,38 +285,19 @@ export function BillingContent() {
     activateSubscription();
   }, [user, toast, currentOrganization]);
 
-  const YEARLY_DISCOUNT = 0.10; // 10% discount for yearly billing
-  
-  function getPriceForPeriod(monthlyPriceCents: number | null | undefined): { 
-    displayPrice: string; 
-    periodLabel: string; 
-    annualTotal?: string;
-    savings?: string;
+  function getAnnualPriceDisplay(annualPriceCents: number | null | undefined): {
+    displayPrice: string;
+    periodLabel: string;
   } {
-    if (monthlyPriceCents === null || monthlyPriceCents === undefined) {
+    if (annualPriceCents === null || annualPriceCents === undefined) {
       return { displayPrice: "Contact Us", periodLabel: "" };
     }
-    if (monthlyPriceCents === 0) {
+    if (annualPriceCents === 0) {
       return { displayPrice: "Free", periodLabel: "" };
     }
-    
-    const monthlyPrice = monthlyPriceCents / 100;
-    
-    if (billingPeriod === "yearly") {
-      const discountedMonthly = monthlyPrice * (1 - YEARLY_DISCOUNT);
-      const annualTotal = discountedMonthly * 12;
-      const savings = monthlyPrice * 12 * YEARLY_DISCOUNT;
-      return { 
-        displayPrice: formatCurrency(discountedMonthly, { showCents: true }),
-        periodLabel: "/mo",
-        annualTotal: `${formatCurrency(annualTotal, { showCents: true })}/year`,
-        savings: `Save ${formatCurrency(savings, { showCents: true })}`
-      };
-    }
-    
-    return { 
-      displayPrice: formatCurrency(monthlyPrice, { showCents: true }),
-      periodLabel: "/mo"
+    return {
+      displayPrice: formatCurrency(annualPriceCents / 100, { showCents: true }),
+      periodLabel: "/year",
     };
   }
 
@@ -658,13 +636,13 @@ export function BillingContent() {
         </div>
       )}
 
-      {/* Monthly Billing Summary */}
+      {/* Annual Billing Summary */}
       {subscription && currentPlan && (
         <Card data-testid="card-billing-summary">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <Receipt className="h-4 w-4" />
-              Monthly Billing Summary
+              Annual Billing Summary
             </CardTitle>
             <CardDescription className="text-xs flex items-center gap-1">
               <Calendar className="h-3 w-3" />
@@ -676,10 +654,10 @@ export function BillingContent() {
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">{currentPlan.name} Plan</span>
                 <span className="font-medium">
-                  {currentPlan.monthlyPriceCents === null || currentPlan.monthlyPriceCents === undefined
+                  {currentPlan.annualPriceCents === null || currentPlan.annualPriceCents === undefined
                     ? "Custom pricing" 
-                    : currentPlan.monthlyPriceCents > 0 
-                      ? formatCurrency(currentPlan.monthlyPriceCents / 100, { showCents: true }) 
+                    : currentPlan.annualPriceCents > 0 
+                      ? formatCurrency(currentPlan.annualPriceCents / 100, { showCents: true }) 
                       : "Free"}
                 </span>
               </div>
@@ -697,18 +675,18 @@ export function BillingContent() {
               
               <div className="border-t pt-3">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold">Total Monthly Amount</span>
+                  <span className="font-semibold">Total Annual Amount</span>
                   <span className="text-lg font-bold text-primary">
                     {(() => {
-                      if (currentPlan.monthlyPriceCents === null) {
+                      if (currentPlan.annualPriceCents === null) {
                         return "Contact sales";
                       }
-                      const planPrice = currentPlan.monthlyPriceCents || 0;
+                      const planPrice = currentPlan.annualPriceCents || 0;
                       const extraSeatsPrice = (seatInfo?.bonusSeats && seatInfo?.extraSeatPriceCents) 
                         ? seatInfo.bonusSeats * seatInfo.extraSeatPriceCents 
                         : 0;
                       const total = planPrice + extraSeatsPrice;
-                      return total > 0 ? `${formatCurrency(total / 100, { showCents: true })}/mo` : "Free";
+                      return total > 0 ? `${formatCurrency(total / 100, { showCents: true })}/year` : "Free";
                     })()}
                   </span>
                 </div>
@@ -783,7 +761,7 @@ export function BillingContent() {
                     <div className="flex-1">
                       <div className="text-sm font-medium">Extra Seats</div>
                       <div className="text-xs text-muted-foreground">
-                        {formatCurrency(seatInfo.extraSeatPriceCents / 100, { showCents: true })}/seat/month
+                        {formatCurrency(seatInfo.extraSeatPriceCents / 100, { showCents: true })}/seat/year
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -813,7 +791,7 @@ export function BillingContent() {
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
-                    Extra seats are billed monthly and added to your next invoice.
+                    Extra seats are billed annually and added to your next invoice.
                   </p>
                 </div>
               )}
@@ -833,38 +811,11 @@ export function BillingContent() {
 
       <div className="space-y-4">
         <h2 className="text-lg font-display font-semibold text-center">Plans</h2>
-        <div className="flex justify-center">
-          <div className="flex items-center gap-1 p-1.5 bg-muted rounded-xl border shadow-sm" data-testid="billing-period-toggle">
-            <button
-              onClick={() => setBillingPeriod("monthly")}
-              className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all ${
-                billingPeriod === "monthly" 
-                  ? "bg-primary text-primary-foreground shadow-md" 
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted-foreground/10"
-              }`}
-              data-testid="button-billing-monthly"
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setBillingPeriod("yearly")}
-              className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all flex items-center gap-2 ${
-                billingPeriod === "yearly" 
-                  ? "bg-primary text-primary-foreground shadow-md" 
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted-foreground/10"
-              }`}
-              data-testid="button-billing-yearly"
-            >
-              Yearly
-              <Badge className="bg-green-500 hover:bg-green-500 text-white text-[10px] px-1.5 py-0.5">Save 10%</Badge>
-            </button>
-          </div>
-        </div>
         <div className="flex flex-wrap gap-4">
           {sortedPlans?.map((plan) => {
             const isCurrentPlan = currentPlan?.code === plan.code;
             const planRules = plan.meterRules || [];
-            const priceInfo = getPriceForPeriod(plan.monthlyPriceCents);
+            const priceInfo = getAnnualPriceDisplay(plan.annualPriceCents);
 
             return (
               <Card 
@@ -888,16 +839,6 @@ export function BillingContent() {
                     {priceInfo.periodLabel && (
                       <span className="text-muted-foreground text-xs">{priceInfo.periodLabel}</span>
                     )}
-                    {priceInfo.annualTotal && (
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {priceInfo.annualTotal}
-                      </div>
-                    )}
-                    {priceInfo.savings && billingPeriod === "yearly" && plan.monthlyPriceCents && plan.monthlyPriceCents > 0 && (
-                      <Badge variant="outline" className="text-[10px] mt-1 text-green-600 border-green-600/30">
-                        {priceInfo.savings}
-                      </Badge>
-                    )}
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0 pb-3 flex-1">
@@ -919,7 +860,7 @@ export function BillingContent() {
                       const creditsRules = planRules?.filter((r: any) => r.meterCode === 'credits') || [];
                       const quotaRule = creditsRules.find((r: any) => r.ruleType === 'INCLUDED_QUOTA');
                       const hardCapRule = creditsRules.find((r: any) => r.ruleType === 'HARD_CAP');
-                      const creditsLimit = quotaRule?.includedUnitsMonthly || hardCapRule?.hardCapUnits || 0;
+                      const creditsLimit = quotaRule?.includedUnitsAnnual || hardCapRule?.hardCapUnits || 0;
                       
                       // Calculate capacity estimates based on credit costs
                       const projectCost = usage?.creditCosts?.find(c => c.resourceType === 'project')?.creditCost || 5;
@@ -939,7 +880,7 @@ export function BillingContent() {
                           <div className="flex items-center gap-2 text-xs">
                             <Wallet className="h-3.5 w-3.5 text-primary flex-shrink-0" />
                             <span className="font-medium">
-                              {creditsLimit ? `${creditsLimit.toLocaleString()} credits/month` : 'Unlimited credits'}
+                              {creditsLimit ? `${creditsLimit.toLocaleString()} credits/year` : 'Unlimited credits'}
                             </span>
                           </div>
                           {creditsLimit > 0 && (
@@ -963,7 +904,7 @@ export function BillingContent() {
                           )}
                           {plan.maxSeats && plan.extraSeatPriceCents && plan.extraSeatPriceCents > 0 && (
                             <div className="ml-5 text-[10px] text-muted-foreground">
-                              +{formatCurrency(plan.extraSeatPriceCents / 100, { showCents: true })}/seat/month for extra seats
+                              +{formatCurrency(plan.extraSeatPriceCents / 100, { showCents: true })}/seat/year for extra seats
                             </div>
                           )}
                           {!plan.maxSeats && (
@@ -1339,10 +1280,8 @@ export function BillingContent() {
                 : changePlanDialog?.code === "FREE" 
                   ? "Downgrading will reduce your usage limits. Any usage over the new limits may be affected."
                   : (() => {
-                      const dialogPriceInfo = getPriceForPeriod(changePlanDialog?.monthlyPriceCents);
-                      const billingLabel = billingPeriod === "yearly" 
-                        ? `${dialogPriceInfo.displayPrice}/mo (${dialogPriceInfo.annualTotal} billed annually)`
-                        : `${dialogPriceInfo.displayPrice}/month`;
+                      const dialogPriceInfo = getAnnualPriceDisplay(changePlanDialog?.annualPriceCents);
+                      const billingLabel = `${dialogPriceInfo.displayPrice}/year (billed annually)`;
                       return `You're about to ${currentPlan?.code === "FREE" ? "upgrade" : "switch"} to the ${changePlanDialog?.name} plan at ${billingLabel}.`;
                     })()}
             </DialogDescription>
@@ -1354,12 +1293,12 @@ export function BillingContent() {
                 const creditsRules = changePlanDialog?.meterRules?.filter((r: any) => r.meterCode === 'credits') || [];
                 const quotaRule = creditsRules.find((r: any) => r.ruleType === 'INCLUDED_QUOTA');
                 const hardCapRule = creditsRules.find((r: any) => r.ruleType === 'HARD_CAP');
-                const creditsLimit = quotaRule?.includedUnitsMonthly || hardCapRule?.hardCapUnits;
+                const creditsLimit = quotaRule?.includedUnitsAnnual || hardCapRule?.hardCapUnits;
                 return (
                   <div className="flex items-center gap-3 text-sm">
                     <Wallet className="h-4 w-4 text-primary" />
                     <span className="font-medium">
-                      {creditsLimit ? `${creditsLimit.toLocaleString()} credits per month` : 'Unlimited credits'}
+                      {creditsLimit ? `${creditsLimit.toLocaleString()} credits per year` : 'Unlimited credits'}
                     </span>
                   </div>
                 );
@@ -1400,15 +1339,8 @@ export function BillingContent() {
                   </div>
                 </div>
               </div>
-            ) : changePlanDialog && changePlanDialog.monthlyPriceCents != null && changePlanDialog.monthlyPriceCents > 0 ? (
+            ) : changePlanDialog && changePlanDialog.annualPriceCents != null && changePlanDialog.annualPriceCents > 0 ? (
               <div className="mt-4 pt-4 border-t">
-                {billingPeriod === "yearly" && (
-                  <div className="mb-3 p-2 rounded-md bg-amber-500/10 border border-amber-500/20">
-                    <p className="text-xs text-amber-700 dark:text-amber-400">
-                      Yearly billing coming soon! Currently subscribing monthly. You'll receive the yearly rate once available.
-                    </p>
-                  </div>
-                )}
                 {changePlanDialog.paypalPlanId ? (
                   <>
                     <p className="text-sm text-muted-foreground mb-3">Subscribe with PayPal for secure recurring payments:</p>
@@ -1471,7 +1403,7 @@ export function BillingContent() {
             <Button variant="outline" onClick={() => setChangePlanDialog(null)} data-testid="button-cancel-plan-change">
               Cancel
             </Button>
-            {(!changePlanDialog?.monthlyPriceCents || changePlanDialog.monthlyPriceCents === 0) && (
+            {(!changePlanDialog?.annualPriceCents || changePlanDialog.annualPriceCents === 0) && (
               <Button 
                 onClick={() => changePlanDialog && changePlanMutation.mutate(changePlanDialog.code)}
                 disabled={changePlanMutation.isPending}
@@ -1481,7 +1413,7 @@ export function BillingContent() {
                 Downgrade to Free
               </Button>
             )}
-            {user?.role === 'super_admin' && changePlanDialog?.monthlyPriceCents != null && changePlanDialog.monthlyPriceCents > 0 && (
+            {user?.role === 'super_admin' && changePlanDialog?.annualPriceCents != null && changePlanDialog.annualPriceCents > 0 && (
               <Button 
                 onClick={() => changePlanDialog && changePlanMutation.mutate(changePlanDialog.code)}
                 disabled={changePlanMutation.isPending}

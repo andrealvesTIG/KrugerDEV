@@ -65,14 +65,14 @@ export const plans = pgTable("plans", {
   code: text("code").notNull().unique(),
   name: text("name").notNull(),
   description: text("description"),
-  monthlyPriceCents: integer("monthly_price_cents").default(0),
+  annualPriceCents: integer("annual_price_cents").default(0),
   isActive: boolean("is_active").default(true),
   stripePriceId: text("stripe_price_id"),
   stripeProductId: text("stripe_product_id"),
   paypalPlanId: text("paypal_plan_id"),
   paypalProductId: text("paypal_product_id"),
   maxSeats: integer("max_seats"),
-  extraSeatPriceCents: integer("extra_seat_price_cents"), // Price per additional seat per month
+  extraSeatPriceCents: integer("extra_seat_price_cents"), // Price per additional seat per year
   displayOrder: integer("display_order").default(0),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -91,7 +91,7 @@ export const planMeterRules = pgTable("plan_meter_rules", {
   planId: integer("plan_id").references(() => plans.id).notNull(),
   meterId: integer("meter_id").references(() => meters.id).notNull(),
   ruleType: text("rule_type").notNull(),
-  includedUnitsMonthly: integer("included_units_monthly"),
+  includedUnitsAnnual: integer("included_units_annual"),
   hardCapUnits: integer("hard_cap_units"),
   overageUnitPriceMicrocents: integer("overage_unit_price_microcents"),
   isSharedPool: boolean("is_shared_pool").default(false),

@@ -33,7 +33,7 @@ import { useState, useMemo } from "react";
   code: string;
   name: string;
   maxSeats: number | null;
-  monthlyPriceCents: number;
+  annualPriceCents: number;
 }
 
 interface OrgBillingInfo {
@@ -1195,10 +1195,10 @@ export function OrganizationsTab() {
                     {billingInfo?.availablePlans?.map(plan => (
                       <SelectItem key={plan.code} value={plan.code}>
                         {plan.name} ({plan.maxSeats === null ? 'Unlimited' : `${plan.maxSeats} seats`})
-                        {plan.monthlyPriceCents === null 
+                        {plan.annualPriceCents === null 
                           ? ' - Contact Us' 
-                          : plan.monthlyPriceCents > 0 
-                            ? ` - $${(plan.monthlyPriceCents / 100).toFixed(2)}/mo` 
+                          : plan.annualPriceCents > 0 
+                            ? ` - $${(plan.annualPriceCents / 100).toFixed(2)}/year` 
                             : ' - Free'}
                       </SelectItem>
                     ))}

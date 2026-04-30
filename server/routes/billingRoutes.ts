@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and, desc, sql } from "drizzle-orm";
-import { users, usageEvents, meters, organizationMembers, plans, subscriptions, billingCycles, usageRollups } from "@shared/schema";
+import { users, usageEvents, meters, organizationMembers, plans, subscriptions, billingCycles, usageRollups, planMeterRules } from "@shared/schema";
 import type { User } from "@shared/models/auth";
 import {
   classifyError,
@@ -55,7 +55,7 @@ export async function registerBillingRoutes(app: Express) {
             meterCode: r.meters.code,
             meterName: r.meters.name,
             ruleType: r.plan_meter_rules.ruleType,
-            includedUnitsMonthly: r.plan_meter_rules.includedUnitsMonthly,
+            includedUnitsAnnual: r.plan_meter_rules.includedUnitsAnnual,
             hardCapUnits: r.plan_meter_rules.hardCapUnits,
             overageUnitPriceMicrocents: r.plan_meter_rules.overageUnitPriceMicrocents,
           })),
@@ -179,7 +179,7 @@ export async function registerBillingRoutes(app: Express) {
         const quotaRule = rules.find((r) => r.ruleType === "INCLUDED_QUOTA");
         const hardCapRule = rules.find((r) => r.ruleType === "HARD_CAP");
         
-        creditsIncluded = quotaRule?.includedUnitsMonthly || 0;
+        creditsIncluded = quotaRule?.includedUnitsAnnual || 0;
         creditsHardCap = hardCapRule?.hardCapUnits || null;
       }
       
@@ -279,7 +279,7 @@ export async function registerBillingRoutes(app: Express) {
         const hardCapRule = rules.find((r) => r.ruleType === "HARD_CAP");
         
         hasQuotaRule = quotaRule !== undefined;
-        creditsIncluded = quotaRule?.includedUnitsMonthly || 0;
+        creditsIncluded = quotaRule?.includedUnitsAnnual || 0;
         creditsHardCap = hardCapRule?.hardCapUnits ?? null;
       }
       
@@ -713,7 +713,7 @@ export async function registerBillingRoutes(app: Express) {
   apiRoute(app, 'post', '/api/admin/plans', {
     tag: 'Billing',
     summary: 'Create a new plan',
-    requestBody: body({ type: 'object', properties: { code: { type: 'string' }, name: { type: 'string' }, description: { type: 'string' }, monthlyPriceCents: { type: 'integer' }, maxSeats: { type: 'integer' } } }),
+    requestBody: body({ type: 'object', properties: { code: { type: 'string' }, name: { type: 'string' }, description: { type: 'string' }, annualPriceCents: { type: 'integer' }, maxSeats: { type: 'integer' } } }),
     responses: { ...r201('Plan created', ref('Plan')), ...createRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
@@ -728,7 +728,7 @@ export async function registerBillingRoutes(app: Express) {
 
     try {
       const { plans, meters, planMeterRules, features, planFeatures } = await import("@shared/schema");
-      const { code, name, description, monthlyPriceCents, maxSeats } = req.body;
+      const { code, name, description, annualPriceCents, maxSeats } = req.body;
 
       if (!code || !name) {
         return res.status(400).json({ message: "Code and name are required" });
@@ -743,7 +743,7 @@ export async function registerBillingRoutes(app: Express) {
         code: code.toUpperCase(),
         name,
         description: description || null,
-        monthlyPriceCents: monthlyPriceCents || 0,
+        annualPriceCents: annualPriceCents || 0,
         maxSeats: maxSeats || null,
         isActive: true,
       }).returning();
@@ -756,7 +756,7 @@ export async function registerBillingRoutes(app: Express) {
           planId: newPlan.id,
           meterId: meter.id,
           ruleType: "INCLUDED_QUOTA",
-          includedUnitsMonthly: 10,
+          includedUnitsAnnual: 10,
           isSharedPool: false,
         });
         meterRulesValues.push({
@@ -850,12 +850,12 @@ export async function registerBillingRoutes(app: Express) {
     try {
       const { plans } = await import("@shared/schema");
       const planId = parseInt(req.params.id);
-      const { name, description, monthlyPriceCents, maxSeats, extraSeatPriceCents, isActive, paypalPlanId, paypalProductId } = req.body;
+      const { name, description, annualPriceCents, maxSeats, extraSeatPriceCents, isActive, paypalPlanId, paypalProductId } = req.body;
 
       const updates: any = {};
       if (name !== undefined) updates.name = name;
       if (description !== undefined) updates.description = description;
-      if (monthlyPriceCents !== undefined) updates.monthlyPriceCents = monthlyPriceCents;
+      if (annualPriceCents !== undefined) updates.annualPriceCents = annualPriceCents;
       if (maxSeats !== undefined) updates.maxSeats = maxSeats;
       if (extraSeatPriceCents !== undefined) updates.extraSeatPriceCents = extraSeatPriceCents;
       if (isActive !== undefined) updates.isActive = isActive;
@@ -894,15 +894,20 @@ export async function registerBillingRoutes(app: Express) {
     try {
       const { plans } = await import("@shared/schema");
       
-      // Update Professional plan (code: BASIC) with $5/seat extra
+      // Update Professional plan (code: BASIC) with $54/seat/year extra
       await db.update(plans)
-        .set({ extraSeatPriceCents: 500 })
+        .set({ extraSeatPriceCents: 5400 })
         .where(eq(plans.code, 'BASIC'));
       
-      // Update Business plan (code: BUSINESS) with $8/seat extra
+      // Update Business plan (code: TEAM) with $86.40/seat/year extra
       await db.update(plans)
-        .set({ extraSeatPriceCents: 800 })
-        .where(eq(plans.code, 'BUSINESS'));
+        .set({ extraSeatPriceCents: 8640 })
+        .where(eq(plans.code, 'TEAM'));
+
+      // Update Enterprise plan with $64.80/seat/year extra
+      await db.update(plans)
+        .set({ extraSeatPriceCents: 6480 })
+        .where(eq(plans.code, 'ENTERPRISE'));
       
       // Get updated plans
       const updatedPlans = await db.select().from(plans).orderBy(plans.displayOrder);
@@ -986,7 +991,7 @@ export async function registerBillingRoutes(app: Express) {
         planId: planMeterRules.planId,
         meterId: planMeterRules.meterId,
         ruleType: planMeterRules.ruleType,
-        includedUnitsMonthly: planMeterRules.includedUnitsMonthly,
+        includedUnitsAnnual: planMeterRules.includedUnitsAnnual,
         hardCapUnits: planMeterRules.hardCapUnits,
         overageUnitPriceMicrocents: planMeterRules.overageUnitPriceMicrocents,
         isSharedPool: planMeterRules.isSharedPool,
@@ -1030,7 +1035,7 @@ export async function registerBillingRoutes(app: Express) {
     try {
       const { planMeterRules } = await import("@shared/schema");
       const planId = parseInt(req.params.planId);
-      const { meterId, ruleType, includedUnitsMonthly, hardCapUnits, overageUnitPriceMicrocents, isSharedPool } = req.body;
+      const { meterId, ruleType, includedUnitsAnnual, hardCapUnits, overageUnitPriceMicrocents, isSharedPool } = req.body;
 
       if (!meterId || !ruleType) {
         return res.status(400).json({ message: "meterId and ruleType are required" });
@@ -1041,7 +1046,7 @@ export async function registerBillingRoutes(app: Express) {
           planId,
           meterId,
           ruleType,
-          includedUnitsMonthly: includedUnitsMonthly || null,
+          includedUnitsAnnual: includedUnitsAnnual || null,
           hardCapUnits: hardCapUnits || null,
           overageUnitPriceMicrocents: overageUnitPriceMicrocents || null,
           isSharedPool: isSharedPool || false,
@@ -1077,10 +1082,10 @@ export async function registerBillingRoutes(app: Express) {
     try {
       const { planMeterRules } = await import("@shared/schema");
       const ruleId = parseInt(req.params.ruleId);
-      const { includedUnitsMonthly, hardCapUnits, overageUnitPriceMicrocents } = req.body;
+      const { includedUnitsAnnual, hardCapUnits, overageUnitPriceMicrocents } = req.body;
 
       const updates: any = {};
-      if (includedUnitsMonthly !== undefined) updates.includedUnitsMonthly = includedUnitsMonthly;
+      if (includedUnitsAnnual !== undefined) updates.includedUnitsAnnual = includedUnitsAnnual;
       if (hardCapUnits !== undefined) updates.hardCapUnits = hardCapUnits;
       if (overageUnitPriceMicrocents !== undefined) updates.overageUnitPriceMicrocents = overageUnitPriceMicrocents;
 
@@ -1218,7 +1223,7 @@ export async function registerBillingRoutes(app: Express) {
 
       res.json({
         meterId: creditsMeter.id,
-        included: quotaRule?.includedUnitsMonthly || 0,
+        included: quotaRule?.includedUnitsAnnual || 0,
         hardCap: hardCapRule?.hardCapUnits || null,
         quotaRuleId: quotaRule?.id,
         hardCapRuleId: hardCapRule?.id
@@ -1456,6 +1461,8 @@ export async function registerBillingRoutes(app: Express) {
                   const detail = await detailRes.json();
                   const billingCycle = detail.billing_cycles?.find((bc: any) => bc.tenure_type === "REGULAR");
                   const price = billingCycle?.pricing_scheme?.fixed_price?.value;
+                  const intervalUnit = billingCycle?.frequency?.interval_unit ?? null;
+                  const intervalCount = billingCycle?.frequency?.interval_count ?? null;
                   paypalPlanDetails.push({
                     id: pp.id,
                     name: pp.name,
@@ -1463,6 +1470,8 @@ export async function registerBillingRoutes(app: Express) {
                     product_id: detail.product_id,
                     price: price ? parseFloat(price) : null,
                     priceCents: price ? Math.round(parseFloat(price) * 100) : null,
+                    intervalUnit,
+                    intervalCount,
                   });
                 }
               } catch (e) {
@@ -1476,13 +1485,18 @@ export async function registerBillingRoutes(app: Express) {
           let productId = paypalPlanDetails[0]?.product_id || allPlans.find(p => p.paypalProductId)?.paypalProductId;
 
           for (const dbPlan of allPlans) {
-            if (!dbPlan.monthlyPriceCents || dbPlan.monthlyPriceCents === 0) {
+            if (!dbPlan.annualPriceCents || dbPlan.annualPriceCents === 0) {
               results.push({ planCode: dbPlan.code, status: "skipped", reason: "free_plan" });
               continue;
             }
 
-            // Find matching PayPal plan by price
-            const matchingPaypalPlan = paypalPlanDetails.find(pp => pp.priceCents === dbPlan.monthlyPriceCents);
+            // Find matching PayPal plan by price AND yearly interval
+            // (PayPal billing intervals are immutable, so monthly plans can never be reused for annual billing.)
+            const matchingPaypalPlan = paypalPlanDetails.find(pp =>
+              pp.priceCents === dbPlan.annualPriceCents &&
+              pp.intervalUnit === "YEAR" &&
+              (pp.intervalCount === 1 || pp.intervalCount == null)
+            );
             
             if (matchingPaypalPlan) {
               // Update database with correct PayPal plan ID
@@ -1498,7 +1512,7 @@ export async function registerBillingRoutes(app: Express) {
                   paypalPlanId: matchingPaypalPlan.id, 
                   status: "updated",
                   oldPaypalPlanId: dbPlan.paypalPlanId,
-                  price: `$${(dbPlan.monthlyPriceCents / 100).toFixed(2)}`
+                  price: `$${(dbPlan.annualPriceCents / 100).toFixed(2)}`
                 });
               } else {
                 results.push({ 
@@ -1534,7 +1548,7 @@ export async function registerBillingRoutes(app: Express) {
               }
 
               // Create the plan in PayPal
-              const priceValue = (dbPlan.monthlyPriceCents / 100).toFixed(2);
+              const priceValue = (dbPlan.annualPriceCents / 100).toFixed(2);
               const planRes = await fetch(`${PAYPAL_API_BASE}/v1/billing/plans`, {
                 method: "POST",
                 headers: {
@@ -1545,10 +1559,10 @@ export async function registerBillingRoutes(app: Express) {
                 body: JSON.stringify({
                   product_id: productId,
                   name: `${dbPlan.name} Plan`,
-                  description: dbPlan.description || `${dbPlan.name} monthly subscription`,
+                  description: dbPlan.description || `${dbPlan.name} annual subscription`,
                   status: "ACTIVE",
                   billing_cycles: [{
-                    frequency: { interval_unit: "MONTH", interval_count: 1 },
+                    frequency: { interval_unit: "YEAR", interval_count: 1 },
                     tenure_type: "REGULAR",
                     sequence: 1,
                     total_cycles: 0,
@@ -1748,8 +1762,10 @@ export async function registerBillingRoutes(app: Express) {
           const [existingSub] = await db.select().from(subscriptions).where(eq(subscriptions.orgId, organizationId));
           
           const now = new Date();
-          const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-          const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+          const periodStart = now;
+          const periodEnd = new Date(
+            new Date(now).setFullYear(now.getFullYear() + 1),
+          );
 
           const { billingTransactions } = await import("@shared/schema");
 
@@ -1764,16 +1780,52 @@ export async function registerBillingRoutes(app: Express) {
                 currentPeriodEnd: periodEnd,
               })
               .where(eq(subscriptions.id, existingSub.id));
-            
+
+            // Close any existing OPEN billing cycle for this subscription so
+            // usage on the new annual plan starts on a fresh cycle/rollups
+            // matching the new plan's annual quotas.
+            await db.update(billingCycles)
+              .set({ status: "CLOSED" })
+              .where(and(
+                eq(billingCycles.subscriptionId, existingSub.id),
+                eq(billingCycles.status, "OPEN"),
+              ));
+
+            const [newCycle] = await db.insert(billingCycles).values({
+              subscriptionId: existingSub.id,
+              periodStart,
+              periodEnd,
+              status: "OPEN",
+            }).returning();
+
+            const allMeters = await db.select().from(meters);
+            const allRules = await db.select().from(planMeterRules).where(eq(planMeterRules.planId, plan.id));
+
+            for (const meter of allMeters) {
+              const rules = allRules.filter(r => r.meterId === meter.id);
+              const includedQuota = rules.find(r => r.ruleType === "INCLUDED_QUOTA");
+
+              await db.insert(usageRollups).values({
+                billingCycleId: newCycle.id,
+                meterId: meter.id,
+                includedUnits: includedQuota?.includedUnitsAnnual || 0,
+                usedUnits: 0,
+                remainingUnits: includedQuota?.includedUnitsAnnual || 0,
+                overageUnits: 0,
+                overageCostMicrocents: 0,
+                hardCapHit: false,
+              });
+            }
+
             // Record the initial subscription transaction
-            if (plan.monthlyPriceCents && plan.monthlyPriceCents > 0) {
+            if (plan.annualPriceCents && plan.annualPriceCents > 0) {
               await db.insert(billingTransactions).values({
                 subscriptionId: existingSub.id,
                 userId,
                 orgId: organizationId,
                 provider: "paypal",
                 externalTransactionId: paypalSubscriptionId,
-                amountCents: plan.monthlyPriceCents,
+                amountCents: plan.annualPriceCents,
                 currency: "USD",
                 status: "COMPLETED",
                 description: `${plan.name} subscription activated`,
@@ -1816,9 +1868,9 @@ export async function registerBillingRoutes(app: Express) {
               await db.insert(usageRollups).values({
                 billingCycleId: cycle.id,
                 meterId: meter.id,
-                includedUnits: includedQuota?.includedUnitsMonthly || 0,
+                includedUnits: includedQuota?.includedUnitsAnnual || 0,
                 usedUnits: 0,
-                remainingUnits: includedQuota?.includedUnitsMonthly || 0,
+                remainingUnits: includedQuota?.includedUnitsAnnual || 0,
                 overageUnits: 0,
                 overageCostMicrocents: 0,
                 hardCapHit: false,
@@ -1826,14 +1878,14 @@ export async function registerBillingRoutes(app: Express) {
             }
 
             // Record the initial subscription transaction
-            if (plan.monthlyPriceCents && plan.monthlyPriceCents > 0) {
+            if (plan.annualPriceCents && plan.annualPriceCents > 0) {
               await db.insert(billingTransactions).values({
                 subscriptionId: newSub.id,
                 userId,
                 orgId: organizationId,
                 provider: "paypal",
                 externalTransactionId: paypalSubscriptionId,
-                amountCents: plan.monthlyPriceCents,
+                amountCents: plan.annualPriceCents,
                 currency: "USD",
                 status: "COMPLETED",
                 description: `${plan.name} subscription activated`,
@@ -1884,7 +1936,63 @@ export async function registerBillingRoutes(app: Express) {
               
               if (subscription) {
                 const amountCents = Math.round(parseFloat(amount) * 100);
-                
+
+                // Annual renewal: if the existing period has ended, advance the
+                // subscription forward by one year and open a fresh billing cycle
+                // + rollups so the recorded transaction lands on the new period.
+                let activeSub = subscription.sub;
+                const now = new Date();
+                const periodEndDate = new Date(activeSub.currentPeriodEnd);
+                if (now >= periodEndDate) {
+                  const periodStartNew = periodEndDate;
+                  const periodEndNew = new Date(
+                    new Date(periodStartNew).setFullYear(periodStartNew.getFullYear() + 1),
+                  );
+
+                  const [updatedSub] = await db.update(subscriptions)
+                    .set({
+                      currentPeriodStart: periodStartNew,
+                      currentPeriodEnd: periodEndNew,
+                    })
+                    .where(eq(subscriptions.id, activeSub.id))
+                    .returning();
+                  if (updatedSub) activeSub = updatedSub;
+
+                  await db.update(billingCycles)
+                    .set({ status: "CLOSED" })
+                    .where(and(
+                      eq(billingCycles.subscriptionId, activeSub.id),
+                      eq(billingCycles.status, "OPEN"),
+                    ));
+
+                  const [renewedCycle] = await db.insert(billingCycles).values({
+                    subscriptionId: activeSub.id,
+                    periodStart: periodStartNew,
+                    periodEnd: periodEndNew,
+                    status: "OPEN",
+                  }).returning();
+
+                  if (renewedCycle && subscription.plan) {
+                    const allMeters = await db.select().from(meters);
+                    const allRules = await db.select().from(planMeterRules)
+                      .where(eq(planMeterRules.planId, subscription.plan.id));
+                    for (const meter of allMeters) {
+                      const rules = allRules.filter(r => r.meterId === meter.id);
+                      const includedQuota = rules.find(r => r.ruleType === "INCLUDED_QUOTA");
+                      await db.insert(usageRollups).values({
+                        billingCycleId: renewedCycle.id,
+                        meterId: meter.id,
+                        includedUnits: includedQuota?.includedUnitsAnnual || 0,
+                        usedUnits: 0,
+                        remainingUnits: includedQuota?.includedUnitsAnnual || 0,
+                        overageUnits: 0,
+                        overageCostMicrocents: 0,
+                        hardCapHit: false,
+                      });
+                    }
+                  }
+                }
+
                 // Check if we already recorded this transaction (idempotency)
                 const [existingTx] = await db.select().from(billingTransactions)
                   .where(eq(billingTransactions.externalTransactionId, transactionId));
@@ -1892,9 +2000,9 @@ export async function registerBillingRoutes(app: Express) {
                 if (!existingTx) {
                   // Record the payment transaction
                   await db.insert(billingTransactions).values({
-                    subscriptionId: subscription.sub.id,
-                    userId: subscription.sub.userId,
-                    orgId: subscription.sub.orgId,
+                    subscriptionId: activeSub.id,
+                    userId: activeSub.userId,
+                    orgId: activeSub.orgId,
                     provider: "paypal",
                     externalTransactionId: transactionId,
                     amountCents,
@@ -1902,8 +2010,8 @@ export async function registerBillingRoutes(app: Express) {
                     status: "COMPLETED",
                     description: `${subscription.plan?.name || 'Subscription'} payment`,
                     planName: subscription.plan?.name,
-                    periodStart: subscription.sub.currentPeriodStart,
-                    periodEnd: subscription.sub.currentPeriodEnd,
+                    periodStart: activeSub.currentPeriodStart,
+                    periodEnd: activeSub.currentPeriodEnd,
                     paymentMethodType: "paypal",
                     metadata: { event_type, resource_id: resource?.id },
                     createdAt: new Date(create_time || Date.now()),

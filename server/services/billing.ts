@@ -75,9 +75,22 @@ export interface BillingProvider {
   cancelSubscription(subscriptionId: number, actorUserId?: string): Promise<Subscription>;
 }
 
-function getMonthBoundaries(date: Date = new Date()): { start: Date; end: Date } {
-  const start = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
-  const end = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+function addYears(date: Date, years: number): Date {
+  const d = new Date(date);
+  d.setFullYear(d.getFullYear() + years);
+  return d;
+}
+
+function getYearBoundaries(
+  anchor: Date = new Date(),
+  now: Date = new Date(),
+): { start: Date; end: Date } {
+  let start = new Date(anchor);
+  let end = addYears(start, 1);
+  while (now >= end) {
+    start = end;
+    end = addYears(start, 1);
+  }
   return { start, end };
 }
 
@@ -85,8 +98,9 @@ export class MockBillingProvider implements BillingProvider {
   private async advancePeriodIfNeeded(subscription: Subscription): Promise<Subscription> {
     const now = new Date();
     const periodEnd = new Date(subscription.currentPeriodEnd);
-    if (now > periodEnd) {
-      const { start, end } = getMonthBoundaries(now);
+    if (now >= periodEnd) {
+      const anchor = new Date(subscription.currentPeriodStart);
+      const { start, end } = getYearBoundaries(anchor, now);
 
       await db
         .update(billingCycles)
@@ -231,7 +245,8 @@ export class MockBillingProvider implements BillingProvider {
       }
     }
 
-    const { start, end } = getMonthBoundaries();
+    const now = new Date();
+    const { start, end } = getYearBoundaries(now, now);
     const subjectType = params.orgId ? "ORG" : "USER";
 
     const [subscription] = await db
@@ -262,7 +277,15 @@ export class MockBillingProvider implements BillingProvider {
   }
 
   async getOrCreateBillingCycle(subscriptionId: number, dbHandle: typeof db = db): Promise<BillingCycle> {
-    const { start, end } = getMonthBoundaries();
+    const [subForAnchor] = await dbHandle
+      .select()
+      .from(subscriptions)
+      .where(eq(subscriptions.id, subscriptionId))
+      .limit(1);
+    const anchor = subForAnchor?.currentPeriodStart
+      ? new Date(subForAnchor.currentPeriodStart)
+      : new Date();
+    const { start, end } = getYearBoundaries(anchor, new Date());
 
     const [existingCycle] = await dbHandle
       .select()
@@ -325,7 +348,7 @@ export class MockBillingProvider implements BillingProvider {
           const meterRules = rules.filter((r) => r.meters.id === meterId);
           const meterInfo = meterRules[0]?.meters;
           const quotaRule = meterRules.find((r) => r.plan_meter_rules.ruleType === "INCLUDED_QUOTA");
-          const rawIncludedUnits = quotaRule?.plan_meter_rules.includedUnitsMonthly || 0;
+          const rawIncludedUnits = quotaRule?.plan_meter_rules.includedUnitsAnnual || 0;
           const isCredits = meterInfo?.code === 'credits';
           const includedUnits = rawIncludedUnits * (isCredits ? 100 : 1);
 
@@ -428,7 +451,7 @@ export class MockBillingProvider implements BillingProvider {
     const isCredits = meterCode === "credits";
     const multiplier = isCredits ? 100 : 1;
     
-    const includedQuota = (quotaRule?.includedUnitsMonthly || 0) * multiplier;
+    const includedQuota = (quotaRule?.includedUnitsAnnual || 0) * multiplier;
     const hardCap = hardCapRule?.hardCapUnits !== null && hardCapRule?.hardCapUnits !== undefined 
       ? hardCapRule.hardCapUnits * multiplier 
       : null;
@@ -535,7 +558,7 @@ export class MockBillingProvider implements BillingProvider {
       const overageRule = rules.find((r) => r.ruleType === "METERED_OVERAGE");
 
       const isCredits = params.meterCode === 'credits';
-      const includedQuota = (quotaRule?.includedUnitsMonthly || 0) * (isCredits ? 100 : 1);
+      const includedQuota = (quotaRule?.includedUnitsAnnual || 0) * (isCredits ? 100 : 1);
       const hardCap = hardCapRule?.hardCapUnits ? hardCapRule.hardCapUnits * (isCredits ? 100 : 1) : null;
 
       const [currentRollup] = await tx
@@ -644,6 +667,64 @@ export class MockBillingProvider implements BillingProvider {
       .set({ planId: plan.id })
       .where(eq(subscriptions.id, subscriptionId))
       .returning();
+
+    // Rebuild the open billing cycle's usage rollups so includedUnits reflect
+    // the new plan's annual quotas. Without this, recordUsage would continue
+    // to charge against the previous plan's included quota.
+    const [openCycle] = await db
+      .select()
+      .from(billingCycles)
+      .where(and(
+        eq(billingCycles.subscriptionId, subscriptionId),
+        eq(billingCycles.status, "OPEN"),
+      ))
+      .limit(1);
+
+    if (openCycle) {
+      const allMeters = await db.select().from(meters);
+      const allRules = await db
+        .select()
+        .from(planMeterRules)
+        .where(eq(planMeterRules.planId, plan.id));
+
+      for (const meter of allMeters) {
+        const rules = allRules.filter(r => r.meterId === meter.id);
+        const includedQuota = rules.find(r => r.ruleType === "INCLUDED_QUOTA");
+        const newIncluded = includedQuota?.includedUnitsAnnual || 0;
+
+        const [existingRollup] = await db
+          .select()
+          .from(usageRollups)
+          .where(and(
+            eq(usageRollups.billingCycleId, openCycle.id),
+            eq(usageRollups.meterId, meter.id),
+          ))
+          .limit(1);
+
+        if (existingRollup) {
+          const used = existingRollup.usedUnits ?? 0;
+          await db
+            .update(usageRollups)
+            .set({
+              includedUnits: newIncluded,
+              remainingUnits: Math.max(0, newIncluded - used),
+              overageUnits: Math.max(0, used - newIncluded),
+            })
+            .where(eq(usageRollups.id, existingRollup.id));
+        } else {
+          await db.insert(usageRollups).values({
+            billingCycleId: openCycle.id,
+            meterId: meter.id,
+            includedUnits: newIncluded,
+            usedUnits: 0,
+            remainingUnits: newIncluded,
+            overageUnits: 0,
+            overageCostMicrocents: 0,
+            hardCapHit: false,
+          });
+        }
+      }
+    }
 
     await db.insert(billingAuditLogs).values({
       actorUserId,
@@ -794,7 +875,7 @@ async function getCreditsLimit(subscriptionId: number): Promise<{ included: numb
   const hardCapRule = rules.find((r) => r.ruleType === "HARD_CAP");
   
   return {
-    included: quotaRule?.includedUnitsMonthly || 0,
+    included: quotaRule?.includedUnitsAnnual || 0,
     hardCap: hardCapRule?.hardCapUnits || null
   };
 }

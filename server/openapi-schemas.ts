@@ -676,9 +676,9 @@ export function generateOpenApiSchemas(): Record<string, any> {
       overrides: {
         code: { description: 'Unique plan code (e.g. FREE, BASIC, TEAM, ENTERPRISE)' },
         name: { description: 'Display name of the plan' },
-        monthlyPriceCents: { description: 'Monthly price in cents (e.g. 200 = $2.00)' },
+        annualPriceCents: { description: 'Annual price in cents (e.g. 12960 = $129.60)' },
         maxSeats: { description: 'Maximum included seats for this plan' },
-        extraSeatPriceCents: { description: 'Price per additional seat per month in cents' },
+        extraSeatPriceCents: { description: 'Price per additional seat per year in cents' },
         meterRules: { omit: true },
       },
     }),

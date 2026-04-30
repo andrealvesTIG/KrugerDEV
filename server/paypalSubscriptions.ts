@@ -78,7 +78,10 @@ export async function createProduct(req: Request, res: Response) {
 
 export async function createPlan(req: Request, res: Response) {
   try {
-    const { productId, name, description, priceCents, intervalUnit = "MONTH", intervalCount = 1 } = req.body;
+    const { productId, name, description, priceCents } = req.body;
+    // Annual-only billing: ignore any caller-supplied interval and force YEAR/1.
+    const intervalUnit = "YEAR";
+    const intervalCount = 1;
     const accessToken = await getAccessToken();
 
     const priceValue = (priceCents / 100).toFixed(2);

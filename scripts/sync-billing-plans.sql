@@ -9,7 +9,7 @@
 UPDATE plans SET 
   name = 'Free Forever',
   description = 'Start your project management journey with essential tools. Perfect for individuals and small projects exploring structured delivery.',
-  monthly_price_cents = 0,
+  annual_price_cents = 0,
   max_seats = 1,
   display_order = 0
 WHERE code = 'FREE';
@@ -17,7 +17,7 @@ WHERE code = 'FREE';
 UPDATE plans SET 
   name = 'Professional',
   description = 'Elevate your project management with advanced tracking, reporting, and team collaboration. Ideal for growing teams managing multiple initiatives.',
-  monthly_price_cents = 1200,
+  annual_price_cents = 12960,
   max_seats = 3,
   display_order = 1
 WHERE code = 'BASIC';
@@ -25,7 +25,7 @@ WHERE code = 'BASIC';
 UPDATE plans SET 
   name = 'Business',
   description = 'Enterprise-grade portfolio management with unlimited team members, advanced analytics, resource planning, and priority support for scaling organizations.',
-  monthly_price_cents = 2800,
+  annual_price_cents = 30240,
   max_seats = 25,
   display_order = 2
 WHERE code = 'TEAM';
@@ -33,7 +33,7 @@ WHERE code = 'TEAM';
 UPDATE plans SET 
   name = 'Enterprise',
   description = 'Tailored solutions for global enterprises with dedicated success management, custom integrations, SSO/SAML, advanced security, and unlimited capacity.',
-  monthly_price_cents = NULL,
+  annual_price_cents = NULL,
   max_seats = NULL,
   display_order = 3
 WHERE code = 'ENTERPRISE';
@@ -69,7 +69,7 @@ BEGIN
   SELECT id INTO v_enterprise_plan_id FROM plans WHERE code = 'ENTERPRISE';
   
   -- FREE plan: 10 included, 10 hard cap
-  INSERT INTO plan_meter_rules (plan_id, meter_id, rule_type, included_units_monthly, is_shared_pool)
+  INSERT INTO plan_meter_rules (plan_id, meter_id, rule_type, included_units_annual, is_shared_pool)
   SELECT v_free_plan_id, v_credits_meter_id, 'INCLUDED_QUOTA', 10, false
   WHERE NOT EXISTS (
     SELECT 1 FROM plan_meter_rules 
@@ -84,7 +84,7 @@ BEGIN
   );
   
   -- BASIC/Professional plan: 500 included, overage at $0.025/credit
-  INSERT INTO plan_meter_rules (plan_id, meter_id, rule_type, included_units_monthly, is_shared_pool)
+  INSERT INTO plan_meter_rules (plan_id, meter_id, rule_type, included_units_annual, is_shared_pool)
   SELECT v_basic_plan_id, v_credits_meter_id, 'INCLUDED_QUOTA', 500, false
   WHERE NOT EXISTS (
     SELECT 1 FROM plan_meter_rules 
@@ -99,7 +99,7 @@ BEGIN
   );
   
   -- TEAM/Business plan: 1000 included (shared pool), overage at $0.015/credit
-  INSERT INTO plan_meter_rules (plan_id, meter_id, rule_type, included_units_monthly, is_shared_pool)
+  INSERT INTO plan_meter_rules (plan_id, meter_id, rule_type, included_units_annual, is_shared_pool)
   SELECT v_team_plan_id, v_credits_meter_id, 'INCLUDED_QUOTA', 1000, true
   WHERE NOT EXISTS (
     SELECT 1 FROM plan_meter_rules 
@@ -114,7 +114,7 @@ BEGIN
   );
   
   -- ENTERPRISE plan: 100000 included
-  INSERT INTO plan_meter_rules (plan_id, meter_id, rule_type, included_units_monthly, is_shared_pool)
+  INSERT INTO plan_meter_rules (plan_id, meter_id, rule_type, included_units_annual, is_shared_pool)
   SELECT v_enterprise_plan_id, v_credits_meter_id, 'INCLUDED_QUOTA', 100000, false
   WHERE NOT EXISTS (
     SELECT 1 FROM plan_meter_rules 
@@ -129,12 +129,12 @@ END $$;
 -- ============================================
 
 -- Show updated plans
-SELECT id, code, name, monthly_price_cents, max_seats, display_order 
+SELECT id, code, name, annual_price_cents, max_seats, display_order 
 FROM plans 
 ORDER BY display_order;
 
 -- Show credits meter rules
-SELECT p.code as plan, m.code as meter, pmr.rule_type, pmr.included_units_monthly, pmr.hard_cap_units, pmr.overage_unit_price_microcents
+SELECT p.code as plan, m.code as meter, pmr.rule_type, pmr.included_units_annual, pmr.hard_cap_units, pmr.overage_unit_price_microcents
 FROM plan_meter_rules pmr
 JOIN plans p ON pmr.plan_id = p.id
 JOIN meters m ON pmr.meter_id = m.id

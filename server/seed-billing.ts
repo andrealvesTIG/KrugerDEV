@@ -11,10 +11,10 @@ async function seedBilling() {
   }
 
   const [freePlan, professionalPlan, businessPlan, enterprisePlan] = await db.insert(plans).values([
-    { code: "FREE", name: "Free", description: "Start your project management journey with essential tools. Perfect for individuals and small projects exploring structured delivery.", monthlyPriceCents: 0, extraSeatPriceCents: null },
-    { code: "BASIC", name: "Professional", description: "Elevate your project management with advanced tracking, reporting, and team collaboration. Ideal for growing teams managing multiple initiatives.", maxSeats: 3, monthlyPriceCents: 1200, extraSeatPriceCents: 500 },
-    { code: "TEAM", name: "Business", description: "Enterprise-grade portfolio management with unlimited team members, advanced analytics, resource planning, and priority support for scaling organizations.", maxSeats: 25, monthlyPriceCents: 2800, extraSeatPriceCents: 300 },
-    { code: "ENTERPRISE", name: "Enterprise", description: "Tailored solutions for global enterprises with dedicated success management, custom integrations, SSO/SAML, advanced security, and unlimited capacity.", maxSeats: null, monthlyPriceCents: null, extraSeatPriceCents: 0 },
+    { code: "FREE", name: "Free", description: "Start your project management journey with essential tools. Perfect for individuals and small projects exploring structured delivery.", annualPriceCents: 0, extraSeatPriceCents: null },
+    { code: "BASIC", name: "Professional", description: "Elevate your project management with advanced tracking, reporting, and team collaboration. Ideal for growing teams managing multiple initiatives.", maxSeats: 3, annualPriceCents: 12960, extraSeatPriceCents: 5400 },
+    { code: "TEAM", name: "Business", description: "Enterprise-grade portfolio management with unlimited team members, advanced analytics, resource planning, and priority support for scaling organizations.", maxSeats: 25, annualPriceCents: 30240, extraSeatPriceCents: 8640 },
+    { code: "ENTERPRISE", name: "Enterprise", description: "Tailored solutions for global enterprises with dedicated success management, custom integrations, SSO/SAML, advanced security, and unlimited capacity.", maxSeats: null, annualPriceCents: null, extraSeatPriceCents: 6480 },
   ]).returning();
 
   console.log("Created plans:", { freePlan, professionalPlan, businessPlan, enterprisePlan });
@@ -29,29 +29,29 @@ async function seedBilling() {
   console.log("Created meters:", { aiRunsMeter, documentsMeter, projectsMeter, tasksMeter });
 
   await db.insert(planMeterRules).values([
-    { planId: freePlan.id, meterId: aiRunsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsMonthly: 25 },
+    { planId: freePlan.id, meterId: aiRunsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsAnnual: 25 },
     { planId: freePlan.id, meterId: aiRunsMeter.id, ruleType: "HARD_CAP", hardCapUnits: 25 },
-    { planId: freePlan.id, meterId: documentsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsMonthly: 50 },
+    { planId: freePlan.id, meterId: documentsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsAnnual: 50 },
     { planId: freePlan.id, meterId: documentsMeter.id, ruleType: "HARD_CAP", hardCapUnits: 50 },
     { planId: freePlan.id, meterId: projectsMeter.id, ruleType: "HARD_CAP", hardCapUnits: 3 },
     { planId: freePlan.id, meterId: tasksMeter.id, ruleType: "HARD_CAP", hardCapUnits: 200 },
 
-    { planId: professionalPlan.id, meterId: aiRunsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsMonthly: 500 },
+    { planId: professionalPlan.id, meterId: aiRunsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsAnnual: 500 },
     { planId: professionalPlan.id, meterId: aiRunsMeter.id, ruleType: "METERED_OVERAGE", overageUnitPriceMicrocents: 20000 },
-    { planId: professionalPlan.id, meterId: documentsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsMonthly: 1000 },
+    { planId: professionalPlan.id, meterId: documentsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsAnnual: 1000 },
     { planId: professionalPlan.id, meterId: documentsMeter.id, ruleType: "METERED_OVERAGE", overageUnitPriceMicrocents: 5000 },
     { planId: professionalPlan.id, meterId: projectsMeter.id, ruleType: "HARD_CAP", hardCapUnits: 20 },
     { planId: professionalPlan.id, meterId: tasksMeter.id, ruleType: "HARD_CAP", hardCapUnits: 10000 },
 
-    { planId: businessPlan.id, meterId: aiRunsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsMonthly: 2500, isSharedPool: true },
+    { planId: businessPlan.id, meterId: aiRunsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsAnnual: 2500, isSharedPool: true },
     { planId: businessPlan.id, meterId: aiRunsMeter.id, ruleType: "METERED_OVERAGE", overageUnitPriceMicrocents: 15000, isSharedPool: true },
-    { planId: businessPlan.id, meterId: documentsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsMonthly: 5000, isSharedPool: true },
+    { planId: businessPlan.id, meterId: documentsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsAnnual: 5000, isSharedPool: true },
     { planId: businessPlan.id, meterId: documentsMeter.id, ruleType: "METERED_OVERAGE", overageUnitPriceMicrocents: 4000, isSharedPool: true },
     { planId: businessPlan.id, meterId: projectsMeter.id, ruleType: "HARD_CAP", hardCapUnits: 100, isSharedPool: true },
     { planId: businessPlan.id, meterId: tasksMeter.id, ruleType: "HARD_CAP", hardCapUnits: 50000, isSharedPool: true },
 
-    { planId: enterprisePlan.id, meterId: aiRunsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsMonthly: 100000, isSharedPool: true },
-    { planId: enterprisePlan.id, meterId: documentsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsMonthly: 100000, isSharedPool: true },
+    { planId: enterprisePlan.id, meterId: aiRunsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsAnnual: 100000, isSharedPool: true },
+    { planId: enterprisePlan.id, meterId: documentsMeter.id, ruleType: "INCLUDED_QUOTA", includedUnitsAnnual: 100000, isSharedPool: true },
     { planId: enterprisePlan.id, meterId: projectsMeter.id, ruleType: "HARD_CAP", hardCapUnits: 10000, isSharedPool: true },
     { planId: enterprisePlan.id, meterId: tasksMeter.id, ruleType: "HARD_CAP", hardCapUnits: 1000000, isSharedPool: true },
   ]);

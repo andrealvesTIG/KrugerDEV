@@ -483,8 +483,8 @@ async function migrate() {
 
     // Fix CUSTOM plan usage rollups: update included_units to match plan rules
     `UPDATE usage_rollups ur SET 
-       included_units = pmr.included_units_monthly * 100,
-       remaining_units = GREATEST(0, pmr.included_units_monthly * 100 - ur.used_units)
+       included_units = pmr.included_units_annual * 100,
+       remaining_units = GREATEST(0, pmr.included_units_annual * 100 - ur.used_units)
      FROM billing_cycles bc
      JOIN subscriptions s ON bc.subscription_id = s.id
      JOIN plans p ON s.plan_id = p.id
@@ -492,7 +492,7 @@ async function migrate() {
      WHERE ur.billing_cycle_id = bc.id
        AND p.code = 'CUSTOM'
        AND ur.meter_id = (SELECT id FROM meters WHERE code = 'credits')
-       AND ur.included_units < pmr.included_units_monthly * 100`,
+       AND ur.included_units < pmr.included_units_annual * 100`,
 
     // Deduplicate external_shares before adding unique index (keep latest row per object+user)
     `DELETE FROM external_shares WHERE id NOT IN (
