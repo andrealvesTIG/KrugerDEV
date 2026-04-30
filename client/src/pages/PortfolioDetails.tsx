@@ -36,7 +36,7 @@ import { Input } from "@/components/ui/input";
 import { 
   Loader2, DollarSign, Target, AlertTriangle, Bug, 
   CheckCircle2, FolderOpen, TrendingUp, BarChart3, ArrowRight,
-  Calendar, Users, Briefcase, AlertCircle, ChevronLeft, ChevronRight, List, GanttChart, Plus, Search, X, Table2, LayoutGrid,
+  Calendar, Users, Briefcase, AlertCircle, ChevronLeft, ChevronRight, List, GanttChart, Plus, Search, X, Table2, LayoutGrid, Map as MapIcon,
   Star, Award, FileCheck, Pencil, Trash2, Check, MoreHorizontal, MoreVertical, ArrowUpToLine,
   Shield, Share2, Download, FileText, Sparkles, RefreshCw, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown
 } from "lucide-react";
@@ -60,6 +60,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ProjectsListView, ProjectsGridView, ProjectsKanbanView, ProjectsGanttView, type GroupByOption } from "@/pages/Projects";
+import { ProjectsMapView } from "@/components/ProjectsMapView";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useCustomFieldDefinitions, useOrganizationProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useDeleteProject } from "@/hooks/use-projects";
@@ -649,10 +650,10 @@ function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }
   const deleteProject = useDeleteProject();
   const updateCfValue = useUpdateProjectCustomFieldValue();
   const viewStorageKey = `portfolio-${portfolioId}-projects-view`;
-  const [view, setView] = useState<"list" | "grid" | "kanban" | "gantt">(() => {
+  const [view, setView] = useState<"list" | "grid" | "kanban" | "gantt" | "map">(() => {
     try {
       const stored = localStorage.getItem(viewStorageKey);
-      if (stored === "list" || stored === "grid" || stored === "kanban" || stored === "gantt") return stored;
+      if (stored === "list" || stored === "grid" || stored === "kanban" || stored === "gantt" || stored === "map") return stored;
     } catch {}
     return "list";
   });
@@ -861,6 +862,16 @@ function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }
                 <GanttChart className="h-4 w-4 sm:mr-2" />
                 <span className="hidden sm:inline">Gantt</span>
               </Button>
+              <Button
+                variant={view === "map" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setView("map")}
+                className="rounded-none px-2 sm:px-3"
+                data-testid="button-portfolio-view-map"
+              >
+                <MapIcon className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Map</span>
+              </Button>
             </div>
           </div>
         </div>
@@ -910,8 +921,10 @@ function ProjectsTab({ portfolioId, organizationId, isCustom, financialBudgets }
             cfValues={cfValues || []}
             onCustomFieldChange={(projectId, fieldDefinitionId, value) => updateCfValue.mutate({ projectId, fieldDefinitionId, value })}
           />
-        ) : (
+        ) : view === "gantt" ? (
           <ProjectsGanttView projects={projects || []} organizationId={organizationId || null} />
+        ) : (
+          <ProjectsMapView projects={projects || []} portfolios={portfoliosList || []} />
         )}
       </CardContent>
     </Card>
