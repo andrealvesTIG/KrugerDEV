@@ -175,13 +175,13 @@ interface IndustryDef {
 
 const INDUSTRIES: IndustryDef[] = [
   { key: "it", label: "Information Technology", icon: MonitorSmartphone, comingSoon: false },
-  { key: "healthcare", label: "Healthcare", icon: Heart, comingSoon: true },
-  { key: "financial-services", label: "Financial Services", icon: Landmark, comingSoon: true },
-  { key: "manufacturing", label: "Manufacturing", icon: Factory, comingSoon: true },
-  { key: "industrial-automation", label: "Industrial Automation", icon: Cpu, comingSoon: true },
-  { key: "capital-projects", label: "Capital Projects", icon: HardHat, comingSoon: true },
-  { key: "energy", label: "Energy & Utilities", icon: Zap, comingSoon: true },
-  { key: "government", label: "Government & Public Sector", icon: Building, comingSoon: true },
+  { key: "healthcare", label: "Healthcare", icon: Heart, comingSoon: false },
+  { key: "financial-services", label: "Financial Services", icon: Landmark, comingSoon: false },
+  { key: "manufacturing", label: "Manufacturing", icon: Factory, comingSoon: false },
+  { key: "industrial-automation", label: "Industrial Automation", icon: Cpu, comingSoon: false },
+  { key: "capital-projects", label: "Capital Projects", icon: HardHat, comingSoon: false },
+  { key: "energy", label: "Energy & Utilities", icon: Zap, comingSoon: false },
+  { key: "government", label: "Government & Public Sector", icon: Building, comingSoon: false },
 ];
 
 function getTemplateIcon(name: string | null | undefined): React.ComponentType<{ className?: string }> {

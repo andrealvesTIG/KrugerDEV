@@ -54,6 +54,13 @@ import { registerProjectTabTemplateRoutes } from "./routes/projectTabTemplateRou
 import { seedDatabase } from "./routes/helpers";
 import { seedSystemTemplates, backfillDefaultTemplateForOrgs, ensureDefaultTemplateRegistry } from "./services/projectTabTemplateSeed";
 import { seedItSystemTemplates } from "./services/itProjectTemplateSeed";
+import { seedHealthcareSystemTemplates } from "./services/healthcareProjectTemplateSeed";
+import { seedFinancialServicesSystemTemplates } from "./services/financialServicesProjectTemplateSeed";
+import { seedManufacturingSystemTemplates } from "./services/manufacturingProjectTemplateSeed";
+import { seedIndustrialAutomationSystemTemplates } from "./services/industrialAutomationProjectTemplateSeed";
+import { seedCapitalProjectsSystemTemplates } from "./services/capitalProjectsProjectTemplateSeed";
+import { seedEnergySystemTemplates } from "./services/energyProjectTemplateSeed";
+import { seedGovernmentSystemTemplates } from "./services/governmentProjectTemplateSeed";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -160,13 +167,25 @@ export async function registerRoutes(
     }
   })();
 
-  // Seed the IT system project templates library. Idempotent — upserts each
-  // template by slug and replaces its items in a transaction.
+  // Seed the system project templates library across industries. Each seeder
+  // is idempotent — upserts by slug and replaces its items in a transaction.
   (async () => {
-    try {
-      await seedItSystemTemplates();
-    } catch (err) {
-      console.error('[it-templates] Seed failed:', err);
+    const seeders: Array<[string, () => Promise<void>]> = [
+      ["it-templates", seedItSystemTemplates],
+      ["healthcare-templates", seedHealthcareSystemTemplates],
+      ["financial-services-templates", seedFinancialServicesSystemTemplates],
+      ["manufacturing-templates", seedManufacturingSystemTemplates],
+      ["industrial-automation-templates", seedIndustrialAutomationSystemTemplates],
+      ["capital-projects-templates", seedCapitalProjectsSystemTemplates],
+      ["energy-templates", seedEnergySystemTemplates],
+      ["government-templates", seedGovernmentSystemTemplates],
+    ];
+    for (const [tag, seeder] of seeders) {
+      try {
+        await seeder();
+      } catch (err) {
+        console.error(`[${tag}] Seed failed:`, err);
+      }
     }
   })();
 
