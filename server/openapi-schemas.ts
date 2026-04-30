@@ -53,7 +53,7 @@ const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 const STATUS_ENUMS = {
   // Sourced from shared/schema.ts to prevent drift between the OpenAPI spec
   // and the runtime validators / UI dropdowns.
-  project: [...PROJECT_STATUSES_EXTENDED, 'On Hold', 'Cancelled'],
+  project: [...PROJECT_STATUSES_EXTENDED],
   task: [...TASK_STATUSES],
   priority: [...PROJECT_PRIORITIES],
   health: [...PROJECT_HEALTH_VALUES],
@@ -141,7 +141,6 @@ function taskOverrides(extra: Record<string, any> = {}): Record<string, any> {
   base.successMetrics = { description: 'How success will be measured' };
   base.stakeholders = { description: 'Key stakeholders' };
   base.schedulingMode = { omit: true };
-  base.parentTaskId = { omit: true };
   return { ...base, ...extra };
 }
 
@@ -188,7 +187,6 @@ export function generateOpenApiSchemas(): Record<string, any> {
         riskAssessmentConfig: { description: 'AI risk assessment configuration (model, temperature, thresholds, etc.)' },
         schedulingDefaults: { description: 'Default scheduling settings (dependency type, lag days)', properties: { defaultDependencyType: { type: 'string', enum: ['finish-to-start', 'start-to-start', 'finish-to-finish', 'start-to-finish'] }, defaultLagDays: { type: 'integer' }, enforceDefaults: { type: 'boolean' } } },
         fiscalYearStartMonth: { description: "Calendar month (1=Jan .. 12=Dec) that is M1 of the organization's fiscal year. Re-interprets `financial_entries.month` for labels and groupings (default 10 = October).", type: 'integer', minimum: 1, maximum: 12 },
-        timesheetPolicies: { omit: true },
         timezone: { omit: true },
         deactivatedAt: { description: 'Soft delete timestamp' },
         deactivatedBy: { description: 'User ID who deactivated' },
@@ -270,6 +268,7 @@ export function generateOpenApiSchemas(): Record<string, any> {
     ProjectRequest: createRequestSchema(projects, {
       description: 'Input schema for creating or updating a project. Excludes server-generated fields (id, timestamps, calculated metrics, etc.). Fields with defaults (status, priority, budget, health, etc.) are optional on create.',
       extraExclude: ['actualCost', 'createdBy', 'updatedBy', 'completedAt', 'completedBy', 'plannerPlanId', 'dataverseOrgId', 'dataverseTenantId', 'sourceFileName', 'sourceFileUrl', 'source', 'completionPercentage', 'scheduleVariance', 'costVariance', 'healthReasonUpdatedAt'],
+      excludeRequired: ['status', 'priority', 'health'],
       overrides: {
         projectCode: { description: 'Unique project identifier (e.g. "PRJ-2025-001")' },
         status: { enum: STATUS_ENUMS.project },
@@ -290,7 +289,7 @@ export function generateOpenApiSchemas(): Record<string, any> {
 
     TaskRequest: createRequestSchema(tasks, {
       description: 'Input schema for creating or updating a task. Excludes server-generated fields (id, taskNumber, wbs, timestamps, etc.). Accepts both camelCase and snake_case field names. Fields with defaults (priority, status, progress, boolean flags) are optional on create.',
-      extraExclude: ['taskNumber', 'wbs', 'schedulingMode', 'parentTaskId'],
+      extraExclude: ['taskNumber', 'wbs', 'schedulingMode'],
       overrides: taskOverrides(),
     }),
 

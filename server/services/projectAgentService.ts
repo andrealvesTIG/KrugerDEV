@@ -76,15 +76,18 @@ async function getProjectContext(projectId: number) {
   const now = new Date();
   const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  const completedTasks = allTasks.filter(t => t.status === 'completed').slice(-5);
-  const inProgressTasks = allTasks.filter(t => t.status === 'in_progress');
+  // Tasks/issues use canonical title-case status values from STATUS_ENUMS
+  // (server/openapi-schemas.ts). Comparing against lowercase strings here
+  // would always be false and silently produce empty agendas/follow-ups.
+  const completedTasks = allTasks.filter(t => t.status === 'Completed').slice(-5);
+  const inProgressTasks = allTasks.filter(t => t.status === 'In Progress');
   const overdueTasks = allTasks.filter(t =>
-    t.endDate && new Date(t.endDate) < now && t.status !== 'completed' && t.status !== 'cancelled'
+    t.endDate && new Date(t.endDate) < now && t.status !== 'Completed' && t.status !== 'Cancelled'
   );
   const upcomingDeadlines = allTasks.filter(t =>
-    t.endDate && new Date(t.endDate) >= now && new Date(t.endDate) <= weekFromNow && t.status !== 'completed'
+    t.endDate && new Date(t.endDate) >= now && new Date(t.endDate) <= weekFromNow && t.status !== 'Completed'
   );
-  const openIssues = allIssues.filter(i => i.status !== 'closed' && i.status !== 'resolved');
+  const openIssues = allIssues.filter(i => i.status !== 'Closed' && i.status !== 'Resolved');
 
   return {
     project,
@@ -159,10 +162,10 @@ export async function runTaskFollowUp(agentId: number, projectId: number): Promi
   const threeDaysOut = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
 
   const overdueTasks = ctx.allTasks.filter(t =>
-    t.endDate && new Date(t.endDate) < now && t.status !== 'completed' && t.status !== 'cancelled'
+    t.endDate && new Date(t.endDate) < now && t.status !== 'Completed' && t.status !== 'Cancelled'
   );
   const approachingTasks = ctx.allTasks.filter(t =>
-    t.endDate && new Date(t.endDate) >= now && new Date(t.endDate) <= threeDaysOut && t.status !== 'completed'
+    t.endDate && new Date(t.endDate) >= now && new Date(t.endDate) <= threeDaysOut && t.status !== 'Completed'
   );
 
   if (overdueTasks.length === 0 && approachingTasks.length === 0) {
@@ -173,10 +176,10 @@ export async function runTaskFollowUp(agentId: number, projectId: number): Promi
   const allRecipients: string[] = [];
 
   if (stakeholders.managerEmail) {
-    const allIncompleteTasks = ctx.allTasks.filter(t => t.status !== 'completed' && t.status !== 'cancelled');
+    const allIncompleteTasks = ctx.allTasks.filter(t => t.status !== 'Completed' && t.status !== 'Cancelled');
     const overdueSection = overdueTasks.map(t => `<li><strong>${t.name}</strong> — due ${t.endDate}</li>`).join('');
     const inProgressSection = ctx.inProgressTasks.map(t => `<li>${t.name} (${t.progress || 0}%)</li>`).join('');
-    const notStartedSection = allIncompleteTasks.filter(t => t.status === 'not_started' || !t.status).map(t => `<li>${t.name}</li>`).join('');
+    const notStartedSection = allIncompleteTasks.filter(t => t.status === 'Not Started' || !t.status).map(t => `<li>${t.name}</li>`).join('');
 
     let digestHtml = `<h3>PM Digest: All Incomplete Tasks</h3>`;
     if (overdueSection) digestHtml += `<h4 style="color:#ef4444">Overdue (${overdueTasks.length})</h4><ul>${overdueSection}</ul>`;

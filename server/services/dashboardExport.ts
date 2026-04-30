@@ -1302,7 +1302,7 @@ export async function getDashboardDataForExport(
       const intakes = await storage.getProjectIntakes(organizationId);
       
       const draft = intakes.filter(i => i.status === "draft").length;
-      const submitted = intakes.filter(i => i.status === "submitted").length;
+      const inProgress = intakes.filter(i => i.status === "in_progress").length;
       const approved = intakes.filter(i => i.status === "approved").length;
       const rejected = intakes.filter(i => i.status === "rejected").length;
       
@@ -1315,14 +1315,18 @@ export async function getDashboardDataForExport(
         generatedAt,
         metrics: {
           "Total Requests": intakes.length,
-          "Pending Review": submitted,
+          "Pending Review": inProgress,
           "Approved": approved,
           "Rejected": rejected,
           "Draft": draft,
           "Est. Budget": `$${(totalEstimate / 1000000).toFixed(1)}M`,
         },
         charts: {
-          intakeStatus: { draft, submitted, approved, rejected },
+          // The chart-data shape uses `submitted` as the bucket label that the
+          // PPT/PDF renderers consume. The canonical intake enum has no
+          // 'submitted' value, so we source the count from 'in_progress'
+          // (the closest "pending review" state) without renaming the key.
+          intakeStatus: { draft, submitted: inProgress, approved, rejected },
         },
         items: intakes.slice(0, 10).map(i => ({
           Title: i.projectName,

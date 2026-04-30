@@ -115,8 +115,8 @@ export function registerProjectRoutes(app: Express) {
     
     // Fetch user names for createdBy and updatedBy in parallel
     const [createdByUser, updatedByUser] = await Promise.all([
-      (project as any).createdBy ? db.select().from(users).where(eq(users.id, (project as any).createdBy)).then(r => r[0] ?? null) : Promise.resolve(null),
-      (project as any).updatedBy ? db.select().from(users).where(eq(users.id, (project as any).updatedBy)).then(r => r[0] ?? null) : Promise.resolve(null),
+      project.createdBy ? db.select().from(users).where(eq(users.id, project.createdBy)).then(r => r[0] ?? null) : Promise.resolve(null),
+      project.updatedBy ? db.select().from(users).where(eq(users.id, project.updatedBy)).then(r => r[0] ?? null) : Promise.resolve(null),
     ]);
     const formatName = (u: typeof createdByUser) => u ? (u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.username || u.email) : null;
     const createdByName = formatName(createdByUser);

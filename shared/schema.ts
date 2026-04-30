@@ -731,7 +731,7 @@ export const milestones = pgTable("milestones", {
   actualCompletionDate: date("actual_completion_date"),
   startDate: date("start_date"),
   completed: boolean("completed").default(false),
-  status: text("status").default("Backlog"), // Backlog, To Do, In Progress, Done, Delayed
+  status: text("status").default("Backlog"), // Backlog, To Do, In Progress, Completed, Delayed
   priority: text("priority").default("Medium"), // Low, Medium, High, Critical
   ownerId: varchar("owner_id").references(() => users.id), // Milestone owner
   assignee: text("assignee"),
@@ -2386,6 +2386,11 @@ export const insertRiskSchema = baseRiskSchema.extend({
   // Force itemType to "risk" so the shared issues table cannot be used to insert
   // non-risk rows through the risk endpoints.
   itemType: z.literal("risk").default("risk"),
+  // Risks share the issues table, but `issues.type` is an issue-only enum
+  // (Bug, Enhancement, etc.) with DB default "Bug". Forbid clients from
+  // smuggling a value here; the storage layer (`projectStorage.createRisk`)
+  // explicitly writes type=null so the DB default can't pollute risk rows.
+  type: z.null().optional(),
   // Enforce canonical enum values so callers cannot persist arbitrary strings
   // for status or priority. Both columns are nullable in the DB and have
   // defaults, so we keep them nullable + optional here.
@@ -5318,3 +5323,11 @@ export const userFollowupDrafts = pgTable("user_followup_drafts", {
 
 export type UserFollowupDraft = typeof userFollowupDrafts.$inferSelect;
 export type InsertUserFollowupDraft = typeof userFollowupDrafts.$inferInsert;
+
+// Custom one-shot migration tracker used by `server/migrations/*` (e.g.
+// `migrateMonthToCalendar`). Declared here so `drizzle-kit push` recognises
+// the existing table instead of suggesting a rename to a new schema table.
+export const metaMigrations = pgTable("_meta_migrations", {
+  key: text("key").primaryKey(),
+  appliedAt: timestamp("applied_at").notNull().defaultNow(),
+});

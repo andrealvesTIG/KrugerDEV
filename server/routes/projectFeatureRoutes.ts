@@ -3200,7 +3200,7 @@ export function registerProjectFeatureRoutes(app: Express) {
             parentId: item.parentTaskId && oldIdToNewId.has(item.parentTaskId) ? oldIdToNewId.get(item.parentTaskId)! : null,
             isSummary: item.isSummary || false,
             taskType: item.isMilestone ? 'Milestone' : item.isSummary ? 'Summary' : 'Work',
-            status: 'Backlog',
+            status: 'Not Started',
             priority: 'Medium',
             progress: 0,
             notes: item.notes,

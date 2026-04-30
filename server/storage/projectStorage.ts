@@ -120,7 +120,10 @@ export async function getRisk(id: number): Promise<Risk | undefined> {
 }
 
 export async function createRisk(risk: InsertRisk): Promise<Risk> {
-  const [newRisk] = await db.insert(issues).values({ ...risk, itemType: 'risk' }).returning();
+  // Risks share the issues table, but issues.type defaults to "Bug". Force
+  // type to null on insert so risk rows do not silently inherit the issue
+  // default and pollute risk-type filters/exports.
+  const [newRisk] = await db.insert(issues).values({ ...risk, itemType: 'risk', type: null }).returning();
   return newRisk;
 }
 

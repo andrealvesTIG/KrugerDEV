@@ -85,6 +85,27 @@
       "when": 1777041079000,
       "tag": "0011_intake_step_email_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1777041079000,
+      "tag": "0012_email_delivery_log",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1777041079000,
+      "tag": "0013_financial_lockdowns",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1777041079000,
+      "tag": "0014_fiscal_year_start_month",
+      "breakpoints": true
     }
   ]
 }
