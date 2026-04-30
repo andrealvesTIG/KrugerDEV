@@ -529,6 +529,79 @@ export default function Templates() {
 
   const activeIndustryDef = INDUSTRIES.find((i) => i.key === activeIndustry);
 
+  const createProjectDialog = (
+    <Dialog open={showCreateProjectDialog} onOpenChange={(open) => { setShowCreateProjectDialog(open); if (!open) resetCreateProjectForm(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create Project from Template</DialogTitle>
+          <DialogDescription>
+            Create a new project using "{selectedTemplate?.name}" as a template.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="new-project-name">Project Name</Label>
+            <Input
+              id="new-project-name"
+              value={createProjectName}
+              onChange={(e) => setCreateProjectName(e.target.value)}
+              placeholder="Enter project name"
+            />
+          </div>
+          <div>
+            <Label htmlFor="new-project-desc">Description (optional)</Label>
+            <Textarea
+              id="new-project-desc"
+              value={createProjectDescription}
+              onChange={(e) => setCreateProjectDescription(e.target.value)}
+              placeholder="Describe this project"
+              rows={3}
+            />
+          </div>
+          <div>
+            <Label htmlFor="new-project-portfolio">Portfolio (optional)</Label>
+            <Select value={createProjectPortfolioId} onValueChange={setCreateProjectPortfolioId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a portfolio" />
+              </SelectTrigger>
+              <SelectContent>
+                {portfolios.map((p: any) => (
+                  <SelectItem key={p.id} value={String(p.id)}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="new-project-start">Start Date (optional)</Label>
+            <Input
+              id="new-project-start"
+              type="date"
+              value={createProjectStartDate}
+              onChange={(e) => setCreateProjectStartDate(e.target.value)}
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              If set, task dates will be adjusted relative to this start date.
+            </p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { setShowCreateProjectDialog(false); resetCreateProjectForm(); }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={() => createProjectMutation.mutate()}
+            disabled={!createProjectName || createProjectMutation.isPending}
+          >
+            {createProjectMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Create Project
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   if (!orgId) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -541,6 +614,7 @@ export default function Templates() {
     const Icon = getTemplateIcon(detailView.icon);
     const isSystem = detailView.isSystem;
     return (
+      <>
       <div className="space-y-6 p-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={() => setDetailView(null)} data-testid="button-back-templates">
@@ -688,6 +762,8 @@ export default function Templates() {
           </CardContent>
         </Card>
       </div>
+      {createProjectDialog}
+      </>
     );
   }
 
@@ -1053,76 +1129,7 @@ export default function Templates() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showCreateProjectDialog} onOpenChange={(open) => { setShowCreateProjectDialog(open); if (!open) resetCreateProjectForm(); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Project from Template</DialogTitle>
-            <DialogDescription>
-              Create a new project using "{selectedTemplate?.name}" as a template.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="new-project-name">Project Name</Label>
-              <Input
-                id="new-project-name"
-                value={createProjectName}
-                onChange={(e) => setCreateProjectName(e.target.value)}
-                placeholder="Enter project name"
-              />
-            </div>
-            <div>
-              <Label htmlFor="new-project-desc">Description (optional)</Label>
-              <Textarea
-                id="new-project-desc"
-                value={createProjectDescription}
-                onChange={(e) => setCreateProjectDescription(e.target.value)}
-                placeholder="Describe this project"
-                rows={3}
-              />
-            </div>
-            <div>
-              <Label htmlFor="new-project-portfolio">Portfolio (optional)</Label>
-              <Select value={createProjectPortfolioId} onValueChange={setCreateProjectPortfolioId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a portfolio" />
-                </SelectTrigger>
-                <SelectContent>
-                  {portfolios.map((p: any) => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="new-project-start">Start Date (optional)</Label>
-              <Input
-                id="new-project-start"
-                type="date"
-                value={createProjectStartDate}
-                onChange={(e) => setCreateProjectStartDate(e.target.value)}
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                If set, task dates will be adjusted relative to this start date.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowCreateProjectDialog(false); resetCreateProjectForm(); }}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => createProjectMutation.mutate()}
-              disabled={!createProjectName || createProjectMutation.isPending}
-            >
-              {createProjectMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Project
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {createProjectDialog}
 
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent>
