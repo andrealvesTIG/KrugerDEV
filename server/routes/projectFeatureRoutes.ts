@@ -2487,16 +2487,43 @@ export function registerProjectFeatureRoutes(app: Express) {
   apiRoute(app, 'get', '/api/project-templates', {
     tag: 'Project Templates',
     summary: 'List project templates',
-    parameters: [qInt('organizationId', true, 'Organization ID')],
+    parameters: [
+      qStr('scope', false, "Scope: 'all' (default — system + org), 'system', or 'org'"),
+      qInt('organizationId', false, "Organization ID (required for scope='org', optional for 'all')"),
+      qStr('industry', false, 'Filter by industry (e.g. it, healthcare)'),
+      qStr('category', false, 'Filter by category'),
+    ],
     responses: { ...r200('Templates list', arrOf('ProjectTemplate')), ...authRes },
   }, async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
       if (!userId) return res.status(401).json({ message: 'Authentication required' });
-      const organizationId = Number(req.query.organizationId);
-      if (isNaN(organizationId)) return res.status(400).json({ message: 'Organization ID required' });
-      if (!await userHasOrgAccess(userId, organizationId)) return res.status(403).json({ message: 'Access denied' });
-      const templates = await storage.getProjectTemplates(organizationId);
+
+      // Default scope is 'all' — return system templates plus, if an org is
+      // provided, that org's private templates as well. 'org' restricts to a
+      // single org's templates; 'system' returns only the system library.
+      const rawScope = (req.query.scope as string | undefined) || 'all';
+      const scope: 'org' | 'system' | 'all' =
+        rawScope === 'system' || rawScope === 'all' || rawScope === 'org' ? rawScope : 'all';
+      const industry = (req.query.industry as string | undefined) || null;
+      const category = (req.query.category as string | undefined) || null;
+
+      let organizationId: number | null = null;
+      const rawOrgId = req.query.organizationId;
+      if (rawOrgId !== undefined && rawOrgId !== '') {
+        const parsed = Number(rawOrgId);
+        if (isNaN(parsed)) return res.status(400).json({ message: 'Invalid organizationId' });
+        if (!await userHasOrgAccess(userId, parsed)) return res.status(403).json({ message: 'Access denied' });
+        organizationId = parsed;
+      }
+
+      // 'org' scope must specify an organization; 'all' without an org returns
+      // just the system library, and 'system' ignores org.
+      if (scope === 'org' && organizationId == null) {
+        return res.status(400).json({ message: 'Organization ID required for org scope' });
+      }
+
+      const templates = await storage.getProjectTemplatesScoped({ scope, organizationId, industry, category });
       res.json(templates);
     } catch (err) {
       console.error("Error fetching templates:", err);
@@ -2517,7 +2544,12 @@ export function registerProjectFeatureRoutes(app: Express) {
       const id = Number(req.params.id);
       const template = await storage.getProjectTemplate(id);
       if (!template) return res.status(404).json({ message: 'Template not found' });
-      if (!await userHasOrgAccess(userId, template.organizationId)) return res.status(403).json({ message: 'Access denied' });
+      // System templates are readable by any authenticated user; org templates
+      // require membership in their owning organization.
+      if (!template.isSystem) {
+        if (template.organizationId == null) return res.status(404).json({ message: 'Template not found' });
+        if (!await userHasOrgAccess(userId, template.organizationId)) return res.status(403).json({ message: 'Access denied' });
+      }
       const items = await storage.getProjectTemplateItems(id);
       res.json({ ...template, items });
     } catch (err) {
@@ -2756,6 +2788,8 @@ export function registerProjectFeatureRoutes(app: Express) {
       const id = Number(req.params.id);
       const template = await storage.getProjectTemplate(id);
       if (!template) return res.status(404).json({ message: 'Template not found' });
+      if (template.isSystem) return res.status(403).json({ message: 'System templates are read-only' });
+      if (template.organizationId == null) return res.status(404).json({ message: 'Template not found' });
       if (!await userHasOrgAccess(userId, template.organizationId)) return res.status(403).json({ message: 'Access denied' });
 
       const { name, description } = req.body;
@@ -2784,6 +2818,8 @@ export function registerProjectFeatureRoutes(app: Express) {
       const id = Number(req.params.id);
       const template = await storage.getProjectTemplate(id);
       if (!template) return res.status(404).json({ message: 'Template not found' });
+      if (template.isSystem) return res.status(403).json({ message: 'System templates cannot be deleted' });
+      if (template.organizationId == null) return res.status(404).json({ message: 'Template not found' });
       if (!await userHasOrgAccess(userId, template.organizationId)) return res.status(403).json({ message: 'Access denied' });
 
       if (template.storedFileUrl) {
@@ -2834,7 +2870,23 @@ export function registerProjectFeatureRoutes(app: Express) {
       const id = Number(req.params.id);
       const template = await storage.getProjectTemplate(id);
       if (!template) return res.status(404).json({ message: 'Template not found' });
-      if (!await userHasOrgAccess(userId, template.organizationId)) return res.status(403).json({ message: 'Access denied' });
+
+      // Resolve the destination organization. For an org template the duplicate
+      // stays in the same org; for a system template the caller must specify
+      // (or be a member of) the target org.
+      let destOrgId: number;
+      if (template.isSystem) {
+        const rawOrgId = req.body.organizationId;
+        if (!rawOrgId) return res.status(400).json({ message: 'organizationId required when duplicating a system template' });
+        const parsed = Number(rawOrgId);
+        if (isNaN(parsed)) return res.status(400).json({ message: 'Invalid organizationId' });
+        if (!await userHasOrgAccess(userId, parsed)) return res.status(403).json({ message: 'Access denied' });
+        destOrgId = parsed;
+      } else {
+        if (template.organizationId == null) return res.status(404).json({ message: 'Template not found' });
+        if (!await userHasOrgAccess(userId, template.organizationId)) return res.status(403).json({ message: 'Access denied' });
+        destOrgId = template.organizationId;
+      }
 
       const newName = req.body.name || `${template.name} (Copy)`;
 
@@ -2873,16 +2925,25 @@ export function registerProjectFeatureRoutes(app: Express) {
       }
 
       const newTemplate = await storage.createProjectTemplate({
-        organizationId: template.organizationId,
+        organizationId: destOrgId,
         name: newName,
         description: template.description,
-        sourceType: template.sourceType,
+        // Strip system identity — duplicates are always editable org templates.
+        sourceType: template.isSystem ? 'system-copy' : template.sourceType,
         originalFileName: template.originalFileName,
         storedFileUrl: newFileUrl,
         itemCount: template.itemCount,
         milestoneCount: template.milestoneCount,
         createdBy: userId,
         sourceProjectId: template.sourceProjectId,
+        isSystem: false,
+        industry: template.industry,
+        category: template.category,
+        // Slug is unique — let the org-level copy go without a slug.
+        slug: null,
+        icon: template.icon,
+        estimatedDurationDays: template.estimatedDurationDays,
+        summary: template.summary,
       });
 
       const items = await storage.getProjectTemplateItems(id);
@@ -2928,6 +2989,8 @@ export function registerProjectFeatureRoutes(app: Express) {
       const id = Number(req.params.id);
       const template = await storage.getProjectTemplate(id);
       if (!template) return res.status(404).json({ message: 'Template not found' });
+      if (template.isSystem) return res.status(404).json({ message: 'No file associated with this template' });
+      if (template.organizationId == null) return res.status(404).json({ message: 'Template not found' });
       if (!await userHasOrgAccess(userId, template.organizationId)) return res.status(403).json({ message: 'Access denied' });
       if (!template.storedFileUrl) return res.status(404).json({ message: 'No file associated with this template' });
 
@@ -2986,6 +3049,8 @@ export function registerProjectFeatureRoutes(app: Express) {
       const id = Number(req.params.id);
       const template = await storage.getProjectTemplate(id);
       if (!template) return res.status(404).json({ message: 'Template not found' });
+      if (template.isSystem) return res.status(403).json({ message: 'System templates cannot be reimported' });
+      if (template.organizationId == null) return res.status(404).json({ message: 'Template not found' });
       if (!await userHasOrgAccess(userId, template.organizationId)) return res.status(403).json({ message: 'Access denied' });
       if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
@@ -3115,15 +3180,30 @@ export function registerProjectFeatureRoutes(app: Express) {
       const id = Number(req.params.id);
       const template = await storage.getProjectTemplate(id);
       if (!template) return res.status(404).json({ message: 'Template not found' });
-      if (!await userHasOrgAccess(userId, template.organizationId)) return res.status(403).json({ message: 'Access denied' });
 
-      const { name, portfolioId, description, status, priority, startDate } = req.body;
+      const { name, portfolioId, description, status, priority, startDate, organizationId: bodyOrgId } = req.body;
       if (!name) return res.status(400).json({ message: 'Project name required' });
+
+      // Resolve target organization. System templates require the caller to
+      // pass an organizationId (or it is taken from the resolved portfolio);
+      // org templates always create the project in their owning org.
+      let targetOrgId: number;
+      if (template.isSystem) {
+        if (!bodyOrgId) return res.status(400).json({ message: 'organizationId required for system templates' });
+        const parsed = Number(bodyOrgId);
+        if (isNaN(parsed)) return res.status(400).json({ message: 'Invalid organizationId' });
+        if (!await userHasOrgAccess(userId, parsed)) return res.status(403).json({ message: 'Access denied' });
+        targetOrgId = parsed;
+      } else {
+        if (template.organizationId == null) return res.status(404).json({ message: 'Template not found' });
+        if (!await userHasOrgAccess(userId, template.organizationId)) return res.status(403).json({ message: 'Access denied' });
+        targetOrgId = template.organizationId;
+      }
 
       let validPortfolioId: number | null = null;
       if (portfolioId) {
         const portfolio = await storage.getPortfolio(Number(portfolioId));
-        if (!portfolio || portfolio.organizationId !== template.organizationId) {
+        if (!portfolio || portfolio.organizationId !== targetOrgId) {
           return res.status(400).json({ message: 'Invalid portfolio for this organization' });
         }
         validPortfolioId = portfolio.id;
@@ -3132,7 +3212,7 @@ export function registerProjectFeatureRoutes(app: Express) {
       const templateItems = await storage.getProjectTemplateItems(id);
 
       const project = await storage.createProject({
-        organizationId: template.organizationId,
+        organizationId: targetOrgId,
         name,
         description: description || template.description || null,
         portfolioId: validPortfolioId,

@@ -3867,7 +3867,8 @@ export type UnconSelfieLeadRecord = typeof unconSelfieLeads.$inferSelect;
 
 export const projectTemplates = pgTable("project_templates", {
   id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  // Nullable to allow truly org-less system templates seeded by the platform.
+  organizationId: integer("organization_id").references(() => organizations.id),
   name: text("name").notNull(),
   description: text("description"),
   sourceType: text("source_type").notNull().default("project"),
@@ -3877,10 +3878,20 @@ export const projectTemplates = pgTable("project_templates", {
   milestoneCount: integer("milestone_count").default(0),
   createdBy: varchar("created_by").references(() => users.id),
   sourceProjectId: integer("source_project_id").references(() => projects.id),
+  // System library catalogue fields. For org templates these stay null/false.
+  isSystem: boolean("is_system").default(false).notNull(),
+  industry: text("industry"),
+  category: text("category"),
+  slug: text("slug"),
+  icon: text("icon"),
+  estimatedDurationDays: integer("estimated_duration_days"),
+  summary: text("summary"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
   index("project_templates_org_idx").on(table.organizationId),
+  uniqueIndex("project_templates_slug_unique").on(table.slug),
+  index("project_templates_industry_idx").on(table.industry),
 ]);
 
 export const projectTemplateItems = pgTable("project_template_items", {

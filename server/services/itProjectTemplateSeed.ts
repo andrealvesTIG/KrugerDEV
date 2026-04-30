@@ -1,0 +1,1783 @@
+/**
+ * IT system template library seeder.
+ *
+ * Choice for system-template ownership: project_templates.organization_id is
+ * nullable, so system templates are stored with organizationId = null and
+ * isSystem = true. They are excluded from per-org "My Templates" listings
+ * (see getProjectTemplates) and surfaced via the Browse Library scope.
+ *
+ * The seeder is idempotent — it upserts each template by slug, then replaces
+ * its items in a transaction.
+ */
+
+import { db } from "../db";
+import {
+  projectTemplates,
+  projectTemplateItems,
+  type InsertProjectTemplateItem,
+} from "@shared/schema";
+import { and, eq, sql } from "drizzle-orm";
+
+// ---------------------------------------------------------------------------
+// Authoring DSL — keeps the 18 IT templates readable and consistent.
+// ---------------------------------------------------------------------------
+
+interface TaskSpec {
+  slug: string;        // unique within the phase
+  name: string;
+  days: number;
+  notes?: string;
+  /**
+   * Predecessors. Bare slugs are resolved within the current phase; slugs
+   * containing "." are treated as global within the template (cross-phase).
+   * If omitted, the task chains to the previous task of the same phase, or to
+   * the previous phase's terminating milestone/task if it's the first task.
+   */
+  deps?: string[];
+}
+
+interface MilestoneSpec {
+  slug: string;
+  name: string;
+  deps?: string[];
+}
+
+interface PhaseSpec {
+  slug: string;
+  name: string;
+  tasks: TaskSpec[];
+  milestone?: MilestoneSpec; // optional terminating milestone for the phase
+}
+
+interface ItTemplatePlan {
+  slug: string;
+  name: string;
+  summary: string;
+  description: string;
+  category: string;
+  icon: string;
+  phases: PhaseSpec[];
+}
+
+// In-memory item built from the DSL, prior to numeric task-id assignment.
+interface BuiltItem {
+  slug: string;
+  name: string;
+  outlineLevel: number;
+  isSummary: boolean;
+  isMilestone: boolean;
+  durationDays: number;
+  parentSlug: string | null;
+  predecessorSlugs: string[];
+  notes?: string;
+}
+
+function buildTemplate(plan: ItTemplatePlan): { items: BuiltItem[]; totalDays: number } {
+  const items: BuiltItem[] = [];
+  let totalDays = 0;
+  let prevPhaseEndSlug: string | null = null;
+
+  for (const phase of plan.phases) {
+    const phaseSlug = `${plan.slug}.${phase.slug}`;
+    items.push({
+      slug: phaseSlug,
+      name: phase.name,
+      outlineLevel: 1,
+      isSummary: true,
+      isMilestone: false,
+      durationDays: 0,
+      parentSlug: null,
+      predecessorSlugs: [],
+    });
+
+    let prevTaskSlug: string | null = null;
+    let lastTaskSlugForPhase: string | null = null;
+
+    const resolve = (raw: string): string => {
+      if (raw.includes(".")) return raw.startsWith(`${plan.slug}.`) ? raw : `${plan.slug}.${raw}`;
+      return `${phaseSlug}.${raw}`;
+    };
+
+    for (const t of phase.tasks) {
+      const taskSlug = `${phaseSlug}.${t.slug}`;
+      const deps = t.deps && t.deps.length > 0
+        ? t.deps.map(resolve)
+        : prevTaskSlug
+          ? [prevTaskSlug]
+          : prevPhaseEndSlug
+            ? [prevPhaseEndSlug]
+            : [];
+      items.push({
+        slug: taskSlug,
+        name: t.name,
+        outlineLevel: 2,
+        isSummary: false,
+        isMilestone: false,
+        durationDays: t.days,
+        parentSlug: phaseSlug,
+        predecessorSlugs: deps,
+        notes: t.notes,
+      });
+      totalDays += t.days;
+      prevTaskSlug = taskSlug;
+      lastTaskSlugForPhase = taskSlug;
+    }
+
+    if (phase.milestone) {
+      const msSlug = `${phaseSlug}.${phase.milestone.slug}`;
+      const deps = phase.milestone.deps && phase.milestone.deps.length > 0
+        ? phase.milestone.deps.map(resolve)
+        : prevTaskSlug
+          ? [prevTaskSlug]
+          : [];
+      items.push({
+        slug: msSlug,
+        name: phase.milestone.name,
+        outlineLevel: 2,
+        isSummary: false,
+        isMilestone: true,
+        durationDays: 0,
+        parentSlug: phaseSlug,
+        predecessorSlugs: deps,
+      });
+      lastTaskSlugForPhase = msSlug;
+    }
+
+    prevPhaseEndSlug = lastTaskSlugForPhase;
+  }
+
+  return { items, totalDays };
+}
+
+// ---------------------------------------------------------------------------
+// IT Library — 18 templates
+// ---------------------------------------------------------------------------
+
+const PLANS: ItTemplatePlan[] = [
+  {
+    slug: "it-agile-scrum",
+    name: "Agile Software Development (Scrum)",
+    summary: "Discovery → backlog → sprint cadence → release. Standard Scrum delivery for a new product or major feature.",
+    description: "A Scrum-flavoured plan covering discovery, product backlog formation, sprint cadence (planning, build, review, retro), hardening, release, and post-launch monitoring. Use as a starting point for a 2–3 month delivery cycle.",
+    category: "Software Delivery",
+    icon: "Code",
+    phases: [
+      {
+        slug: "discovery",
+        name: "Discovery & Inception",
+        tasks: [
+          { slug: "kickoff", name: "Project kickoff & charter", days: 2 },
+          { slug: "stakeholders", name: "Stakeholder interviews", days: 5 },
+          { slug: "personas", name: "User personas & journey maps", days: 4 },
+          { slug: "vision", name: "Product vision & success metrics", days: 3 },
+          { slug: "tech-spike", name: "Technical feasibility spike", days: 5 },
+        ],
+        milestone: { slug: "ms-discovery", name: "Discovery sign-off" },
+      },
+      {
+        slug: "backlog",
+        name: "Product Backlog & Sprint 0",
+        tasks: [
+          { slug: "epics", name: "Define epics & themes", days: 3 },
+          { slug: "stories", name: "Write user stories", days: 5 },
+          { slug: "estimate", name: "Story estimation (planning poker)", days: 3 },
+          { slug: "definition", name: "Definition of done & ready", days: 2 },
+          { slug: "env", name: "Set up environments & CI/CD", days: 4 },
+        ],
+        milestone: { slug: "ms-sprint0", name: "Sprint 0 complete" },
+      },
+      {
+        slug: "sprint1",
+        name: "Sprint 1 — Foundations",
+        tasks: [
+          { slug: "plan", name: "Sprint 1 planning", days: 1 },
+          { slug: "build", name: "Build foundation stories", days: 8 },
+          { slug: "review", name: "Sprint 1 review", days: 1 },
+          { slug: "retro", name: "Sprint 1 retrospective", days: 1 },
+        ],
+        milestone: { slug: "ms-sprint1", name: "Sprint 1 increment shipped" },
+      },
+      {
+        slug: "sprint2",
+        name: "Sprint 2 — Core Features",
+        tasks: [
+          { slug: "plan", name: "Sprint 2 planning", days: 1 },
+          { slug: "build", name: "Build core feature stories", days: 8 },
+          { slug: "review", name: "Sprint 2 review", days: 1 },
+          { slug: "retro", name: "Sprint 2 retrospective", days: 1 },
+        ],
+        milestone: { slug: "ms-sprint2", name: "Sprint 2 increment shipped" },
+      },
+      {
+        slug: "sprint3",
+        name: "Sprint 3 — Hardening",
+        tasks: [
+          { slug: "plan", name: "Sprint 3 planning", days: 1 },
+          { slug: "build", name: "Bug burn-down & polish", days: 6 },
+          { slug: "perf", name: "Performance tuning", days: 3 },
+          { slug: "review", name: "Sprint 3 review", days: 1 },
+          { slug: "retro", name: "Sprint 3 retrospective", days: 1 },
+        ],
+        milestone: { slug: "ms-sprint3", name: "Release candidate ready" },
+      },
+      {
+        slug: "release",
+        name: "Release & Launch",
+        tasks: [
+          { slug: "uat", name: "User acceptance testing", days: 5 },
+          { slug: "release-notes", name: "Release notes & comms", days: 2 },
+          { slug: "deploy", name: "Production deployment", days: 1 },
+          { slug: "smoke", name: "Post-deploy smoke tests", days: 1 },
+        ],
+        milestone: { slug: "ms-launch", name: "Public launch" },
+      },
+      {
+        slug: "hypercare",
+        name: "Post-launch & Hypercare",
+        tasks: [
+          { slug: "monitor", name: "Production monitoring & on-call", days: 10 },
+          { slug: "feedback", name: "User feedback collection", days: 5 },
+          { slug: "retrospective", name: "Project retrospective", days: 2 },
+        ],
+        milestone: { slug: "ms-hypercare", name: "Hypercare complete" },
+      },
+    ],
+  },
+  {
+    slug: "it-waterfall-sdlc",
+    name: "Waterfall Software Development (SDLC)",
+    summary: "Requirements → Design → Build → Test → Deploy → Hypercare. Classic SDLC for fixed-scope delivery.",
+    description: "A traditional waterfall SDLC plan for fixed-scope, regulated, or vendor-driven software builds. Each phase ends with a formal review/sign-off gate before the next begins.",
+    category: "Software Delivery",
+    icon: "ListChecks",
+    phases: [
+      {
+        slug: "init",
+        name: "Initiation",
+        tasks: [
+          { slug: "charter", name: "Project charter", days: 3 },
+          { slug: "stakeholders", name: "Stakeholder register", days: 2 },
+          { slug: "kickoff", name: "Project kickoff", days: 1 },
+        ],
+        milestone: { slug: "ms-init", name: "Initiation sign-off" },
+      },
+      {
+        slug: "reqs",
+        name: "Requirements",
+        tasks: [
+          { slug: "elicit", name: "Requirements elicitation workshops", days: 7 },
+          { slug: "brd", name: "Business requirements document", days: 5 },
+          { slug: "frd", name: "Functional requirements document", days: 5 },
+          { slug: "nfr", name: "Non-functional requirements", days: 3 },
+          { slug: "review", name: "Requirements review & approval", days: 3 },
+        ],
+        milestone: { slug: "ms-reqs", name: "Requirements baseline approved" },
+      },
+      {
+        slug: "design",
+        name: "Design",
+        tasks: [
+          { slug: "arch", name: "Architecture design", days: 7 },
+          { slug: "data", name: "Data model & schema design", days: 5 },
+          { slug: "api", name: "API & integration design", days: 5 },
+          { slug: "ux", name: "UX & UI design", days: 8 },
+          { slug: "security", name: "Security design", days: 4 },
+          { slug: "review", name: "Design review & approval", days: 3 },
+        ],
+        milestone: { slug: "ms-design", name: "Design baseline approved" },
+      },
+      {
+        slug: "build",
+        name: "Build",
+        tasks: [
+          { slug: "envs", name: "Stand up dev/test environments", days: 4 },
+          { slug: "core", name: "Core module development", days: 15 },
+          { slug: "integ", name: "Integration development", days: 10 },
+          { slug: "ui", name: "UI development", days: 12 },
+          { slug: "unit", name: "Unit testing", days: 6 },
+          { slug: "code-review", name: "Code review & merge", days: 4 },
+        ],
+        milestone: { slug: "ms-build", name: "Build complete (code freeze)" },
+      },
+      {
+        slug: "test",
+        name: "Test",
+        tasks: [
+          { slug: "sit", name: "System integration testing", days: 8 },
+          { slug: "perf", name: "Performance testing", days: 5 },
+          { slug: "security-test", name: "Security testing", days: 5 },
+          { slug: "uat-prep", name: "UAT preparation", days: 3 },
+          { slug: "uat", name: "User acceptance testing", days: 10 },
+          { slug: "defect-fix", name: "Defect remediation", days: 7 },
+        ],
+        milestone: { slug: "ms-test", name: "Test exit criteria met" },
+      },
+      {
+        slug: "deploy",
+        name: "Deploy",
+        tasks: [
+          { slug: "deployment-plan", name: "Deployment plan & runbook", days: 3 },
+          { slug: "training", name: "End-user training", days: 5 },
+          { slug: "data-cutover", name: "Data cutover", days: 3 },
+          { slug: "go-live", name: "Production go-live", days: 1 },
+          { slug: "verify", name: "Post-deploy verification", days: 2 },
+        ],
+        milestone: { slug: "ms-deploy", name: "Go-live complete" },
+      },
+      {
+        slug: "hypercare",
+        name: "Hypercare & Closeout",
+        tasks: [
+          { slug: "support", name: "Hypercare support window", days: 15 },
+          { slug: "transition", name: "Transition to operations", days: 5 },
+          { slug: "lessons", name: "Lessons learned & closeout", days: 3 },
+        ],
+        milestone: { slug: "ms-close", name: "Project closed" },
+      },
+    ],
+  },
+  {
+    slug: "it-mobile-launch",
+    name: "Mobile App Launch (iOS + Android)",
+    summary: "Design, native development, store submission, and launch for both iOS and Android.",
+    description: "End-to-end mobile launch covering product/design, parallel iOS and Android builds, store submission (Apple App Store, Google Play), beta program, and launch marketing.",
+    category: "Software Delivery",
+    icon: "Smartphone",
+    phases: [
+      {
+        slug: "discovery",
+        name: "Discovery & Strategy",
+        tasks: [
+          { slug: "vision", name: "Product vision & KPIs", days: 3 },
+          { slug: "research", name: "Competitive & user research", days: 5 },
+          { slug: "platforms", name: "Platform strategy (iOS / Android)", days: 2 },
+        ],
+        milestone: { slug: "ms-discovery", name: "Discovery sign-off" },
+      },
+      {
+        slug: "design",
+        name: "Design",
+        tasks: [
+          { slug: "ia", name: "Information architecture", days: 4 },
+          { slug: "wireframes", name: "Wireframes", days: 6 },
+          { slug: "visuals", name: "High-fidelity visuals", days: 8 },
+          { slug: "proto", name: "Interactive prototype", days: 4 },
+          { slug: "usability", name: "Usability testing", days: 5 },
+        ],
+        milestone: { slug: "ms-design", name: "Design approved" },
+      },
+      {
+        slug: "ios",
+        name: "iOS Development",
+        tasks: [
+          { slug: "scaffold", name: "iOS project scaffolding", days: 3 },
+          { slug: "core", name: "Core feature implementation", days: 20 },
+          { slug: "ios-api", name: "Backend integration", days: 8 },
+          { slug: "ios-test", name: "Unit & UI tests", days: 5 },
+          { slug: "ios-perf", name: "Performance & memory tuning", days: 4 },
+        ],
+        milestone: { slug: "ms-ios-build", name: "iOS build complete" },
+      },
+      {
+        slug: "android",
+        name: "Android Development",
+        tasks: [
+          { slug: "scaffold", name: "Android project scaffolding", days: 3, deps: ["it-mobile-launch.design.ms-design"] },
+          { slug: "core", name: "Core feature implementation", days: 20 },
+          { slug: "android-api", name: "Backend integration", days: 8 },
+          { slug: "android-test", name: "Unit & UI tests", days: 5 },
+          { slug: "android-perf", name: "Performance & memory tuning", days: 4 },
+        ],
+        milestone: { slug: "ms-android-build", name: "Android build complete" },
+      },
+      {
+        slug: "qa",
+        name: "QA & Beta",
+        tasks: [
+          { slug: "regression", name: "Cross-platform regression test", days: 6, deps: ["it-mobile-launch.ios.ms-ios-build", "it-mobile-launch.android.ms-android-build"] },
+          { slug: "testflight", name: "TestFlight beta", days: 7 },
+          { slug: "play-beta", name: "Google Play closed beta", days: 7, deps: ["regression"] },
+          { slug: "feedback", name: "Beta feedback triage & fixes", days: 5, deps: ["testflight", "play-beta"] },
+        ],
+        milestone: { slug: "ms-qa", name: "Beta exit gate" },
+      },
+      {
+        slug: "store",
+        name: "Store Submission",
+        tasks: [
+          { slug: "assets", name: "Store listing assets (screenshots, copy)", days: 4 },
+          { slug: "privacy", name: "Privacy disclosures & data nutrition labels", days: 2 },
+          { slug: "ios-submit", name: "App Store submission & review", days: 5 },
+          { slug: "play-submit", name: "Google Play submission & review", days: 3, deps: ["assets", "privacy"] },
+        ],
+        milestone: { slug: "ms-approved", name: "Both stores approved", deps: ["ios-submit", "play-submit"] },
+      },
+      {
+        slug: "launch",
+        name: "Launch",
+        tasks: [
+          { slug: "launch-marketing", name: "Launch marketing & PR", days: 5 },
+          { slug: "release", name: "Phased rollout to 100%", days: 3 },
+          { slug: "monitor", name: "Crash & analytics monitoring", days: 10 },
+        ],
+        milestone: { slug: "ms-launch", name: "Public launch complete" },
+      },
+    ],
+  },
+  {
+    slug: "it-cloud-lift-shift",
+    name: "Cloud Migration — Lift & Shift",
+    summary: "Assess workloads, build a landing zone, migrate in waves, cut over.",
+    description: "A pragmatic lift-and-shift migration to public cloud (AWS / Azure / GCP). Covers discovery, landing zone, wave-based migration, validation, and decommissioning of source.",
+    category: "Cloud & Infrastructure",
+    icon: "Cloud",
+    phases: [
+      {
+        slug: "assess",
+        name: "Assessment",
+        tasks: [
+          { slug: "inventory", name: "Application & infra inventory", days: 7 },
+          { slug: "discovery-tool", name: "Run discovery tooling", days: 5 },
+          { slug: "dependencies", name: "Map application dependencies", days: 5 },
+          { slug: "tco", name: "TCO & business case", days: 4 },
+          { slug: "wave-plan", name: "Wave plan & sequencing", days: 4 },
+        ],
+        milestone: { slug: "ms-assess", name: "Migration plan approved" },
+      },
+      {
+        slug: "landing",
+        name: "Landing Zone",
+        tasks: [
+          { slug: "accounts", name: "Account / subscription structure", days: 3 },
+          { slug: "network", name: "Network & VPC / VNet design", days: 5 },
+          { slug: "iam", name: "IAM & SSO baseline", days: 4 },
+          { slug: "guardrails", name: "Guardrails (policies, tagging)", days: 4 },
+          { slug: "monitoring", name: "Logging & monitoring baseline", days: 4 },
+          { slug: "shared", name: "Shared services (DNS, AD, backup)", days: 5 },
+        ],
+        milestone: { slug: "ms-landing", name: "Landing zone live" },
+      },
+      {
+        slug: "wave1",
+        name: "Wave 1 — Pilot",
+        tasks: [
+          { slug: "pilot-prep", name: "Pilot app preparation", days: 4 },
+          { slug: "replicate", name: "Server replication", days: 5 },
+          { slug: "test", name: "Pilot test cutover (non-prod)", days: 3 },
+          { slug: "cutover", name: "Pilot production cutover", days: 2 },
+          { slug: "validate", name: "Pilot validation", days: 3 },
+        ],
+        milestone: { slug: "ms-wave1", name: "Wave 1 in production" },
+      },
+      {
+        slug: "wave2",
+        name: "Wave 2 — Bulk Migration",
+        tasks: [
+          { slug: "prep", name: "Wave 2 app prep", days: 6 },
+          { slug: "replicate", name: "Bulk replication", days: 10 },
+          { slug: "test", name: "Wave 2 test cutovers", days: 5 },
+          { slug: "cutover", name: "Wave 2 production cutovers", days: 5 },
+          { slug: "validate", name: "Wave 2 validation", days: 5 },
+        ],
+        milestone: { slug: "ms-wave2", name: "Wave 2 in production" },
+      },
+      {
+        slug: "wave3",
+        name: "Wave 3 — Long Tail",
+        tasks: [
+          { slug: "prep", name: "Long-tail app prep", days: 5 },
+          { slug: "replicate", name: "Replication", days: 7 },
+          { slug: "cutover", name: "Cutovers", days: 5 },
+          { slug: "validate", name: "Validation", days: 4 },
+        ],
+        milestone: { slug: "ms-wave3", name: "All waves complete" },
+      },
+      {
+        slug: "optimize",
+        name: "Optimize & Decommission",
+        tasks: [
+          { slug: "rightsize", name: "Right-size & cost optimize", days: 7 },
+          { slug: "ri", name: "Reserved instance / savings plan", days: 3 },
+          { slug: "decom-plan", name: "Source decommission plan", days: 3 },
+          { slug: "decom", name: "Decommission source workloads", days: 10 },
+        ],
+        milestone: { slug: "ms-decom", name: "Source data center exit" },
+      },
+    ],
+  },
+  {
+    slug: "it-cloud-refactor",
+    name: "Cloud Migration — Refactor / Re-architect",
+    summary: "Modernize workloads with containers, managed services, and CI/CD.",
+    description: "A modernization-first migration that refactors monolithic workloads into containers and managed services, introduces a modern CI/CD pipeline, and cuts over with progressive delivery.",
+    category: "Cloud & Infrastructure",
+    icon: "Layers",
+    phases: [
+      {
+        slug: "assess",
+        name: "Assessment",
+        tasks: [
+          { slug: "inventory", name: "Application portfolio inventory", days: 5 },
+          { slug: "patterns", name: "6Rs pattern selection", days: 4 },
+          { slug: "target", name: "Target architecture options", days: 5 },
+          { slug: "case", name: "Modernization business case", days: 4 },
+        ],
+        milestone: { slug: "ms-assess", name: "Modernization plan approved" },
+      },
+      {
+        slug: "platform",
+        name: "Platform Foundation",
+        tasks: [
+          { slug: "k8s", name: "Kubernetes platform setup", days: 8 },
+          { slug: "ingress", name: "Ingress, service mesh, secrets", days: 5 },
+          { slug: "obs", name: "Observability stack (logs, metrics, traces)", days: 5 },
+          { slug: "registry", name: "Container registry & supply chain", days: 3 },
+          { slug: "data", name: "Managed data services baseline", days: 5 },
+        ],
+        milestone: { slug: "ms-platform", name: "Platform ready" },
+      },
+      {
+        slug: "cicd",
+        name: "CI/CD & DevOps",
+        tasks: [
+          { slug: "repos", name: "Source repo & branch strategy", days: 2 },
+          { slug: "build", name: "Build & test pipelines", days: 5 },
+          { slug: "iac", name: "IaC (Terraform / Bicep) baseline", days: 6 },
+          { slug: "deploy", name: "Progressive delivery (blue/green, canary)", days: 5 },
+          { slug: "policy", name: "Policy-as-code & supply-chain scanning", days: 4 },
+        ],
+        milestone: { slug: "ms-cicd", name: "CI/CD pipelines live" },
+      },
+      {
+        slug: "refactor1",
+        name: "Refactor — Wave 1",
+        tasks: [
+          { slug: "decompose", name: "Decompose monolith (boundaries)", days: 7 },
+          { slug: "containerize", name: "Containerize services", days: 8 },
+          { slug: "data", name: "Data store migration", days: 7 },
+          { slug: "test", name: "Service-level testing", days: 5 },
+          { slug: "deploy", name: "Deploy to non-prod", days: 3 },
+        ],
+        milestone: { slug: "ms-refactor1", name: "Wave 1 services on platform" },
+      },
+      {
+        slug: "refactor2",
+        name: "Refactor — Wave 2",
+        tasks: [
+          { slug: "containerize", name: "Containerize remaining services", days: 10 },
+          { slug: "data", name: "Data migration & dual-write", days: 7 },
+          { slug: "integ", name: "Integration & contract testing", days: 6 },
+          { slug: "perf", name: "Performance & resilience testing", days: 5 },
+        ],
+        milestone: { slug: "ms-refactor2", name: "Wave 2 services on platform" },
+      },
+      {
+        slug: "cutover",
+        name: "Cutover & Decommission",
+        tasks: [
+          { slug: "canary", name: "Canary cutover with traffic shifting", days: 5 },
+          { slug: "go-live", name: "Production cutover", days: 2 },
+          { slug: "monitor", name: "Hypercare & SRE on-call", days: 10 },
+          { slug: "decom", name: "Decommission legacy stack", days: 7 },
+        ],
+        milestone: { slug: "ms-decom", name: "Legacy decommissioned" },
+      },
+    ],
+  },
+  {
+    slug: "it-data-center-migration",
+    name: "Data Center Migration / Decommission",
+    summary: "Discovery, racking, network, cutover, and decommissioning of a data center.",
+    description: "Move workloads from one physical data center to another (or to colocation), then decommission the source. Covers physical, network, storage, and application cutover.",
+    category: "Cloud & Infrastructure",
+    icon: "Server",
+    phases: [
+      {
+        slug: "discover",
+        name: "Discovery & Planning",
+        tasks: [
+          { slug: "inventory", name: "Hardware & app inventory", days: 7 },
+          { slug: "deps", name: "Dependency mapping", days: 5 },
+          { slug: "site", name: "Target site assessment", days: 4 },
+          { slug: "moves-plan", name: "Move group & sequencing plan", days: 5 },
+          { slug: "comms", name: "Stakeholder comms plan", days: 2 },
+        ],
+        milestone: { slug: "ms-plan", name: "Migration plan approved" },
+      },
+      {
+        slug: "site-prep",
+        name: "Target Site Preparation",
+        tasks: [
+          { slug: "power", name: "Power & cooling capacity", days: 5 },
+          { slug: "structured", name: "Structured cabling", days: 5 },
+          { slug: "network-core", name: "Network core build", days: 7 },
+          { slug: "racking", name: "Rack & cage layout", days: 4 },
+          { slug: "shared", name: "Shared services (AD, DNS, NTP)", days: 5 },
+        ],
+        milestone: { slug: "ms-site", name: "Target site ready" },
+      },
+      {
+        slug: "circuits",
+        name: "Connectivity",
+        tasks: [
+          { slug: "wan", name: "WAN circuits provisioned", days: 10 },
+          { slug: "interconnect", name: "Site-to-site interconnect", days: 5 },
+          { slug: "firewall", name: "Firewall & security posture", days: 5 },
+          { slug: "test", name: "Network failover testing", days: 4 },
+        ],
+        milestone: { slug: "ms-circuits", name: "Network ready for moves" },
+      },
+      {
+        slug: "wave1",
+        name: "Move Wave 1 — Non-critical",
+        tasks: [
+          { slug: "prep", name: "Wave 1 app prep & freeze", days: 3 },
+          { slug: "physical", name: "Physical move / replication", days: 5 },
+          { slug: "racking", name: "Re-rack & cable at target", days: 3 },
+          { slug: "validate", name: "Application validation", days: 4 },
+        ],
+        milestone: { slug: "ms-wave1", name: "Wave 1 live at target" },
+      },
+      {
+        slug: "wave2",
+        name: "Move Wave 2 — Critical",
+        tasks: [
+          { slug: "prep", name: "Wave 2 prep & freeze", days: 4 },
+          { slug: "rehearsal", name: "Cutover rehearsal", days: 3 },
+          { slug: "move", name: "Cutover weekend", days: 3 },
+          { slug: "validate", name: "Critical app validation", days: 5 },
+        ],
+        milestone: { slug: "ms-wave2", name: "Critical workloads at target" },
+      },
+      {
+        slug: "decom",
+        name: "Decommission",
+        tasks: [
+          { slug: "data-erase", name: "Data sanitization", days: 5 },
+          { slug: "deinstall", name: "De-rack & de-install", days: 7 },
+          { slug: "asset", name: "Asset disposition & disposal", days: 5 },
+          { slug: "lease", name: "Site lease close-out", days: 5 },
+        ],
+        milestone: { slug: "ms-decom", name: "Source DC decommissioned" },
+      },
+    ],
+  },
+  {
+    slug: "it-network-refresh",
+    name: "Network Infrastructure Refresh",
+    summary: "Assessment, design, procurement, rollout, and validation of campus / branch network.",
+    description: "Refresh aging campus, branch, or data-center network infrastructure (switches, wireless, security) with a phased rollout and validation plan.",
+    category: "Cloud & Infrastructure",
+    icon: "Network",
+    phases: [
+      {
+        slug: "assess",
+        name: "Assessment",
+        tasks: [
+          { slug: "inventory", name: "Current state inventory", days: 5 },
+          { slug: "perf", name: "Performance & capacity baseline", days: 4 },
+          { slug: "site-survey", name: "Wireless site surveys", days: 6 },
+          { slug: "gap", name: "Gap analysis & requirements", days: 4 },
+        ],
+        milestone: { slug: "ms-assess", name: "Assessment complete" },
+      },
+      {
+        slug: "design",
+        name: "Design",
+        tasks: [
+          { slug: "lld", name: "Low-level design", days: 8 },
+          { slug: "security", name: "Security & segmentation design", days: 5 },
+          { slug: "wireless", name: "Wireless design (RF plan)", days: 5 },
+          { slug: "review", name: "Design review & approval", days: 3 },
+        ],
+        milestone: { slug: "ms-design", name: "Design approved" },
+      },
+      {
+        slug: "procure",
+        name: "Procurement",
+        tasks: [
+          { slug: "bom", name: "Bill of materials", days: 3 },
+          { slug: "order", name: "Vendor purchase order", days: 5 },
+          { slug: "lead", name: "Equipment lead time", days: 30 },
+          { slug: "receive", name: "Receive & stage equipment", days: 4 },
+        ],
+        milestone: { slug: "ms-procure", name: "Equipment on hand" },
+      },
+      {
+        slug: "pilot",
+        name: "Pilot Site",
+        tasks: [
+          { slug: "install", name: "Pilot site installation", days: 5 },
+          { slug: "config", name: "Configuration & policy push", days: 4 },
+          { slug: "test", name: "Pilot validation testing", days: 5 },
+        ],
+        milestone: { slug: "ms-pilot", name: "Pilot site live" },
+      },
+      {
+        slug: "rollout",
+        name: "Rollout",
+        tasks: [
+          { slug: "schedule", name: "Site rollout schedule", days: 3 },
+          { slug: "site-installs", name: "Site installations", days: 25 },
+          { slug: "config-push", name: "Config & monitoring onboarding", days: 10 },
+          { slug: "issues", name: "Issue triage during rollout", days: 10 },
+        ],
+        milestone: { slug: "ms-rollout", name: "All sites cut over" },
+      },
+      {
+        slug: "validate",
+        name: "Validation & Closeout",
+        tasks: [
+          { slug: "post-perf", name: "Post-cutover performance test", days: 5 },
+          { slug: "audit", name: "Configuration audit", days: 4 },
+          { slug: "doc", name: "As-built documentation & training", days: 5 },
+        ],
+        milestone: { slug: "ms-close", name: "Refresh project closed" },
+      },
+    ],
+  },
+  {
+    slug: "it-m365-rollout",
+    name: "Microsoft 365 / Google Workspace Rollout",
+    summary: "Pilot, identity, mail migration, and end-user training for productivity suite rollout.",
+    description: "Roll out Microsoft 365 or Google Workspace across the organization. Covers identity, pilot, mail and file migration, training, and adoption.",
+    category: "Digital Workplace",
+    icon: "Mail",
+    phases: [
+      {
+        slug: "discover",
+        name: "Discovery",
+        tasks: [
+          { slug: "current", name: "Current state audit", days: 5 },
+          { slug: "users", name: "User & licence sizing", days: 3 },
+          { slug: "scope", name: "Scope & success criteria", days: 3 },
+        ],
+        milestone: { slug: "ms-discover", name: "Discovery complete" },
+      },
+      {
+        slug: "identity",
+        name: "Identity & Tenant",
+        tasks: [
+          { slug: "tenant", name: "Tenant provisioning & branding", days: 3 },
+          { slug: "domains", name: "Domain verification", days: 2 },
+          { slug: "sso", name: "SSO & MFA setup", days: 4 },
+          { slug: "directory", name: "Directory sync", days: 4 },
+          { slug: "policies", name: "Conditional access & DLP policies", days: 5 },
+        ],
+        milestone: { slug: "ms-identity", name: "Identity foundation ready" },
+      },
+      {
+        slug: "pilot",
+        name: "Pilot",
+        tasks: [
+          { slug: "users", name: "Pilot user onboarding", days: 3 },
+          { slug: "mail", name: "Pilot mail migration", days: 4 },
+          { slug: "files", name: "Pilot file migration", days: 4 },
+          { slug: "feedback", name: "Pilot feedback & adjustments", days: 5 },
+        ],
+        milestone: { slug: "ms-pilot", name: "Pilot signed off" },
+      },
+      {
+        slug: "migrate",
+        name: "Mass Migration",
+        tasks: [
+          { slug: "schedule", name: "Migration schedule & comms", days: 3 },
+          { slug: "mail-batches", name: "Mailbox migration batches", days: 20 },
+          { slug: "files-batches", name: "File migration batches", days: 15 },
+          { slug: "groups", name: "Distribution lists & groups", days: 5 },
+          { slug: "calendars", name: "Resource calendars & rooms", days: 4 },
+        ],
+        milestone: { slug: "ms-migrate", name: "All users migrated" },
+      },
+      {
+        slug: "training",
+        name: "Training & Adoption",
+        tasks: [
+          { slug: "champions", name: "Champion network", days: 5 },
+          { slug: "content", name: "Training content", days: 7 },
+          { slug: "sessions", name: "Live training sessions", days: 10 },
+          { slug: "adoption", name: "Adoption tracking & boosters", days: 10 },
+        ],
+        milestone: { slug: "ms-adoption", name: "Adoption targets met" },
+      },
+      {
+        slug: "closeout",
+        name: "Closeout",
+        tasks: [
+          { slug: "decom", name: "Decommission legacy email/file", days: 7 },
+          { slug: "handover", name: "Handover to support", days: 3 },
+          { slug: "lessons", name: "Lessons learned", days: 2 },
+        ],
+        milestone: { slug: "ms-close", name: "Project closed" },
+      },
+    ],
+  },
+  {
+    slug: "it-erp-implementation",
+    name: "ERP Implementation",
+    summary: "Fit-gap, configure, data migration, UAT, go-live, and hypercare for ERP deployment.",
+    description: "A large enterprise resource planning deployment (SAP S/4HANA, Oracle Fusion, NetSuite, Dynamics 365). Covers fit-gap analysis, configuration, integrations, data migration, parallel UAT, and a controlled cutover.",
+    category: "Enterprise Applications",
+    icon: "Building2",
+    phases: [
+      {
+        slug: "prepare",
+        name: "Prepare",
+        tasks: [
+          { slug: "charter", name: "Programme charter", days: 5 },
+          { slug: "team", name: "Team mobilization & training", days: 10 },
+          { slug: "tooling", name: "Project tooling setup", days: 4 },
+          { slug: "kickoff", name: "Programme kickoff", days: 1 },
+        ],
+        milestone: { slug: "ms-prepare", name: "Prepare phase complete" },
+      },
+      {
+        slug: "explore",
+        name: "Explore (Fit-Gap)",
+        tasks: [
+          { slug: "process-workshops", name: "Process design workshops", days: 20 },
+          { slug: "fitgap", name: "Fit-gap analysis", days: 10 },
+          { slug: "rice", name: "RICE register (reports, interfaces, conversions, enhancements)", days: 7 },
+          { slug: "blueprint", name: "Solution blueprint", days: 8 },
+          { slug: "review", name: "Blueprint review & sign-off", days: 5 },
+        ],
+        milestone: { slug: "ms-blueprint", name: "Blueprint signed off" },
+      },
+      {
+        slug: "realize",
+        name: "Realize (Build & Configure)",
+        tasks: [
+          { slug: "config", name: "Standard configuration", days: 25 },
+          { slug: "extensions", name: "Extensions & enhancements", days: 20 },
+          { slug: "interfaces", name: "Interface development", days: 18 },
+          { slug: "reports", name: "Reports & analytics", days: 12 },
+          { slug: "security", name: "Security & roles", days: 10 },
+          { slug: "unit-test", name: "Unit testing", days: 10 },
+        ],
+        milestone: { slug: "ms-build", name: "Build complete" },
+      },
+      {
+        slug: "data",
+        name: "Data Migration",
+        tasks: [
+          { slug: "scope", name: "Data scope & ownership", days: 5 },
+          { slug: "extract", name: "Source data extraction", days: 8 },
+          { slug: "cleanse", name: "Data cleansing", days: 12 },
+          { slug: "mock1", name: "Mock load 1", days: 5 },
+          { slug: "mock2", name: "Mock load 2", days: 5 },
+          { slug: "reconcile", name: "Reconciliation reports", days: 5 },
+        ],
+        milestone: { slug: "ms-data", name: "Data ready for go-live" },
+      },
+      {
+        slug: "test",
+        name: "Test",
+        tasks: [
+          { slug: "sit", name: "System integration test (SIT)", days: 15 },
+          { slug: "perf", name: "Performance test", days: 7 },
+          { slug: "uat-prep", name: "UAT preparation", days: 5 },
+          { slug: "uat", name: "User acceptance test", days: 20 },
+          { slug: "defects", name: "Defect remediation", days: 10 },
+        ],
+        milestone: { slug: "ms-test", name: "Test exit gate" },
+      },
+      {
+        slug: "deploy",
+        name: "Deploy",
+        tasks: [
+          { slug: "training", name: "End-user training", days: 15 },
+          { slug: "cutover-plan", name: "Cutover plan & rehearsals", days: 10 },
+          { slug: "data-cutover", name: "Production data cutover", days: 5 },
+          { slug: "go-live", name: "Go-live weekend", days: 3 },
+          { slug: "verify", name: "Post-go-live verification", days: 3 },
+        ],
+        milestone: { slug: "ms-go-live", name: "ERP go-live" },
+      },
+      {
+        slug: "hypercare",
+        name: "Hypercare",
+        tasks: [
+          { slug: "support", name: "Hypercare command centre", days: 30 },
+          { slug: "month-end", name: "First month-end close", days: 5 },
+          { slug: "transition", name: "Transition to AMS", days: 10 },
+        ],
+        milestone: { slug: "ms-hypercare", name: "Hypercare exit" },
+      },
+    ],
+  },
+  {
+    slug: "it-crm-implementation",
+    name: "CRM Implementation (Salesforce / HubSpot)",
+    summary: "Discovery, configure, integrate, train, and launch a CRM platform.",
+    description: "Implement Salesforce, HubSpot, or Microsoft Dynamics CRM. Covers process discovery, declarative configuration, integration with marketing/finance, data migration, training, and launch.",
+    category: "Enterprise Applications",
+    icon: "Users",
+    phases: [
+      {
+        slug: "discover",
+        name: "Discovery",
+        tasks: [
+          { slug: "kickoff", name: "Kickoff & charter", days: 2 },
+          { slug: "process", name: "Sales process workshops", days: 8 },
+          { slug: "service", name: "Service process workshops", days: 5 },
+          { slug: "marketing", name: "Marketing process workshops", days: 4 },
+          { slug: "blueprint", name: "Solution blueprint", days: 5 },
+        ],
+        milestone: { slug: "ms-discover", name: "Discovery complete" },
+      },
+      {
+        slug: "configure",
+        name: "Configure",
+        tasks: [
+          { slug: "objects", name: "Objects, fields & page layouts", days: 7 },
+          { slug: "automation", name: "Automation (flows / workflows)", days: 7 },
+          { slug: "permissions", name: "Roles & permissions", days: 4 },
+          { slug: "lightning", name: "App / UX configuration", days: 5 },
+          { slug: "reports", name: "Reports & dashboards", days: 5 },
+        ],
+        milestone: { slug: "ms-configure", name: "Configuration complete" },
+      },
+      {
+        slug: "integrate",
+        name: "Integrate",
+        tasks: [
+          { slug: "marketing-integ", name: "Marketing automation integration", days: 5 },
+          { slug: "erp-integ", name: "ERP / billing integration", days: 7 },
+          { slug: "telephony", name: "Telephony / CTI", days: 5 },
+          { slug: "email", name: "Email & calendar sync", days: 3 },
+        ],
+        milestone: { slug: "ms-integrate", name: "Integrations live in non-prod" },
+      },
+      {
+        slug: "data",
+        name: "Data Migration",
+        tasks: [
+          { slug: "map", name: "Source-to-target mapping", days: 5 },
+          { slug: "cleanse", name: "Data cleansing", days: 7 },
+          { slug: "mock", name: "Mock migration", days: 4 },
+          { slug: "validate", name: "Validation & sign-off", days: 3 },
+        ],
+        milestone: { slug: "ms-data", name: "Data ready" },
+      },
+      {
+        slug: "test",
+        name: "Test & Train",
+        tasks: [
+          { slug: "sit", name: "System integration test", days: 7 },
+          { slug: "uat", name: "User acceptance test", days: 10 },
+          { slug: "training", name: "End-user training", days: 7 },
+          { slug: "playbooks", name: "Sales playbooks & enablement", days: 5 },
+        ],
+        milestone: { slug: "ms-train", name: "Users trained" },
+      },
+      {
+        slug: "launch",
+        name: "Launch & Adoption",
+        tasks: [
+          { slug: "go-live", name: "Production cutover", days: 2 },
+          { slug: "hypercare", name: "Hypercare", days: 15 },
+          { slug: "adoption", name: "Adoption tracking", days: 15 },
+        ],
+        milestone: { slug: "ms-launch", name: "CRM launched" },
+      },
+    ],
+  },
+  {
+    slug: "it-cybersecurity-assessment",
+    name: "Cybersecurity Assessment & Remediation",
+    summary: "Scope, assess, prioritize, remediate, and validate cybersecurity posture.",
+    description: "An end-to-end cyber posture engagement. Includes scoping, vulnerability and configuration assessment, prioritization, remediation tracks, and validation against the same baseline.",
+    category: "Security & Compliance",
+    icon: "ShieldAlert",
+    phases: [
+      {
+        slug: "scope",
+        name: "Scoping",
+        tasks: [
+          { slug: "kickoff", name: "Kickoff & RoE", days: 2 },
+          { slug: "framework", name: "Select framework (NIST CSF / CIS)", days: 2 },
+          { slug: "assets", name: "Asset & system inventory", days: 5 },
+        ],
+        milestone: { slug: "ms-scope", name: "Scope agreed" },
+      },
+      {
+        slug: "assess",
+        name: "Assessment",
+        tasks: [
+          { slug: "interviews", name: "Control interviews", days: 8 },
+          { slug: "vuln", name: "Vulnerability scanning", days: 5 },
+          { slug: "config", name: "Configuration review", days: 5 },
+          { slug: "phishing", name: "Phishing simulation", days: 4 },
+          { slug: "iam-review", name: "IAM & privileged access review", days: 5 },
+        ],
+        milestone: { slug: "ms-assess", name: "Assessment fieldwork complete" },
+      },
+      {
+        slug: "report",
+        name: "Findings & Roadmap",
+        tasks: [
+          { slug: "analysis", name: "Findings analysis", days: 5 },
+          { slug: "scoring", name: "Risk scoring & prioritization", days: 4 },
+          { slug: "report", name: "Executive report", days: 4 },
+          { slug: "roadmap", name: "Remediation roadmap", days: 4 },
+        ],
+        milestone: { slug: "ms-report", name: "Findings report delivered" },
+      },
+      {
+        slug: "remediate-quick",
+        name: "Remediation — Quick Wins",
+        tasks: [
+          { slug: "patching", name: "Patching cycle", days: 10 },
+          { slug: "mfa", name: "MFA enforcement", days: 5 },
+          { slug: "hardening", name: "Endpoint & server hardening", days: 8 },
+          { slug: "edr", name: "EDR rollout", days: 7 },
+        ],
+        milestone: { slug: "ms-quick", name: "Quick wins remediated" },
+      },
+      {
+        slug: "remediate-strategic",
+        name: "Remediation — Strategic",
+        tasks: [
+          { slug: "siem", name: "SIEM / SOC enablement", days: 15 },
+          { slug: "iam", name: "Privileged access management", days: 12 },
+          { slug: "dlp", name: "Data loss prevention rollout", days: 10 },
+          { slug: "ir-playbooks", name: "Incident response playbooks", days: 6 },
+        ],
+        milestone: { slug: "ms-strategic", name: "Strategic remediation complete" },
+      },
+      {
+        slug: "validate",
+        name: "Validation & Closeout",
+        tasks: [
+          { slug: "rescan", name: "Re-scan & re-assessment", days: 7 },
+          { slug: "tabletop", name: "Tabletop exercise", days: 3 },
+          { slug: "report-final", name: "Final assurance report", days: 4 },
+        ],
+        milestone: { slug: "ms-close", name: "Engagement closed" },
+      },
+    ],
+  },
+  {
+    slug: "it-soc2-readiness",
+    name: "SOC 2 Type II Readiness & Audit",
+    summary: "Scope, implement controls, gather evidence, observation, and audit.",
+    description: "A SOC 2 Type II readiness and audit engagement. Covers scoping the trust services criteria, control implementation, evidence collection, the observation period, and the audit fieldwork.",
+    category: "Security & Compliance",
+    icon: "FileCheck",
+    phases: [
+      {
+        slug: "scope",
+        name: "Scoping",
+        tasks: [
+          { slug: "kickoff", name: "Kickoff & charter", days: 2 },
+          { slug: "tsc", name: "Select trust services criteria", days: 3 },
+          { slug: "boundary", name: "System boundary & description", days: 5 },
+          { slug: "auditor", name: "Auditor selection", days: 5 },
+        ],
+        milestone: { slug: "ms-scope", name: "Scope locked" },
+      },
+      {
+        slug: "gap",
+        name: "Gap Assessment",
+        tasks: [
+          { slug: "inventory", name: "Control inventory", days: 5 },
+          { slug: "interviews", name: "Control owner interviews", days: 7 },
+          { slug: "gap-report", name: "Gap report & roadmap", days: 5 },
+        ],
+        milestone: { slug: "ms-gap", name: "Gap assessment complete" },
+      },
+      {
+        slug: "implement",
+        name: "Control Implementation",
+        tasks: [
+          { slug: "policies", name: "Policy & procedure refresh", days: 10 },
+          { slug: "access", name: "Access management controls", days: 10 },
+          { slug: "change", name: "Change management process", days: 8 },
+          { slug: "monitoring", name: "Logging & monitoring", days: 8 },
+          { slug: "vendor", name: "Vendor risk management", days: 6 },
+          { slug: "training", name: "Security awareness training", days: 5 },
+        ],
+        milestone: { slug: "ms-implement", name: "Controls implemented" },
+      },
+      {
+        slug: "evidence",
+        name: "Evidence Collection",
+        tasks: [
+          { slug: "tooling", name: "Evidence tooling rollout", days: 5 },
+          { slug: "automate", name: "Automate evidence collection", days: 8 },
+          { slug: "owners", name: "Assign control owners", days: 3 },
+        ],
+        milestone: { slug: "ms-evidence", name: "Evidence pipeline live" },
+      },
+      {
+        slug: "observation",
+        name: "Observation Period",
+        tasks: [
+          { slug: "operate", name: "Operate controls (observation window)", days: 90, notes: "Type II requires a minimum of 6 months of operating effectiveness; tune to your scope." },
+          { slug: "spot", name: "Spot checks & remediation", days: 15 },
+        ],
+        milestone: { slug: "ms-observation", name: "Observation period complete" },
+      },
+      {
+        slug: "audit",
+        name: "Audit",
+        tasks: [
+          { slug: "fieldwork", name: "Auditor fieldwork", days: 15 },
+          { slug: "samples", name: "Sample requests & responses", days: 10 },
+          { slug: "draft", name: "Draft report review", days: 5 },
+          { slug: "final", name: "Final report issuance", days: 3 },
+        ],
+        milestone: { slug: "ms-soc2", name: "SOC 2 Type II report issued" },
+      },
+    ],
+  },
+  {
+    slug: "it-iso27001",
+    name: "ISO 27001 Certification",
+    summary: "Gap, ISMS build, internal audit, Stage 1, Stage 2, certification.",
+    description: "A full ISO/IEC 27001 ISMS implementation, internal audit, and certification engagement.",
+    category: "Security & Compliance",
+    icon: "BadgeCheck",
+    phases: [
+      {
+        slug: "gap",
+        name: "Gap Assessment",
+        tasks: [
+          { slug: "kickoff", name: "Kickoff & charter", days: 2 },
+          { slug: "context", name: "Context of the organization", days: 4 },
+          { slug: "current", name: "Current state assessment", days: 8 },
+          { slug: "gap-report", name: "Gap report", days: 4 },
+        ],
+        milestone: { slug: "ms-gap", name: "Gap report delivered" },
+      },
+      {
+        slug: "isms",
+        name: "ISMS Design",
+        tasks: [
+          { slug: "scope", name: "ISMS scope statement", days: 3 },
+          { slug: "risk-method", name: "Risk assessment methodology", days: 4 },
+          { slug: "soa", name: "Statement of Applicability", days: 5 },
+          { slug: "policies", name: "ISMS policies", days: 8 },
+          { slug: "metrics", name: "ISMS metrics", days: 4 },
+        ],
+        milestone: { slug: "ms-isms", name: "ISMS designed" },
+      },
+      {
+        slug: "implement",
+        name: "Implementation",
+        tasks: [
+          { slug: "controls", name: "Annex A control implementation", days: 30 },
+          { slug: "training", name: "Awareness training", days: 5 },
+          { slug: "vendor", name: "Vendor & supplier reviews", days: 7 },
+          { slug: "ir", name: "Incident management process", days: 5 },
+          { slug: "bc", name: "Business continuity tie-in", days: 5 },
+        ],
+        milestone: { slug: "ms-implement", name: "Controls operating" },
+      },
+      {
+        slug: "internal-audit",
+        name: "Internal Audit & Management Review",
+        tasks: [
+          { slug: "internal", name: "Internal audit", days: 7 },
+          { slug: "non-conformities", name: "Non-conformity remediation", days: 10 },
+          { slug: "mgmt-review", name: "Management review", days: 3 },
+        ],
+        milestone: { slug: "ms-internal", name: "Internal audit closed" },
+      },
+      {
+        slug: "stage1",
+        name: "Stage 1 Audit",
+        tasks: [
+          { slug: "prep", name: "Stage 1 preparation", days: 4 },
+          { slug: "stage1", name: "Stage 1 (documentation review)", days: 3 },
+          { slug: "actions", name: "Stage 1 actions", days: 7 },
+        ],
+        milestone: { slug: "ms-stage1", name: "Stage 1 cleared" },
+      },
+      {
+        slug: "stage2",
+        name: "Stage 2 Audit",
+        tasks: [
+          { slug: "prep", name: "Stage 2 preparation", days: 4 },
+          { slug: "stage2", name: "Stage 2 (operational audit)", days: 5 },
+          { slug: "minor", name: "Address minor non-conformities", days: 7 },
+        ],
+        milestone: { slug: "ms-cert", name: "ISO 27001 certified" },
+      },
+    ],
+  },
+  {
+    slug: "it-disaster-recovery",
+    name: "Disaster Recovery / Business Continuity",
+    summary: "BIA, RTO/RPO, DR site, runbooks, and DR test.",
+    description: "Establish a disaster recovery and business continuity capability. Includes BIA, recovery objectives, DR site, runbooks, and a full DR test.",
+    category: "IT Operations",
+    icon: "LifeBuoy",
+    phases: [
+      {
+        slug: "bia",
+        name: "BIA & Strategy",
+        tasks: [
+          { slug: "scope", name: "Scope & sponsorship", days: 3 },
+          { slug: "process-inventory", name: "Critical business process inventory", days: 5 },
+          { slug: "bia", name: "Business impact analysis", days: 12 },
+          { slug: "dependencies", name: "Application & infrastructure dependency mapping", days: 7 },
+          { slug: "rto", name: "Define RTO / RPO targets", days: 5 },
+          { slug: "strategy", name: "Recovery strategy options analysis", days: 5 },
+          { slug: "strategy-decision", name: "Strategy selection & funding approval", days: 3 },
+        ],
+        milestone: { slug: "ms-bia", name: "Strategy approved" },
+      },
+      {
+        slug: "site",
+        name: "DR Site Build",
+        tasks: [
+          { slug: "site-select", name: "DR site selection", days: 5 },
+          { slug: "facility", name: "Facility setup & power/cooling validation", days: 7 },
+          { slug: "infra", name: "Compute & storage build", days: 12 },
+          { slug: "network", name: "Network connectivity & circuits", days: 8 },
+          { slug: "security", name: "Site security & access controls", days: 5 },
+          { slug: "shared", name: "Shared services replication (AD, DNS, DHCP)", days: 7 },
+          { slug: "monitoring", name: "DR site monitoring & alerting", days: 4 },
+        ],
+        milestone: { slug: "ms-site", name: "DR site ready" },
+      },
+      {
+        slug: "replication",
+        name: "Replication & Data",
+        tasks: [
+          { slug: "tier1", name: "Tier-1 application replication setup", days: 10 },
+          { slug: "tier2", name: "Tier-2 application replication setup", days: 7 },
+          { slug: "tier3", name: "Tier-3 application replication setup", days: 5 },
+          { slug: "database", name: "Database replication & failover testing", days: 8 },
+          { slug: "backup", name: "Backup strategy alignment", days: 5 },
+          { slug: "validation", name: "Replication validation & integrity checks", days: 5 },
+        ],
+        milestone: { slug: "ms-replication", name: "Replication healthy" },
+      },
+      {
+        slug: "runbooks",
+        name: "Runbooks & Roles",
+        tasks: [
+          { slug: "runbooks", name: "Application recovery runbooks", days: 12 },
+          { slug: "infra-runbooks", name: "Infrastructure recovery runbooks", days: 7 },
+          { slug: "comms", name: "Comms tree & escalation procedures", days: 4 },
+          { slug: "decision", name: "Disaster declaration & decision criteria", days: 3 },
+          { slug: "training", name: "Crisis team training", days: 5 },
+          { slug: "vendor-contacts", name: "Vendor & third-party contact lists", days: 2 },
+        ],
+        milestone: { slug: "ms-runbooks", name: "Runbooks signed off" },
+      },
+      {
+        slug: "test",
+        name: "DR Test",
+        tasks: [
+          { slug: "tabletop", name: "Tabletop exercise", days: 2 },
+          { slug: "partial", name: "Partial failover test", days: 3 },
+          { slug: "full", name: "Full failover test", days: 4 },
+          { slug: "failback", name: "Failback procedure validation", days: 3 },
+          { slug: "lessons", name: "Lessons learned & remediation plan", days: 7 },
+          { slug: "remediation", name: "Remediation execution", days: 10 },
+        ],
+        milestone: { slug: "ms-test", name: "DR test successful" },
+      },
+    ],
+  },
+  {
+    slug: "it-itsm-implementation",
+    name: "IT Service Desk / ITSM Implementation (ITIL)",
+    summary: "Process design, tooling, knowledge, and service desk go-live.",
+    description: "Stand up an ITIL-aligned service desk. Covers process design (incident, request, problem, change), tooling configuration, knowledge base build, and go-live.",
+    category: "IT Operations",
+    icon: "Headphones",
+    phases: [
+      {
+        slug: "design",
+        name: "Process Design",
+        tasks: [
+          { slug: "kickoff", name: "Kickoff & sponsor alignment", days: 2 },
+          { slug: "incident", name: "Incident management process", days: 5 },
+          { slug: "request", name: "Service request management", days: 5 },
+          { slug: "problem", name: "Problem management process", days: 4 },
+          { slug: "change", name: "Change enablement process", days: 5 },
+          { slug: "config", name: "Configuration management approach", days: 5 },
+        ],
+        milestone: { slug: "ms-design", name: "Process design approved" },
+      },
+      {
+        slug: "tooling",
+        name: "Tooling",
+        tasks: [
+          { slug: "tool-select", name: "Tool selection", days: 7 },
+          { slug: "config", name: "Tool configuration", days: 15 },
+          { slug: "catalog", name: "Service catalog build", days: 8 },
+          { slug: "integ", name: "Integrations (email, monitoring)", days: 6 },
+          { slug: "reports", name: "Reporting & dashboards", days: 5 },
+        ],
+        milestone: { slug: "ms-tool", name: "Tooling configured" },
+      },
+      {
+        slug: "knowledge",
+        name: "Knowledge & Catalog",
+        tasks: [
+          { slug: "kb", name: "Knowledge base seeding", days: 10 },
+          { slug: "fulfillment", name: "Fulfilment workflows", days: 8 },
+          { slug: "sla", name: "SLA & priority matrix", days: 4 },
+        ],
+        milestone: { slug: "ms-knowledge", name: "Knowledge ready" },
+      },
+      {
+        slug: "people",
+        name: "People & Training",
+        tasks: [
+          { slug: "roles", name: "Roles & skill matrix", days: 4 },
+          { slug: "hire", name: "Service desk hiring", days: 20 },
+          { slug: "training", name: "Agent training", days: 10 },
+        ],
+        milestone: { slug: "ms-people", name: "Service desk ready" },
+      },
+      {
+        slug: "launch",
+        name: "Pilot & Launch",
+        tasks: [
+          { slug: "pilot", name: "Pilot department", days: 10 },
+          { slug: "feedback", name: "Pilot feedback & adjustments", days: 5 },
+          { slug: "rollout", name: "Enterprise rollout", days: 10 },
+          { slug: "hypercare", name: "Hypercare", days: 15 },
+        ],
+        milestone: { slug: "ms-live", name: "Service desk live" },
+      },
+    ],
+  },
+  {
+    slug: "it-website-redesign",
+    name: "Website Redesign & Replatform",
+    summary: "Discovery, design system, build, content migration, and launch.",
+    description: "A full website redesign and replatform — typically moving from a legacy CMS to a modern stack. Covers discovery, IA, visual design, build, content migration, and SEO-safe launch.",
+    category: "Digital Workplace",
+    icon: "Globe",
+    phases: [
+      {
+        slug: "discover",
+        name: "Discovery",
+        tasks: [
+          { slug: "kickoff", name: "Kickoff & charter", days: 2 },
+          { slug: "research", name: "Stakeholder & user research", days: 7 },
+          { slug: "audit", name: "Content audit", days: 5 },
+          { slug: "analytics", name: "Analytics & SEO baseline", days: 4 },
+          { slug: "competitive", name: "Competitive analysis", days: 3 },
+        ],
+        milestone: { slug: "ms-discover", name: "Discovery sign-off" },
+      },
+      {
+        slug: "ia",
+        name: "IA & Design",
+        tasks: [
+          { slug: "ia", name: "Information architecture", days: 5 },
+          { slug: "wireframes", name: "Wireframes", days: 7 },
+          { slug: "design-system", name: "Design system", days: 8 },
+          { slug: "visuals", name: "Page-level visuals", days: 8 },
+          { slug: "review", name: "Design review & approval", days: 3 },
+        ],
+        milestone: { slug: "ms-design", name: "Design approved" },
+      },
+      {
+        slug: "build",
+        name: "Build",
+        tasks: [
+          { slug: "platform", name: "Platform setup (CMS / hosting)", days: 5 },
+          { slug: "components", name: "Component library", days: 10 },
+          { slug: "templates", name: "Page templates", days: 10 },
+          { slug: "integrations", name: "Form & marketing integrations", days: 6 },
+          { slug: "i18n", name: "Localization & i18n", days: 5 },
+        ],
+        milestone: { slug: "ms-build", name: "Build complete" },
+      },
+      {
+        slug: "content",
+        name: "Content Migration",
+        tasks: [
+          { slug: "map", name: "Content mapping", days: 5 },
+          { slug: "migrate", name: "Content migration", days: 12 },
+          { slug: "redirects", name: "301 redirect map", days: 4 },
+          { slug: "media", name: "Media optimization", days: 4 },
+        ],
+        milestone: { slug: "ms-content", name: "Content migrated" },
+      },
+      {
+        slug: "qa",
+        name: "QA & Launch",
+        tasks: [
+          { slug: "qa", name: "Cross-browser & accessibility QA", days: 7 },
+          { slug: "perf", name: "Performance & Core Web Vitals", days: 4 },
+          { slug: "uat", name: "Stakeholder UAT", days: 5 },
+          { slug: "go-live", name: "Production go-live", days: 1 },
+          { slug: "monitor", name: "Post-launch SEO & analytics", days: 10 },
+        ],
+        milestone: { slug: "ms-launch", name: "Site live" },
+      },
+    ],
+  },
+  {
+    slug: "it-data-warehouse-bi",
+    name: "Data Warehouse + BI Implementation",
+    summary: "Source mapping, modeling, ETL, reports, and rollout.",
+    description: "Stand up a cloud data warehouse and a BI layer. Covers source mapping, dimensional modeling, ELT pipelines, semantic layer, reports, and user rollout.",
+    category: "Data & Analytics",
+    icon: "Database",
+    phases: [
+      {
+        slug: "discover",
+        name: "Discovery",
+        tasks: [
+          { slug: "kickoff", name: "Kickoff & sponsorship", days: 2 },
+          { slug: "use-cases", name: "Use-case workshops", days: 7 },
+          { slug: "sources", name: "Source system inventory", days: 5 },
+          { slug: "platform", name: "Platform selection", days: 5 },
+        ],
+        milestone: { slug: "ms-discover", name: "Discovery complete" },
+      },
+      {
+        slug: "platform",
+        name: "Platform Foundation",
+        tasks: [
+          { slug: "warehouse", name: "Provision data warehouse", days: 4 },
+          { slug: "lakehouse", name: "Storage & lakehouse zones", days: 4 },
+          { slug: "iam", name: "Access & data governance", days: 5 },
+          { slug: "ci", name: "Code & data CI/CD", days: 5 },
+          { slug: "obs", name: "Pipeline observability", days: 3 },
+        ],
+        milestone: { slug: "ms-platform", name: "Platform ready" },
+      },
+      {
+        slug: "model",
+        name: "Modeling",
+        tasks: [
+          { slug: "conceptual", name: "Conceptual model", days: 4 },
+          { slug: "logical", name: "Logical model", days: 6 },
+          { slug: "physical", name: "Physical model & DDL", days: 5 },
+          { slug: "semantic", name: "Semantic / metrics layer", days: 6 },
+        ],
+        milestone: { slug: "ms-model", name: "Models approved" },
+      },
+      {
+        slug: "ingest",
+        name: "Ingestion & ELT",
+        tasks: [
+          { slug: "extract", name: "Source extraction connectors", days: 10 },
+          { slug: "raw", name: "Raw / staging loads", days: 7 },
+          { slug: "transform", name: "Transformations (dbt / similar)", days: 12 },
+          { slug: "quality", name: "Data quality tests", days: 5 },
+          { slug: "history", name: "Slowly changing dimensions", days: 5 },
+        ],
+        milestone: { slug: "ms-ingest", name: "Pipelines green" },
+      },
+      {
+        slug: "bi",
+        name: "BI & Reports",
+        tasks: [
+          { slug: "executive", name: "Executive dashboard", days: 7 },
+          { slug: "ops", name: "Operational dashboards", days: 10 },
+          { slug: "self-serve", name: "Self-serve datasets", days: 5 },
+          { slug: "training", name: "Analyst training", days: 5 },
+        ],
+        milestone: { slug: "ms-bi", name: "Reports published" },
+      },
+      {
+        slug: "launch",
+        name: "Launch & Adoption",
+        tasks: [
+          { slug: "uat", name: "UAT & sign-off", days: 5 },
+          { slug: "go-live", name: "Production cutover", days: 2 },
+          { slug: "adoption", name: "Adoption campaign", days: 15 },
+        ],
+        milestone: { slug: "ms-launch", name: "Warehouse + BI live" },
+      },
+    ],
+  },
+  {
+    slug: "it-ai-ml-deployment",
+    name: "AI / ML Model Development & Deployment",
+    summary: "Problem framing, data, modeling, MLOps, and monitoring.",
+    description: "Build and deploy a production ML model: problem framing, data sourcing, training, MLOps pipeline, deployment, and monitoring with feedback loops.",
+    category: "Data & Analytics",
+    icon: "Brain",
+    phases: [
+      {
+        slug: "frame",
+        name: "Problem Framing",
+        tasks: [
+          { slug: "kickoff", name: "Kickoff & business alignment", days: 2 },
+          { slug: "objective", name: "Objective & success metrics", days: 3 },
+          { slug: "feasibility", name: "Feasibility & data availability", days: 5 },
+          { slug: "ethics", name: "Ethics & risk review", days: 3 },
+        ],
+        milestone: { slug: "ms-frame", name: "Problem statement approved" },
+      },
+      {
+        slug: "data",
+        name: "Data",
+        tasks: [
+          { slug: "sources", name: "Identify data sources", days: 4 },
+          { slug: "ingest", name: "Data ingestion", days: 7 },
+          { slug: "label", name: "Labeling / annotation", days: 10 },
+          { slug: "quality", name: "Data quality assessment", days: 5 },
+          { slug: "split", name: "Train / val / test splits", days: 2 },
+        ],
+        milestone: { slug: "ms-data", name: "Dataset ready" },
+      },
+      {
+        slug: "model",
+        name: "Modeling",
+        tasks: [
+          { slug: "baseline", name: "Baseline model", days: 4 },
+          { slug: "features", name: "Feature engineering", days: 8 },
+          { slug: "experiments", name: "Model experiments & tuning", days: 12 },
+          { slug: "evaluation", name: "Offline evaluation", days: 5 },
+          { slug: "fairness", name: "Bias / fairness analysis", days: 4 },
+        ],
+        milestone: { slug: "ms-model", name: "Model selected" },
+      },
+      {
+        slug: "mlops",
+        name: "MLOps",
+        tasks: [
+          { slug: "registry", name: "Model registry", days: 4 },
+          { slug: "pipeline", name: "Training pipeline (CI/CD)", days: 8 },
+          { slug: "feature-store", name: "Feature store", days: 6 },
+          { slug: "serving", name: "Online / batch serving infra", days: 7 },
+        ],
+        milestone: { slug: "ms-mlops", name: "MLOps platform ready" },
+      },
+      {
+        slug: "deploy",
+        name: "Deploy",
+        tasks: [
+          { slug: "shadow", name: "Shadow deployment", days: 5 },
+          { slug: "ab", name: "A/B test", days: 10 },
+          { slug: "rollout", name: "Production rollout", days: 3 },
+        ],
+        milestone: { slug: "ms-deploy", name: "Model in production" },
+      },
+      {
+        slug: "monitor",
+        name: "Monitoring & Iteration",
+        tasks: [
+          { slug: "drift", name: "Drift & performance monitoring", days: 10 },
+          { slug: "feedback", name: "Feedback loop & retraining cadence", days: 7 },
+          { slug: "doc", name: "Model card & documentation", days: 4 },
+        ],
+        milestone: { slug: "ms-monitor", name: "Monitoring live" },
+      },
+    ],
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Seeder
+// ---------------------------------------------------------------------------
+
+interface BuiltTemplate {
+  slug: string;
+  name: string;
+  summary: string;
+  description: string;
+  category: string;
+  icon: string;
+  industry: string;
+  estimatedDurationDays: number;
+  items: BuiltItem[];
+  itemCount: number;
+  milestoneCount: number;
+}
+
+// ---------------------------------------------------------------------------
+// Common cross-cutting phases applied to every IT template.
+// Real enterprise IT projects always include governance/PMO setup at the start
+// and a structured closeout. Layering these in here keeps the per-template
+// authoring focused on what's domain-specific while ensuring every template
+// has the depth needed for realistic plans (40–120 items each).
+// ---------------------------------------------------------------------------
+
+const PMO_PHASE: PhaseSpec = {
+  slug: "pmo",
+  name: "Project Governance & PMO",
+  tasks: [
+    { slug: "charter", name: "Project charter & sponsor sign-off", days: 3 },
+    { slug: "raci", name: "Stakeholder map & RACI", days: 2 },
+    { slug: "risk-register", name: "Risk & assumption register", days: 3 },
+    { slug: "comms-plan", name: "Communications & escalation plan", days: 2 },
+    { slug: "budget-baseline", name: "Budget baseline & cost tracking", days: 3 },
+    { slug: "change-control", name: "Change control & approval process", days: 2 },
+    { slug: "quality-plan", name: "Quality & acceptance criteria plan", days: 2 },
+    { slug: "procurement", name: "Procurement & vendor onboarding", days: 5 },
+  ],
+  milestone: { slug: "ms-pmo-baseline", name: "Governance baseline approved" },
+};
+
+const CLOSEOUT_PHASE: PhaseSpec = {
+  slug: "closeout",
+  name: "Closeout & Lessons Learned",
+  tasks: [
+    { slug: "ops-handover", name: "Operations handover & runbooks", days: 3 },
+    { slug: "support-kt", name: "Knowledge transfer to support team", days: 3 },
+    { slug: "end-user-training", name: "End-user training & enablement", days: 5 },
+    { slug: "lessons-learned", name: "Lessons learned workshop", days: 2 },
+    { slug: "closeout-report", name: "Project closeout report", days: 2 },
+    { slug: "benefits-review", name: "Benefits realization review", days: 2 },
+    { slug: "vendor-closeout", name: "Contract & vendor closeout", days: 2 },
+  ],
+  milestone: { slug: "ms-project-closed", name: "Project formally closed" },
+};
+
+function withCommonPhases(plan: ItTemplatePlan): ItTemplatePlan {
+  return {
+    ...plan,
+    phases: [PMO_PHASE, ...plan.phases, CLOSEOUT_PHASE],
+  };
+}
+
+function buildAll(): BuiltTemplate[] {
+  return PLANS.map((rawPlan) => {
+    const plan = withCommonPhases(rawPlan);
+    const { items, totalDays } = buildTemplate(plan);
+    const milestoneCount = items.filter((i) => i.isMilestone).length;
+    return {
+      slug: plan.slug,
+      name: plan.name,
+      summary: plan.summary,
+      description: plan.description,
+      category: plan.category,
+      icon: plan.icon,
+      industry: "it",
+      estimatedDurationDays: totalDays,
+      items,
+      itemCount: items.filter((i) => !i.isSummary).length,
+      milestoneCount,
+    };
+  });
+}
+
+/**
+ * Idempotently seed the IT system templates. Safe to call on every boot —
+ * upserts by slug, then replaces items in a transaction.
+ */
+export async function seedItSystemTemplates(): Promise<void> {
+  const built = buildAll();
+  for (const tpl of built) {
+    try {
+      await upsertOne(tpl);
+    } catch (err) {
+      console.error(`[it-templates] Failed to seed ${tpl.slug}:`, err);
+    }
+  }
+}
+
+async function upsertOne(tpl: BuiltTemplate): Promise<void> {
+  const existing = await db
+    .select()
+    .from(projectTemplates)
+    .where(and(eq(projectTemplates.slug, tpl.slug), eq(projectTemplates.isSystem, true)));
+
+  let templateId: number;
+
+  if (existing.length === 0) {
+    const [created] = await db
+      .insert(projectTemplates)
+      .values({
+        organizationId: null,
+        name: tpl.name,
+        description: tpl.description,
+        sourceType: "system",
+        originalFileName: null,
+        storedFileUrl: null,
+        itemCount: tpl.itemCount,
+        milestoneCount: tpl.milestoneCount,
+        createdBy: null,
+        sourceProjectId: null,
+        isSystem: true,
+        industry: tpl.industry,
+        category: tpl.category,
+        slug: tpl.slug,
+        icon: tpl.icon,
+        estimatedDurationDays: tpl.estimatedDurationDays,
+        summary: tpl.summary,
+      })
+      .returning();
+    templateId = created.id;
+  } else {
+    const row = existing[0];
+    templateId = row.id;
+    await db
+      .update(projectTemplates)
+      .set({
+        name: tpl.name,
+        description: tpl.description,
+        sourceType: "system",
+        itemCount: tpl.itemCount,
+        milestoneCount: tpl.milestoneCount,
+        isSystem: true,
+        industry: tpl.industry,
+        category: tpl.category,
+        icon: tpl.icon,
+        estimatedDurationDays: tpl.estimatedDurationDays,
+        summary: tpl.summary,
+        updatedAt: new Date(),
+      })
+      .where(eq(projectTemplates.id, templateId));
+  }
+
+  // Replace items inside a transaction so we never leave the template empty.
+  await db.transaction(async (tx) => {
+    await tx.delete(projectTemplateItems).where(eq(projectTemplateItems.templateId, templateId));
+
+    // Assign synthetic taskIds (1..N) for parent + predecessor wiring. The
+    // create-from-template flow uses these to rebuild the parent/child tree
+    // and predecessor chains in the new project.
+    const slugToTaskId = new Map<string, number>();
+    tpl.items.forEach((item, idx) => {
+      slugToTaskId.set(item.slug, idx + 1);
+    });
+
+    const rows: InsertProjectTemplateItem[] = tpl.items.map((item, idx) => {
+      const taskId = idx + 1;
+      const parentTaskId = item.parentSlug ? slugToTaskId.get(item.parentSlug) ?? null : null;
+      const predecessors = item.predecessorSlugs
+        .map((s) => {
+          const pid = slugToTaskId.get(s);
+          if (!pid) return null;
+          return { predecessorTaskId: pid, type: "finish-to-start", lagDays: 0 };
+        })
+        .filter((x): x is { predecessorTaskId: number; type: string; lagDays: number } => x !== null);
+
+      return {
+        templateId,
+        taskId,
+        wbs: null,
+        name: item.name,
+        description: null,
+        startDate: null,
+        endDate: null,
+        duration: item.durationDays > 0 ? `${item.durationDays} days` : item.isMilestone ? "0 days" : null,
+        durationDays: item.durationDays != null ? item.durationDays : null,
+        outlineLevel: item.outlineLevel,
+        parentTaskId,
+        isSummary: item.isSummary,
+        isMilestone: item.isMilestone,
+        predecessors: predecessors.length > 0 ? JSON.stringify(predecessors) : null,
+        notes: item.notes ?? null,
+        workHours: null,
+      };
+    });
+
+    if (rows.length > 0) {
+      // Chunk inserts to keep parameter count manageable on big templates.
+      const CHUNK = 200;
+      for (let i = 0; i < rows.length; i += CHUNK) {
+        await tx.insert(projectTemplateItems).values(rows.slice(i, i + CHUNK));
+      }
+    }
+  });
+}
+
+export const IT_TEMPLATE_SLUGS = PLANS.map((p) => p.slug);

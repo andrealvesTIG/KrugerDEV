@@ -53,6 +53,7 @@ import { registerLocationRoutes } from "./routes/locationRoutes";
 import { registerProjectTabTemplateRoutes } from "./routes/projectTabTemplateRoutes";
 import { seedDatabase } from "./routes/helpers";
 import { seedSystemTemplates, backfillDefaultTemplateForOrgs, ensureDefaultTemplateRegistry } from "./services/projectTabTemplateSeed";
+import { seedItSystemTemplates } from "./services/itProjectTemplateSeed";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -156,6 +157,16 @@ export async function registerRoutes(
       await ensureDefaultTemplateRegistry();
     } catch (err) {
       console.error('[project-tab-templates] Seed/backfill failed:', err);
+    }
+  })();
+
+  // Seed the IT system project templates library. Idempotent — upserts each
+  // template by slug and replaces its items in a transaction.
+  (async () => {
+    try {
+      await seedItSystemTemplates();
+    } catch (err) {
+      console.error('[it-templates] Seed failed:', err);
     }
   })();
 

@@ -41,7 +41,7 @@ import {
   type ProjectTemplate, type InsertProjectTemplate,
   type ProjectTemplateItem, type InsertProjectTemplateItem,
 } from "@shared/schema";
-import { eq, and, desc, asc, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, sql, inArray, isNull } from "drizzle-orm";
 
 export async function getProjectDocuments(projectId: number): Promise<ProjectDocument[]> {
   return await db.select().from(projectDocuments)
@@ -855,9 +855,54 @@ export async function updateApiTokenLastUsed(id: number): Promise<void> {
 }
 
 export async function getProjectTemplates(organizationId: number): Promise<ProjectTemplate[]> {
+  // Org-scoped listing — system templates are excluded so "My Templates" stays
+  // strictly the templates the organization itself has uploaded or saved.
   return db.select().from(projectTemplates)
-    .where(eq(projectTemplates.organizationId, organizationId))
+    .where(and(
+      eq(projectTemplates.organizationId, organizationId),
+      eq(projectTemplates.isSystem, false),
+    ))
     .orderBy(desc(projectTemplates.createdAt));
+}
+
+export async function getProjectTemplatesScoped(opts: {
+  scope?: 'org' | 'system' | 'all';
+  organizationId?: number | null;
+  industry?: string | null;
+  category?: string | null;
+}): Promise<ProjectTemplate[]> {
+  const scope = opts.scope || 'all';
+  const conds: any[] = [];
+
+  if (scope === 'system') {
+    conds.push(eq(projectTemplates.isSystem, true));
+  } else if (scope === 'org') {
+    if (opts.organizationId == null) return [];
+    conds.push(and(
+      eq(projectTemplates.organizationId, opts.organizationId),
+      eq(projectTemplates.isSystem, false),
+    ));
+  } else {
+    // 'all' — system templates plus, if org provided, that org's templates
+    if (opts.organizationId != null) {
+      conds.push(sql`(${projectTemplates.isSystem} = TRUE OR ${projectTemplates.organizationId} = ${opts.organizationId})`);
+    } else {
+      conds.push(eq(projectTemplates.isSystem, true));
+    }
+  }
+
+  if (opts.industry) conds.push(eq(projectTemplates.industry, opts.industry));
+  if (opts.category) conds.push(eq(projectTemplates.category, opts.category));
+
+  return db.select().from(projectTemplates)
+    .where(and(...conds))
+    .orderBy(asc(projectTemplates.category), asc(projectTemplates.name));
+}
+
+export async function getSystemProjectTemplateBySlug(slug: string): Promise<ProjectTemplate | undefined> {
+  const [tmpl] = await db.select().from(projectTemplates)
+    .where(and(eq(projectTemplates.slug, slug), eq(projectTemplates.isSystem, true)));
+  return tmpl;
 }
 
 export async function getProjectTemplate(id: number): Promise<ProjectTemplate | undefined> {

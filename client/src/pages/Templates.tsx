@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { formatDuration } from "@/lib/workingDays";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
@@ -44,6 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -61,11 +62,41 @@ import {
   ArrowLeft,
   ListTree,
   Milestone,
+  Sparkles,
+  Lock,
+  Mail,
+  // icons that may be referenced by template.icon
+  Code,
+  ListChecks,
+  Smartphone,
+  Cloud,
+  Layers,
+  Server,
+  Network,
+  Building2,
+  Users,
+  ShieldAlert,
+  FileCheck,
+  BadgeCheck,
+  LifeBuoy,
+  Headphones,
+  Globe,
+  Database,
+  Brain,
+  // industry icons
+  Heart,
+  Landmark,
+  Factory,
+  Cpu,
+  HardHat,
+  Zap,
+  Building,
+  MonitorSmartphone,
 } from "lucide-react";
 
 interface ProjectTemplate {
   id: number;
-  organizationId: number;
+  organizationId: number | null;
   name: string;
   description: string | null;
   sourceType: string;
@@ -73,8 +104,15 @@ interface ProjectTemplate {
   storedFileUrl: string | null;
   itemCount: number;
   milestoneCount: number;
-  createdBy: string;
+  createdBy: string | null;
   sourceProjectId: number | null;
+  isSystem: boolean;
+  industry: string | null;
+  category: string | null;
+  slug: string | null;
+  icon: string | null;
+  estimatedDurationDays: number | null;
+  summary: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -103,12 +141,69 @@ interface ProjectTemplate_WithItems extends ProjectTemplate {
   items: TemplateItem[];
 }
 
+const TEMPLATE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  Code,
+  ListChecks,
+  Smartphone,
+  Cloud,
+  Layers,
+  Server,
+  Network,
+  Mail,
+  Building2,
+  Users,
+  ShieldAlert,
+  FileCheck,
+  BadgeCheck,
+  LifeBuoy,
+  Headphones,
+  Globe,
+  Database,
+  Brain,
+  FileText,
+  FolderKanban,
+};
+
+interface IndustryDef {
+  key: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  comingSoon: boolean;
+}
+
+const INDUSTRIES: IndustryDef[] = [
+  { key: "it", label: "Information Technology", icon: MonitorSmartphone, comingSoon: false },
+  { key: "healthcare", label: "Healthcare", icon: Heart, comingSoon: true },
+  { key: "financial-services", label: "Financial Services", icon: Landmark, comingSoon: true },
+  { key: "manufacturing", label: "Manufacturing", icon: Factory, comingSoon: true },
+  { key: "industrial-automation", label: "Industrial Automation", icon: Cpu, comingSoon: true },
+  { key: "capital-projects", label: "Capital Projects", icon: HardHat, comingSoon: true },
+  { key: "energy", label: "Energy & Utilities", icon: Zap, comingSoon: true },
+  { key: "government", label: "Government & Public Sector", icon: Building, comingSoon: true },
+];
+
+function getTemplateIcon(name: string | null | undefined): React.ComponentType<{ className?: string }> {
+  if (name && TEMPLATE_ICONS[name]) return TEMPLATE_ICONS[name];
+  return FileText;
+}
+
+function formatDays(days: number | null | undefined): string {
+  if (days == null) return "—";
+  if (days < 7) return `${days} days`;
+  if (days < 30) return `${Math.round(days / 7)} weeks`;
+  if (days < 365) return `${Math.round(days / 30)} months`;
+  return `${(days / 365).toFixed(1)} years`;
+}
+
 export default function Templates() {
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const reimportFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [view, setView] = useState<"library" | "my-templates">("library");
+  const [activeIndustry, setActiveIndustry] = useState<string>("it");
 
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [showFromProjectDialog, setShowFromProjectDialog] = useState(false);
@@ -136,13 +231,29 @@ export default function Templates() {
 
   const orgId = currentOrganization?.id;
 
-  const { data: templates = [], isLoading } = useQuery<ProjectTemplate[]>({
-    queryKey: ["/api/project-templates", orgId],
+  // Library: pull all system templates for the active industry. The filter
+  // happens server-side, but we always fetch the IT set so industry tab
+  // switches are instant once cached.
+  const { data: systemTemplates = [], isLoading: systemLoading } = useQuery<ProjectTemplate[]>({
+    queryKey: ["/api/project-templates", "system", activeIndustry],
     queryFn: async () => {
-      const res = await apiRequest("GET", `/api/project-templates?organizationId=${orgId}`);
+      const res = await apiRequest(
+        "GET",
+        `/api/project-templates?scope=system&industry=${encodeURIComponent(activeIndustry)}`,
+      );
       return res.json();
     },
-    enabled: !!orgId,
+    enabled: view === "library" && !INDUSTRIES.find((i) => i.key === activeIndustry)?.comingSoon,
+  });
+
+  // My Templates: org-scoped templates only.
+  const { data: orgTemplates = [], isLoading: orgLoading } = useQuery<ProjectTemplate[]>({
+    queryKey: ["/api/project-templates", "org", orgId],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/project-templates?scope=org&organizationId=${orgId}`);
+      return res.json();
+    },
+    enabled: !!orgId && view === "my-templates",
   });
 
   const { data: projects = [] } = useQuery<any[]>({
@@ -221,12 +332,19 @@ export default function Templates() {
   const createProjectMutation = useMutation({
     mutationFn: async () => {
       if (!selectedTemplate || !createProjectName) throw new Error("Missing required fields");
-      const res = await apiRequest("POST", `/api/project-templates/${selectedTemplate.id}/create-project`, {
+      const body: Record<string, any> = {
         name: createProjectName,
         description: createProjectDescription,
         startDate: createProjectStartDate || undefined,
         portfolioId: createProjectPortfolioId ? Number(createProjectPortfolioId) : undefined,
-      });
+      };
+      // System templates need a destination org since they live outside any
+      // single tenant. Use the active organization.
+      if (selectedTemplate.isSystem) {
+        if (!orgId) throw new Error("No organization selected");
+        body.organizationId = orgId;
+      }
+      const res = await apiRequest("POST", `/api/project-templates/${selectedTemplate.id}/create-project`, body);
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || "Failed to create project");
@@ -290,8 +408,14 @@ export default function Templates() {
   });
 
   const duplicateMutation = useMutation({
-    mutationFn: async (templateId: number) => {
-      const res = await apiRequest("POST", `/api/project-templates/${templateId}/duplicate`);
+    mutationFn: async (template: ProjectTemplate) => {
+      const body: Record<string, any> = {};
+      // Duplicating a system template requires a destination organization.
+      if (template.isSystem) {
+        if (!orgId) throw new Error("No organization selected");
+        body.organizationId = orgId;
+      }
+      const res = await apiRequest("POST", `/api/project-templates/${template.id}/duplicate`, body);
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || "Failed to duplicate template");
@@ -300,7 +424,7 @@ export default function Templates() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/project-templates"] });
-      toast({ title: "Template duplicated" });
+      toast({ title: "Saved to your templates", description: "Find the editable copy under My Templates." });
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -390,6 +514,19 @@ export default function Templates() {
     if (reimportFileInputRef.current) reimportFileInputRef.current.value = "";
   }, [selectedTemplate, reimportMutation]);
 
+  // Group system templates by category for display.
+  const groupedSystem = useMemo(() => {
+    const groups = new Map<string, ProjectTemplate[]>();
+    for (const t of systemTemplates) {
+      const cat = t.category || "Uncategorized";
+      if (!groups.has(cat)) groups.set(cat, []);
+      groups.get(cat)!.push(t);
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [systemTemplates]);
+
+  const activeIndustryDef = INDUSTRIES.find((i) => i.key === activeIndustry);
+
   if (!orgId) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -399,36 +536,57 @@ export default function Templates() {
   }
 
   if (detailView) {
+    const Icon = getTemplateIcon(detailView.icon);
+    const isSystem = detailView.isSystem;
     return (
       <div className="space-y-6 p-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => setDetailView(null)}>
+          <Button variant="ghost" size="sm" onClick={() => setDetailView(null)} data-testid="button-back-templates">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Templates
           </Button>
         </div>
 
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">{detailView.name}</h1>
-            {detailView.description && (
-              <p className="mt-1 text-muted-foreground">{detailView.description}</p>
-            )}
-            <div className="mt-2 flex items-center gap-3">
-              <Badge variant={detailView.sourceType === "mpp" ? "default" : "secondary"}>
-                {detailView.sourceType === "mpp" ? "MPP Import" : "From Project"}
-              </Badge>
-              {detailView.originalFileName && (
-                <span className="text-sm text-muted-foreground">{detailView.originalFileName}</span>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-4 min-w-0">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <Icon className="h-6 w-6 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold">{detailView.name}</h1>
+              {(detailView.summary || detailView.description) && (
+                <p className="mt-1 text-muted-foreground">{detailView.summary || detailView.description}</p>
               )}
-              <span className="text-sm text-muted-foreground">
-                {detailView.itemCount} tasks, {detailView.milestoneCount} milestones
-              </span>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {isSystem && (
+                  <Badge variant="default" className="gap-1">
+                    <Sparkles className="h-3 w-3" />
+                    System template
+                  </Badge>
+                )}
+                {detailView.category && (
+                  <Badge variant="outline">{detailView.category}</Badge>
+                )}
+                {!isSystem && (
+                  <Badge variant={detailView.sourceType === "mpp" ? "default" : "secondary"}>
+                    {detailView.sourceType === "mpp" ? "MPP Import" : detailView.sourceType === "system-copy" ? "Copied from library" : "From Project"}
+                  </Badge>
+                )}
+                {detailView.originalFileName && (
+                  <span className="text-sm text-muted-foreground">{detailView.originalFileName}</span>
+                )}
+                <span className="text-sm text-muted-foreground">
+                  {detailView.itemCount} items · {detailView.milestoneCount} milestones
+                </span>
+                {detailView.estimatedDurationDays != null && (
+                  <span className="text-sm text-muted-foreground">~{formatDays(detailView.estimatedDurationDays)}</span>
+                )}
+              </div>
             </div>
           </div>
-          <div className="flex gap-2">
-            {detailView.storedFileUrl && (
-              <Button variant="outline" size="sm" onClick={() => handleDownload(detailView)}>
+          <div className="flex shrink-0 gap-2">
+            {detailView.storedFileUrl && !isSystem && (
+              <Button variant="outline" size="sm" onClick={() => handleDownload(detailView)} data-testid="button-download-template">
                 <Download className="mr-2 h-4 w-4" />
                 Download File
               </Button>
@@ -438,12 +596,13 @@ export default function Templates() {
               onClick={() => {
                 setSelectedTemplate(detailView);
                 setCreateProjectName("");
-                setCreateProjectDescription(detailView.description || "");
+                setCreateProjectDescription(detailView.summary || detailView.description || "");
                 setShowCreateProjectDialog(true);
               }}
+              data-testid="button-use-template"
             >
               <Plus className="mr-2 h-4 w-4" />
-              Create Project
+              Use this template
             </Button>
           </div>
         </div>
@@ -490,7 +649,7 @@ export default function Templates() {
                           </div>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {item.duration || (item.durationDays != null ? formatDuration(item.durationDays) : "-")}
+                          {item.duration || (item.durationDays != null ? formatDuration(Number(item.durationDays)) : "-")}
                         </TableCell>
                         <TableCell>
                           {item.isMilestone ? (
@@ -519,147 +678,239 @@ export default function Templates() {
         <div>
           <h1 className="text-2xl font-bold">Project Templates</h1>
           <p className="text-muted-foreground">
-            Create reusable project templates from MPP files or existing projects.
+            Browse a curated library of project templates, or save your own from existing work.
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
-          <Button variant="outline" onClick={() => setShowFromProjectDialog(true)}>
+          <Button variant="outline" onClick={() => setShowFromProjectDialog(true)} data-testid="button-from-project">
             <FolderKanban className="mr-2 h-4 w-4" />
             From Project
           </Button>
-          <Button onClick={() => setShowUploadDialog(true)}>
+          <Button onClick={() => setShowUploadDialog(true)} data-testid="button-upload-file">
             <Upload className="mr-2 h-4 w-4" />
             Upload File
           </Button>
         </div>
       </div>
 
-      <Separator />
+      <Tabs value={view} onValueChange={(v) => setView(v as "library" | "my-templates")} className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="library" data-testid="tab-library">
+            <Sparkles className="mr-2 h-4 w-4" />
+            Browse Library
+          </TabsTrigger>
+          <TabsTrigger value="my-templates" data-testid="tab-my-templates">
+            <FolderKanban className="mr-2 h-4 w-4" />
+            My Templates
+          </TabsTrigger>
+        </TabsList>
 
-      {isLoading ? (
-        <div className="flex h-64 items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      ) : templates.length === 0 ? (
-        <Card className="py-16">
-          <CardContent className="flex flex-col items-center justify-center text-center">
-            <FileText className="mb-4 h-12 w-12 text-muted-foreground" />
-            <h3 className="text-lg font-semibold">No templates yet</h3>
-            <p className="mt-1 text-muted-foreground max-w-sm">
-              Upload an MPP/XML/CSV file or save an existing project as a template to get started.
-            </p>
-            <div className="mt-4 flex gap-2">
-              <Button variant="outline" onClick={() => setShowFromProjectDialog(true)}>
-                <FolderKanban className="mr-2 h-4 w-4" />
-                From Project
-              </Button>
-              <Button onClick={() => setShowUploadDialog(true)}>
-                <Upload className="mr-2 h-4 w-4" />
-                Upload File
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {templates.map((template) => (
-            <Card
-              key={template.id}
-              className="cursor-pointer transition-shadow hover:shadow-md"
-              onClick={() => handleViewDetails(template)}
-            >
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-base truncate">{template.name}</CardTitle>
-                    {template.description && (
-                      <CardDescription className="mt-1 line-clamp-2">
-                        {template.description}
-                      </CardDescription>
+        <TabsContent value="library" className="space-y-6">
+          <Tabs value={activeIndustry} onValueChange={setActiveIndustry}>
+            <TabsList className="flex w-full flex-wrap h-auto justify-start gap-1">
+              {INDUSTRIES.map((ind) => {
+                const Icon = ind.icon;
+                return (
+                  <TabsTrigger key={ind.key} value={ind.key} className="gap-2" data-testid={`tab-industry-${ind.key}`}>
+                    <Icon className="h-4 w-4" />
+                    {ind.label}
+                    {ind.comingSoon && (
+                      <Badge variant="secondary" className="ml-1 text-[10px] px-1 py-0">Soon</Badge>
                     )}
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          setSelectedTemplate(template);
-                          setCreateProjectName("");
-                          setCreateProjectDescription(template.description || "");
-                          setShowCreateProjectDialog(true);
-                        }}
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Create Project
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          setSelectedTemplate(template);
-                          setEditName(template.name);
-                          setEditDescription(template.description || "");
-                          setShowEditDialog(true);
-                        }}
-                      >
-                        <Edit className="mr-2 h-4 w-4" />
-                        Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => duplicateMutation.mutate(template.id)}>
-                        <Copy className="mr-2 h-4 w-4" />
-                        Duplicate
-                      </DropdownMenuItem>
-                      {template.storedFileUrl && (
-                        <>
-                          <DropdownMenuItem onClick={() => handleDownload(template)}>
-                            <Download className="mr-2 h-4 w-4" />
-                            Download File
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleReimport(template)}>
-                            <RefreshCw className="mr-2 h-4 w-4" />
-                            Re-import File
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={() => {
-                          setSelectedTemplate(template);
-                          setShowDeleteConfirm(true);
-                        }}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                  <Badge variant={template.sourceType === "mpp" ? "default" : "secondary"} className="text-xs">
-                    {template.sourceType === "mpp" ? "MPP" : "Project"}
-                  </Badge>
-                  <span>{template.itemCount} tasks</span>
-                  {template.milestoneCount > 0 && (
-                    <span>{template.milestoneCount} milestones</span>
-                  )}
-                </div>
-                {template.originalFileName && (
-                  <p className="mt-2 text-xs text-muted-foreground truncate">
-                    {template.originalFileName}
-                  </p>
-                )}
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Created {new Date(template.createdAt).toLocaleDateString()}
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </Tabs>
+
+          {activeIndustryDef?.comingSoon ? (
+            <Card className="py-16">
+              <CardContent className="flex flex-col items-center justify-center text-center">
+                <activeIndustryDef.icon className="mb-4 h-12 w-12 text-muted-foreground" />
+                <h3 className="text-lg font-semibold">{activeIndustryDef.label} templates — coming soon</h3>
+                <p className="mt-1 max-w-md text-muted-foreground">
+                  We're building a curated set of templates for {activeIndustryDef.label.toLowerCase()}.
+                  In the meantime, you can upload your own MPP, XML, or CSV file or save an existing project.
                 </p>
+                <div className="mt-6 flex gap-2">
+                  <Button asChild variant="outline" size="sm">
+                    <a href={`mailto:templates@projectsynchron.com?subject=${encodeURIComponent("Template request: " + activeIndustryDef.label)}`}>
+                      <Mail className="mr-2 h-4 w-4" />
+                      Request a template
+                    </a>
+                  </Button>
+                  <Button size="sm" onClick={() => setShowUploadDialog(true)}>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload your own
+                  </Button>
+                </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
-      )}
+          ) : systemLoading ? (
+            <div className="flex h-64 items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : systemTemplates.length === 0 ? (
+            <Card className="py-16">
+              <CardContent className="flex flex-col items-center justify-center text-center">
+                <FileText className="mb-4 h-12 w-12 text-muted-foreground" />
+                <h3 className="text-lg font-semibold">No templates available yet</h3>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-8">
+              {groupedSystem.map(([category, items]) => (
+                <div key={category} className="space-y-3">
+                  <h2 className="text-lg font-semibold">{category}</h2>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {items.map((template) => (
+                      <SystemTemplateCard
+                        key={template.id}
+                        template={template}
+                        onView={handleViewDetails}
+                        onUse={(t) => {
+                          setSelectedTemplate(t);
+                          setCreateProjectName("");
+                          setCreateProjectDescription(t.summary || t.description || "");
+                          setShowCreateProjectDialog(true);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="my-templates" className="space-y-6">
+          {orgLoading ? (
+            <div className="flex h-64 items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : orgTemplates.length === 0 ? (
+            <Card className="py-16">
+              <CardContent className="flex flex-col items-center justify-center text-center">
+                <FileText className="mb-4 h-12 w-12 text-muted-foreground" />
+                <h3 className="text-lg font-semibold">No templates yet</h3>
+                <p className="mt-1 text-muted-foreground max-w-sm">
+                  Upload an MPP/XML/CSV file or save an existing project as a template to get started.
+                </p>
+                <div className="mt-4 flex gap-2">
+                  <Button variant="outline" onClick={() => setShowFromProjectDialog(true)}>
+                    <FolderKanban className="mr-2 h-4 w-4" />
+                    From Project
+                  </Button>
+                  <Button onClick={() => setShowUploadDialog(true)}>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload File
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {orgTemplates.map((template) => (
+                <Card
+                  key={template.id}
+                  className="cursor-pointer transition-shadow hover:shadow-md"
+                  onClick={() => handleViewDetails(template)}
+                  data-testid={`card-template-${template.id}`}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-base truncate">{template.name}</CardTitle>
+                        {template.description && (
+                          <CardDescription className="mt-1 line-clamp-2">
+                            {template.description}
+                          </CardDescription>
+                        )}
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setSelectedTemplate(template);
+                              setCreateProjectName("");
+                              setCreateProjectDescription(template.description || "");
+                              setShowCreateProjectDialog(true);
+                            }}
+                          >
+                            <Plus className="mr-2 h-4 w-4" />
+                            Use this template
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setSelectedTemplate(template);
+                              setEditName(template.name);
+                              setEditDescription(template.description || "");
+                              setShowEditDialog(true);
+                            }}
+                          >
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => duplicateMutation.mutate(template)}>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Duplicate
+                          </DropdownMenuItem>
+                          {template.storedFileUrl && (
+                            <>
+                              <DropdownMenuItem onClick={() => handleDownload(template)}>
+                                <Download className="mr-2 h-4 w-4" />
+                                Download File
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleReimport(template)}>
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                                Re-import File
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => {
+                              setSelectedTemplate(template);
+                              setShowDeleteConfirm(true);
+                            }}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                      <Badge variant={template.sourceType === "mpp" ? "default" : "secondary"} className="text-xs">
+                        {template.sourceType === "mpp" ? "MPP" : template.sourceType === "system-copy" ? "From Library" : "Project"}
+                      </Badge>
+                      <span>{template.itemCount} tasks</span>
+                      {template.milestoneCount > 0 && (
+                        <span>{template.milestoneCount} milestones</span>
+                      )}
+                    </div>
+                    {template.originalFileName && (
+                      <p className="mt-2 text-xs text-muted-foreground truncate">
+                        {template.originalFileName}
+                      </p>
+                    )}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Created {new Date(template.createdAt).toLocaleDateString()}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       <input
         ref={reimportFileInputRef}
@@ -913,5 +1164,62 @@ export default function Templates() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+interface SystemTemplateCardProps {
+  template: ProjectTemplate;
+  onView: (t: ProjectTemplate) => void;
+  onUse: (t: ProjectTemplate) => void;
+}
+
+function SystemTemplateCard({ template, onView, onUse }: SystemTemplateCardProps) {
+  const Icon = getTemplateIcon(template.icon);
+  return (
+    <Card
+      className="flex h-full cursor-pointer flex-col transition-shadow hover:shadow-md"
+      onClick={() => onView(template)}
+      data-testid={`card-system-template-${template.slug || template.id}`}
+    >
+      <CardHeader className="pb-3">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+            <Icon className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <CardTitle className="text-base leading-tight">{template.name}</CardTitle>
+            {template.summary && (
+              <CardDescription className="mt-1 line-clamp-2">{template.summary}</CardDescription>
+            )}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="flex flex-1 flex-col justify-between gap-3 pt-0">
+        <div className="flex flex-wrap gap-1.5">
+          <Badge variant="default" className="gap-1 text-[10px]">
+            <Lock className="h-3 w-3" />
+            System
+          </Badge>
+          {template.category && (
+            <Badge variant="outline" className="text-[10px]">{template.category}</Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          <span>{template.itemCount} items</span>
+          {template.milestoneCount > 0 && <span>{template.milestoneCount} milestones</span>}
+          {template.estimatedDurationDays != null && <span>~{formatDays(template.estimatedDurationDays)}</span>}
+        </div>
+        <div className="pt-1">
+          <Button
+            size="sm"
+            className="w-full"
+            onClick={(e) => { e.stopPropagation(); onUse(template); }}
+            data-testid={`button-use-${template.slug || template.id}`}
+          >
+            Use this template
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -243,6 +243,8 @@ export interface IProjectStorage {
   getProjectRiskAssessmentByShareToken(shareToken: string): Promise<ProjectRiskAssessment | undefined>;
   getProjectRiskAssessmentHistory(projectId: number): Promise<Pick<ProjectRiskAssessment, 'id' | 'riskScore' | 'generatedAt'>[]>;
   getProjectTemplates(organizationId: number): Promise<ProjectTemplate[]>;
+  getProjectTemplatesScoped(opts: { scope?: 'org' | 'system' | 'all'; organizationId?: number | null; industry?: string | null; category?: string | null }): Promise<ProjectTemplate[]>;
+  getSystemProjectTemplateBySlug(slug: string): Promise<ProjectTemplate | undefined>;
   getProjectTemplate(id: number): Promise<ProjectTemplate | undefined>;
   createProjectTemplate(template: InsertProjectTemplate): Promise<ProjectTemplate>;
   updateProjectTemplate(id: number, updates: Partial<InsertProjectTemplate>): Promise<ProjectTemplate>;
