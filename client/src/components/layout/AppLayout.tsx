@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { useNotifications, useUnreadNotificationCount, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/use-notifications";
 import { useSnoozeTimesheetReminder } from "@/hooks/use-timesheets";
-import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle, AlertTriangle, Clock, UserPlus, Flag, Target, AlertCircle, CheckCircle2, UserCheck, X, Search, ArrowDownAZ, ArrowUpZA, CalendarDays, ArrowUp, ArrowDown, AlarmClock, BellOff, Bot, Sparkles } from "lucide-react";
+import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle, AlertTriangle, Clock, UserPlus, Flag, Target, AlertCircle, CheckCircle2, UserCheck, X, Search, ArrowDownAZ, ArrowUpZA, CalendarDays, ArrowUp, ArrowDown, AlarmClock, BellOff, Sparkles } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Link, useLocation } from "wouter";
 import { SearchCommand } from "./SearchCommand";
@@ -341,16 +341,6 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
                 <p className="text-xs">{aiMode ? "Exit AI Mode (Esc)" : "Switch to AI Mode — full-page chat"}</p>
               </TooltipContent>
             </Tooltip>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleJarvis}
-              className="hidden sm:inline-flex text-muted-foreground hover:text-foreground"
-              aria-label="Friday Report"
-              data-testid="button-friday-agent"
-            >
-              <Bot className="h-4 w-4" />
-            </Button>
             <Button
               variant="ghost"
               size="icon"
