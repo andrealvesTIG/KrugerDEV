@@ -260,25 +260,24 @@ export default function AiModePage() {
               <p className="text-xs">{conciseMode ? "Short replies (click for detailed)" : "Detailed replies (click for brief)"}</p>
             </TooltipContent>
           </Tooltip>
-          {hasMessages && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleNewChat}
-                  className="h-8 px-2 gap-1"
-                  data-testid="button-ai-new-chat"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  <span className="text-xs hidden sm:inline">New chat</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                <p className="text-xs">Start a new conversation</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleNewChat}
+                disabled={!hasMessages}
+                className="h-8 px-2 gap-1 disabled:opacity-40"
+                data-testid="button-ai-new-chat"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span className="text-xs hidden sm:inline">New chat</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p className="text-xs">Start a new conversation</p>
+            </TooltipContent>
+          </Tooltip>
           <ThemeToggle />
           <Tooltip>
             <TooltipTrigger asChild>
@@ -313,6 +312,12 @@ export default function AiModePage() {
               <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 text-primary mb-5">
                 <Sparkles className="h-7 w-7" />
               </div>
+              <p
+                className="text-xs font-semibold tracking-[0.35em] text-primary uppercase mb-2"
+                style={{ fontFamily: "'Outfit', sans-serif" }}
+              >
+                F.R.I.D.A.Y.
+              </p>
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mb-2">
                 How can Friday help today?
               </h1>
