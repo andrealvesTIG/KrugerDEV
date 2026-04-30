@@ -47,6 +47,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { TemplateGanttPreview } from "@/components/templates/TemplateGanttPreview";
 import {
   Upload,
   FileText,
@@ -62,6 +63,7 @@ import {
   ArrowLeft,
   ListTree,
   Milestone,
+  GanttChartSquare,
   Sparkles,
   Lock,
   Mail,
@@ -617,54 +619,71 @@ export default function Templates() {
             {detailView.items.length === 0 ? (
               <p className="text-muted-foreground">No items in this template.</p>
             ) : (
-              <div className="rounded-md border max-h-[600px] overflow-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-16">WBS</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead className="w-24">Duration</TableHead>
-                      <TableHead className="w-20">Type</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {detailView.items.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {item.wbs || "-"}
-                        </TableCell>
-                        <TableCell>
-                          <div
-                            style={{ paddingLeft: `${((item.outlineLevel || 1) - 1) * 20}px` }}
-                            className="flex items-center gap-2"
-                          >
-                            {item.isSummary ? (
-                              <ListTree className="h-4 w-4 text-blue-500" />
-                            ) : item.isMilestone ? (
-                              <Milestone className="h-4 w-4 text-amber-500" />
-                            ) : null}
-                            <span className={item.isSummary ? "font-semibold" : ""}>
-                              {item.name}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {item.duration || (item.durationDays != null ? formatDuration(Number(item.durationDays)) : "-")}
-                        </TableCell>
-                        <TableCell>
-                          {item.isMilestone ? (
-                            <Badge variant="outline" className="text-xs">Milestone</Badge>
-                          ) : item.isSummary ? (
-                            <Badge variant="outline" className="text-xs">Summary</Badge>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Task</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+              <Tabs defaultValue="timeline" className="space-y-4">
+                <TabsList>
+                  <TabsTrigger value="timeline" data-testid="tab-template-timeline">
+                    <GanttChartSquare className="mr-2 h-4 w-4" />
+                    Timeline
+                  </TabsTrigger>
+                  <TabsTrigger value="list" data-testid="tab-template-list">
+                    <ListTree className="mr-2 h-4 w-4" />
+                    Item list
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="timeline" className="mt-0">
+                  <TemplateGanttPreview items={detailView.items} />
+                </TabsContent>
+                <TabsContent value="list" className="mt-0">
+                  <div className="rounded-md border max-h-[600px] overflow-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-16">WBS</TableHead>
+                          <TableHead>Name</TableHead>
+                          <TableHead className="w-24">Duration</TableHead>
+                          <TableHead className="w-20">Type</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {detailView.items.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell className="font-mono text-xs text-muted-foreground">
+                              {item.wbs || "-"}
+                            </TableCell>
+                            <TableCell>
+                              <div
+                                style={{ paddingLeft: `${((item.outlineLevel || 1) - 1) * 20}px` }}
+                                className="flex items-center gap-2"
+                              >
+                                {item.isSummary ? (
+                                  <ListTree className="h-4 w-4 text-blue-500" />
+                                ) : item.isMilestone ? (
+                                  <Milestone className="h-4 w-4 text-amber-500" />
+                                ) : null}
+                                <span className={item.isSummary ? "font-semibold" : ""}>
+                                  {item.name}
+                                </span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {item.duration || (item.durationDays != null ? formatDuration(Number(item.durationDays)) : "-")}
+                            </TableCell>
+                            <TableCell>
+                              {item.isMilestone ? (
+                                <Badge variant="outline" className="text-xs">Milestone</Badge>
+                              ) : item.isSummary ? (
+                                <Badge variant="outline" className="text-xs">Summary</Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Task</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </TabsContent>
+              </Tabs>
             )}
           </CardContent>
         </Card>
