@@ -526,7 +526,7 @@ export function BillingContent() {
                 <Badge variant="default" data-testid="badge-current-plan">{currentPlan.name}</Badge>
               </CardTitle>
               <CardDescription className="text-xs">
-                {format(new Date(subscription.currentPeriodStart), "MMM d")} - {format(new Date(subscription.currentPeriodEnd), "MMM d, yyyy")}
+                {format(new Date(subscription.currentPeriodStart), "MMM d, yyyy")} - {format(new Date(subscription.currentPeriodEnd), "MMM d, yyyy")}
               </CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
@@ -646,7 +646,7 @@ export function BillingContent() {
             </CardTitle>
             <CardDescription className="text-xs flex items-center gap-1">
               <Calendar className="h-3 w-3" />
-              Billing cycle: {format(new Date(subscription.currentPeriodStart), "MMM d")} - {format(new Date(subscription.currentPeriodEnd), "MMM d, yyyy")}
+              Billing cycle: {format(new Date(subscription.currentPeriodStart), "MMM d, yyyy")} - {format(new Date(subscription.currentPeriodEnd), "MMM d, yyyy")}
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
@@ -1121,7 +1121,7 @@ export function BillingContent() {
                         <div className="flex items-center justify-between gap-3 p-3 bg-muted/30">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-sm font-medium">
-                              {format(new Date(cycle.periodStart), "MMM d")} - {format(new Date(cycle.periodEnd), "MMM d, yyyy")}
+                              {format(new Date(cycle.periodStart), "MMM d, yyyy")} - {format(new Date(cycle.periodEnd), "MMM d, yyyy")}
                             </span>
                             <Badge variant={isCurrent ? "default" : "secondary"} className="text-xs">
                               {isCurrent ? "Current" : "Closed"}
