@@ -107,7 +107,7 @@ export function PlansTab() {
         throw new Error(error.message || 'Failed to sync PayPal plans');
       }
       const result = await res.json();
-      queryClient.invalidateQueries({ queryKey: ['/api/billing/plans'] });
+      queryClient.invalidateQueries({ queryKey: [plansUrl] });
       toast({ 
         title: "PayPal Plans Synced", 
         description: `Successfully synced ${result.plans?.length || 0} plans with PayPal.` 
@@ -135,7 +135,7 @@ export function PlansTab() {
         throw new Error(error.message || 'Failed to initialize extra seat prices');
       }
       const result = await res.json();
-      queryClient.invalidateQueries({ queryKey: ['/api/billing/plans'] });
+      queryClient.invalidateQueries({ queryKey: [plansUrl] });
       toast({ 
         title: "Extra Seat Prices Initialized", 
         description: `Professional: $5/seat, Business: $8/seat` 
@@ -157,7 +157,7 @@ export function PlansTab() {
       return apiRequest('PUT', '/api/admin/plans/reorder', { orderedIds });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/billing/plans'] });
+      queryClient.invalidateQueries({ queryKey: [plansUrl] });
       toast({ title: "Success", description: "Plan order updated" });
     },
     onError: () => {
@@ -182,7 +182,7 @@ export function PlansTab() {
       return apiRequest('POST', '/api/admin/plans', data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/billing/plans'] });
+      queryClient.invalidateQueries({ queryKey: [plansUrl] });
       toast({ title: "Success", description: "Plan created successfully" });
       setIsCreateOpen(false);
       setNewPlan({ code: "", name: "", description: "", annualPriceCents: 0, maxSeats: "" });
@@ -197,7 +197,7 @@ export function PlansTab() {
       return apiRequest('DELETE', `/api/admin/plans/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/billing/plans'] });
+      queryClient.invalidateQueries({ queryKey: [plansUrl] });
       toast({ title: "Success", description: "Plan deleted successfully" });
       setDeletePlanId(null);
     },
@@ -211,7 +211,7 @@ export function PlansTab() {
       return apiRequest('PUT', `/api/admin/plans/${data.id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/billing/plans'] });
+      queryClient.invalidateQueries({ queryKey: [plansUrl] });
       toast({ title: "Success", description: "Plan updated successfully" });
       setEditingPlan(null);
     },
