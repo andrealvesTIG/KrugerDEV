@@ -2059,6 +2059,36 @@ export const powerbiAgentMessages = pgTable("powerbi_agent_messages", {
   index("pbi_agent_msg_conv_idx").on(table.conversationId, table.createdAt),
 ]);
 
+// Friday Agent Conversations - persistent chat history per user
+export const fridayConversations = pgTable("friday_conversations", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  title: text("title"),
+  archivedAt: timestamp("archived_at"),
+  lastMessageAt: timestamp("last_message_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("friday_conv_user_idx").on(table.userId, table.lastMessageAt),
+  index("friday_conv_org_idx").on(table.organizationId),
+]);
+
+export const fridayMessages = pgTable("friday_messages", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id").references(() => fridayConversations.id, { onDelete: "cascade" }).notNull(),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  attachments: jsonb("attachments").$type<Array<{ name: string; type: string; size: number }>>(),
+  pageContext: jsonb("page_context").$type<{ path?: string; entityType?: string; entityId?: number | string }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("friday_msg_conv_idx").on(table.conversationId, table.createdAt),
+]);
+
+export type FridayConversation = typeof fridayConversations.$inferSelect;
+export type FridayMessage = typeof fridayMessages.$inferSelect;
+
 // MPP Imports - Store imported Microsoft Project data
 export const mppImports = pgTable("mpp_imports", {
   id: serial("id").primaryKey(),

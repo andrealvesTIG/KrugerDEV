@@ -6,7 +6,7 @@ import { useJarvis, type FileAttachment } from "@/hooks/use-jarvis";
 import { useSpeechRecognition } from "@/hooks/use-speech";
 import { setAiMode, useAiModeEscapeHandler } from "@/hooks/use-ai-mode";
 import {
-  Send, Square, Trash2, X, Paperclip, Mic, MicOff,
+  Send, Square, X, Paperclip, Mic, MicOff,
   Sparkles, Zap, FileText, ArrowRight,
 } from "lucide-react";
 import {
@@ -25,11 +25,13 @@ import {
   FILE_ACCEPT_ATTR,
   FILE_ALLOWED_EXTENSIONS,
 } from "./jarvis-shared";
+import { RecentChatsMenu } from "./RecentChatsMenu";
 
 export default function AiModePage() {
   const {
     messages, isLoading, sendMessage, clearMessages, stopGeneration,
     conciseMode, setConciseMode, pageContext,
+    conversations, activeConversationId, switchConversation, newConversation,
   } = useJarvis();
 
   useAiModeEscapeHandler();
@@ -203,11 +205,18 @@ export default function AiModePage() {
   };
 
   const handleNewChat = useCallback(() => {
-    clearMessages();
+    newConversation();
     setInput("");
     setPendingFiles([]);
     setTimeout(() => textareaRef.current?.focus(), 50);
-  }, [clearMessages]);
+  }, [newConversation]);
+
+  const handleSwitchConversation = useCallback((id: number) => {
+    switchConversation(id);
+    setInput("");
+    setPendingFiles([]);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  }, [switchConversation]);
 
   const suggestedPrompts = getSuggestedPrompts(pageContext.entityType);
   const hasMessages = messages.length > 0;
@@ -260,24 +269,13 @@ export default function AiModePage() {
               <p className="text-xs">{conciseMode ? "Short replies (click for detailed)" : "Detailed replies (click for brief)"}</p>
             </TooltipContent>
           </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleNewChat}
-                disabled={!hasMessages}
-                className="h-8 px-2 gap-1 disabled:opacity-40"
-                data-testid="button-ai-new-chat"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                <span className="text-xs hidden sm:inline">New chat</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p className="text-xs">Start a new conversation</p>
-            </TooltipContent>
-          </Tooltip>
+          <RecentChatsMenu
+            conversations={conversations}
+            activeConversationId={activeConversationId}
+            onSwitch={handleSwitchConversation}
+            onNew={handleNewChat}
+            align="end"
+          />
           <ThemeToggle />
           <Tooltip>
             <TooltipTrigger asChild>
@@ -353,9 +351,19 @@ export default function AiModePage() {
                 variant="page"
               />
             ))}
-            {isLoading && messages[messages.length - 1]?.role === "user" && (
-              <div className="text-xs text-muted-foreground py-2">Thinking…</div>
-            )}
+            {isLoading && (() => {
+              const last = messages[messages.length - 1];
+              const noTokensYet = !last || last.role === "user" || (last.role === "assistant" && !last.content);
+              if (!noTokensYet) return null;
+              return (
+                <div className="flex items-center gap-2 py-3 px-1" data-testid="friday-thinking">
+                  <span className="inline-flex h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+                  <span className="inline-flex h-2 w-2 rounded-full bg-cyan-400 animate-pulse [animation-delay:150ms]" />
+                  <span className="inline-flex h-2 w-2 rounded-full bg-cyan-400 animate-pulse [animation-delay:300ms]" />
+                  <span className="text-xs text-muted-foreground ml-2">Friday is thinking…</span>
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>

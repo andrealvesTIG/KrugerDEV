@@ -8,6 +8,16 @@ import {
   logUserActivity,
 } from "./helpers";
 import { apiRoute, body, r200, inputRes, authRes, stdRes } from "../route-registry";
+import {
+  createConversation as fcCreate,
+  listConversations as fcList,
+  getConversation as fcGet,
+  getMessages as fcGetMessages,
+  addMessage as fcAddMessage,
+  updateConversationTitle as fcUpdateTitle,
+  archiveConversation as fcArchive,
+  deleteConversation as fcDelete,
+} from "../storage/fridayConversationStorage";
 
 const MAX_MESSAGES = 50;
 const MAX_MESSAGE_LENGTH = 200000;
@@ -62,6 +72,7 @@ const chatRequestSchema = z.object({
   concise: z.boolean().optional(),
   pageContext: pageContextSchema,
   attachments: z.array(attachmentSchema).max(MAX_ATTACHMENTS).optional(),
+  conversationId: z.number().int().positive().optional(),
 });
 
 const actionRequestSchema = z.object({
@@ -101,16 +112,49 @@ export function registerJarvisRoutes(app: Express) {
         return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
       }
 
-      const { messages, organizationId, concise, pageContext, attachments } = parsed.data;
+      const { messages, organizationId, concise, pageContext, attachments, conversationId: incomingConversationId } = parsed.data;
 
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(organizationId)) {
         return res.status(403).json({ message: "You don't have access to this organization" });
       }
 
+      // Resolve or create persistent conversation for this user+org
+      let conversationId: number | null = null;
+      if (incomingConversationId) {
+        const existing = await fcGet(incomingConversationId, organizationId, userId);
+        if (existing) conversationId = existing.id;
+      }
+      const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
+      if (!conversationId) {
+        const titleSeed = lastUserMessage?.content?.slice(0, 60).trim() || "New conversation";
+        const created = await fcCreate(organizationId, userId, titleSeed);
+        conversationId = created.id;
+      } else if (lastUserMessage) {
+        // Refresh title if it's still placeholder-ish
+        const conv = await fcGet(conversationId, organizationId, userId);
+        if (conv && (!conv.title || conv.title === "New conversation")) {
+          await fcUpdateTitle(conversationId, organizationId, userId, lastUserMessage.content.slice(0, 60));
+        }
+      }
+
+      // Persist the new user message (the last in the list, if it's role:user)
+      if (lastUserMessage) {
+        await fcAddMessage(
+          conversationId,
+          "user",
+          lastUserMessage.content,
+          attachments ? attachments.map((a) => ({ name: a.name, type: a.type, size: a.size })) : null,
+          pageContext ? { path: pageContext.path, entityType: pageContext.entityType ?? undefined, entityId: pageContext.entityId ?? undefined } : null,
+        );
+      }
+
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
+
+      // Send conversationId immediately so the client can pin to it
+      res.write(`data: ${JSON.stringify({ conversationId })}\n\n`);
 
       await streamJarvisResponse(
         Number(organizationId),
@@ -122,7 +166,13 @@ export function registerJarvisRoutes(app: Express) {
         (fullResponse) => {
           res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
           res.end();
-          logUserActivity(userId, "jarvis_chat", "jarvis", undefined, {
+          // Persist the assistant message
+          if (conversationId && fullResponse) {
+            fcAddMessage(conversationId, "assistant", fullResponse, null, null).catch((err) => {
+              console.error("[JARVIS] Failed to persist assistant message:", err);
+            });
+          }
+          logUserActivity(userId, "jarvis_chat", "friday_conversation", conversationId ?? undefined, {
             messageCount: messages.length,
             responseLength: fullResponse.length,
             pageContext: pageContext?.entityType ? `${pageContext.entityType}:${pageContext.entityId}` : undefined,
@@ -205,6 +255,164 @@ export function registerJarvisRoutes(app: Express) {
     } catch (error: any) {
       console.error("[JARVIS] Action error:", error);
       res.status(500).json({ message: error.message || "Failed to execute action" });
+    }
+  });
+
+  // ----- Conversation management (per-user persistent history) -----
+
+  apiRoute(app, 'get', '/api/jarvis/conversations', {
+    tag: 'AI',
+    summary: "List the current user's Friday conversations for an organization",
+    responses: { ...r200('Conversations', { type: 'array' }), ...stdRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgIdRaw = req.query.organizationId;
+      const organizationId = Number(Array.isArray(orgIdRaw) ? orgIdRaw[0] : orgIdRaw);
+      if (!Number.isFinite(organizationId) || organizationId <= 0) {
+        return res.status(400).json({ message: "organizationId is required" });
+      }
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      const conversations = await fcList(organizationId, userId);
+      res.json(conversations);
+    } catch (error: any) {
+      console.error("[JARVIS] List conversations error:", error);
+      res.status(500).json({ message: error.message || "Failed to list conversations" });
+    }
+  });
+
+  apiRoute(app, 'get', '/api/jarvis/conversations/:id', {
+    tag: 'AI',
+    summary: 'Get a Friday conversation with messages',
+    responses: { ...r200('Conversation with messages', { type: 'object' }), ...stdRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const id = Number(req.params.id);
+      const orgIdRaw = req.query.organizationId;
+      const organizationId = Number(Array.isArray(orgIdRaw) ? orgIdRaw[0] : orgIdRaw);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ message: "Invalid id" });
+      if (!Number.isFinite(organizationId) || organizationId <= 0) {
+        return res.status(400).json({ message: "organizationId is required" });
+      }
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      const conv = await fcGet(id, organizationId, userId);
+      if (!conv) return res.status(404).json({ message: "Conversation not found" });
+      const messages = await fcGetMessages(id);
+      res.json({ ...conv, messages });
+    } catch (error: any) {
+      console.error("[JARVIS] Get conversation error:", error);
+      res.status(500).json({ message: error.message || "Failed to load conversation" });
+    }
+  });
+
+  apiRoute(app, 'post', '/api/jarvis/conversations', {
+    tag: 'AI',
+    summary: 'Create a new empty Friday conversation',
+    requestBody: body({
+      type: 'object',
+      properties: {
+        organizationId: { type: 'integer' },
+        title: { type: 'string' },
+      },
+      required: ['organizationId'],
+    }),
+    responses: { ...r200('Created conversation', { type: 'object' }), ...inputRes, ...stdRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const schema = z.object({
+        organizationId: z.number().int().positive(),
+        title: z.string().max(200).optional(),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
+      }
+      const { organizationId, title } = parsed.data;
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      const conv = await fcCreate(organizationId, userId, title ?? null);
+      res.json(conv);
+    } catch (error: any) {
+      console.error("[JARVIS] Create conversation error:", error);
+      res.status(500).json({ message: error.message || "Failed to create conversation" });
+    }
+  });
+
+  apiRoute(app, 'patch', '/api/jarvis/conversations/:id', {
+    tag: 'AI',
+    summary: 'Rename a Friday conversation',
+    requestBody: body({
+      type: 'object',
+      properties: {
+        organizationId: { type: 'integer' },
+        title: { type: 'string' },
+      },
+      required: ['organizationId', 'title'],
+    }),
+    responses: { ...r200('Updated conversation', { type: 'object' }), ...inputRes, ...stdRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const id = Number(req.params.id);
+      const schema = z.object({
+        organizationId: z.number().int().positive(),
+        title: z.string().min(1).max(200),
+      });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid request" });
+      const { organizationId, title } = parsed.data;
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      const updated = await fcUpdateTitle(id, organizationId, userId, title);
+      if (!updated) return res.status(404).json({ message: "Conversation not found" });
+      res.json(updated);
+    } catch (error: any) {
+      console.error("[JARVIS] Rename conversation error:", error);
+      res.status(500).json({ message: error.message || "Failed to rename conversation" });
+    }
+  });
+
+  apiRoute(app, 'delete', '/api/jarvis/conversations/:id', {
+    tag: 'AI',
+    summary: 'Delete (archive) a Friday conversation',
+    responses: { ...r200('Archived', { type: 'object' }), ...stdRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const id = Number(req.params.id);
+      const orgIdRaw = req.query.organizationId;
+      const organizationId = Number(Array.isArray(orgIdRaw) ? orgIdRaw[0] : orgIdRaw);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ message: "Invalid id" });
+      if (!Number.isFinite(organizationId) || organizationId <= 0) {
+        return res.status(400).json({ message: "organizationId is required" });
+      }
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      const archived = await fcArchive(id, organizationId, userId);
+      if (!archived) return res.status(404).json({ message: "Conversation not found" });
+      res.json({ ok: true, id: archived.id });
+    } catch (error: any) {
+      console.error("[JARVIS] Delete conversation error:", error);
+      res.status(500).json({ message: error.message || "Failed to delete conversation" });
     }
   });
 }

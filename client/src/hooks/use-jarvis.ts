@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "./use-organization";
 import { useLocation } from "wouter";
 
@@ -24,8 +25,15 @@ export interface FileAttachment {
   content: string;
 }
 
-const STORAGE_KEY = "friday_agent_messages";
-const MAX_STORED_MESSAGES = 100;
+export interface FridayConversationSummary {
+  id: number;
+  title: string | null;
+  lastMessageAt: string;
+  createdAt: string;
+  snippet: string | null;
+}
+
+const ACTIVE_CONV_KEY_PREFIX = "friday_active_conversation_";
 
 function parsePageContext(pathname: string): PageContext {
   const projectMatch = pathname.match(/^\/projects\/(\d+)/);
@@ -43,215 +51,348 @@ function parsePageContext(pathname: string): PageContext {
   return { path: pathname, entityType: null, entityId: null, label: null };
 }
 
-function loadPersistedMessages(): JarvisMessage[] {
+function loadActiveConversationId(orgId: number | undefined): number | null {
+  if (!orgId) return null;
   try {
-    const stored = sessionStorage.getItem(STORAGE_KEY);
-    if (!stored) return [];
-    const parsed = JSON.parse(stored);
-    const messages = parsed.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }));
-    const hasLegacyName = messages.some((m: JarvisMessage) =>
-      m.role === "assistant" && /\bJARVIS\b/i.test(m.content)
-    );
-    if (hasLegacyName) {
-      sessionStorage.removeItem(STORAGE_KEY);
-      return [];
-    }
-    return messages;
+    const v = sessionStorage.getItem(ACTIVE_CONV_KEY_PREFIX + orgId);
+    return v ? Number(v) : null;
   } catch {
-    return [];
+    return null;
   }
 }
 
-function persistMessages(messages: JarvisMessage[]) {
+function saveActiveConversationId(orgId: number | undefined, id: number | null) {
+  if (!orgId) return;
   try {
-    const toStore = messages.slice(-MAX_STORED_MESSAGES);
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
+    if (id) sessionStorage.setItem(ACTIVE_CONV_KEY_PREFIX + orgId, String(id));
+    else sessionStorage.removeItem(ACTIVE_CONV_KEY_PREFIX + orgId);
   } catch {
+    // ignore
   }
 }
 
-let globalMessages: JarvisMessage[] = loadPersistedMessages();
-let globalListeners: Set<(msgs: JarvisMessage[]) => void> = new Set();
+// ----- Cross-component shared state for the active conversation + open state -----
+//
+// `_activeConversationId` is keyed implicitly by `_activeOrgId`. When the user
+// switches organizations we MUST drop the previous org's conversationId so we
+// don't request a conversation that belongs to a different org (which would
+// 404 on the server-side org check and confuse the UI).
 
-function setGlobalMessages(updater: JarvisMessage[] | ((prev: JarvisMessage[]) => JarvisMessage[])) {
-  if (typeof updater === "function") {
-    globalMessages = updater(globalMessages);
-  } else {
-    globalMessages = updater;
-  }
-  persistMessages(globalMessages);
-  globalListeners.forEach(fn => fn(globalMessages));
+let _activeConversationId: number | null = null;
+let _activeOrgId: number | undefined = undefined;
+let _isOpen = false;
+const _listeners = new Set<() => void>();
+
+function notify() {
+  _listeners.forEach((fn) => fn());
 }
 
-function useGlobalMessages(): [JarvisMessage[], typeof setGlobalMessages] {
-  const [localMessages, setLocalMessages] = useState<JarvisMessage[]>(globalMessages);
+function setActiveConversationIdGlobal(orgId: number | undefined, id: number | null) {
+  _activeConversationId = id;
+  _activeOrgId = orgId;
+  saveActiveConversationId(orgId, id);
+  notify();
+}
 
+function setIsOpenGlobal(open: boolean) {
+  _isOpen = open;
+  notify();
+}
+
+function useFridaySharedState() {
+  const [, setTick] = useState(0);
   useEffect(() => {
-    const listener = (msgs: JarvisMessage[]) => setLocalMessages(msgs);
-    globalListeners.add(listener);
-    setLocalMessages(globalMessages);
-    return () => { globalListeners.delete(listener); };
+    const fn = () => setTick((t) => t + 1);
+    _listeners.add(fn);
+    return () => {
+      _listeners.delete(fn);
+    };
   }, []);
+  return { activeConversationId: _activeConversationId, isOpen: _isOpen };
+}
 
-  return [localMessages, setGlobalMessages];
+// ----- Server message shape -----
+
+interface ServerMessage {
+  id: number;
+  role: "user" | "assistant";
+  content: string;
+  attachments: { name: string; type: string; size: number }[] | null;
+  createdAt: string;
+}
+
+interface ServerConversationDetail {
+  id: number;
+  title: string | null;
+  messages: ServerMessage[];
+}
+
+function serverMessageToJarvis(m: ServerMessage): JarvisMessage {
+  return {
+    id: `srv-${m.id}`,
+    role: m.role,
+    content: m.content,
+    timestamp: new Date(m.createdAt),
+    attachments: m.attachments ?? undefined,
+  };
 }
 
 export function useJarvis() {
-  const [messages, setMessages] = useGlobalMessages();
-  const [isOpen, setIsOpen] = useState(false);
+  const { currentOrganization } = useOrganization();
+  const orgId = currentOrganization?.id;
+  const queryClient = useQueryClient();
+  const [location] = useLocation();
+  const { activeConversationId, isOpen } = useFridaySharedState();
+
+  // Sync active conversation id with the current organization. When orgId
+  // changes (org switcher), discard any previous-org conversationId and
+  // re-hydrate from sessionStorage scoped to the new org. Sending a request
+  // with a conversationId that belongs to another org would be rejected
+  // server-side (org+user gate in fcGet) and would confuse the UI.
+  useEffect(() => {
+    if (!orgId) return;
+    if (_activeOrgId !== orgId) {
+      _activeOrgId = orgId;
+      const saved = loadActiveConversationId(orgId);
+      _activeConversationId = saved ?? null;
+      notify();
+    }
+  }, [orgId]);
+
+  // Local in-flight overlay (optimistic user msg + streaming assistant msg)
+  const [pendingMessages, setPendingMessages] = useState<JarvisMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [conciseMode, setConciseMode] = useState(true);
   const abortRef = useRef<AbortController | null>(null);
-  const { currentOrganization } = useOrganization();
-  const [location] = useLocation();
 
   const pageContext = parsePageContext(location);
 
-  const toggleOpen = useCallback(() => {
-    setIsOpen(prev => !prev);
-  }, []);
-
-  const sendMessage = useCallback(async (content: string, attachments?: FileAttachment[]) => {
-    if (!currentOrganization?.id || isLoading) return;
-
-    const userMessage: JarvisMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content,
-      timestamp: new Date(),
-      attachments: attachments?.map(a => ({ name: a.name, type: a.type, size: a.size })),
-    };
-
-    const assistantMessage: JarvisMessage = {
-      id: `assistant-${Date.now()}`,
-      role: "assistant",
-      content: "",
-      timestamp: new Date(),
-    };
-
-    setMessages(prev => [...prev, userMessage, assistantMessage]);
-    setIsLoading(true);
-
-    const currentMessages = globalMessages;
-    const allMessages = currentMessages.slice(0, -1).slice(-40).map(m => ({
-      role: m.role,
-      content: m.content,
-    }));
-
-    const currentPageContext = parsePageContext(window.location.pathname);
-
-    try {
-      abortRef.current = new AbortController();
-      const response = await fetch("/api/jarvis/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+  // Conversations list
+  const conversationsQuery = useQuery<FridayConversationSummary[]>({
+    queryKey: ["/api/jarvis/conversations", orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const res = await fetch(`/api/jarvis/conversations?organizationId=${orgId}`, {
         credentials: "include",
-        body: JSON.stringify({
-          messages: allMessages,
-          organizationId: currentOrganization.id,
-          concise: conciseMode,
-          pageContext: {
-            path: currentPageContext.path,
-            entityType: currentPageContext.entityType,
-            entityId: currentPageContext.entityId,
-          },
-          attachments: attachments?.map(a => ({
-            name: a.name,
-            type: a.type,
-            size: a.size,
-            content: a.content,
-          })),
-        }),
-        signal: abortRef.current.signal,
       });
+      if (!res.ok) throw new Error("Failed to load conversations");
+      return res.json();
+    },
+    enabled: !!orgId,
+    staleTime: 30_000,
+  });
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ message: "Request failed" }));
-        throw new Error(err.message || "Request failed");
+  // Active conversation messages
+  const conversationQuery = useQuery<ServerConversationDetail | null>({
+    queryKey: ["/api/jarvis/conversations", orgId, activeConversationId],
+    queryFn: async () => {
+      if (!orgId || !activeConversationId) return null;
+      const res = await fetch(
+        `/api/jarvis/conversations/${activeConversationId}?organizationId=${orgId}`,
+        { credentials: "include" },
+      );
+      if (!res.ok) {
+        if (res.status === 404) return null;
+        throw new Error("Failed to load conversation");
       }
+      return res.json();
+    },
+    enabled: !!orgId && !!activeConversationId,
+    staleTime: 5_000,
+  });
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response stream");
+  const persistedMessages: JarvisMessage[] = useMemo(() => {
+    return (conversationQuery.data?.messages ?? []).map(serverMessageToJarvis);
+  }, [conversationQuery.data]);
 
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          try {
-            const data = JSON.parse(line.slice(6));
-            if (data.error) {
-              setMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last.role === "assistant") {
-                  last.content = `Error: ${data.error}`;
-                }
-                return updated;
-              });
-              break;
-            }
-            if (data.done) break;
-            if (data.content) {
-              setMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last.role === "assistant") {
-                  last.content += data.content;
-                }
-                return updated;
-              });
-            }
-          } catch {
-          }
-        }
-      }
-    } catch (err: any) {
-      if (err.name === "AbortError") {
-        setMessages(prev => {
-          const updated = [...prev];
-          const last = updated[updated.length - 1];
-          if (last?.role === "assistant" && !last.content) {
-            last.content = "*(Response stopped)*";
-          } else if (last?.role === "assistant" && last.content) {
-            last.content += "\n\n*(Stopped)*";
-          }
-          return updated;
-        });
-        return;
-      }
-      setMessages(prev => {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last?.role === "assistant" && !last.content) {
-          const isOversize = err.message?.toLowerCase().includes("character") || err.message?.toLowerCase().includes("too large") || err.message?.toLowerCase().includes("size");
-          last.content = isOversize
-            ? `Sorry, the content is too large to process in one go. If you're uploading a large CSV file, try splitting it into smaller files and uploading each one separately. I can process up to 500KB per file.`
-            : `Sorry, I encountered an error: ${err.message.replace(/\.+$/, '')}. Please try again.`;
-        }
-        return updated;
-      });
-    } finally {
-      setIsLoading(false);
-      abortRef.current = null;
+  // Final messages = persisted (when not actively streaming) + pending overlay (when sending)
+  const messages: JarvisMessage[] = useMemo(() => {
+    if (pendingMessages.length > 0) {
+      // Hide persisted versions of the user's currently-pending message to avoid dupes:
+      // pending only exists during the request; once complete we clear it and refetch.
+      return [...persistedMessages, ...pendingMessages];
     }
-  }, [currentOrganization?.id, isLoading, conciseMode]);
+    return persistedMessages;
+  }, [persistedMessages, pendingMessages]);
+
+  const setIsOpen = useCallback((open: boolean) => setIsOpenGlobal(open), []);
+  const toggleOpen = useCallback(() => setIsOpenGlobal(!_isOpen), []);
+
+  const switchConversation = useCallback(
+    (id: number | null) => {
+      if (abortRef.current) {
+        abortRef.current.abort();
+        abortRef.current = null;
+      }
+      setIsLoading(false);
+      setPendingMessages([]);
+      setActiveConversationIdGlobal(orgId, id);
+    },
+    [orgId],
+  );
+
+  const newConversation = useCallback(() => {
+    switchConversation(null);
+  }, [switchConversation]);
+
+  const sendMessage = useCallback(
+    async (content: string, attachments?: FileAttachment[]) => {
+      if (!orgId || isLoading) return;
+
+      const userOverlay: JarvisMessage = {
+        id: `user-${Date.now()}`,
+        role: "user",
+        content,
+        timestamp: new Date(),
+        attachments: attachments?.map((a) => ({ name: a.name, type: a.type, size: a.size })),
+      };
+      const assistantOverlay: JarvisMessage = {
+        id: `assistant-${Date.now()}`,
+        role: "assistant",
+        content: "",
+        timestamp: new Date(),
+      };
+
+      setPendingMessages([userOverlay, assistantOverlay]);
+      setIsLoading(true);
+
+      // Compose the conversation history sent to the model: persisted history + new user msg.
+      const history = persistedMessages.slice(-40).map((m) => ({ role: m.role, content: m.content }));
+      const allMessages = [...history, { role: "user" as const, content }];
+
+      const currentPageContext = parsePageContext(window.location.pathname);
+      let resolvedConversationId: number | null = activeConversationId;
+
+      try {
+        abortRef.current = new AbortController();
+        const response = await fetch("/api/jarvis/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            messages: allMessages,
+            organizationId: orgId,
+            concise: conciseMode,
+            conversationId: activeConversationId ?? undefined,
+            pageContext: {
+              path: currentPageContext.path,
+              entityType: currentPageContext.entityType,
+              entityId: currentPageContext.entityId,
+            },
+            attachments: attachments?.map((a) => ({
+              name: a.name,
+              type: a.type,
+              size: a.size,
+              content: a.content,
+            })),
+          }),
+          signal: abortRef.current.signal,
+        });
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({ message: "Request failed" }));
+          throw new Error(err.message || "Request failed");
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("No response stream");
+
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.error) {
+                setPendingMessages((prev) => {
+                  if (prev.length === 0) return prev;
+                  const updated = [...prev];
+                  const last = updated[updated.length - 1];
+                  if (last.role === "assistant") last.content = `Error: ${data.error}`;
+                  return updated;
+                });
+                continue;
+              }
+              if (data.conversationId && !resolvedConversationId) {
+                resolvedConversationId = data.conversationId;
+                setActiveConversationIdGlobal(orgId, data.conversationId);
+              }
+              if (data.done) continue;
+              if (data.content) {
+                setPendingMessages((prev) => {
+                  if (prev.length === 0) return prev;
+                  const updated = [...prev];
+                  const last = updated[updated.length - 1];
+                  if (last.role === "assistant") last.content += data.content;
+                  return updated;
+                });
+              }
+            } catch {
+              // ignore parse errors on heartbeat lines
+            }
+          }
+        }
+      } catch (err: any) {
+        if (err.name === "AbortError") {
+          setPendingMessages((prev) => {
+            if (prev.length === 0) return prev;
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last?.role === "assistant" && !last.content) {
+              last.content = "*(Response stopped)*";
+            } else if (last?.role === "assistant" && last.content) {
+              last.content += "\n\n*(Stopped)*";
+            }
+            return updated;
+          });
+        } else {
+          setPendingMessages((prev) => {
+            if (prev.length === 0) return prev;
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last?.role === "assistant" && !last.content) {
+              const msg = err.message || "";
+              const isOversize = /character|too large|size/i.test(msg);
+              last.content = isOversize
+                ? `Sorry, the content is too large to process in one go. If you're uploading a large CSV file, try splitting it into smaller files and uploading each one separately. I can process up to 500KB per file.`
+                : `Sorry, I encountered an error: ${msg.replace(/\.+$/, "")}. Please try again.`;
+            }
+            return updated;
+          });
+        }
+      } finally {
+        setIsLoading(false);
+        abortRef.current = null;
+        // Refetch to swap in persisted versions, then clear overlay
+        if (resolvedConversationId && orgId) {
+          await queryClient.invalidateQueries({
+            queryKey: ["/api/jarvis/conversations", orgId, resolvedConversationId],
+          });
+          await queryClient.invalidateQueries({
+            queryKey: ["/api/jarvis/conversations", orgId],
+          });
+        }
+        setPendingMessages([]);
+      }
+    },
+    [orgId, isLoading, conciseMode, activeConversationId, persistedMessages, queryClient],
+  );
 
   const clearMessages = useCallback(() => {
-    if (abortRef.current) {
-      abortRef.current.abort();
-    }
-    setMessages([]);
+    if (abortRef.current) abortRef.current.abort();
+    setPendingMessages([]);
     setIsLoading(false);
-  }, []);
+    setActiveConversationIdGlobal(orgId, null);
+  }, [orgId]);
 
   const stopGeneration = useCallback(() => {
     if (abortRef.current) {
@@ -272,5 +413,11 @@ export function useJarvis() {
     conciseMode,
     setConciseMode,
     pageContext,
+    // New: server-backed conversation controls
+    conversations: conversationsQuery.data ?? [],
+    conversationsLoading: conversationsQuery.isLoading,
+    activeConversationId,
+    switchConversation,
+    newConversation,
   };
 }

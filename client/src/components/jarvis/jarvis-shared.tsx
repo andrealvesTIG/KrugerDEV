@@ -3,6 +3,7 @@ import { Paperclip, FolderOpen, Briefcase, User2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { JarvisMessage } from "@/hooks/use-jarvis";
+import { FridayCard, tryParseFridayCard } from "./FridayCard";
 
 export const GLOBAL_PROMPTS = [
   "Which projects are at risk?",
@@ -198,6 +199,43 @@ export function MarkdownContent({ content, onNavigate, variant = "panel" }: Mark
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+
+    // Detect fenced friday-card block
+    if (line.trim().startsWith("```friday-card")) {
+      const jsonLines: string[] = [];
+      let j = i + 1;
+      while (j < lines.length && !lines[j].trim().startsWith("```")) {
+        jsonLines.push(lines[j]);
+        j++;
+      }
+      const jsonText = jsonLines.join("\n").trim();
+      // If we found a closing fence, render the card; otherwise skip rendering until streaming completes
+      const hasClose = j < lines.length && lines[j].trim().startsWith("```");
+      if (hasClose && jsonText.length > 0) {
+        const card = tryParseFridayCard(jsonText);
+        if (card) {
+          elements.push(
+            <FridayCard key={`fc-${i}`} card={card} onNavigate={onNavigate} />
+          );
+        } else {
+          // Fall back to raw code block if JSON parse fails
+          elements.push(
+            <pre key={`fc-raw-${i}`} className="my-2 rounded-md border border-border bg-muted/40 p-2 text-xs overflow-x-auto">
+              <code>{jsonText}</code>
+            </pre>
+          );
+        }
+        i = j; // skip past the closing fence
+        continue;
+      }
+      // Streaming-incomplete: show shimmer placeholder
+      elements.push(
+        <div key={`fc-pending-${i}`} className="my-2 h-12 rounded-md border border-border bg-muted/40 animate-pulse" />
+      );
+      i = j - 1; // we consumed up to j-1; outer loop will i++
+      continue;
+    }
+
     if (line.startsWith("### ")) {
       elements.push(<h3 key={i} className={h3Class}>{renderInline(line.slice(4), onNavigate, variant)}</h3>);
     } else if (line.startsWith("## ")) {

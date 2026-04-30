@@ -1,7 +1,7 @@
 import { db } from "../db";
-import { projects, portfolios, issues, tasks, taskDependencies, resources, statusReportHistory, healthStatusHistory, organizationMembers, taskResourceAssignments, projectChangeLogs, users, organizations } from "@shared/schema";
+import { projects, portfolios, issues, tasks, taskDependencies, resources, statusReportHistory, healthStatusHistory, organizationMembers, taskResourceAssignments, projectChangeLogs, users, organizations, financialEntries, timesheetEntries } from "@shared/schema";
 import type { FridayAgentConfig } from "@shared/schema";
-import { eq, and, sql, inArray, isNull, desc } from "drizzle-orm";
+import { eq, and, sql, inArray, isNull, desc, gte, isNotNull } from "drizzle-orm";
 import OpenAI, { AzureOpenAI } from "openai";
 import { decryptApiKey } from "../routes/helpers";
 import {
@@ -74,7 +74,39 @@ Guidelines:
   - Issues/Risks: reference them with their project link [Issue Title](/projects/{projectId}) since issues/risks are viewed within projects
   - Resources: [Resource Name](/resources/{resourceId})
   - For list items, make the name/title the link, e.g.: "- [Website Redesign](/projects/42) — Health: Red, 3 overdue tasks"
-  - Always prefer linking the entity name rather than adding a separate "View" link.`;
+  - Always prefer linking the entity name rather than adding a separate "View" link.
+
+CARDS:
+When the user asks for a list of items, a single record summary, or a comparison of entities (projects, portfolios, risks, issues, tasks, milestones, resources, metrics), prefer responding with one or more "Friday cards" instead of (or in addition to) plain markdown lists. Cards render as compact, clickable widgets in the UI.
+
+Emit each card as a fenced code block tagged "friday-card" containing a single JSON object on its own. Example:
+
+\`\`\`friday-card
+{"type":"project","title":"Website Redesign","subtitle":"PRJ-042 • Marketing","accent":"warn","fields":[{"label":"Health","value":"Amber","accent":"warn"},{"label":"Status","value":"In Progress"},{"label":"% Complete","value":"62%"},{"label":"Owner","value":"Jane Doe"}],"href":"/projects/42"}
+\`\`\`
+
+Card schema (all optional except type and title):
+- type: "project" | "portfolio" | "risk" | "issue" | "task" | "resource" | "milestone" | "metric" | "action" | "info"
+- title: short headline (the entity's name).
+- subtitle: optional sub-line (code, owner, parent portfolio, due date, etc.).
+- fields: array of { label, value, accent? } where accent is one of "default"|"muted"|"good"|"warn"|"danger".
+- href: internal app path (e.g. "/projects/42") that opens the entity when the card is clicked.
+- accent: "default"|"good"|"warn"|"danger" — drives the color bar/icon.
+- actions: optional array of { label, type, projectId, data } where type is one of the supported write actions; the user can click the action button to execute it (with confirmation handled by the system).
+
+Use cards when:
+- Listing 2 or more entities (each becomes a card).
+- Showing a single key entity in detail.
+- Highlighting key metrics or KPIs (use "metric" type).
+- Suggesting a single concrete next step (use "action" type with an actions array).
+
+Choose accent based on data:
+- Health Red, overdue, blocked → "danger".
+- Health Amber, at-risk, due soon → "warn".
+- Health Green, on track, completed → "good".
+- Otherwise → "default".
+
+Do NOT wrap cards inside other markdown containers (no nested fences). It is fine to mix a short paragraph of prose followed by several card blocks. Always emit cards as standalone top-level fenced blocks.`;
 
 export interface JarvisContext {
   projects: any[];
@@ -91,9 +123,54 @@ export interface JarvisContext {
   // Drives every fiscal-period label/order so AI summaries stay consistent
   // with what users see in financial grids and exports.
   fiscalYearStartMonth: number;
+  // Org-wide signals (rolled up to keep token budget reasonable)
+  financialsRollup: Array<{
+    projectId: number;
+    fiscalYear: number;
+    scenario: string;
+    financialView: string | null;
+    total: number;
+  }>;
+  timesheetsRollup: Array<{
+    projectId: number;
+    userId: string;
+    totalHours: number;
+    days: number;
+  }>;
+  deliverables: Array<{
+    taskId: number;
+    projectId: number;
+    name: string;
+    deliverables: string;
+    status: string | null;
+    endDate: string | null;
+  }>;
+}
+
+// Short-lived in-memory cache so back-to-back chat turns from the same user
+// don't re-issue ~10 parallel queries. TTL is small enough that data feels
+// fresh; users rarely send a new message and immediately expect to see a
+// project they created < 20s ago reflected in Friday's context.
+const ORG_CONTEXT_TTL_MS = 20_000;
+const orgContextCache = new Map<number, { value: JarvisContext; expiresAt: number }>();
+
+export function invalidateOrganizationContextCache(orgId?: number) {
+  if (orgId == null) orgContextCache.clear();
+  else orgContextCache.delete(orgId);
 }
 
 export async function gatherOrganizationContext(orgId: number): Promise<JarvisContext> {
+  const now = Date.now();
+  const cached = orgContextCache.get(orgId);
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
+  }
+  const value = await gatherOrganizationContextUncached(orgId);
+  orgContextCache.set(orgId, { value, expiresAt: now + ORG_CONTEXT_TTL_MS });
+  return value;
+}
+
+async function gatherOrganizationContextUncached(orgId: number): Promise<JarvisContext> {
   const [orgRow] = await db.select({ fiscalYearStartMonth: organizations.fiscalYearStartMonth })
     .from(organizations).where(eq(organizations.id, orgId));
   const fiscalYearStartMonth = normalizeFiscalYearStartMonth(
@@ -131,6 +208,9 @@ export async function gatherOrganizationContext(orgId: number): Promise<JarvisCo
       statusReports: [],
       healthHistory: [],
       fiscalYearStartMonth,
+      financialsRollup: [],
+      timesheetsRollup: [],
+      deliverables: [],
     };
   }
 
@@ -138,7 +218,19 @@ export async function gatherOrganizationContext(orgId: number): Promise<JarvisCo
   const MAX_TASKS = 300;
   const MAX_DEPS = 100;
 
-  const [allIssues, allTasks, allDeps, recentReports, recentHealth] = await Promise.all([
+  // Compute the start of the previous 90 days for timesheet rollup
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+  const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().split("T")[0];
+
+  // Determine current fiscal year (calendar-anchored) for financial rollup
+  const _now = new Date();
+  const _calMonth = _now.getMonth() + 1;
+  const _currentFy = fiscalYearStartMonth === 1
+    ? _now.getFullYear()
+    : (_calMonth >= fiscalYearStartMonth ? _now.getFullYear() + 1 : _now.getFullYear());
+
+  const [allIssues, allTasks, allDeps, recentReports, recentHealth, financialsAgg, timesheetsAgg, deliverableTasks] = await Promise.all([
     db.select({
       id: issues.id,
       projectId: issues.projectId,
@@ -200,12 +292,91 @@ export async function gatherOrganizationContext(orgId: number): Promise<JarvisCo
     db.select().from(healthStatusHistory).where(
       inArray(healthStatusHistory.projectId, projectIds)
     ).orderBy(desc(healthStatusHistory.createdAt)).limit(30),
+    // Financials rollup: current + previous fiscal year, grouped by
+    // project / fiscal year / scenario / financial view (Capital, Direct Expense, Labor).
+    db.select({
+      projectId: financialEntries.projectId,
+      fiscalYear: financialEntries.fiscalYear,
+      scenario: financialEntries.scenario,
+      financialView: financialEntries.financialView,
+      total: sql<string>`COALESCE(SUM(${financialEntries.amount}), 0)`,
+    })
+      .from(financialEntries)
+      .where(and(
+        inArray(financialEntries.projectId, projectIds),
+        inArray(financialEntries.fiscalYear, [_currentFy, _currentFy - 1]),
+      ))
+      .groupBy(
+        financialEntries.projectId,
+        financialEntries.fiscalYear,
+        financialEntries.scenario,
+        financialEntries.financialView,
+      )
+      .limit(400)
+      .catch(() => [] as any[]),
+    // Timesheet rollup: last 90 days, grouped by project + user.
+    db.select({
+      projectId: timesheetEntries.projectId,
+      userId: timesheetEntries.userId,
+      totalHours: sql<string>`COALESCE(SUM(${timesheetEntries.hours}), 0)`,
+      days: sql<number>`COUNT(DISTINCT ${timesheetEntries.entryDate})`,
+    })
+      .from(timesheetEntries)
+      .where(and(
+        eq(timesheetEntries.organizationId, orgId),
+        gte(timesheetEntries.entryDate, ninetyDaysAgoStr),
+      ))
+      .groupBy(timesheetEntries.projectId, timesheetEntries.userId)
+      .limit(300)
+      .catch(() => [] as any[]),
+    // Deliverables: tasks with non-empty `deliverables` content.
+    db.select({
+      taskId: tasks.id,
+      projectId: tasks.projectId,
+      name: tasks.name,
+      deliverables: tasks.deliverables,
+      status: tasks.status,
+      endDate: tasks.endDate,
+    })
+      .from(tasks)
+      .where(and(
+        inArray(tasks.projectId, projectIds),
+        isNull(tasks.deletedAt),
+        isNotNull(tasks.deliverables),
+        sql`${tasks.deliverables} <> ''`,
+      ))
+      .limit(150)
+      .catch(() => [] as any[]),
   ]);
 
   const risksData = allIssues.filter(i => i.itemType === "risk");
   const issuesData = allIssues.filter(i => i.itemType === "issue");
   const tasksData = allTasks.filter(t => !t.isMilestone);
   const milestonesData = allTasks.filter(t => t.isMilestone);
+
+  const financialsRollup = (financialsAgg as any[]).map((row) => ({
+    projectId: row.projectId,
+    fiscalYear: row.fiscalYear,
+    scenario: row.scenario,
+    financialView: row.financialView,
+    total: Number(row.total) || 0,
+  }));
+
+  const timesheetsRollup = (timesheetsAgg as any[]).map((row) => ({
+    projectId: row.projectId,
+    userId: row.userId,
+    totalHours: Number(row.totalHours) || 0,
+    days: Number(row.days) || 0,
+  }));
+
+  const deliverablesData = (deliverableTasks as any[]).map((row) => ({
+    taskId: row.taskId,
+    projectId: row.projectId,
+    name: row.name,
+    deliverables: String(row.deliverables ?? ""),
+    status: row.status ?? null,
+    endDate: row.endDate ?? null,
+  }));
 
   return {
     projects: orgProjects.map(summarizeProject),
@@ -219,6 +390,9 @@ export async function gatherOrganizationContext(orgId: number): Promise<JarvisCo
     statusReports: recentReports,
     healthHistory: recentHealth,
     fiscalYearStartMonth,
+    financialsRollup,
+    timesheetsRollup,
+    deliverables: deliverablesData,
   };
 }
 
@@ -354,6 +528,66 @@ function buildDataContext(ctx: JarvisContext): string {
 
   if (ctx.healthHistory.length > 0) {
     summary += `### Recent Health Changes\n${JSON.stringify(ctx.healthHistory.slice(0, 10), null, 1)}\n\n`;
+  }
+
+  // ----- Org-wide signals: financials, timesheets, deliverables -----
+
+  if (ctx.financialsRollup.length > 0) {
+    // Compute totals per project (across all FY/scenario/view) and a
+    // budget-vs-actual snapshot for the current FY for quick reasoning.
+    const byProject = new Map<number, { budget: number; forecast: number; actual: number }>();
+    for (const r of ctx.financialsRollup) {
+      const cur = byProject.get(r.projectId) ?? { budget: 0, forecast: 0, actual: 0 };
+      const s = (r.scenario || "").toLowerCase();
+      if (s === "aop") cur.budget += r.total;
+      else if (s === "fcst") cur.forecast += r.total;
+      else if (s === "act") cur.actual += r.total;
+      byProject.set(r.projectId, cur);
+    }
+    const budgetVsActual = Array.from(byProject.entries()).map(([projectId, t]) => ({
+      projectId,
+      budget: Math.round(t.budget),
+      forecast: Math.round(t.forecast),
+      actual: Math.round(t.actual),
+      variance: Math.round(t.budget - t.actual),
+    }));
+
+    summary += `### Org-wide Financial Signals\n`;
+    summary += `Rolled up from \`financial_entries\` for the current and previous fiscal year, by project / fiscal year / scenario (aop=Plan, fcst=Forecast, act=Actual) / financial view (Capital, Direct Expense, Labor). Use these totals when the user asks "how much have we spent / planned / forecasted on Project X".\n\n`;
+    summary += `**Budget vs Actual (FY current + previous combined, per project):**\n${JSON.stringify(budgetVsActual.slice(0, 50), null, 1)}\n\n`;
+    summary += `**Detailed rollup (by FY/scenario/view):**\n${JSON.stringify(ctx.financialsRollup.slice(0, 200), null, 1)}\n\n`;
+  }
+
+  if (ctx.timesheetsRollup.length > 0) {
+    // Aggregate to a "hours per project" view so common questions like
+    // "who is logging the most time on Project X" or "total hours on Project Y last quarter"
+    // can be answered directly.
+    const hoursByProject = new Map<number, number>();
+    for (const r of ctx.timesheetsRollup) {
+      hoursByProject.set(r.projectId, (hoursByProject.get(r.projectId) ?? 0) + r.totalHours);
+    }
+    const hoursPerProject = Array.from(hoursByProject.entries())
+      .map(([projectId, hours]) => ({ projectId, totalHours: Math.round(hours * 10) / 10 }))
+      .sort((a, b) => b.totalHours - a.totalHours)
+      .slice(0, 50);
+
+    summary += `### Org-wide Time Tracking (last 90 days)\n`;
+    summary += `Rolled up from \`timesheet_entries\`. Use when the user asks about effort spent, who is working on what, or capacity utilization.\n\n`;
+    summary += `**Hours per project (last 90d):**\n${JSON.stringify(hoursPerProject, null, 1)}\n\n`;
+    summary += `**Hours per (project, user) (last 90d):**\n${JSON.stringify(ctx.timesheetsRollup.slice(0, 200), null, 1)}\n\n`;
+  }
+
+  if (ctx.deliverables.length > 0) {
+    summary += `### Project Deliverables\n`;
+    summary += `Tasks that explicitly enumerate deliverables (artifacts, outputs, signed contracts, releases, etc.). Use when the user asks "what deliverables do we owe on Project X" or "what was promised this quarter".\n\n`;
+    summary += `${JSON.stringify(ctx.deliverables.slice(0, 100), null, 1)}\n\n`;
+  }
+
+  // Always emphasize that milestones are first-class
+  if (ctx.milestones.length > 0) {
+    const completedMilestones = ctx.milestones.filter(m => m.status === "Completed").length;
+    summary += `### Milestone Roll-up\n`;
+    summary += `${ctx.milestones.length} total milestones, ${completedMilestones} completed, ${ctx.milestones.length - completedMilestones} open. Treat these as critical schedule anchors when summarizing project progress.\n\n`;
   }
 
   return summary;
@@ -618,6 +852,9 @@ async function handleToolCall(
   toolName: string,
   args: Record<string, any>,
 ): Promise<string> {
+  // Any tool call mutates org data; bust the short-TTL cache so the next
+  // turn's context reflects the change.
+  invalidateOrganizationContextCache(orgId);
   if (ORG_SCOPED_TOOLS.has(toolName)) {
     return handleOrgScopedToolCall(orgId, toolName, args);
   }
@@ -1322,6 +1559,10 @@ export async function executeJarvisAction(
   if (!projectInOrg) {
     return { success: false, message: "Project not found in this organization." };
   }
+
+  // Mutating action — bust the org-context cache so subsequent chat turns
+  // see the new task/risk/note immediately.
+  invalidateOrganizationContextCache(orgId);
 
   switch (action.type) {
     case "create_task": {

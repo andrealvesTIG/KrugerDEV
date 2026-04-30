@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useJarvis, type FileAttachment } from "@/hooks/use-jarvis";
 import { useSpeechRecognition, useSpeechSynthesis } from "@/hooks/use-speech";
 import {
-  Mic, MicOff, Send, Square, Trash2,
+  Mic, MicOff, Send, Square,
   ChevronRight, X, MessageSquare, Minimize2, Zap, FileText,
   Paperclip,
   MessageCircle, AudioLines, PenLine,
@@ -27,6 +27,7 @@ import {
   CSV_CHUNK_BYTES,
   splitCsvIntoChunks,
 } from "./jarvis-shared";
+import { RecentChatsMenu } from "./RecentChatsMenu";
 
 type InteractionMode = "chat" | "voice" | "dictate";
 
@@ -45,7 +46,10 @@ interface JarvisPanelProps {
 }
 
 export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoListenConsumed }: JarvisPanelProps) {
-  const { messages, isLoading, sendMessage, clearMessages, stopGeneration, conciseMode, setConciseMode, pageContext } = useJarvis();
+  const {
+    messages, isLoading, sendMessage, stopGeneration, conciseMode, setConciseMode, pageContext,
+    conversations, activeConversationId, switchConversation, newConversation,
+  } = useJarvis();
   const [input, setInput] = useState("");
   const [interimText, setInterimText] = useState("");
   const [mode, setMode] = useState<InteractionMode>("chat");
@@ -383,17 +387,23 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                   <p className="text-xs">{conciseMode ? "Short replies (click for detailed)" : "Detailed replies (click for brief)"}</p>
                 </TooltipContent>
               </Tooltip>
-              {messages.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => { clearMessages(); setShowChat(false); lastSpokenRef.current = ""; stopSpeaking(); }}
-                  className="h-7 px-2 text-cyan-300 hover:text-cyan-400 hover:bg-cyan-900/20"
-                >
-                  <Trash2 className="h-3 w-3 mr-1" />
-                  <span className="text-xs">New</span>
-                </Button>
-              )}
+              <RecentChatsMenu
+                conversations={conversations}
+                activeConversationId={activeConversationId}
+                onSwitch={(id) => {
+                  switchConversation(id);
+                  setShowChat(true);
+                  lastSpokenRef.current = "";
+                  stopSpeaking();
+                }}
+                onNew={() => {
+                  newConversation();
+                  setShowChat(false);
+                  lastSpokenRef.current = "";
+                  stopSpeaking();
+                }}
+                size="icon"
+              />
               <Button
                 variant="ghost"
                 size="icon"
@@ -550,6 +560,19 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                   {messages.map((msg, i) => (
                     <MessageBubble key={msg.id} message={msg} index={i} onNavigate={handleNavigate} />
                   ))}
+                  {isLoading && (() => {
+                    const last = messages[messages.length - 1];
+                    const noTokensYet = !last || last.role === "user" || (last.role === "assistant" && !last.content);
+                    if (!noTokensYet) return null;
+                    return (
+                      <div className="flex items-center gap-2 py-2 px-1" data-testid="friday-thinking-panel">
+                        <span className="inline-flex h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                        <span className="inline-flex h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse [animation-delay:150ms]" />
+                        <span className="inline-flex h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse [animation-delay:300ms]" />
+                        <span className="text-[11px] text-cyan-300/70 ml-1">Friday is thinking…</span>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
