@@ -137,7 +137,7 @@ function MarkdownContent({ content, onNavigate }: { content: string; onNavigate?
     } else if (line.startsWith("  - ") || line.startsWith("  * ")) {
       elements.push(
         <div key={i} className="flex gap-1.5 ml-6">
-          <span className="text-cyan-600 mt-0.5 flex-shrink-0">&#9672;</span>
+          <span className="text-cyan-300 mt-0.5 flex-shrink-0">&#9672;</span>
           <span>{renderInline(line.slice(4), onNavigate)}</span>
         </div>
       );
@@ -555,7 +555,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:w-[520px] md:w-[580px] sm:!max-w-[580px] p-0 flex flex-col gap-0 border-l border-cyan-900/30 bg-[#0a0e1a] [&>button]:hidden overflow-hidden"
+        className="w-full sm:w-[520px] md:w-[580px] sm:!max-w-[580px] p-0 flex flex-col gap-0 border-l border-cyan-900/30 bg-[#0f172a] [&>button]:hidden overflow-hidden"
       >
         <VisuallyHidden.Root>
           <SheetTitle>Friday Report</SheetTitle>
@@ -582,7 +582,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
               <span className="text-sm font-medium text-cyan-300 tracking-wider uppercase" style={{ fontFamily: "'Outfit', sans-serif" }}>
                 F.R.I.D.A.Y.
               </span>
-              <span className="text-xs text-cyan-600">Agent</span>
+              <span className="text-xs text-cyan-300">Agent</span>
               {pageContext.entityType && (() => {
                 const CtxIcon = getContextIcon(pageContext.entityType);
                 return (
@@ -602,7 +602,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                     onClick={() => setConciseMode(!conciseMode)}
                     className={cn(
                       "h-7 px-2 hover:bg-cyan-900/20",
-                      conciseMode ? "text-cyan-400" : "text-cyan-700"
+                      conciseMode ? "text-cyan-100" : "text-cyan-300"
                     )}
                   >
                     {conciseMode ? <Zap className="h-3 w-3 mr-1" /> : <FileText className="h-3 w-3 mr-1" />}
@@ -618,7 +618,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                   variant="ghost"
                   size="sm"
                   onClick={() => { clearMessages(); setShowChat(false); lastSpokenRef.current = ""; stopSpeaking(); }}
-                  className="h-7 px-2 text-cyan-600 hover:text-cyan-400 hover:bg-cyan-900/20"
+                  className="h-7 px-2 text-cyan-300 hover:text-cyan-400 hover:bg-cyan-900/20"
                 >
                   <Trash2 className="h-3 w-3 mr-1" />
                   <span className="text-xs">New</span>
@@ -628,7 +628,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                 variant="ghost"
                 size="icon"
                 onClick={() => onOpenChange(false)}
-                className="h-7 w-7 text-cyan-600 hover:text-cyan-400 hover:bg-cyan-900/20"
+                className="h-7 w-7 text-cyan-300 hover:text-cyan-400 hover:bg-cyan-900/20"
               >
                 <X className="h-3.5 w-3.5" />
               </Button>
@@ -649,8 +649,8 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                   className={cn(
                     "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium transition-all",
                     isActive
-                      ? "bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 shadow-[0_0_8px_rgba(0,200,255,0.1)]"
-                      : "text-cyan-700 hover:text-cyan-500 hover:bg-cyan-900/20 border border-transparent",
+                      ? "bg-cyan-500/20 text-cyan-50 border border-cyan-400/50 shadow-[0_0_10px_rgba(0,200,255,0.2)]"
+                      : "text-cyan-300 hover:text-cyan-100 hover:bg-cyan-900/30 border border-transparent",
                     isDisabled && "opacity-30 cursor-not-allowed"
                   )}
                 >
@@ -676,7 +676,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                       isListening
                         ? "bg-red-500/15 text-red-400 hover:bg-red-500/25 ring-2 ring-red-500/50"
                         : isLoading
-                        ? "bg-cyan-900/30 text-cyan-600 border border-cyan-800/40"
+                        ? "bg-cyan-900/30 text-cyan-300 border border-cyan-800/40"
                         : "bg-cyan-900/30 text-cyan-400 hover:bg-cyan-800/40 border border-cyan-700/40"
                     )}
                   >
@@ -693,7 +693,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                 <div className="text-center">
                   <p className={cn(
                     "text-sm font-medium",
-                    isListening ? "text-red-400" : isSpeaking ? "text-green-400" : isLoading ? "text-cyan-500" : "text-cyan-600"
+                    isListening ? "text-red-400" : isSpeaking ? "text-green-400" : isLoading ? "text-cyan-500" : "text-cyan-300"
                   )}>
                     {isListening ? "Listening..." : isSpeaking ? "Speaking..." : isLoading ? "Thinking..." : "Tap to speak"}
                   </p>
@@ -703,7 +703,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                     </p>
                   )}
                   {!showChat && messages.length === 0 && !isListening && !isLoading && !isSpeaking && (
-                    <p className="text-xs text-cyan-800 mt-2 max-w-[220px]">
+                    <p className="text-xs text-cyan-400 mt-2 max-w-[220px]">
                       Friday will listen and respond automatically
                     </p>
                   )}
@@ -722,7 +722,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                 )}
 
                 {micError && (
-                  <p className="text-xs text-red-400/80 text-center max-w-[260px] px-3 py-1.5 rounded bg-red-900/20 border border-red-800/30">
+                  <p className="text-xs text-red-300 text-center max-w-[260px] px-3 py-1.5 rounded bg-red-900/20 border border-red-800/30">
                     {micError}
                   </p>
                 )}
@@ -742,7 +742,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                   transition={{ delay: 0.2 }}
                   className="w-full max-w-xs px-4"
                 >
-                  <p className="text-[10px] font-medium text-cyan-700 uppercase tracking-widest mb-2 text-center">
+                  <p className="text-[10px] font-medium text-cyan-300 uppercase tracking-widest mb-2 text-center">
                     Suggested
                   </p>
                   <div className="space-y-1.5">
@@ -750,9 +750,9 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                       <button
                         key={prompt}
                         onClick={() => sendMessage(prompt)}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left rounded border border-cyan-900/30 text-cyan-400/80 hover:text-cyan-300 hover:bg-cyan-900/20 hover:border-cyan-700/30 transition-all group"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left rounded border border-cyan-900/30 text-cyan-100 hover:text-cyan-300 hover:bg-cyan-900/20 hover:border-cyan-700/30 transition-all group"
                       >
-                        <ChevronRight className="h-3 w-3 text-cyan-700 group-hover:text-cyan-400 transition-colors flex-shrink-0" />
+                        <ChevronRight className="h-3 w-3 text-cyan-300 group-hover:text-cyan-400 transition-colors flex-shrink-0" />
                         <span className="truncate">{prompt}</span>
                       </button>
                     ))}
@@ -765,12 +765,12 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
           {showChat && messages.length > 0 && (
             <div className="flex-1 min-h-0 flex flex-col border-t border-cyan-900/20 overflow-hidden">
               <div className="flex items-center justify-between px-4 py-1.5 border-b border-cyan-900/10 flex-shrink-0">
-                <span className="text-[10px] text-cyan-700 uppercase tracking-widest">Conversation</span>
+                <span className="text-[10px] text-cyan-300 uppercase tracking-widest">Conversation</span>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowChat(false)}
-                  className="h-6 px-1.5 text-cyan-700 hover:text-cyan-400 hover:bg-cyan-900/20"
+                  className="h-6 px-1.5 text-cyan-300 hover:text-cyan-400 hover:bg-cyan-900/20"
                 >
                   <Minimize2 className="h-3 w-3" />
                 </Button>
@@ -791,7 +791,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowChat(true)}
-                className="w-full h-8 text-cyan-600 hover:text-cyan-400 hover:bg-cyan-900/20 border border-cyan-900/20"
+                className="w-full h-8 text-cyan-300 hover:text-cyan-400 hover:bg-cyan-900/20 border border-cyan-900/20"
               >
                 <MessageSquare className="h-3 w-3 mr-1.5" />
                 <span className="text-xs">Show conversation ({messages.length})</span>
@@ -800,7 +800,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
           )}
 
           {mode !== "voice" && (
-            <div className="flex-shrink-0 border-t border-cyan-900/20 p-3 bg-[#0a0e1a]/80 backdrop-blur">
+            <div className="flex-shrink-0 border-t border-cyan-900/20 p-3 bg-[#0f172a]/80 backdrop-blur">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -849,10 +849,10 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                       >
                         <Paperclip className="h-2.5 w-2.5" />
                         <span className="max-w-[120px] truncate">{f.name}</span>
-                        <span className="text-cyan-700">({(f.size / 1024).toFixed(0)}KB)</span>
+                        <span className="text-cyan-300">({(f.size / 1024).toFixed(0)}KB)</span>
                         <button
                           onClick={() => removeFile(f.name)}
-                          className="ml-0.5 text-cyan-700 hover:text-red-400 transition-colors"
+                          className="ml-0.5 text-cyan-300 hover:text-red-400 transition-colors"
                         >
                           <X className="h-2.5 w-2.5" />
                         </button>
@@ -862,7 +862,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                 )}
               </AnimatePresence>
               {micError && mode === "dictate" && (
-                <div className="mb-2 text-xs text-red-400/80 text-center px-3 py-1.5 rounded bg-red-900/20 border border-red-800/30">
+                <div className="mb-2 text-xs text-red-300 text-center px-3 py-1.5 rounded bg-red-900/20 border border-red-800/30">
                   {micError}
                 </div>
               )}
@@ -917,7 +917,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                         ? (isListening ? "Listening... speak now" : "Speak or type here")
                         : (pageContext.entityType ? `Ask about this ${pageContext.entityType}...` : "Ask Friday anything...")
                     }
-                    className="min-h-[38px] max-h-[80px] resize-none text-sm bg-slate-900/50 border-cyan-900/30 text-cyan-100 placeholder:text-cyan-800 focus-visible:ring-cyan-500/30 focus-visible:border-cyan-700/50 pr-2"
+                    className="min-h-[38px] max-h-[80px] resize-none text-sm bg-slate-900/50 border-cyan-900/30 text-cyan-100 placeholder:text-cyan-400 focus-visible:ring-cyan-500/30 focus-visible:border-cyan-700/50 pr-2"
                     rows={1}
                     disabled={mode === "dictate" && isListening}
                   />
@@ -943,15 +943,15 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                   </Button>
                 )}
               </div>
-              <p className="text-[9px] text-cyan-900 tracking-wide text-center">
+              <p className="text-[9px] text-cyan-500 tracking-wide text-center">
                 AI-GENERATED
               </p>
             </div>
           )}
 
           {mode === "voice" && (
-            <div className="flex-shrink-0 border-t border-cyan-900/20 py-2 px-3 bg-[#0a0e1a]/80">
-              <p className="text-[9px] text-cyan-900 tracking-wide text-center">
+            <div className="flex-shrink-0 border-t border-cyan-900/20 py-2 px-3 bg-[#0f172a]/80">
+              <p className="text-[9px] text-cyan-500 tracking-wide text-center">
                 AI-GENERATED
               </p>
             </div>
