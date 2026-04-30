@@ -3,12 +3,12 @@ import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useJarvis, type JarvisMessage, type FileAttachment } from "@/hooks/use-jarvis";
+import { useJarvis, type FileAttachment } from "@/hooks/use-jarvis";
 import { useSpeechRecognition, useSpeechSynthesis } from "@/hooks/use-speech";
 import {
   Mic, MicOff, Send, Square, Trash2,
   ChevronRight, X, MessageSquare, Minimize2, Zap, FileText,
-  Paperclip, FolderOpen, Briefcase, User2,
+  Paperclip,
   MessageCircle, AudioLines, PenLine,
 } from "lucide-react";
 import {
@@ -17,249 +17,19 @@ import {
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
+import {
+  MessageBubble,
+  getSuggestedPrompts,
+  getContextIcon,
+  getContextLabel,
+  ALLOWED_FILE_TYPES,
+  MAX_FILE_SIZE,
+  CSV_CHUNK_BYTES,
+  splitCsvIntoChunks,
+} from "./jarvis-shared";
 
 type InteractionMode = "chat" | "voice" | "dictate";
 
-const GLOBAL_PROMPTS = [
-  "Which projects are at risk?",
-  "What issues are blocking delivery?",
-  "Summarize overall project health",
-  "Draft an executive weekly update",
-];
-
-const PROJECT_PROMPTS = [
-  "Summarize this project's status",
-  "What are the open risks for this project?",
-  "List overdue tasks in this project",
-  "Draft a status update for this project",
-];
-
-const PORTFOLIO_PROMPTS = [
-  "Summarize this portfolio's health",
-  "Which projects in this portfolio are at risk?",
-  "Show budget vs actual across this portfolio",
-  "What are the top risks in this portfolio?",
-];
-
-const RESOURCE_PROMPTS = [
-  "What projects is this person assigned to?",
-  "Show this resource's workload summary",
-  "Are there any overdue tasks for this person?",
-  "Summarize this resource's current assignments",
-];
-
-function getSuggestedPrompts(entityType: string | null): string[] {
-  switch (entityType) {
-    case "project": return PROJECT_PROMPTS;
-    case "portfolio": return PORTFOLIO_PROMPTS;
-    case "resource": return RESOURCE_PROMPTS;
-    default: return GLOBAL_PROMPTS;
-  }
-}
-
-function getContextIcon(entityType: string | null) {
-  switch (entityType) {
-    case "project": return FolderOpen;
-    case "portfolio": return Briefcase;
-    case "resource": return User2;
-    default: return null;
-  }
-}
-
-function getContextLabel(entityType: string | null): string {
-  switch (entityType) {
-    case "project": return "Project scope";
-    case "portfolio": return "Portfolio scope";
-    case "resource": return "Resource scope";
-    default: return "Organization scope";
-  }
-}
-
-const MAX_FILE_SIZE = 500 * 1024;
-const CSV_CHUNK_BYTES = 450 * 1024;
-
-function splitCsvIntoChunks(text: string, maxBytes: number): string[] {
-  const lines = text.split(/\r?\n/);
-  const header = lines[0] ?? "";
-  const dataRows = lines.slice(1).filter(l => l.trim());
-  const chunks: string[] = [];
-  let current = header;
-  for (const row of dataRows) {
-    const candidate = current + "\n" + row;
-    if (new Blob([candidate]).size > maxBytes && current !== header) {
-      chunks.push(current);
-      current = header + "\n" + row;
-    } else {
-      current = candidate;
-    }
-  }
-  if (current !== header) chunks.push(current);
-  return chunks.length > 0 ? chunks : [text];
-}
-
-const ALLOWED_FILE_TYPES = [
-  "text/plain", "text/csv", "text/html", "text/xml", "text/markdown",
-  "application/json", "application/xml", "application/csv",
-  "application/pdf",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-];
-
-function MarkdownContent({ content, onNavigate }: { content: string; onNavigate?: (path: string) => void }) {
-  const lines = content.split("\n");
-  const elements: JSX.Element[] = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.startsWith("### ")) {
-      elements.push(<h3 key={i} className="font-semibold text-sm mt-3 mb-1 text-cyan-300">{renderInline(line.slice(4), onNavigate)}</h3>);
-    } else if (line.startsWith("## ")) {
-      elements.push(<h2 key={i} className="font-semibold text-base mt-3 mb-1 text-cyan-200">{renderInline(line.slice(3), onNavigate)}</h2>);
-    } else if (line.startsWith("# ")) {
-      elements.push(<h1 key={i} className="font-bold text-lg mt-3 mb-1 text-cyan-100">{renderInline(line.slice(2), onNavigate)}</h1>);
-    } else if (line.startsWith("- ") || line.startsWith("* ")) {
-      elements.push(
-        <div key={i} className="flex gap-1.5 ml-2">
-          <span className="text-cyan-500 mt-0.5 flex-shrink-0">&#9670;</span>
-          <span>{renderInline(line.slice(2), onNavigate)}</span>
-        </div>
-      );
-    } else if (/^\d+\.\s/.test(line)) {
-      const match = line.match(/^(\d+)\.\s(.*)$/);
-      if (match) {
-        elements.push(
-          <div key={i} className="flex gap-1.5 ml-2">
-            <span className="text-cyan-400 flex-shrink-0 font-medium">{match[1]}.</span>
-            <span>{renderInline(match[2], onNavigate)}</span>
-          </div>
-        );
-      }
-    } else if (line.startsWith("  - ") || line.startsWith("  * ")) {
-      elements.push(
-        <div key={i} className="flex gap-1.5 ml-6">
-          <span className="text-cyan-300 mt-0.5 flex-shrink-0">&#9672;</span>
-          <span>{renderInline(line.slice(4), onNavigate)}</span>
-        </div>
-      );
-    } else if (line.trim() === "") {
-      elements.push(<div key={i} className="h-1.5" />);
-    } else if (line.startsWith("> ")) {
-      elements.push(
-        <div key={i} className="border-l-2 border-cyan-500/40 pl-3 py-0.5 text-cyan-300/80 italic">
-          {renderInline(line.slice(2), onNavigate)}
-        </div>
-      );
-    } else {
-      elements.push(<p key={i}>{renderInline(line, onNavigate)}</p>);
-    }
-  }
-
-  return <div className="space-y-0.5 text-sm leading-relaxed">{elements}</div>;
-}
-
-let inlineKeyCounter = 0;
-
-function renderInline(text: string, onNavigate?: (path: string) => void): (string | JSX.Element)[] {
-  const parts: (string | JSX.Element)[] = [];
-  const regex = /(\*\*\[([^\]]+)\]\((\/.+?)\)\*\*)|(\*\*(.+?)\*\*)|(`(.+?)`)|(\[([^\]]+)\]\((\/.+?)\))/g;
-  let lastIndex = 0;
-  let match;
-
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
-    if (match[2] && match[3]) {
-      const linkText = match[2];
-      const linkPath = match[3];
-      parts.push(
-        <button
-          key={`il-${inlineKeyCounter++}`}
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onNavigate?.(linkPath);
-          }}
-          className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2 decoration-cyan-500/40 hover:decoration-cyan-400/60 transition-colors cursor-pointer font-semibold"
-        >
-          {linkText}
-        </button>
-      );
-    } else if (match[5]) {
-      parts.push(<strong key={`il-${inlineKeyCounter++}`} className="font-semibold text-cyan-200">{renderInline(match[5], onNavigate)}</strong>);
-    } else if (match[7]) {
-      parts.push(
-        <code key={`il-${inlineKeyCounter++}`} className="bg-cyan-900/30 border border-cyan-700/30 px-1 py-0.5 rounded text-xs font-mono text-cyan-300">{match[7]}</code>
-      );
-    } else if (match[9] && match[10]) {
-      const linkText = match[9];
-      const linkPath = match[10];
-      parts.push(
-        <button
-          key={`il-${inlineKeyCounter++}`}
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onNavigate?.(linkPath);
-          }}
-          className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2 decoration-cyan-500/40 hover:decoration-cyan-400/60 transition-colors cursor-pointer font-medium"
-        >
-          {linkText}
-        </button>
-      );
-    }
-    lastIndex = match.index + match[0].length;
-  }
-  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
-  return parts.length > 0 ? parts : [text];
-}
-
-function MessageBubble({ message, index, onNavigate }: { message: JarvisMessage; index: number; onNavigate?: (path: string) => void }) {
-  const isUser = message.role === "user";
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: 0.05 }}
-      className={cn("flex gap-2 py-2", isUser ? "flex-row-reverse" : "flex-row")}
-    >
-      <div className={cn(
-        "min-w-0 rounded-lg px-4 py-2.5",
-        isUser
-          ? "bg-cyan-500/10 border border-cyan-500/20 text-cyan-100 ml-8 max-w-[85%]"
-          : "bg-slate-800/50 border border-slate-700/30 text-slate-200 w-full"
-      )}>
-        {isUser ? (
-          <div>
-            <p className="text-sm">{message.content}</p>
-            {message.attachments && message.attachments.length > 0 && (
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {message.attachments.map(a => (
-                  <span key={a.name} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-cyan-900/20 text-cyan-500 border border-cyan-800/20">
-                    <Paperclip className="h-2 w-2" />
-                    {a.name}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : message.content ? (
-          <MarkdownContent content={message.content} onNavigate={onNavigate} />
-        ) : (
-          <div className="flex items-center gap-2 text-sm text-cyan-400/60">
-            <div className="flex gap-1">
-              <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-              <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-              <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-            </div>
-            Analyzing data...
-          </div>
-        )}
-      </div>
-    </motion.div>
-  );
-}
 
 const MODE_CONFIG: Record<InteractionMode, { icon: typeof MessageCircle; label: string; description: string }> = {
   chat: { icon: MessageCircle, label: "Chat", description: "Type your questions" },

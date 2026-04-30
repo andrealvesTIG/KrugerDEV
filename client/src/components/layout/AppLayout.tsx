@@ -1,12 +1,13 @@
 import { ReactNode, useState, useMemo, useRef, useEffect } from "react";
-import { normalizeSearch } from "@/lib/utils";
+import { cn, normalizeSearch } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Sidebar, SidebarProvider, useSidebarState, logoBlack, logoWhite } from "./Sidebar";
 import { useTheme } from "@/components/theme-provider";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { useNotifications, useUnreadNotificationCount, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/use-notifications";
 import { useSnoozeTimesheetReminder } from "@/hooks/use-timesheets";
-import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle, AlertTriangle, Clock, UserPlus, Flag, Target, AlertCircle, CheckCircle2, UserCheck, X, Search, ArrowDownAZ, ArrowUpZA, CalendarDays, ArrowUp, ArrowDown, AlarmClock, BellOff, Bot } from "lucide-react";
+import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle, AlertTriangle, Clock, UserPlus, Flag, Target, AlertCircle, CheckCircle2, UserCheck, X, Search, ArrowDownAZ, ArrowUpZA, CalendarDays, ArrowUp, ArrowDown, AlarmClock, BellOff, Bot, Sparkles } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Link, useLocation } from "wouter";
 import { SearchCommand } from "./SearchCommand";
@@ -27,6 +28,8 @@ import { FridayCountdown } from "./FridayCountdown";
 import JarvisOrbFloating from "@/components/jarvis/JarvisOrb";
 import JarvisPanel from "@/components/jarvis/JarvisPanel";
 import { useJarvis } from "@/hooks/use-jarvis";
+import { useAiMode } from "@/hooks/use-ai-mode";
+import AiModePage from "@/components/jarvis/AiModePage";
 import { useWakeWord } from "@/hooks/use-wake-word";
 import { useUserJourney } from "@/hooks/use-user-journey";
 
@@ -71,11 +74,17 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
   const { theme } = useTheme();
   const { toast } = useToast();
   const { isOpen: jarvisOpen, toggleOpen: toggleJarvis, setIsOpen: setJarvisOpen } = useJarvis();
+  const { aiMode, toggleAiMode } = useAiMode();
   const { trackChecklistEvent } = useUserJourney();
 
   useWakeWord(() => {
+    if (aiMode) return;
     if (!jarvisOpen) setJarvisOpen(true);
   }, false);
+
+  useEffect(() => {
+    if (aiMode && jarvisOpen) setJarvisOpen(false);
+  }, [aiMode, jarvisOpen, setJarvisOpen]);
 
   useEffect(() => {
     if (jarvisOpen) {
@@ -124,6 +133,10 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
   const fullLogo = isDark ? logoWhite : logoBlack;
   
   const isFullBleedPage = location.startsWith('/embed') || location.startsWith('/pmo-radar') || location.startsWith('/powerbi-agent');
+
+  if (aiMode) {
+    return <AiModePage />;
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
@@ -305,6 +318,29 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
           </div>
           <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             <span className="hidden md:inline-flex"><FridayCountdown /></span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={toggleAiMode}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full text-xs font-semibold tracking-wide transition-all border",
+                    aiMode
+                      ? "bg-primary text-primary-foreground border-primary shadow-[0_0_10px_rgba(59,130,246,0.35)]"
+                      : "bg-transparent text-muted-foreground border-border hover:text-foreground hover:border-primary/40 hover:bg-accent"
+                  )}
+                  aria-pressed={aiMode}
+                  aria-label={aiMode ? "Exit AI Mode" : "Enter AI Mode"}
+                  data-testid="button-ai-mode-toggle"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>AI</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p className="text-xs">{aiMode ? "Exit AI Mode (Esc)" : "Switch to AI Mode — full-page chat"}</p>
+              </TooltipContent>
+            </Tooltip>
             <Button
               variant="ghost"
               size="icon"
