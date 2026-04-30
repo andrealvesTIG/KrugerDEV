@@ -603,16 +603,29 @@ export async function sendTaskAssignmentNotificationEmail(
   projectName: string,
   startDate: string | null,
   endDate: string | null,
-  projectUrl: string
+  taskUrl: string,
+  options?: {
+    assignedByName?: string | null;
+    priority?: string | null;
+    description?: string | null;
+  }
 ): Promise<boolean> {
   if (!(await shouldSendEmailToAddress(email, "task_assignment"))) return false;
   const escapeHtml = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-  const safeResourceName = escapeHtml(resourceName);
+  const firstName = (resourceName || '').trim().split(/\s+/)[0] || resourceName;
+  const safeFirstName = escapeHtml(firstName);
   const safeTaskName = escapeHtml(taskName);
   const safeProjectName = escapeHtml(projectName);
+  const safeAssignedBy = options?.assignedByName ? escapeHtml(options.assignedByName) : null;
+  const safePriority = options?.priority ? escapeHtml(options.priority) : null;
+  const rawDescription = (options?.description || '').trim();
+  const truncatedDescription = rawDescription.length > 280
+    ? rawDescription.slice(0, 280).trimEnd() + '…'
+    : rawDescription;
+  const safeDescription = truncatedDescription ? escapeHtml(truncatedDescription) : null;
 
-  const subject = `Task Assignment: ${taskName} - ${projectName}`;
+  const subject = `New task assigned: ${taskName}`;
 
   const dateInfo = startDate && endDate
     ? `${startDate} – ${endDate}`
@@ -622,16 +635,28 @@ export async function sendTaskAssignmentNotificationEmail(
         ? `Due ${endDate}`
         : 'No dates set';
 
+  const priorityColors: Record<string, { bg: string; text: string }> = {
+    Critical: { bg: '#fee2e2', text: '#b91c1c' },
+    High: { bg: '#fef3c7', text: '#b45309' },
+    Medium: { bg: '#dbeafe', text: '#1d4ed8' },
+    Low: { bg: '#f1f5f9', text: '#475569' },
+  };
+  const priorityStyle = safePriority && priorityColors[safePriority]
+    ? priorityColors[safePriority]
+    : { bg: '#f1f5f9', text: '#475569' };
+
   const text = `
-Hi ${resourceName},
+Hi ${firstName},
 
-You have been assigned to the task "${taskName}" in project "${projectName}".
+${safeAssignedBy ? `${options!.assignedByName} assigned you a new task` : 'You have been assigned a new task'} in ${projectName}.
 
-Dates: ${dateInfo}
+Task: ${taskName}
+Project: ${projectName}
+Dates: ${dateInfo}${safePriority ? `\nPriority: ${options!.priority}` : ''}${rawDescription ? `\n\nDetails: ${truncatedDescription}` : ''}
 
-View the project here: ${projectUrl}
+Open the task: ${taskUrl}
 
-- The FridayReport.AI Team
+— The FridayReport.AI Team
 `;
 
   const html = `
@@ -640,49 +665,95 @@ View the project here: ${projectUrl}
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${safeTaskName}</title>
 </head>
-<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); padding: 30px; border-radius: 8px 8px 0 0; text-align: center;">
-    <h1 style="color: white; margin: 0; font-size: 24px;">FridayReport.AI</h1>
+<body style="margin:0; padding:0; background-color:#f3f4f6; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color:#1f2937;">
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0;">
+    ${safeAssignedBy ? `${safeAssignedBy} assigned you ${safeTaskName} in ${safeProjectName}.` : `You've been assigned ${safeTaskName} in ${safeProjectName}.`}
   </div>
-  
-  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-    <h2 style="margin-top: 0; color: #1f2937;">Task Assignment</h2>
-    
-    <p>Hi <strong>${safeResourceName}</strong>,</p>
-    
-    <p>You have been assigned to a task in <strong>${safeProjectName}</strong>.</p>
-    
-    <div style="background: #f9fafb; padding: 20px; border-radius: 6px; margin: 20px 0;">
-      <table style="width: 100%; border-collapse: collapse;">
-        <tr>
-          <td style="padding: 6px 0; color: #6b7280; font-size: 14px; width: 80px;">Task</td>
-          <td style="padding: 6px 0; font-weight: 600;">${safeTaskName}</td>
-        </tr>
-        <tr>
-          <td style="padding: 6px 0; color: #6b7280; font-size: 14px;">Project</td>
-          <td style="padding: 6px 0; font-weight: 600;">${safeProjectName}</td>
-        </tr>
-        <tr>
-          <td style="padding: 6px 0; color: #6b7280; font-size: 14px;">Dates</td>
-          <td style="padding: 6px 0;">${dateInfo}</td>
-        </tr>
-      </table>
-    </div>
-    
-    <div style="text-align: center; margin: 30px 0;">
-      <a href="${escapeHtml(projectUrl)}" style="display: inline-block; background-color: #f97316; color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 6px; font-weight: 600; font-size: 16px;">View Project</a>
-    </div>
-    
-    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
-    
-    <p style="font-size: 12px; color: #9ca3af; margin-bottom: 0;">
-      This notification was sent because you are assigned to this task.
-    </p>
-    <p style="font-size: 11px; color: #9ca3af; margin: 12px 0 0; text-align: center;">
-      <a href="https://fridayreport.ai/profile?section=notifications" style="color: #9ca3af; text-decoration: underline;">Manage notification preferences</a>
-    </p>
-  </div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f3f4f6; padding:24px 12px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px; width:100%; background-color:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+          <tr>
+            <td style="background:linear-gradient(135deg,#f97316 0%,#ea580c 100%); padding:28px 32px; color:#ffffff;">
+              <div style="font-size:12px; letter-spacing:1.5px; text-transform:uppercase; opacity:0.85; margin-bottom:6px;">FridayReport.AI</div>
+              <div style="font-size:22px; font-weight:600; line-height:1.3;">You have a new task</div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:32px;">
+              <p style="margin:0 0 16px 0; font-size:16px; line-height:1.5; color:#1f2937;">
+                Hi <strong>${safeFirstName}</strong>,
+              </p>
+              <p style="margin:0 0 24px 0; font-size:15px; line-height:1.6; color:#4b5563;">
+                ${safeAssignedBy
+                  ? `<strong>${safeAssignedBy}</strong> assigned you a new task in <strong>${safeProjectName}</strong>.`
+                  : `You've been assigned a new task in <strong>${safeProjectName}</strong>.`}
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f9fafb; border:1px solid #e5e7eb; border-radius:10px; padding:20px;">
+                <tr>
+                  <td style="padding-bottom:14px;">
+                    <div style="font-size:11px; letter-spacing:1px; text-transform:uppercase; color:#9ca3af; margin-bottom:6px;">Task</div>
+                    <div style="font-size:18px; font-weight:600; color:#111827; line-height:1.4;">${safeTaskName}</div>
+                  </td>
+                </tr>
+                ${safeDescription ? `
+                <tr>
+                  <td style="padding:8px 0 14px 0; border-top:1px solid #e5e7eb;">
+                    <div style="font-size:11px; letter-spacing:1px; text-transform:uppercase; color:#9ca3af; margin:6px 0;">Details</div>
+                    <div style="font-size:14px; color:#4b5563; line-height:1.6;">${safeDescription}</div>
+                  </td>
+                </tr>` : ''}
+                <tr>
+                  <td style="padding-top:14px; border-top:1px solid #e5e7eb;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="padding:6px 0; font-size:13px; color:#6b7280; width:90px;">Project</td>
+                        <td style="padding:6px 0; font-size:14px; color:#111827; font-weight:500;">${safeProjectName}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding:6px 0; font-size:13px; color:#6b7280;">Schedule</td>
+                        <td style="padding:6px 0; font-size:14px; color:#111827;">${escapeHtml(dateInfo)}</td>
+                      </tr>
+                      ${safePriority ? `
+                      <tr>
+                        <td style="padding:6px 0; font-size:13px; color:#6b7280;">Priority</td>
+                        <td style="padding:6px 0;">
+                          <span style="display:inline-block; padding:3px 10px; border-radius:9999px; background-color:${priorityStyle.bg}; color:${priorityStyle.text}; font-size:12px; font-weight:600;">${safePriority}</span>
+                        </td>
+                      </tr>` : ''}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <div style="text-align:center; margin:28px 0 8px 0;">
+                <a href="${escapeHtml(taskUrl)}" style="display:inline-block; background-color:#f97316; color:#ffffff; text-decoration:none; padding:14px 32px; border-radius:8px; font-weight:600; font-size:15px; box-shadow:0 1px 2px rgba(249,115,22,0.4);">Open task</a>
+              </div>
+              <p style="margin:8px 0 0 0; text-align:center; font-size:12px; color:#9ca3af;">
+                Or paste this link in your browser:<br>
+                <a href="${escapeHtml(taskUrl)}" style="color:#9ca3af; word-break:break-all; text-decoration:underline;">${escapeHtml(taskUrl)}</a>
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background-color:#f9fafb; padding:20px 32px; border-top:1px solid #e5e7eb; text-align:center;">
+              <p style="margin:0 0 6px 0; font-size:12px; color:#9ca3af;">
+                You're receiving this because you were assigned to this task in FridayReport.AI.
+              </p>
+              <p style="margin:0; font-size:11px; color:#9ca3af;">
+                <a href="https://fridayreport.ai/profile?section=notifications" style="color:#9ca3af; text-decoration:underline;">Manage notification preferences</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>
 `;

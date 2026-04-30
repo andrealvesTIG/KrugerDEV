@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
 import { eq, and, sql, gte, lte } from "drizzle-orm";
-import { taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, notifications, resourceAvailability, magicLinkTokens } from "@shared/schema";
+import { taskResourceAssignments, issueResourceAssignments, issues, resources, tasks, projects, portfolios, notifications, resourceAvailability, magicLinkTokens, users } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -1104,16 +1104,30 @@ export function registerResourceRoutes(app: Express) {
         return res.status(400).json({ message: 'No resources assigned to this task' });
       }
 
-      const appUrl = process.env.REPLIT_DEV_DOMAIN
-        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-        : process.env.APP_URL || 'https://fridayreport.ai';
-      const projectUrl = `${appUrl}/projects/${project[0].id}`;
+      const isProduction = process.env.NODE_ENV === 'production';
+      const appUrl = isProduction
+        ? (process.env.APP_URL || 'https://fridayreport.ai')
+        : (process.env.REPLIT_DEV_DOMAIN
+            ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+            : process.env.APP_URL || 'https://fridayreport.ai');
+      const taskUrl = `${appUrl}/projects/${project[0].id}?tab=tasks&taskId=${task[0].id}`;
 
       const formatDate = (d: Date | string | null) => {
         if (!d) return null;
         const date = typeof d === 'string' ? new Date(d) : d;
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       };
+
+      let assignedByName: string | null = null;
+      try {
+        const actor = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+        if (actor[0]) {
+          const fullName = [actor[0].firstName, actor[0].lastName].filter(Boolean).join(' ').trim();
+          assignedByName = fullName || actor[0].email || null;
+        }
+      } catch {
+        assignedByName = null;
+      }
 
       let sent = 0;
       let skipped = 0;
@@ -1131,7 +1145,12 @@ export function registerResourceRoutes(app: Express) {
             project[0].name,
             formatDate(task[0].startDate),
             formatDate(task[0].endDate),
-            projectUrl
+            taskUrl,
+            {
+              assignedByName,
+              priority: task[0].priority ?? null,
+              description: task[0].description ?? null,
+            }
           );
           if (success) sent++;
           else skipped++;
