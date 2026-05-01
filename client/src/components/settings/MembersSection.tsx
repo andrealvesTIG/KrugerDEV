@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { Link, useLocation } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -51,6 +52,7 @@ function isPublicEmailDomain(domain: string): boolean {
 export function MembersSection({ organizationId, orgName }: { organizationId: number; orgName: string }) {
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
+  const [, setLocation] = useLocation();
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isDirectorySearchOpen, setIsDirectorySearchOpen] = useState(false);
@@ -380,7 +382,7 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => window.location.href = '/billing'}
+              onClick={() => setLocation('/billing')}
               data-testid="button-upgrade-plan"
               className="gap-1"
             >
@@ -807,7 +809,7 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
                 {directoryResults?.source === 'internal' && !isSearchingDirectory && (
                   <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md text-sm text-amber-700 dark:text-amber-300">
                     <div className="font-medium">Microsoft Entra ID not connected</div>
-                    <div className="text-xs mt-1">Go to <a href="/integrations" className="underline font-medium">Integrations &gt; Identity & Directory</a> to connect Microsoft Entra ID and search your organization's Active Directory.</div>
+                    <div className="text-xs mt-1">Go to <Link href="/integrations" className="underline font-medium">Integrations &gt; Identity & Directory</Link> to connect Microsoft Entra ID and search your organization's Active Directory.</div>
                   </div>
                 )}
                 {directoryResults?.source === 'microsoft_entra' && !isSearchingDirectory && (

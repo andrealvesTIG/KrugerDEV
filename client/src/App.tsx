@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -6,6 +6,8 @@ import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { OrganizationProvider, useOrganization } from "@/hooks/use-organization";
+import { OrgAccessDenied } from "@/components/OrgAccessDenied";
+import { useOrgAwareLocation, formatOrgHref } from "@/lib/orgRouter";
 import { UserJourneyProvider } from "@/hooks/use-user-journey";
 import { ThemeProvider } from "@/components/theme-provider";
 import { OnboardingDialog } from "@/components/OnboardingDialog";
@@ -297,11 +299,13 @@ function App() {
     <ThemeProvider defaultTheme="light" storageKey="ppm-ui-theme">
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
+          <WouterRouter hook={useOrgAwareLocation} hrefs={formatOrgHref}>
           <OrganizationProvider>
             <UserJourneyProvider>
             <Toaster />
             <CookieConsentBanner />
             <Suspense fallback={<PageLoader />}>
+              <OrgAccessGate>
               <Switch>
                 <Route path="/" component={HomePage} />
                 <Route path="/auth">
@@ -416,13 +420,27 @@ function App() {
                   <Router />
                 </Route>
               </Switch>
+              </OrgAccessGate>
             </Suspense>
             </UserJourneyProvider>
           </OrganizationProvider>
+          </WouterRouter>
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );
+}
+
+// Renders the access-denied screen instead of the routed page when the URL's
+// `?org=<slug>` resolves to an organisation the current user is not a member
+// of. Public marketing/auth pages are unaffected because they never carry
+// `?org=` and therefore never trigger an access-denied state.
+function OrgAccessGate({ children }: { children: ReactNode }) {
+  const { accessDeniedOrg } = useOrganization();
+  if (accessDeniedOrg) {
+    return <OrgAccessDenied />;
+  }
+  return <>{children}</>;
 }
 
 export default App;

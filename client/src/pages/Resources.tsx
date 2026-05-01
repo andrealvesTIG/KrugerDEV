@@ -539,7 +539,7 @@ export default function Resources() {
                         >
                           <span 
                             className="cursor-pointer hover:text-primary hover:underline"
-                            onClick={() => window.location.href = `/resources/${resource.id}`}
+                            onClick={() => setLocation(`/resources/${resource.id}`)}
                             data-testid={`link-resource-name-${resource.id}`}
                           >
                             {resource.displayName}

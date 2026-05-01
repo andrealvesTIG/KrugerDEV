@@ -70,6 +70,51 @@ export function registerOrganizationRoutes(app: Express) {
     }
   });
 
+  // Resolve a slug-or-numeric-id to a lightweight org descriptor. Used by the
+  // client to translate `?org=<slug-or-id>` URL parameters into the numeric id
+  // that all other API calls require, without loading the full org list.
+  // Returns membership status so the client can render an access-denied screen
+  // when the URL points at an org the current user is not a member of.
+  apiRoute(app, 'get', '/api/organizations/resolve', {
+    tag: 'Organizations',
+    summary: 'Resolve org slug or numeric id to a minimal descriptor',
+    parameters: [qStr('key', true, 'Org slug (e.g. "acme") or numeric id')],
+    responses: {
+      ...r200('Resolved organization', { type: 'object', properties: {
+        id: { type: 'integer' },
+        slug: { type: 'string' },
+        name: { type: 'string' },
+        isMember: { type: 'boolean' },
+      } }),
+      ...authRes,
+      ...e400,
+    },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const key = String(req.query.key ?? '').trim();
+      if (!key) return res.status(400).json({ message: 'Missing required query parameter "key"' });
+
+      let org: Awaited<ReturnType<typeof storage.getOrganization>> | undefined;
+      if (/^\d+$/.test(key)) {
+        org = await storage.getOrganization(Number(key));
+      } else {
+        org = await storage.getOrganizationBySlug(key);
+      }
+      if (!org) return res.status(404).json({ message: 'Organization not found' });
+
+      // We deliberately return a minimal payload (and an isMember flag) so the
+      // resolver works even for non-members — the client uses this to render
+      // the access-denied screen with the org's friendly name.
+      const isMember = await userHasOrgAccess(userId, org.id);
+      res.json({ id: org.id, slug: org.slug, name: org.name, isMember });
+    } catch (err) {
+      console.error('Error resolving organization key:', err);
+      res.status(500).json({ message: 'Failed to resolve organization' });
+    }
+  });
+
   apiRoute(app, 'get', '/api/organizations/:id', {
     tag: 'Organizations',
     summary: 'Get organization by ID',

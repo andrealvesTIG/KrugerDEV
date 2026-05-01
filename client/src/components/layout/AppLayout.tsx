@@ -10,6 +10,7 @@ import { useSnoozeTimesheetReminder } from "@/hooks/use-timesheets";
 import { Loader2, Building2, ChevronDown, Menu, Bell, Check, MessageSquare, AtSign, HelpCircle, AlertTriangle, Clock, UserPlus, Flag, Target, AlertCircle, CheckCircle2, UserCheck, X, Search, ArrowDownAZ, ArrowUpZA, CalendarDays, ArrowUp, ArrowDown, AlarmClock, BellOff, Sparkles } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Link, useLocation } from "wouter";
+import { stripTrailingEntityId, withOrg } from "@/lib/orgUrl";
 import { SearchCommand } from "./SearchCommand";
 import { QuickAddMenu } from "./QuickAddMenu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -63,7 +64,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
   const { isCollapsed, setIsMobileOpen } = useSidebarState();
   const { currentOrganization, setCurrentOrganization, organizations } = useOrganization();
   const { isActingAs, realUser, actingAsOrgId, user } = useAuth();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [helpDialogOpen, setHelpDialogOpen] = useState(false);
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false);
   const [orgSearchQuery, setOrgSearchQuery] = useState("");
@@ -283,6 +284,16 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
                                 onClick={() => {
                                   setCurrentOrganization(org);
                                   setOrgDropdownOpen(false);
+                                  // Navigate to the same page in the new org's
+                                  // scope. Strip any trailing entity id from
+                                  // the path because that id almost certainly
+                                  // doesn't belong to the org we just switched
+                                  // into — landing on the parent collection
+                                  // page (e.g. `/projects` instead of
+                                  // `/projects/123`) keeps the UX sane.
+                                  const safePath = stripTrailingEntityId(window.location.pathname);
+                                  const target = withOrg(safePath + window.location.search + window.location.hash, org.slug);
+                                  setLocation(target);
                                 }}
                                 className={`w-full justify-start gap-2 h-auto py-1.5 ${
                                   currentOrganization?.id === org.id ? 'bg-accent text-accent-foreground' : ''
