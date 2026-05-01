@@ -65,6 +65,10 @@ export const plans = pgTable("plans", {
   code: text("code").notNull().unique(),
   name: text("name").notNull(),
   description: text("description"),
+  // DB column name is `annual_price_cents` (renamed from `monthly_price_cents`
+  // when billing moved to annual). Any future rename must ship as a manual
+  // ALTER TABLE migration — `db:push` would drop and recreate the column and
+  // wipe live pricing data.
   annualPriceCents: integer("annual_price_cents").default(0),
   isActive: boolean("is_active").default(true),
   stripePriceId: text("stripe_price_id"),
@@ -91,6 +95,10 @@ export const planMeterRules = pgTable("plan_meter_rules", {
   planId: integer("plan_id").references(() => plans.id).notNull(),
   meterId: integer("meter_id").references(() => meters.id).notNull(),
   ruleType: text("rule_type").notNull(),
+  // DB column name is `included_units_annual` (renamed from
+  // `included_units_monthly` when billing moved to annual quotas). Future
+  // renames must ship as a manual ALTER TABLE migration — `db:push` would
+  // drop and recreate the column and wipe live quota data.
   includedUnitsAnnual: integer("included_units_annual"),
   hardCapUnits: integer("hard_cap_units"),
   overageUnitPriceMicrocents: integer("overage_unit_price_microcents"),
