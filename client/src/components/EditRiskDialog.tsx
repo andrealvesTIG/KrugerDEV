@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Loader2, History, ChevronDown, ChevronUp, Sparkles, ArrowUpToLine } from "lucide-react";
 import { Link } from "wouter";
-import { RISK_STATUSES, type Risk } from "@shared/schema";
+import { RISK_STATUSES, PROBABILITY_LEVELS, IMPACT_LEVELS, type Risk } from "@shared/schema";
 import { applyServerErrorsToForm } from "@/lib/serverErrors";
 
 const riskFormSchema = z.object({
@@ -231,9 +231,9 @@ export function EditRiskDialog({
                   <Select onValueChange={field.onChange} value={field.value}>
                     <SelectTrigger data-testid="select-risk-probability"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Low">Low</SelectItem>
-                      <SelectItem value="Medium">Medium</SelectItem>
-                      <SelectItem value="High">High</SelectItem>
+                      {PROBABILITY_LEVELS.map(level => (
+                        <SelectItem key={level} value={level}>{level}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 )} />
@@ -244,9 +244,9 @@ export function EditRiskDialog({
                   <Select onValueChange={field.onChange} value={field.value}>
                     <SelectTrigger data-testid="select-risk-impact"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Low">Low</SelectItem>
-                      <SelectItem value="Medium">Medium</SelectItem>
-                      <SelectItem value="High">High</SelectItem>
+                      {IMPACT_LEVELS.map(level => (
+                        <SelectItem key={level} value={level}>{level}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 )} />

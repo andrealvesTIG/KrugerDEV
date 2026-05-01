@@ -122,7 +122,7 @@ export function RisksIssuesDashboard() {
   const openRisks = allRisks.filter(r => r.status === "Open" || r.status === "Identified").length;
   const mitigatedRisks = allRisks.filter(r => r.status === "Mitigated").length;
   const closedRisks = allRisks.filter(r => r.status === "Closed").length;
-  const highRisks = allRisks.filter(r => r.probability === "High" || r.impact === "High").length;
+  const highRisks = allRisks.filter(r => r.probability === "High" || r.probability === "Very High" || r.impact === "High" || r.impact === "Very High").length;
 
   const openIssues = filteredIssues.filter(i => i.status === "Open" || i.status === "In Progress").length;
   const resolvedIssues = filteredIssues.filter(i => i.status === "Resolved" || i.status === "Closed").length;
@@ -162,7 +162,7 @@ export function RisksIssuesDashboard() {
 
   const topBlockers = [
     ...allRisks
-      .filter(r => (r.status === "Open" || r.status === "Identified") && (r.probability === "High" || r.impact === "High"))
+      .filter(r => (r.status === "Open" || r.status === "Identified") && (r.probability === "High" || r.probability === "Very High" || r.impact === "High" || r.impact === "Very High"))
       .map(r => ({ id: r.id, title: r.title, type: "Risk" as const, severity: r.impact || "Medium", projectId: r.projectId, costExposure: r.costExposure })),
     ...filteredIssues
       .filter(i => (i.status === "Open" || i.status === "In Progress") && (i.priority === "Critical" || i.priority === "High"))

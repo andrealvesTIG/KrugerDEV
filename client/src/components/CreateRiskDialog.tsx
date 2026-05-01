@@ -13,7 +13,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
-import { RISK_STATUSES } from "@shared/schema";
+import { RISK_STATUSES, PROBABILITY_LEVELS, IMPACT_LEVELS } from "@shared/schema";
 import { applyServerErrorsToForm } from "@/lib/serverErrors";
 
 // Form schema mirrors what the server's insertRiskSchema accepts. We keep a
@@ -24,8 +24,8 @@ const riskFormSchema = z.object({
   projectId: z.number().min(1, "Please select a project"),
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
-  probability: z.enum(["Low", "Medium", "High"]),
-  impact: z.enum(["Low", "Medium", "High"]),
+  probability: z.enum(PROBABILITY_LEVELS),
+  impact: z.enum(IMPACT_LEVELS),
   status: z.string(),
   dueDate: z.string().optional(),
   // costExposure is `numeric` server-side -> string in the wire format.
@@ -65,8 +65,8 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
     projectId: (projectId || undefined) as unknown as number,
     title: "",
     description: "",
-    probability: "Medium" as "Low" | "Medium" | "High",
-    impact: "Medium" as "Low" | "Medium" | "High",
+    probability: "Medium" as (typeof PROBABILITY_LEVELS)[number],
+    impact: "Medium" as (typeof IMPACT_LEVELS)[number],
     status: "Open",
     dueDate: "",
     costExposure: "",
@@ -221,9 +221,9 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Low">Low</SelectItem>
-                        <SelectItem value="Medium">Medium</SelectItem>
-                        <SelectItem value="High">High</SelectItem>
+                        {PROBABILITY_LEVELS.map(level => (
+                          <SelectItem key={level} value={level}>{level}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   )}
@@ -240,9 +240,9 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Low">Low</SelectItem>
-                        <SelectItem value="Medium">Medium</SelectItem>
-                        <SelectItem value="High">High</SelectItem>
+                        {IMPACT_LEVELS.map(level => (
+                          <SelectItem key={level} value={level}>{level}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   )}

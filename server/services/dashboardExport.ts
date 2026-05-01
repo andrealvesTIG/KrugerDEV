@@ -25,6 +25,20 @@ interface DashboardData {
   };
 }
 
+// Bucket a risk into critical/high/medium/low using the canonical 5-tier
+// probability/impact scale ('Very Low' | 'Low' | 'Medium' | 'High' | 'Very High').
+// 'Very High' is treated as top-tier (same as 'High'); 'Very Low' falls through
+// to the low bucket. Returns one of: 'critical' | 'high' | 'medium' | 'low'.
+function bucketRiskSeverity(r: { probability?: string | null; impact?: string | null }): 'critical' | 'high' | 'medium' | 'low' {
+  const isTopTier = (v?: string | null) => v === 'High' || v === 'Very High';
+  const p = r.probability;
+  const i = r.impact;
+  if (isTopTier(p) && isTopTier(i)) return 'critical';
+  if (isTopTier(p) || isTopTier(i)) return 'high';
+  if (p === 'Medium' || i === 'Medium') return 'medium';
+  return 'low';
+}
+
 const COLORS = {
   primary: "2563eb",
   green: "22c55e",
@@ -1038,17 +1052,15 @@ export async function getDashboardDataForExport(
         } catch (e) { /* ignore */ }
       }
       
-      // Each risk goes into exactly one bucket based on highest severity
+      // Each risk goes into exactly one bucket based on highest severity.
+      // Uses the 5-tier scale helper so 'Very High' counts as top-tier.
       let criticalRisks = 0, highRisks = 0, mediumRisks = 0, lowRisks = 0;
       allRisks.forEach((r: Risk) => {
-        if (r.probability === "High" && r.impact === "High") {
-          criticalRisks++;
-        } else if (r.probability === "High" || r.impact === "High") {
-          highRisks++;
-        } else if (r.probability === "Medium" || r.impact === "Medium") {
-          mediumRisks++;
-        } else {
-          lowRisks++;
+        switch (bucketRiskSeverity(r)) {
+          case 'critical': criticalRisks++; break;
+          case 'high': highRisks++; break;
+          case 'medium': mediumRisks++; break;
+          default: lowRisks++;
         }
       });
       
@@ -1135,17 +1147,15 @@ export async function getDashboardDataForExport(
         } catch (e) { /* ignore */ }
       }
       
-      // Each risk goes into exactly one bucket based on highest severity
+      // Each risk goes into exactly one bucket based on highest severity.
+      // Uses the 5-tier scale helper so 'Very High' counts as top-tier.
       let criticalRisks = 0, highRisks = 0, mediumRisks = 0, lowRisks = 0;
       allRisks.forEach((r: Risk) => {
-        if (r.probability === "High" && r.impact === "High") {
-          criticalRisks++;
-        } else if (r.probability === "High" || r.impact === "High") {
-          highRisks++;
-        } else if (r.probability === "Medium" || r.impact === "Medium") {
-          mediumRisks++;
-        } else {
-          lowRisks++;
+        switch (bucketRiskSeverity(r)) {
+          case 'critical': criticalRisks++; break;
+          case 'high': highRisks++; break;
+          case 'medium': mediumRisks++; break;
+          default: lowRisks++;
         }
       });
       
@@ -1261,11 +1271,16 @@ export async function getDashboardDataForExport(
       
       const totalHours = timesheets.reduce((sum: number, t) => sum + Number(t.hours || 0), 0);
       
-      // Calculate status distribution for chart
-      const approved = timesheets.filter(t => t.status === "approved").length;
-      const pending = timesheets.filter(t => t.status === "pending").length;
-      const rejected = timesheets.filter(t => t.status === "rejected").length;
-      const submitted = timesheets.filter(t => t.status === "submitted").length;
+      // Calculate status distribution for chart. Canonical timesheetStatus
+      // values are Title Case ('Draft', 'Submitted', 'Approved', 'Rejected');
+      // the chart-data shape uses `pending` as a bucket label that the
+      // PPT/PDF renderers consume, so we source that count from canonical
+      // 'Draft' (entries created but not yet submitted) without renaming
+      // the key — which would silently break the renderers above.
+      const approved = timesheets.filter(t => t.status === "Approved").length;
+      const submitted = timesheets.filter(t => t.status === "Submitted").length;
+      const rejected = timesheets.filter(t => t.status === "Rejected").length;
+      const pending = timesheets.filter(t => t.status === "Draft").length;
       
       // Compliance rate
       const activeResources = resources.filter(r => r.isActive);

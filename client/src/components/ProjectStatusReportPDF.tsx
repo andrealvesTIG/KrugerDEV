@@ -504,7 +504,7 @@ export function ProjectStatusReportPDF({
   const riskClosedStatuses = ["Closed", "Mitigated", "Accepted"];
   const issueClosedStatuses = ["Closed", "Resolved"];
   const openRisks = risks.filter((r) => !riskClosedStatuses.includes(r.status || "") && !r.deletedAt);
-  const riskHigh = openRisks.filter((r) => r.impact === "High" || r.probability === "High").length;
+  const riskHigh = openRisks.filter((r) => r.impact === "High" || r.impact === "Very High" || r.probability === "High" || r.probability === "Very High").length;
   
   const openIssues = issues.filter((i) => !issueClosedStatuses.includes(i.status || "") && !i.deletedAt);
   const issueCritical = openIssues.filter((i) => i.priority === "Critical" || i.priority === "High").length;

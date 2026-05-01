@@ -87,7 +87,7 @@ const STATUS_ENUMS = {
   proximity: ['Imminent', 'Near-term', 'Mid-term', 'Long-term'],
   resourceType: ['Employee', 'Contractor', 'Vendor', 'Equipment', 'Material'],
   experienceLevel: ['Junior', 'Mid-Level', 'Senior', 'Lead', 'Principal'],
-  periodStatus: ['open', 'locked'],
+  periodStatus: ['open', 'closed'],
   projectSource: ['manual', 'imported', 'planner', 'planner_premium'],
   aggregationMethod: ['average', 'sum', 'max', 'min', 'weighted-average'],
 };

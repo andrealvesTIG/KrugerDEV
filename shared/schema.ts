@@ -52,6 +52,14 @@ export type IssuePriority = (typeof ISSUE_PRIORITIES)[number];
 // Canonical risk status/priority lists. Risks share the issues table but use
 // their own status vocabulary (see issues.status column comment).
 export const RISK_STATUSES = ["Identified", "Open", "In Mitigation", "Mitigated", "Closed", "Accepted"] as const;
+// Canonical 5-tier scales for risk probability and impact. Imported by both
+// the create- and edit-risk dialogs so the UI cannot drift from the API
+// contract (which previously hid 'Very Low' / 'Very High' from users and
+// crashed the edit dialog when an outlier value loaded).
+export const PROBABILITY_LEVELS = ["Very Low", "Low", "Medium", "High", "Very High"] as const;
+export const IMPACT_LEVELS = ["Very Low", "Low", "Medium", "High", "Very High"] as const;
+export type ProbabilityLevel = typeof PROBABILITY_LEVELS[number];
+export type ImpactLevel = typeof IMPACT_LEVELS[number];
 export const RISK_PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
 export type RiskStatus = (typeof RISK_STATUSES)[number];
 export type RiskPriority = (typeof RISK_PRIORITIES)[number];

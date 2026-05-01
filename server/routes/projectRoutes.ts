@@ -3761,7 +3761,7 @@ export function registerProjectRoutes(app: Express) {
       const allOpenIssues = issues.filter(i => !issueClosedStatuses.includes(i.status || "") && !i.deletedAt);
       const openRisks = allOpenRisks.slice(0, 5);
       const openIssues = allOpenIssues.slice(0, 5);
-      const riskHigh = allOpenRisks.filter(r => r.impact === "High" || r.probability === "High").length;
+      const riskHigh = allOpenRisks.filter(r => r.impact === "High" || r.impact === "Very High" || r.probability === "High" || r.probability === "Very High").length;
       const issueCritical = allOpenIssues.filter(i => i.priority === "Critical" || i.priority === "High").length;
       
       const majorMilestones = milestones

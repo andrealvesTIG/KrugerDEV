@@ -122,8 +122,8 @@ export function ProjectStatusReport({
   const riskStats = useMemo(() => {
     const closedStatuses = ["Closed", "Mitigated", "Accepted"];
     const openRisks = risks.filter(r => !closedStatuses.includes(r.status || "") && !r.deletedAt);
-    const high = openRisks.filter(r => r.impact === "High" || r.probability === "High").length;
-    const medium = openRisks.filter(r => r.impact === "Medium" && r.probability !== "High").length;
+    const high = openRisks.filter(r => r.impact === "High" || r.impact === "Very High" || r.probability === "High" || r.probability === "Very High").length;
+    const medium = openRisks.filter(r => r.impact === "Medium" && r.probability !== "High" && r.probability !== "Very High").length;
     const low = openRisks.filter(r => r.impact === "Low" && r.probability === "Low").length;
     return { total: openRisks.length, high, medium, low, openRisks };
   }, [risks]);

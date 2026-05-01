@@ -149,7 +149,7 @@ export function ExecutiveDashboard() {
     const filteredProjectIds = new Set(projects.map(p => p.id));
     const filteredRisks = hasActiveFilters ? allRisks.filter(r => filteredProjectIds.has(r.projectId)) : allRisks;
     const openRisks = filteredRisks.filter(r => r.status === "Open" || r.status === "Identified").length;
-    const highRisks = filteredRisks.filter(r => r.probability === "High" || r.impact === "High").length;
+    const highRisks = filteredRisks.filter(r => r.probability === "High" || r.probability === "Very High" || r.impact === "High" || r.impact === "Very High").length;
     const filteredIssues = hasActiveFilters ? allIssues.filter(i => filteredProjectIds.has(i.projectId)) : allIssues;
     const actualIssues = filteredIssues.filter(i => i.itemType !== 'risk');
     const openIssues = actualIssues.filter(i => i.status === "Open" || i.status === "In Progress").length;
