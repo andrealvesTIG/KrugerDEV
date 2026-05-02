@@ -23,7 +23,6 @@ import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { EmailVerificationBanner } from "@/components/EmailVerificationBanner";
 import { HelpDialog } from "@/components/HelpDialog";
-import { ShareLinkButton } from "@/components/ShareLinkButton";
 import { AICreateButton, AICreateButtonHandle } from "./AICreateButton";
 import { Mic } from "lucide-react";
 import { FridayCountdown } from "./FridayCountdown";
@@ -353,7 +352,6 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
             >
               <HelpCircle className="h-4 w-4" />
             </Button>
-            <ShareLinkButton />
             <NotificationBell />
             <ModeToggle />
             <span className="hidden sm:inline-flex"><ThemeToggle /></span>
