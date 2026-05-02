@@ -412,13 +412,13 @@ function AgentEditor({ draft, setDraft, portfolios, projects, orgMembers, modelO
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{draft.id ? "Edit agent" : "New agent"}</DialogTitle>
           <DialogDescription>Configure your agent's behavior, data scope, and access.</DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="basics" className="space-y-4">
+        <Tabs defaultValue="basics" className="space-y-4 flex-1 flex flex-col min-h-0">
           <TabsList className="grid grid-cols-4 w-full">
             <TabsTrigger value="basics">Basics</TabsTrigger>
             <TabsTrigger value="data">Data scope</TabsTrigger>
@@ -426,7 +426,7 @@ function AgentEditor({ draft, setDraft, portfolios, projects, orgMembers, modelO
             <TabsTrigger value="schedule" disabled={draft.type !== "scheduled"}>Schedule</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="basics" className="space-y-4">
+          <TabsContent value="basics" className="space-y-4 flex-1 overflow-y-auto pr-1">
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Type</Label>
@@ -499,7 +499,7 @@ function AgentEditor({ draft, setDraft, portfolios, projects, orgMembers, modelO
             </div>
           </TabsContent>
 
-          <TabsContent value="data" className="space-y-3">
+          <TabsContent value="data" className="space-y-3 flex-1 overflow-y-auto pr-1">
             <div>
               <Label>Scope</Label>
               <Select value={draft.dataScope?.type ?? "org"} onValueChange={(v: any) => update({ dataScope: { type: v } })}>
@@ -527,7 +527,7 @@ function AgentEditor({ draft, setDraft, portfolios, projects, orgMembers, modelO
             )}
           </TabsContent>
 
-          <TabsContent value="access" className="space-y-3">
+          <TabsContent value="access" className="space-y-3 flex-1 overflow-y-auto pr-1">
             <div>
               <Label>Visibility</Label>
               <Select value={draft.visibility} onValueChange={(v: any) => update({ visibility: v })}>
@@ -553,7 +553,7 @@ function AgentEditor({ draft, setDraft, portfolios, projects, orgMembers, modelO
             </div>
           </TabsContent>
 
-          <TabsContent value="schedule" className="space-y-3">
+          <TabsContent value="schedule" className="space-y-3 flex-1 overflow-y-auto pr-1">
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label>Day of week</Label>
