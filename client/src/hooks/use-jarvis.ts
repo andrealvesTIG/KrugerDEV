@@ -162,7 +162,7 @@ export function useJarvis() {
   // Local in-flight overlay (optimistic user msg + streaming assistant msg)
   const [pendingMessages, setPendingMessages] = useState<JarvisMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [conciseMode, setConciseMode] = useState(true);
+  const [conciseMode, setConciseMode] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const pageContext = parsePageContext(location);
