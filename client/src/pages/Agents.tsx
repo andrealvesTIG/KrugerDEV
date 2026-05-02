@@ -128,12 +128,19 @@ export default function AgentsPage() {
       const url = isUpdate ? `/api/agents/${draft.id}` : `/api/agents`;
       const res = await fetch(url, {
         method: isUpdate ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
         credentials: "include",
         body: JSON.stringify(draft),
       });
-      if (!res.ok) throw new Error((await res.json().catch(()=>({}))).message || "Save failed");
-      return res.json();
+      const text = await res.text();
+      const looksLikeHtml = text.trim().startsWith("<");
+      if (looksLikeHtml) {
+        throw new Error("The server is reloading. Please try again in a moment.");
+      }
+      let payload: any = {};
+      try { payload = text ? JSON.parse(text) : {}; } catch { /* leave empty */ }
+      if (!res.ok) throw new Error(payload.message || `Save failed (${res.status})`);
+      return payload;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/agents", orgId, "picker"] });
