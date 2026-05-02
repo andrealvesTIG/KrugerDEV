@@ -7,9 +7,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Trash2, Building2, Upload, Image, Pencil, Globe } from "lucide-react";
+import { Loader2, Trash2, Building2, Upload, Image, Pencil, Globe, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import { useOrganization } from "@/hooks/use-organization";
+import { ORG_QUERY_PARAM } from "@/lib/orgUrl";
 import type { Organization } from "@shared/schema";
+
+const SLUG_FORMAT = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
+
+function validateSlug(value: string): string | null {
+  if (!value) return "Organization URL is required.";
+  if (value.length < 3 || value.length > 63) {
+    return "Must be between 3 and 63 characters.";
+  }
+  if (!SLUG_FORMAT.test(value)) {
+    return "Use lowercase letters, numbers, and hyphens only. Cannot start or end with a hyphen.";
+  }
+  return null;
+}
 
 const COMMON_TIMEZONES = [
   "UTC",
@@ -45,14 +61,33 @@ const COMMON_TIMEZONES = [
 
 export function GeneralSection({ organization }: { organization: Organization }) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const { memberships } = useOrganization();
   const [isUploading, setIsUploading] = useState(false);
   const [orgName, setOrgName] = useState(organization.name);
   const [isEditingName, setIsEditingName] = useState(false);
   const [logoLoadFailed, setLogoLoadFailed] = useState(false);
 
+  const [orgSlug, setOrgSlug] = useState(organization.slug);
+  const [isEditingSlug, setIsEditingSlug] = useState(false);
+  const [slugServerError, setSlugServerError] = useState<string | null>(null);
+
+  // Mirror the server-side check in PUT /api/organizations/:id: only org
+  // admins (and super admins) may edit settings. Used to gate the
+  // Organization URL Edit button so non-admins see the slug as read-only
+  // even if this component is ever rendered outside the page-level admin
+  // gate in OrgSettings.
+  const orgRole = memberships?.find(m => m.organizationId === organization.id)?.role;
+  const canEditSettings = user?.role === 'super_admin' || orgRole === 'org_admin';
+
   useEffect(() => {
     setOrgName(organization.name);
   }, [organization.name]);
+
+  useEffect(() => {
+    setOrgSlug(organization.slug);
+    setSlugServerError(null);
+  }, [organization.slug]);
   
   useEffect(() => {
     setLogoLoadFailed(false);
@@ -100,6 +135,39 @@ export function GeneralSection({ organization }: { organization: Organization })
         description: "Failed to update timezone. Please try again.",
         variant: "destructive",
       });
+    },
+  });
+
+  const updateSlugMutation = useMutation({
+    mutationFn: async (slug: string) => {
+      const res = await apiRequest('PUT', `/api/organizations/${organization.id}`, { slug });
+      return res.json() as Promise<Organization>;
+    },
+    onSuccess: (updated) => {
+      const newSlug = updated.slug;
+      // Replace `?org=` in the address bar so the new slug appears immediately,
+      // without forcing a full reload. The history-patch in OrganizationProvider
+      // emits an `org-url-changed` event which re-resolves the active org.
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        if (url.searchParams.has(ORG_QUERY_PARAM)) {
+          url.searchParams.set(ORG_QUERY_PARAM, newSlug);
+          window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user/organizations'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+      setSlugServerError(null);
+      setIsEditingSlug(false);
+      toast({
+        title: "Organization URL updated",
+        description: "Old links and bookmarks using the previous URL will no longer work.",
+      });
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : 'Failed to update organization URL.';
+      setSlugServerError(message);
     },
   });
 
@@ -281,6 +349,124 @@ export function GeneralSection({ organization }: { organization: Organization })
             </code>
           </div>
         </div>
+
+        <Separator />
+
+        {(() => {
+          const trimmedSlug = orgSlug.trim();
+          const formatError = isEditingSlug ? validateSlug(trimmedSlug) : null;
+          const isUnchanged = trimmedSlug === organization.slug;
+          const canSave = !formatError && !isUnchanged && !updateSlugMutation.isPending;
+          const previewSlug = isEditingSlug ? (formatError ? organization.slug : trimmedSlug) : organization.slug;
+          return (
+            <div className="space-y-3">
+              <div>
+                <Label className="text-base font-medium">Organization URL</Label>
+                <p className="text-sm text-muted-foreground">
+                  The URL slug used to identify your organization in shared links and bookmarks.
+                </p>
+              </div>
+
+              {isEditingSlug && canEditSettings ? (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3 flex-wrap">
+                    <Input
+                      value={orgSlug}
+                      onChange={(e) => {
+                        setOrgSlug(e.target.value);
+                        if (slugServerError) setSlugServerError(null);
+                      }}
+                      placeholder="your-org-name"
+                      className="max-w-md font-mono"
+                      autoComplete="off"
+                      spellCheck={false}
+                      data-testid="input-org-slug"
+                    />
+                    <Button
+                      onClick={() => {
+                        if (canSave) {
+                          updateSlugMutation.mutate(trimmedSlug);
+                        }
+                      }}
+                      disabled={!canSave}
+                      data-testid="button-save-org-slug"
+                    >
+                      {updateSlugMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        'Save'
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setOrgSlug(organization.slug);
+                        setSlugServerError(null);
+                        setIsEditingSlug(false);
+                      }}
+                      disabled={updateSlugMutation.isPending}
+                      data-testid="button-cancel-org-slug"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground" data-testid="text-org-slug-preview">
+                    Preview: <code className="font-mono">?{ORG_QUERY_PARAM}={previewSlug}</code>
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Use lowercase letters, numbers, and hyphens (3–63 characters). Cannot start or end with a hyphen.
+                  </p>
+                  {formatError && (
+                    <p className="text-xs text-destructive" data-testid="text-org-slug-error">
+                      {formatError}
+                    </p>
+                  )}
+                  {slugServerError && !formatError && (
+                    <p className="text-xs text-destructive" data-testid="text-org-slug-server-error">
+                      {slugServerError}
+                    </p>
+                  )}
+                  <div
+                    className="flex items-start gap-2 rounded-md border border-amber-300/60 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-950/40 dark:text-amber-200"
+                    data-testid="text-org-slug-warning"
+                  >
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>
+                      Changing the organization URL will break any existing links and bookmarks that use the previous URL.
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 flex-wrap">
+                  <code
+                    className="px-3 py-2 bg-muted rounded-md text-sm font-mono"
+                    data-testid="text-org-slug"
+                  >
+                    ?{ORG_QUERY_PARAM}={organization.slug}
+                  </code>
+                  {canEditSettings && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setOrgSlug(organization.slug);
+                        setSlugServerError(null);
+                        setIsEditingSlug(true);
+                      }}
+                      data-testid="button-edit-org-slug"
+                    >
+                      <Pencil className="h-4 w-4 mr-1" />
+                      Edit
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         <Separator />
 

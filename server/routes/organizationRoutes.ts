@@ -42,6 +42,21 @@ import {
 } from "./helpers";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400 } from "../route-registry";
 
+// Slugs that must never be used as an organization URL because they collide
+// with public marketing/auth/share routes or with top-level API namespaces.
+// Keep this in sync with `PUBLIC_PATH_PREFIXES` in `client/src/lib/orgUrl.ts`.
+const RESERVED_ORG_SLUGS = new Set<string>([
+  'api', 'admin', 'auth', 'new', 'signin', 'signup', 'signout', 'login', 'logout',
+  'reset-password', 'verify-email', 'resource-invite', 'account-setup', 'onboarding',
+  'terms', 'privacy', 'guide', 'friday', 'partners', 'uncon2026',
+  'badges', 'media', 'investor-room', 'compare', 'embed',
+  'healthcare', 'financial-services', 'manufacturing', 'industrial-automation',
+  'construction', 'capital-projects', 'energy', 'government',
+  'risk-assessment', 'project-risk-assessment',
+  'static', 'public', 'assets', 'docs', 'app', 'www', 'support', 'help',
+  'settings', 'organization', 'organizations', 'user', 'users',
+]);
+
 export function registerOrganizationRoutes(app: Express) {
   // --- Organizations ---
   apiRoute(app, 'get', '/api/organizations', {
@@ -213,11 +228,13 @@ export function registerOrganizationRoutes(app: Express) {
       }
       
       const role = await getUserOrgRole(userId, orgId);
-      if (role !== 'org_admin') {
+      const actingUser = userId ? await storage.getUser(userId) : null;
+      const isSuperAdmin = actingUser?.role === 'super_admin';
+      if (role !== 'org_admin' && !isSuperAdmin) {
         return res.status(403).json({ message: 'Only organization admins can update settings' });
       }
       
-      const { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl, timezone, fiscalYearStartMonth } = req.body;
+      const { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl, timezone, fiscalYearStartMonth, slug } = req.body;
       const updates: Record<string, unknown> = { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl, timezone };
       if (fiscalYearStartMonth !== undefined) {
         const n = Number(fiscalYearStartMonth);
@@ -225,6 +242,26 @@ export function registerOrganizationRoutes(app: Express) {
           return res.status(400).json({ message: 'fiscalYearStartMonth must be an integer 1..12' });
         }
         updates.fiscalYearStartMonth = n;
+      }
+      if (slug !== undefined) {
+        if (typeof slug !== 'string') {
+          return res.status(400).json({ message: 'Organization URL must be a string' });
+        }
+        const trimmed = slug.trim();
+        const SLUG_FORMAT = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
+        if (trimmed.length < 3 || trimmed.length > 63 || !SLUG_FORMAT.test(trimmed)) {
+          return res.status(400).json({
+            message: 'Organization URL must be 3–63 characters, contain only lowercase letters, numbers, and hyphens, and cannot start or end with a hyphen.',
+          });
+        }
+        if (RESERVED_ORG_SLUGS.has(trimmed)) {
+          return res.status(409).json({ message: 'This organization URL is reserved. Please choose a different one.' });
+        }
+        const existingOrg = await storage.getOrganizationBySlug(trimmed);
+        if (existingOrg && existingOrg.id !== orgId) {
+          return res.status(409).json({ message: 'This organization URL is already taken. Please choose a different one.' });
+        }
+        updates.slug = trimmed;
       }
       const updated = await storage.updateOrganization(orgId, updates);
       res.json(updated);
