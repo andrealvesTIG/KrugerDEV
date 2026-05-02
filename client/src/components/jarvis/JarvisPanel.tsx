@@ -28,6 +28,8 @@ import {
   splitCsvIntoChunks,
 } from "./jarvis-shared";
 import { RecentChatsMenu } from "./RecentChatsMenu";
+import ThemedGif from "@/components/ui/themed-gif";
+import running_man from "@assets/runcycle18_1772300373437.gif";
 
 type InteractionMode = "chat" | "voice" | "dictate";
 
@@ -589,10 +591,8 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                     if (!noTokensYet) return null;
                     return (
                       <div className="flex items-center gap-2 py-2 px-1" data-testid="friday-thinking-panel">
-                        <span className="inline-flex h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                        <span className="inline-flex h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse [animation-delay:150ms]" />
-                        <span className="inline-flex h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse [animation-delay:300ms]" />
-                        <span className="text-[11px] text-cyan-300/70 ml-1">Friday is thinking…</span>
+                        <ThemedGif src={running_man} alt="Running" className="h-8 w-8 object-contain" />
+                        <span className="text-[11px] text-cyan-300/70">Friday Agent is thinking like there is no tomorow...</span>
                       </div>
                     );
                   })()}

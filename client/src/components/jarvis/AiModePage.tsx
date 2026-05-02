@@ -28,6 +28,8 @@ import {
 } from "./jarvis-shared";
 import { RecentChatsMenu } from "./RecentChatsMenu";
 import logoIcon from "@assets/image_1777744172216.png";
+import ThemedGif from "@/components/ui/themed-gif";
+import running_man from "@assets/runcycle18_1772300373437.gif";
 
 export default function AiModePage() {
   const {
@@ -386,10 +388,8 @@ export default function AiModePage() {
               if (!noTokensYet) return null;
               return (
                 <div className="flex items-center gap-2 py-3 px-1" data-testid="friday-thinking">
-                  <span className="inline-flex h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
-                  <span className="inline-flex h-2 w-2 rounded-full bg-cyan-400 animate-pulse [animation-delay:150ms]" />
-                  <span className="inline-flex h-2 w-2 rounded-full bg-cyan-400 animate-pulse [animation-delay:300ms]" />
-                  <span className="text-xs text-muted-foreground ml-2">Friday is thinking…</span>
+                  <ThemedGif src={running_man} alt="Running" className="h-10 w-10 object-contain" />
+                  <span className="text-xs text-muted-foreground">Friday Agent is thinking like there is no tomorow...</span>
                 </div>
               );
             })()}
