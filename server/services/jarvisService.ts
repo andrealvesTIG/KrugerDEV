@@ -1,10 +1,13 @@
 import { db } from "../db";
-import { projects, portfolios, issues, tasks, taskDependencies, resources, statusReportHistory, healthStatusHistory, organizationMembers, taskResourceAssignments, projectChangeLogs, users, organizations, financialEntries, timesheetEntries } from "@shared/schema";
+import { projects, portfolios, issues, tasks, taskDependencies, resources, statusReportHistory, healthStatusHistory, organizationMembers, organizationInvites, taskResourceAssignments, projectChangeLogs, users, organizations, financialEntries, timesheetEntries } from "@shared/schema";
 import type { FridayAgentConfig } from "@shared/schema";
 import { eq, and, sql, inArray, isNull, desc, gte, isNotNull } from "drizzle-orm";
 import OpenAI, { AzureOpenAI } from "openai";
-import { decryptApiKey } from "../routes/helpers";
+import { decryptApiKey, requireEmailVerified, getUserOrgRole, logUserActivity } from "../routes/helpers";
 import { AiCreditsLimitError, type MeterPerCall } from "./aiCredits";
+import { storage } from "../storage";
+import { checkAndEnforceLimit, recordResourceUsage, checkSeatLimit } from "./billing";
+import { sendOrganizationInviteEmail } from "./email";
 import {
   buildFiscalMonths,
   buildFiscalQuarters,
@@ -93,13 +96,31 @@ Card schema (all optional except type and title):
 - fields: array of { label, value, accent? } where accent is one of "default"|"muted"|"good"|"warn"|"danger".
 - href: internal app path (e.g. "/projects/42") that opens the entity when the card is clicked.
 - accent: "default"|"good"|"warn"|"danger" — drives the color bar/icon.
-- actions: optional array of { label, type, projectId, data } where type is one of the supported write actions; the user can click the action button to execute it (with confirmation handled by the system).
+- actions: optional array of { label, type, projectId?, data? } where type is one of the supported write actions; the user can click the action button to execute it. \`projectId\` is optional — only include it when the action is project-scoped.
 
 Use cards when:
 - Listing 2 or more entities (each becomes a card).
 - Showing a single key entity in detail.
 - Highlighting key metrics or KPIs (use "metric" type).
 - Suggesting a single concrete next step (use "action" type with an actions array).
+
+DESTRUCTIVE-CONFIRMATION CARDS (REQUIRED PATTERN):
+You must NEVER call a tool to delete a project, portfolio, task, risk, issue, or resource, to bulk-delete tasks, or to remove an org member. Those operations are too dangerous to invoke from a tool loop.
+
+Instead, when the user asks for any of those, emit a single "action"-type Friday card whose \`actions\` array contains BOTH a destructive button AND a "cancel" button. The UI styles destructive actions in red and renders Cancel as a dismissal. Example:
+
+\`\`\`friday-card
+{"type":"action","title":"Delete project \"Website Redesign\"?","subtitle":"This soft-deletes the project and all its tasks/risks/issues. You can restore it from the Recycle Bin.","accent":"danger","actions":[{"label":"Delete project","type":"delete_project","projectId":42,"data":{}},{"label":"Cancel","type":"cancel"}]}
+\`\`\`
+
+Destructive action types: delete_portfolio, delete_project, delete_risk, delete_issue, delete_task, bulk_delete_tasks, delete_resource, remove_member.
+
+Each destructive card MUST:
+- include exactly one destructive action plus a "cancel" action,
+- use \`accent:"danger"\`,
+- carry the IDs the executor needs in either \`projectId\` (for project-scoped deletes) or inside \`data\` (e.g. \`{"portfolioId":7}\`, \`{"resourceId":12}\`, \`{"taskIds":[1,2,3]}\`, \`{"userId":"abc"}\`).
+
+For non-destructive actions (create_*, update_*, add_project_to_portfolio, remove_project_from_portfolio, assign_resources_to_task, invite_member, assign_owner, add_note, flag_for_review) you may either call the matching tool directly after explicit confirmation, OR offer them as Friday card actions. Tool calls are preferred when the user has clearly confirmed in chat.
 
 Choose accent based on data:
 - Health Red, overdue, blocked → "danger".
@@ -842,6 +863,29 @@ const jarvisTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "create_portfolio",
+      description: "Create a new portfolio in the organization. Call ONLY after the user has explicitly confirmed. Organization-scoped (no projectId).",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Portfolio name (required)" },
+          description: { type: "string", description: "Description" },
+          status: { type: "string", description: "Status (e.g. Active, Planning, On Hold)" },
+          department: { type: "string", description: "Department" },
+          strategicObjective: { type: "string", description: "Strategic objective the portfolio serves" },
+          riskTolerance: { type: "string", description: "Risk tolerance (e.g. Low, Medium, High)" },
+          budgetAllocated: { type: "string", description: "Allocated budget (numeric string)" },
+          targetStartDate: { type: "string", description: "Target start date YYYY-MM-DD" },
+          targetEndDate: { type: "string", description: "Target end date YYYY-MM-DD" },
+          isCustom: { type: "boolean", description: "True for custom portfolios that group projects manually instead of by foreign key" },
+        },
+        required: ["name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "generate_pdf",
       description: "Generate a downloadable PDF report from markdown content. ALWAYS use this when the user asks for a PDF, document, report file, or anything that should be exported. Never tell the user you cannot generate PDFs — call this tool instead. Returns a download link the user can click. This is organization-scoped — no project ID needed.",
       parameters: {
@@ -852,6 +896,204 @@ const jarvisTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           content: { type: "string", description: "The full body of the report as markdown. Supports headings (#, ##, ###), bullet lists (-, *), numbered lists, bold (**text**), and paragraphs." },
         },
         required: ["title", "content"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_portfolio",
+      description: "Update an existing portfolio's metadata. Call ONLY after explicit confirmation. Use the portfolioId from the data context.",
+      parameters: {
+        type: "object",
+        properties: {
+          portfolioId: { type: "number", description: "Portfolio ID to update" },
+          name: { type: "string" },
+          description: { type: "string" },
+          status: { type: "string" },
+          department: { type: "string" },
+          strategicObjective: { type: "string" },
+          riskTolerance: { type: "string" },
+          budgetAllocated: { type: "string" },
+          targetStartDate: { type: "string", description: "YYYY-MM-DD" },
+          targetEndDate: { type: "string", description: "YYYY-MM-DD" },
+        },
+        required: ["portfolioId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "add_project_to_portfolio",
+      description: "Link a project to a custom portfolio. Call ONLY after explicit confirmation. Both IDs are required.",
+      parameters: {
+        type: "object",
+        properties: {
+          portfolioId: { type: "number" },
+          projectId: { type: "number" },
+        },
+        required: ["portfolioId", "projectId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "remove_project_from_portfolio",
+      description: "Unlink a project from a custom portfolio. Call ONLY after explicit confirmation.",
+      parameters: {
+        type: "object",
+        properties: {
+          portfolioId: { type: "number" },
+          projectId: { type: "number" },
+        },
+        required: ["portfolioId", "projectId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_project",
+      description: "Create a new project in the organization. Call ONLY after explicit confirmation. Organization-scoped (no parent projectId).",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Project name (required)" },
+          projectCode: { type: "string", description: "Optional unique project code (e.g. PRJ-2025-007)" },
+          description: { type: "string" },
+          status: { type: "string", enum: ["Initiation", "Planning", "Execution", "Monitoring", "Closing"] },
+          priority: { type: "string", enum: ["Low", "Medium", "High", "Critical"] },
+          methodology: { type: "string", enum: ["Waterfall", "Agile", "Hybrid", "Scrum", "Kanban"] },
+          portfolioId: { type: "number", description: "Optional parent portfolio ID" },
+          startDate: { type: "string", description: "YYYY-MM-DD" },
+          endDate: { type: "string", description: "YYYY-MM-DD" },
+          budget: { type: "string", description: "Budget (numeric string)" },
+          department: { type: "string" },
+          managerId: { type: "string", description: "User ID of the project manager" },
+        },
+        required: ["name"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_project",
+      description: "Update an existing project's metadata (status, priority, dates, manager, etc.). Call ONLY after explicit confirmation.",
+      parameters: {
+        type: "object",
+        properties: {
+          projectId: { type: "number" },
+          name: { type: "string" },
+          description: { type: "string" },
+          status: { type: "string", enum: ["Initiation", "Planning", "Execution", "Monitoring", "Closing"] },
+          priority: { type: "string", enum: ["Low", "Medium", "High", "Critical"] },
+          methodology: { type: "string", enum: ["Waterfall", "Agile", "Hybrid", "Scrum", "Kanban"] },
+          health: { type: "string", enum: ["Green", "Yellow", "Red"] },
+          healthReason: { type: "string" },
+          portfolioId: { type: "number" },
+          startDate: { type: "string", description: "YYYY-MM-DD" },
+          endDate: { type: "string", description: "YYYY-MM-DD" },
+          budget: { type: "string" },
+          completionPercentage: { type: "number", description: "0-100" },
+          managerId: { type: "string" },
+        },
+        required: ["projectId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_risk",
+      description: "Update an existing risk's metadata. Call ONLY after explicit confirmation.",
+      parameters: {
+        type: "object",
+        properties: {
+          riskId: { type: "number" },
+          projectId: { type: "number", description: "Project the risk belongs to (for verification)" },
+          title: { type: "string" },
+          description: { type: "string" },
+          priority: { type: "string", enum: ["Low", "Medium", "High", "Critical"] },
+          status: { type: "string" },
+          probability: { type: "string", enum: ["Very Low", "Low", "Medium", "High", "Very High"] },
+          impact: { type: "string", enum: ["Very Low", "Low", "Medium", "High", "Very High"] },
+          responseStrategy: { type: "string", enum: ["Avoid", "Transfer", "Mitigate", "Accept"] },
+          mitigationPlan: { type: "string" },
+          contingencyPlan: { type: "string" },
+          assignee: { type: "string" },
+          dueDate: { type: "string", description: "YYYY-MM-DD" },
+        },
+        required: ["riskId", "projectId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_issue",
+      description: "Update an existing issue's metadata. Call ONLY after explicit confirmation.",
+      parameters: {
+        type: "object",
+        properties: {
+          issueId: { type: "number" },
+          projectId: { type: "number", description: "Project the issue belongs to (for verification)" },
+          title: { type: "string" },
+          description: { type: "string" },
+          priority: { type: "string", enum: ["Low", "Medium", "High", "Critical"] },
+          severity: { type: "string", enum: ["Low", "Medium", "High", "Critical"] },
+          status: { type: "string" },
+          assignee: { type: "string" },
+          targetResolutionDate: { type: "string", description: "YYYY-MM-DD" },
+        },
+        required: ["issueId", "projectId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_resource",
+      description: "Update an existing organization resource's metadata. Call ONLY after explicit confirmation. Organization-scoped (no projectId).",
+      parameters: {
+        type: "object",
+        properties: {
+          resourceId: { type: "number" },
+          displayName: { type: "string" },
+          firstName: { type: "string" },
+          lastName: { type: "string" },
+          email: { type: "string" },
+          phone: { type: "string" },
+          title: { type: "string" },
+          department: { type: "string" },
+          resourceType: { type: "string", enum: ["Employee", "Contractor", "Vendor", "Equipment", "Material"] },
+          location: { type: "string" },
+          skills: { type: "string" },
+          experienceLevel: { type: "string", enum: ["Junior", "Mid-Level", "Senior", "Lead", "Principal"] },
+          hourlyRate: { type: "string" },
+          weeklyCapacity: { type: "string" },
+          availability: { type: "number", description: "0-100" },
+          startDate: { type: "string", description: "YYYY-MM-DD" },
+          isBillable: { type: "boolean" },
+        },
+        required: ["resourceId"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "invite_member",
+      description: "Invite a new user to the organization by email. Sends an invitation email. Call ONLY after explicit confirmation. Requires org_admin or owner role on the executing user.",
+      parameters: {
+        type: "object",
+        properties: {
+          email: { type: "string", description: "Email address to invite" },
+          role: { type: "string", enum: ["owner", "org_admin", "member", "team_member", "viewer"], description: "Org role to grant. Defaults to 'member'." },
+        },
+        required: ["email"],
       },
     },
   },
@@ -889,7 +1131,19 @@ const jarvisTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   },
 ];
 
-const ORG_SCOPED_TOOLS = new Set(["create_resource", "bulk_create_resources", "generate_pdf", "send_email"]);
+const ORG_SCOPED_TOOLS = new Set([
+  "create_resource",
+  "bulk_create_resources",
+  "generate_pdf",
+  "send_email",
+  "create_portfolio",
+  "update_portfolio",
+  "add_project_to_portfolio",
+  "remove_project_from_portfolio",
+  "create_project",
+  "update_resource",
+  "invite_member",
+]);
 
 async function handleToolCall(
   orgId: number,
@@ -915,7 +1169,7 @@ async function handleToolCall(
 
   switch (toolName) {
     case "create_task": {
-      const result = await executeJarvisAction(orgId, "", {
+      const result = await executeJarvisAction(orgId, userId, {
         type: "create_task",
         projectId,
         data: { name: args.name, priority: args.priority, description: args.description, assignee: args.assignee },
@@ -923,7 +1177,7 @@ async function handleToolCall(
       return JSON.stringify(result);
     }
     case "create_risk": {
-      const result = await executeJarvisAction(orgId, "", {
+      const result = await executeJarvisAction(orgId, userId, {
         type: "create_mitigation",
         projectId,
         data: {
@@ -935,19 +1189,18 @@ async function handleToolCall(
       return JSON.stringify(result);
     }
     case "create_issue": {
-      const [newIssue] = await db.insert(issues).values({
+      const result = await executeJarvisAction(orgId, userId, {
+        type: "create_issue",
         projectId,
-        itemType: "issue",
-        title: (args.title || "Untitled Issue").slice(0, 500),
-        description: args.description?.slice(0, 5000) || null,
-        priority: ["Low", "Medium", "High", "Critical"].includes(args.priority) ? args.priority : "Medium",
-        severity: ["Low", "Medium", "High", "Critical"].includes(args.severity) ? args.severity : "Medium",
-        status: "Open",
-      }).returning();
-      return JSON.stringify({ success: true, message: `Issue "${newIssue.title}" created successfully.`, entityId: newIssue.id });
+        data: {
+          title: args.title, description: args.description,
+          priority: args.priority, severity: args.severity,
+        },
+      });
+      return JSON.stringify(result);
     }
     case "add_project_note": {
-      const result = await executeJarvisAction(orgId, "", {
+      const result = await executeJarvisAction(orgId, userId, {
         type: "add_note",
         projectId,
         data: { note: args.note },
@@ -955,10 +1208,34 @@ async function handleToolCall(
       return JSON.stringify(result);
     }
     case "flag_project_for_review": {
-      const result = await executeJarvisAction(orgId, "", {
+      const result = await executeJarvisAction(orgId, userId, {
         type: "flag_for_review",
         projectId,
         data: { reason: args.reason },
+      });
+      return JSON.stringify(result);
+    }
+    case "update_project": {
+      const result = await executeJarvisAction(orgId, userId, {
+        type: "update_project",
+        projectId,
+        data: args,
+      });
+      return JSON.stringify(result);
+    }
+    case "update_risk": {
+      const result = await executeJarvisAction(orgId, userId, {
+        type: "update_risk",
+        projectId,
+        data: args,
+      });
+      return JSON.stringify(result);
+    }
+    case "update_issue": {
+      const result = await executeJarvisAction(orgId, userId, {
+        type: "update_issue",
+        projectId,
+        data: args,
       });
       return JSON.stringify(result);
     }
@@ -1224,22 +1501,25 @@ async function handleOrgScopedToolCall(
     }
 
     case "create_resource": {
-      const fields = sanitizeResourceFields(args);
-      if (!fields.displayName) {
-        return JSON.stringify({ success: false, message: "A display name is required to create a resource." });
-      }
-
-      const [created] = await db.insert(resources).values({
-        organizationId: orgId,
-        displayName: fields.displayName!,
-        ...fields,
-      }).returning({ id: resources.id, displayName: resources.displayName });
-
-      return JSON.stringify({
-        success: true,
-        message: `Resource "${created.displayName}" created successfully (ID: ${created.id}).`,
-        resource: created,
+      const result = await executeJarvisAction(orgId, userId, {
+        type: "create_resource",
+        data: args,
       });
+      return JSON.stringify(result);
+    }
+
+    case "create_portfolio":
+    case "update_portfolio":
+    case "add_project_to_portfolio":
+    case "remove_project_from_portfolio":
+    case "create_project":
+    case "update_resource":
+    case "invite_member": {
+      const result = await executeJarvisAction(orgId, userId, {
+        type: toolName as any,
+        data: args,
+      });
+      return JSON.stringify(result);
     }
 
     case "bulk_create_resources": {
@@ -1572,7 +1852,6 @@ export async function streamJarvisResponse(
   options?: { forceOnboarding?: boolean },
   agentConfig?: CustomAgentRuntimeConfig,
 ) {
-  void userId;
   try {
     let [context, needsSetup] = await Promise.all([
       gatherOrganizationContext(orgId),
@@ -1589,10 +1868,27 @@ export async function streamJarvisResponse(
       : `\n\nDetailed mode is ON. Provide thorough, structured responses. Use sections (Observations, Risks/Concerns, Recommendations) when helpful. Include relevant data points and context. Use bullet points for clarity.`;
 
     const actionDirective = `\n\nACTION EXECUTION RULES:
-- When the user asks you to create a task, risk, issue, note, or flag a project, first describe what you will do and ask for confirmation.
+- When the user asks you to create or update a task, risk, issue, project, portfolio, resource, note, or to invite a member, first describe what you will do and ask for confirmation.
 - When the user confirms (says "yes", "proceed", "do it", "go ahead", "ok", "sure", "confirm", etc.), you MUST call the appropriate tool function to actually execute the action. Do NOT just say you did it — you must use the tool.
-- After the tool executes, report the result to the user based on the tool response.
-- The project IDs are available in the data context above. Match project names to their IDs.
+- After the tool executes, report the result to the user based on the tool response. Always link back to the created/updated entity using the markdown link format (\`[Name](/path/{id})\`) so the user can jump to it.
+- The project IDs, portfolio IDs, risk/issue IDs, task IDs, and resource IDs are all available in the data context above. Match names to their IDs.
+
+NON-DESTRUCTIVE TOOLS YOU CAN CALL DIRECTLY (after explicit confirmation):
+- Tasks: create_task, bulk_create_tasks, update_task, assign_resources_to_task
+- Risks/Issues: create_risk, create_issue, update_risk, update_issue
+- Projects: create_project, update_project, add_project_note, flag_project_for_review
+- Portfolios: create_portfolio, update_portfolio, add_project_to_portfolio, remove_project_from_portfolio
+- Resources: create_resource, bulk_create_resources, update_resource
+- Members: invite_member
+
+DESTRUCTIVE OPERATIONS — DO NOT CALL TOOLS:
+- delete_portfolio, delete_project, delete_risk, delete_issue, delete_task, bulk_delete_tasks, delete_resource, remove_member.
+- For ANY destructive request, do NOT invoke a tool. Instead emit a single Friday card (type "action", accent "danger") with two buttons: a destructive one carrying the entity IDs, and a "cancel" button. The user clicks Confirm to dispatch the action through /api/jarvis/action; clicking Cancel dismisses the card with no side effects.
+
+INVITE MEMBER RULES:
+- Only call invite_member after the user has confirmed the email + role in chat.
+- Only org owners and admins are authorized; the executor will reject the call otherwise and you must report the failure honestly.
+- Default role is "member". Other valid roles: owner, org_admin, member, team_member, viewer.
 
 RESOURCE CREATION RULES:
 - When the user asks to add a new resource/person/team member to the organization, gather the key details (name, role/title, department, email, type, skills, etc.) and present a summary for confirmation before calling create_resource.
@@ -1835,11 +2131,56 @@ async function verifyProjectBelongsToOrg(projectId: number, orgId: number): Prom
   return !!project;
 }
 
+export type JarvisActionType =
+  | "create_task" | "update_task" | "delete_task" | "bulk_delete_tasks"
+  | "create_mitigation" | "create_risk" | "update_risk" | "delete_risk"
+  | "create_issue" | "update_issue" | "delete_issue"
+  | "create_project" | "update_project" | "delete_project"
+  | "create_portfolio" | "update_portfolio" | "delete_portfolio"
+  | "add_project_to_portfolio" | "remove_project_from_portfolio"
+  | "create_resource" | "update_resource" | "delete_resource"
+  | "assign_resources_to_task"
+  | "invite_member" | "remove_member"
+  | "assign_owner" | "add_note" | "flag_for_review"
+  | "configure_organization";
+
+const PROJECT_SCOPED_ACTION_TYPES = new Set<JarvisActionType>([
+  "create_task", "update_task", "delete_task", "bulk_delete_tasks",
+  "create_mitigation", "create_risk", "update_risk", "delete_risk",
+  "create_issue", "update_issue", "delete_issue",
+  "update_project", "delete_project",
+  "assign_resources_to_task",
+  "assign_owner", "add_note", "flag_for_review",
+]);
+
+const ADMIN_ONLY_ACTION_TYPES = new Set<JarvisActionType>([
+  "delete_project", "delete_portfolio", "delete_resource",
+  "invite_member", "remove_member",
+]);
+
+const PRIORITIES = ["Low", "Medium", "High", "Critical"];
+const PROBABILITY_LEVELS = ["Very Low", "Low", "Medium", "High", "Very High"];
+const RESPONSE_STRATEGIES = ["Avoid", "Transfer", "Mitigate", "Accept"];
+const PROJECT_STATUSES = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"];
+const METHODOLOGIES = ["Waterfall", "Agile", "Hybrid", "Scrum", "Kanban"];
+const HEALTH_VALUES = ["Green", "Yellow", "Red"];
+const RESOURCE_TYPE_VALUES = ["Employee", "Contractor", "Vendor", "Equipment", "Material"];
+const EXPERIENCE_LEVELS = ["Junior", "Mid-Level", "Senior", "Lead", "Principal"];
+const INVITE_ROLES = ["owner", "org_admin", "member", "team_member", "viewer"];
+
+function pickEnum<T extends string>(value: any, allowed: T[], fallback?: T): T | undefined {
+  return typeof value === "string" && (allowed as string[]).includes(value) ? (value as T) : fallback;
+}
+
+function clipString(value: any, max: number): string | null {
+  return typeof value === "string" && value.length > 0 ? value.slice(0, max) : null;
+}
+
 export async function executeJarvisAction(
   orgId: number,
   userId: string,
   action: {
-    type: "create_task" | "create_mitigation" | "assign_owner" | "add_note" | "flag_for_review" | "configure_organization";
+    type: JarvisActionType;
     projectId?: number;
     data: Record<string, any>;
   }
@@ -1847,23 +2188,25 @@ export async function executeJarvisAction(
   success: boolean;
   message: string;
   entityId?: number;
+  entityIds?: number[];
   links?: Array<{ label: string; href: string }>;
 }> {
-  const validTypes = [
-    "create_task",
-    "create_mitigation",
-    "assign_owner",
-    "add_note",
-    "flag_for_review",
-    "configure_organization",
-  ];
-  if (!validTypes.includes(action.type)) {
+  if (!action.type) {
     return { success: false, message: "Unknown action type." };
+  }
+
+  if (!userId) {
+    return { success: false, message: "Authentication required." };
   }
 
   // Org-scoped action — doesn't need a projectId and short-circuits before
   // the project ownership check below.
   if (action.type === "configure_organization") {
+    // Permission: only org admins/owners may seed an entire workspace.
+    const role = await getUserOrgRole(userId, orgId);
+    if (role !== "owner" && role !== "org_admin") {
+      return { success: false, message: "Only an Organization Admin can configure the workspace." };
+    }
     const industryRaw = typeof action.data?.industry === "string" ? action.data.industry : "General";
     const { configureOrganizationFromIndustry } = await import("./onboarding");
     const result = await configureOrganizationFromIndustry(userId, orgId, industryRaw);
@@ -1886,99 +2229,563 @@ export async function executeJarvisAction(
     };
   }
 
-  if (!action.projectId || typeof action.projectId !== "number") {
-    return { success: false, message: "Valid projectId is required." };
+  // Email verification for any mutation.
+  const emailCheck = await requireEmailVerified(userId);
+  if (!emailCheck.verified) {
+    return { success: false, message: emailCheck.error || "Email verification required." };
   }
 
-  const projectInOrg = await verifyProjectBelongsToOrg(action.projectId, orgId);
-  if (!projectInOrg) {
-    return { success: false, message: "Project not found in this organization." };
+  // Role check. Viewers cannot mutate; admin-only actions require owner/org_admin.
+  const role = await getUserOrgRole(userId, orgId);
+  if (!role) {
+    return { success: false, message: "You are not a member of this organization." };
+  }
+  if (role === "viewer") {
+    return { success: false, message: "Viewers cannot perform write actions." };
+  }
+  if (ADMIN_ONLY_ACTION_TYPES.has(action.type) && role !== "owner" && role !== "org_admin") {
+    return { success: false, message: "Only organization admins or owners can perform this action." };
   }
 
-  // Mutating action — bust the org-context cache so subsequent chat turns
-  // see the new task/risk/note immediately.
+  // Project verification when required.
+  if (PROJECT_SCOPED_ACTION_TYPES.has(action.type)) {
+    if (action.type !== "bulk_delete_tasks") {
+      if (!action.projectId || typeof action.projectId !== "number") {
+        return { success: false, message: "Valid projectId is required for this action." };
+      }
+      const projectInOrg = await verifyProjectBelongsToOrg(action.projectId, orgId);
+      if (!projectInOrg) {
+        return { success: false, message: "Project not found in this organization." };
+      }
+    }
+  }
+
   invalidateOrganizationContextCache(orgId);
 
-  switch (action.type) {
-    case "create_task": {
-      if (!action.data.name || typeof action.data.name !== "string") {
-        return { success: false, message: "Task name is required." };
+  try {
+    switch (action.type) {
+      // ────────────────── Tasks ──────────────────
+      case "create_task": {
+        if (!action.data.name || typeof action.data.name !== "string") {
+          return { success: false, message: "Task name is required." };
+        }
+        const limit = await checkAndEnforceLimit(userId, "tasks" as any, 1, orgId);
+        if (!limit.allowed) {
+          return { success: false, message: limit.error || "Task limit reached." };
+        }
+        const [newTask] = await db.insert(tasks).values({
+          projectId: action.projectId!,
+          name: action.data.name.slice(0, 500),
+          description: clipString(action.data.description, 5000),
+          status: "Not Started",
+          priority: pickEnum(action.data.priority, PRIORITIES, "Medium")!,
+          startDate: action.data.startDate || null,
+          endDate: action.data.endDate || null,
+          assignee: clipString(action.data.assignee, 200),
+          organizationId: orgId,
+        }).returning();
+        await recordResourceUsage(userId, "tasks" as any, newTask.id, 1, orgId);
+        await logUserActivity(userId, "create_task_via_friday", "task", newTask.id, { projectId: action.projectId, name: newTask.name });
+        return { success: true, message: `Task "${newTask.name}" created successfully.`, entityId: newTask.id };
       }
-      const [newTask] = await db.insert(tasks).values({
-        projectId: action.projectId,
-        name: action.data.name.slice(0, 500),
-        description: action.data.description?.slice(0, 5000) || null,
-        status: "Not Started",
-        priority: ["Low", "Medium", "High", "Critical"].includes(action.data.priority) ? action.data.priority : "Medium",
-        startDate: action.data.startDate || null,
-        endDate: action.data.endDate || null,
-        assignee: action.data.assignee?.slice(0, 200) || null,
-        organizationId: orgId,
-      }).returning();
-      return { success: true, message: `Task "${newTask.name}" created successfully.`, entityId: newTask.id };
-    }
 
-    case "create_mitigation": {
-      if (!action.data.title || typeof action.data.title !== "string") {
-        return { success: false, message: "Risk/mitigation title is required." };
+      case "update_task": {
+        const taskId = Number(action.data.taskId);
+        if (!taskId) return { success: false, message: "taskId is required." };
+        const updates: Record<string, any> = {};
+        if (action.data.name) updates.name = String(action.data.name).slice(0, 500);
+        if (action.data.description !== undefined) updates.description = clipString(action.data.description, 5000);
+        if (action.data.priority) updates.priority = pickEnum(action.data.priority, PRIORITIES);
+        if (action.data.status) updates.status = String(action.data.status).slice(0, 100);
+        if (action.data.startDate) updates.startDate = action.data.startDate;
+        if (action.data.endDate) updates.endDate = action.data.endDate;
+        if (action.data.assignee !== undefined) updates.assignee = clipString(action.data.assignee, 200);
+        if (typeof action.data.completionPercentage === "number") {
+          updates.completionPercentage = Math.max(0, Math.min(100, action.data.completionPercentage));
+        }
+        const updated = await storage.updateTask(taskId, updates);
+        await logUserActivity(userId, "update_task_via_friday", "task", taskId, { changes: Object.keys(updates) });
+        return { success: true, message: `Task "${updated.name}" updated successfully.`, entityId: updated.id };
       }
-      const [newRisk] = await db.insert(issues).values({
-        projectId: action.projectId,
-        itemType: "risk",
-        title: action.data.title.slice(0, 500),
-        description: action.data.description?.slice(0, 5000) || null,
-        priority: ["Low", "Medium", "High", "Critical"].includes(action.data.priority) ? action.data.priority : "Medium",
-        status: "Identified",
-        responseStrategy: ["Avoid", "Transfer", "Mitigate", "Accept"].includes(action.data.responseStrategy) ? action.data.responseStrategy : "Mitigate",
-        mitigationPlan: action.data.mitigationPlan?.slice(0, 5000) || null,
-        probability: ["Very Low", "Low", "Medium", "High", "Very High"].includes(action.data.probability) ? action.data.probability : "Medium",
-        impact: ["Very Low", "Low", "Medium", "High", "Very High"].includes(action.data.impact) ? action.data.impact : "Medium",
-      }).returning();
-      return { success: true, message: `Risk/mitigation "${newRisk.title}" created successfully.`, entityId: newRisk.id };
-    }
 
-    case "add_note": {
-      if (!action.data.note || typeof action.data.note !== "string") {
-        return { success: false, message: "Note content is required." };
+      case "delete_task": {
+        const taskId = Number(action.data.taskId);
+        if (!taskId) return { success: false, message: "taskId is required." };
+        const ok = await storage.softDeleteItem("task", taskId, userId, orgId);
+        if (!ok) return { success: false, message: "Task could not be deleted." };
+        await logUserActivity(userId, "delete_task_via_friday", "task", taskId, {});
+        return { success: true, message: `Task deleted and moved to the Recycle Bin.`, entityId: taskId };
       }
-      await db.update(projects).set({
-        notes: action.data.note.slice(0, 10000),
-        updatedAt: new Date(),
-      }).where(and(eq(projects.id, action.projectId), eq(projects.organizationId, orgId)));
-      return { success: true, message: `Note added to project.` };
-    }
 
-    case "flag_for_review": {
-      await db.update(projects).set({
-        health: "Red",
-        healthReason: (action.data.reason || "Flagged for review by Friday Report").slice(0, 1000),
-        healthReasonUpdatedAt: new Date(),
-        updatedAt: new Date(),
-      }).where(and(eq(projects.id, action.projectId), eq(projects.organizationId, orgId)));
-      return { success: true, message: `Project flagged for review with Red health status.` };
-    }
-
-    case "assign_owner": {
-      if (!action.data.userId || typeof action.data.userId !== "string") {
-        return { success: false, message: "Valid userId is required for assignment." };
+      case "bulk_delete_tasks": {
+        const ids = Array.isArray(action.data.taskIds) ? action.data.taskIds.map(Number).filter((n: number) => Number.isFinite(n)) : [];
+        if (ids.length === 0) return { success: false, message: "taskIds array is required." };
+        // Verify each task belongs to the org.
+        const found = await db.select({ id: tasks.id, organizationId: tasks.organizationId })
+          .from(tasks).where(inArray(tasks.id, ids));
+        const validIds = found.filter(t => t.organizationId === orgId).map(t => t.id);
+        if (validIds.length === 0) return { success: false, message: "No matching tasks in this organization." };
+        const deletedCount = await storage.bulkSoftDeleteTasks(validIds, userId);
+        await logUserActivity(userId, "bulk_delete_tasks_via_friday", "task", undefined, { count: deletedCount, taskIds: validIds });
+        return { success: true, message: `${deletedCount} task(s) moved to the Recycle Bin.`, entityIds: validIds };
       }
-      const [member] = await db.select({ id: organizationMembers.id })
-        .from(organizationMembers)
-        .where(and(
-          eq(organizationMembers.organizationId, orgId),
-          eq(organizationMembers.userId, action.data.userId)
-        ));
-      if (!member) {
-        return { success: false, message: "User is not a member of this organization." };
-      }
-      await db.update(projects).set({
-        managerId: action.data.userId,
-        updatedAt: new Date(),
-      }).where(and(eq(projects.id, action.projectId), eq(projects.organizationId, orgId)));
-      return { success: true, message: `Project manager assigned.` };
-    }
 
-    default:
-      return { success: false, message: "Unknown action type." };
+      // ────────────────── Risks ──────────────────
+      case "create_risk":
+      case "create_mitigation": {
+        if (!action.data.title || typeof action.data.title !== "string") {
+          return { success: false, message: "Risk title is required." };
+        }
+        const limit = await checkAndEnforceLimit(userId, "risks" as any, 1, orgId);
+        if (!limit.allowed) {
+          return { success: false, message: limit.error || "Risk limit reached." };
+        }
+        const [newRisk] = await db.insert(issues).values({
+          projectId: action.projectId!,
+          itemType: "risk",
+          title: action.data.title.slice(0, 500),
+          description: clipString(action.data.description, 5000),
+          priority: pickEnum(action.data.priority, PRIORITIES, "Medium")!,
+          status: "Identified",
+          responseStrategy: pickEnum(action.data.responseStrategy, RESPONSE_STRATEGIES, "Mitigate")!,
+          mitigationPlan: clipString(action.data.mitigationPlan, 5000),
+          probability: pickEnum(action.data.probability, PROBABILITY_LEVELS, "Medium")!,
+          impact: pickEnum(action.data.impact, PROBABILITY_LEVELS, "Medium")!,
+        }).returning();
+        await recordResourceUsage(userId, "risks" as any, newRisk.id, 1, orgId);
+        await logUserActivity(userId, "create_risk_via_friday", "risk", newRisk.id, { projectId: action.projectId, title: newRisk.title });
+        return { success: true, message: `Risk "${newRisk.title}" created successfully.`, entityId: newRisk.id };
+      }
+
+      case "update_risk": {
+        const riskId = Number(action.data.riskId);
+        if (!riskId) return { success: false, message: "riskId is required." };
+        const updates: Record<string, any> = {};
+        if (action.data.title) updates.title = String(action.data.title).slice(0, 500);
+        if (action.data.description !== undefined) updates.description = clipString(action.data.description, 5000);
+        if (action.data.priority) updates.priority = pickEnum(action.data.priority, PRIORITIES);
+        if (action.data.status) updates.status = String(action.data.status).slice(0, 100);
+        if (action.data.probability) updates.probability = pickEnum(action.data.probability, PROBABILITY_LEVELS);
+        if (action.data.impact) updates.impact = pickEnum(action.data.impact, PROBABILITY_LEVELS);
+        if (action.data.responseStrategy) updates.responseStrategy = pickEnum(action.data.responseStrategy, RESPONSE_STRATEGIES);
+        if (action.data.mitigationPlan !== undefined) updates.mitigationPlan = clipString(action.data.mitigationPlan, 5000);
+        if (action.data.contingencyPlan !== undefined) updates.contingencyPlan = clipString(action.data.contingencyPlan, 5000);
+        if (action.data.assignee !== undefined) updates.assignee = clipString(action.data.assignee, 200);
+        if (action.data.dueDate) updates.dueDate = action.data.dueDate;
+        const updated = await storage.updateRisk(riskId, updates);
+        await logUserActivity(userId, "update_risk_via_friday", "risk", riskId, { changes: Object.keys(updates) });
+        return { success: true, message: `Risk "${updated.title}" updated successfully.`, entityId: updated.id };
+      }
+
+      case "delete_risk": {
+        const riskId = Number(action.data.riskId);
+        if (!riskId) return { success: false, message: "riskId is required." };
+        const ok = await storage.softDeleteItem("risk", riskId, userId, orgId);
+        if (!ok) return { success: false, message: "Risk could not be deleted." };
+        await logUserActivity(userId, "delete_risk_via_friday", "risk", riskId, {});
+        return { success: true, message: `Risk deleted and moved to the Recycle Bin.`, entityId: riskId };
+      }
+
+      // ────────────────── Issues ──────────────────
+      case "create_issue": {
+        if (!action.data.title || typeof action.data.title !== "string") {
+          return { success: false, message: "Issue title is required." };
+        }
+        const limit = await checkAndEnforceLimit(userId, "issues" as any, 1, orgId);
+        if (!limit.allowed) {
+          return { success: false, message: limit.error || "Issue limit reached." };
+        }
+        const [newIssue] = await db.insert(issues).values({
+          projectId: action.projectId!,
+          itemType: "issue",
+          title: action.data.title.slice(0, 500),
+          description: clipString(action.data.description, 5000),
+          priority: pickEnum(action.data.priority, PRIORITIES, "Medium")!,
+          severity: pickEnum(action.data.severity, PRIORITIES, "Medium")!,
+          status: "Open",
+        }).returning();
+        await recordResourceUsage(userId, "issues" as any, newIssue.id, 1, orgId);
+        await logUserActivity(userId, "create_issue_via_friday", "issue", newIssue.id, { projectId: action.projectId, title: newIssue.title });
+        return { success: true, message: `Issue "${newIssue.title}" created successfully.`, entityId: newIssue.id };
+      }
+
+      case "update_issue": {
+        const issueId = Number(action.data.issueId);
+        if (!issueId) return { success: false, message: "issueId is required." };
+        const updates: Record<string, any> = {};
+        if (action.data.title) updates.title = String(action.data.title).slice(0, 500);
+        if (action.data.description !== undefined) updates.description = clipString(action.data.description, 5000);
+        if (action.data.priority) updates.priority = pickEnum(action.data.priority, PRIORITIES);
+        if (action.data.severity) updates.severity = pickEnum(action.data.severity, PRIORITIES);
+        if (action.data.status) updates.status = String(action.data.status).slice(0, 100);
+        if (action.data.assignee !== undefined) updates.assignee = clipString(action.data.assignee, 200);
+        if (action.data.targetResolutionDate) updates.targetResolutionDate = action.data.targetResolutionDate;
+        const updated = await storage.updateIssue(issueId, updates);
+        await logUserActivity(userId, "update_issue_via_friday", "issue", issueId, { changes: Object.keys(updates) });
+        return { success: true, message: `Issue "${updated.title}" updated successfully.`, entityId: updated.id };
+      }
+
+      case "delete_issue": {
+        const issueId = Number(action.data.issueId);
+        if (!issueId) return { success: false, message: "issueId is required." };
+        const ok = await storage.softDeleteItem("issue", issueId, userId, orgId);
+        if (!ok) return { success: false, message: "Issue could not be deleted." };
+        await logUserActivity(userId, "delete_issue_via_friday", "issue", issueId, {});
+        return { success: true, message: `Issue deleted and moved to the Recycle Bin.`, entityId: issueId };
+      }
+
+      // ────────────────── Projects ──────────────────
+      case "create_project": {
+        if (!action.data.name || typeof action.data.name !== "string") {
+          return { success: false, message: "Project name is required." };
+        }
+        const limit = await checkAndEnforceLimit(userId, "projects" as any, 1, orgId);
+        if (!limit.allowed) {
+          return { success: false, message: limit.error || "Project limit reached." };
+        }
+        const trimmedName = action.data.name.trim().slice(0, 500);
+        const project = await storage.createProject({
+          name: trimmedName,
+          projectCode: action.data.projectCode?.trim() || null,
+          description: clipString(action.data.description, 5000),
+          status: pickEnum(action.data.status, PROJECT_STATUSES, "Planning"),
+          priority: pickEnum(action.data.priority, PRIORITIES, "Medium"),
+          methodology: pickEnum(action.data.methodology, METHODOLOGIES),
+          portfolioId: typeof action.data.portfolioId === "number" ? action.data.portfolioId : null,
+          startDate: action.data.startDate || null,
+          endDate: action.data.endDate || null,
+          budget: action.data.budget != null ? String(action.data.budget) : null,
+          department: clipString(action.data.department, 200),
+          managerId: action.data.managerId || null,
+          organizationId: orgId,
+          createdBy: userId,
+        } as any);
+        await recordResourceUsage(userId, "projects" as any, project.id, 1, orgId);
+        await logUserActivity(userId, "create_project_via_friday", "project", project.id, { name: project.name });
+        return { success: true, message: `Project "${project.name}" created successfully.`, entityId: project.id };
+      }
+
+      case "update_project": {
+        const updates: Record<string, any> = {};
+        if (action.data.name) updates.name = String(action.data.name).trim().slice(0, 500);
+        if (action.data.description !== undefined) updates.description = clipString(action.data.description, 5000);
+        if (action.data.status) updates.status = pickEnum(action.data.status, PROJECT_STATUSES);
+        if (action.data.priority) updates.priority = pickEnum(action.data.priority, PRIORITIES);
+        if (action.data.methodology) updates.methodology = pickEnum(action.data.methodology, METHODOLOGIES);
+        if (action.data.health) {
+          updates.health = pickEnum(action.data.health, HEALTH_VALUES);
+          updates.healthReasonUpdatedAt = new Date();
+        }
+        if (action.data.healthReason !== undefined) updates.healthReason = clipString(action.data.healthReason, 1000);
+        if (action.data.portfolioId !== undefined) updates.portfolioId = action.data.portfolioId === null ? null : Number(action.data.portfolioId);
+        if (action.data.startDate) updates.startDate = action.data.startDate;
+        if (action.data.endDate) updates.endDate = action.data.endDate;
+        if (action.data.budget != null) updates.budget = String(action.data.budget);
+        if (typeof action.data.completionPercentage === "number") {
+          updates.completionPercentage = Math.max(0, Math.min(100, action.data.completionPercentage));
+        }
+        if (action.data.managerId !== undefined) updates.managerId = action.data.managerId || null;
+        updates.updatedBy = userId;
+        const updated = await storage.updateProject(action.projectId!, updates as any);
+        await logUserActivity(userId, "update_project_via_friday", "project", action.projectId!, { changes: Object.keys(updates) });
+        return { success: true, message: `Project "${updated.name}" updated successfully.`, entityId: updated.id };
+      }
+
+      case "delete_project": {
+        const ok = await storage.softDeleteItem("project", action.projectId!, userId, orgId);
+        if (!ok) return { success: false, message: "Project could not be deleted." };
+        await logUserActivity(userId, "delete_project_via_friday", "project", action.projectId!, {});
+        return { success: true, message: `Project deleted and moved to the Recycle Bin.`, entityId: action.projectId! };
+      }
+
+      // ────────────────── Portfolios ──────────────────
+      case "create_portfolio": {
+        if (!action.data.name || typeof action.data.name !== "string") {
+          return { success: false, message: "Portfolio name is required." };
+        }
+        const limit = await checkAndEnforceLimit(userId, "portfolios" as any, 1, orgId);
+        if (!limit.allowed) {
+          return { success: false, message: limit.error || "Portfolio limit reached." };
+        }
+        const trimmedName = action.data.name.trim().slice(0, 500);
+        const existing = await storage.getPortfolios(orgId);
+        if (existing.some(p => p.name.toLowerCase() === trimmedName.toLowerCase())) {
+          return { success: false, message: "A portfolio with this name already exists." };
+        }
+        const portfolio = await storage.createPortfolio({
+          organizationId: orgId,
+          name: trimmedName,
+          description: clipString(action.data.description, 5000),
+          status: clipString(action.data.status, 100) || "Active",
+          department: clipString(action.data.department, 200),
+          strategicObjective: clipString(action.data.strategicObjective, 5000),
+          riskTolerance: clipString(action.data.riskTolerance, 100),
+          budgetAllocated: action.data.budgetAllocated != null ? String(action.data.budgetAllocated) : null,
+          targetStartDate: action.data.targetStartDate || null,
+          targetEndDate: action.data.targetEndDate || null,
+          isCustom: !!action.data.isCustom,
+          createdBy: userId,
+        } as any);
+        await recordResourceUsage(userId, "portfolios" as any, portfolio.id, 1, orgId);
+        await logUserActivity(userId, "create_portfolio_via_friday", "portfolio", portfolio.id, { name: portfolio.name });
+        return { success: true, message: `Portfolio "${portfolio.name}" created successfully.`, entityId: portfolio.id };
+      }
+
+      case "update_portfolio": {
+        const portfolioId = Number(action.data.portfolioId);
+        if (!portfolioId) return { success: false, message: "portfolioId is required." };
+        const portfolio = await storage.getPortfolio(portfolioId);
+        if (!portfolio || portfolio.organizationId !== orgId) {
+          return { success: false, message: "Portfolio not found in this organization." };
+        }
+        const updates: Record<string, any> = {};
+        if (action.data.name) updates.name = String(action.data.name).trim().slice(0, 500);
+        if (action.data.description !== undefined) updates.description = clipString(action.data.description, 5000);
+        if (action.data.status) updates.status = clipString(action.data.status, 100);
+        if (action.data.department !== undefined) updates.department = clipString(action.data.department, 200);
+        if (action.data.strategicObjective !== undefined) updates.strategicObjective = clipString(action.data.strategicObjective, 5000);
+        if (action.data.riskTolerance) updates.riskTolerance = clipString(action.data.riskTolerance, 100);
+        if (action.data.budgetAllocated != null) updates.budgetAllocated = String(action.data.budgetAllocated);
+        if (action.data.targetStartDate) updates.targetStartDate = action.data.targetStartDate;
+        if (action.data.targetEndDate) updates.targetEndDate = action.data.targetEndDate;
+        const updated = await storage.updatePortfolio(portfolioId, updates as any);
+        await logUserActivity(userId, "update_portfolio_via_friday", "portfolio", portfolioId, { changes: Object.keys(updates) });
+        return { success: true, message: `Portfolio "${updated.name}" updated successfully.`, entityId: updated.id };
+      }
+
+      case "delete_portfolio": {
+        const portfolioId = Number(action.data.portfolioId);
+        if (!portfolioId) return { success: false, message: "portfolioId is required." };
+        const portfolio = await storage.getPortfolio(portfolioId);
+        if (!portfolio || portfolio.organizationId !== orgId) {
+          return { success: false, message: "Portfolio not found in this organization." };
+        }
+        const ok = await storage.softDeleteItem("portfolio", portfolioId, userId, orgId);
+        if (!ok) return { success: false, message: "Portfolio could not be deleted." };
+        await logUserActivity(userId, "delete_portfolio_via_friday", "portfolio", portfolioId, {});
+        return { success: true, message: `Portfolio "${portfolio.name}" deleted and moved to the Recycle Bin.`, entityId: portfolioId };
+      }
+
+      case "add_project_to_portfolio": {
+        const portfolioId = Number(action.data.portfolioId);
+        const projectId = Number(action.data.projectId ?? action.projectId);
+        if (!portfolioId || !projectId) return { success: false, message: "portfolioId and projectId are required." };
+        const portfolio = await storage.getPortfolio(portfolioId);
+        if (!portfolio || portfolio.organizationId !== orgId) {
+          return { success: false, message: "Portfolio not found in this organization." };
+        }
+        if (!portfolio.isCustom) {
+          return { success: false, message: "Only custom portfolios support manual project membership. Use update_project to set portfolioId for non-custom portfolios." };
+        }
+        const projectInOrg = await verifyProjectBelongsToOrg(projectId, orgId);
+        if (!projectInOrg) return { success: false, message: "Project not found in this organization." };
+        await storage.addProjectToCustomPortfolio(portfolioId, projectId, userId);
+        await logUserActivity(userId, "add_project_to_portfolio_via_friday", "portfolio", portfolioId, { projectId });
+        return { success: true, message: `Project added to portfolio "${portfolio.name}".`, entityId: portfolioId };
+      }
+
+      case "remove_project_from_portfolio": {
+        const portfolioId = Number(action.data.portfolioId);
+        const projectId = Number(action.data.projectId ?? action.projectId);
+        if (!portfolioId || !projectId) return { success: false, message: "portfolioId and projectId are required." };
+        const portfolio = await storage.getPortfolio(portfolioId);
+        if (!portfolio || portfolio.organizationId !== orgId) {
+          return { success: false, message: "Portfolio not found in this organization." };
+        }
+        await storage.removeProjectFromCustomPortfolio(portfolioId, projectId);
+        await logUserActivity(userId, "remove_project_from_portfolio_via_friday", "portfolio", portfolioId, { projectId });
+        return { success: true, message: `Project removed from portfolio "${portfolio.name}".`, entityId: portfolioId };
+      }
+
+      // ────────────────── Resources ──────────────────
+      case "create_resource": {
+        const fields = sanitizeResourceFields(action.data);
+        if (!fields.displayName) {
+          return { success: false, message: "A display name is required to create a resource." };
+        }
+        const limit = await checkAndEnforceLimit(userId, "resources" as any, 1, orgId);
+        if (!limit.allowed) {
+          return { success: false, message: limit.error || "Resource limit reached." };
+        }
+        const created = await storage.createResource({
+          organizationId: orgId,
+          ...fields,
+          displayName: fields.displayName!,
+        } as any);
+        await recordResourceUsage(userId, "resources" as any, created.id, 1, orgId);
+        await logUserActivity(userId, "create_resource_via_friday", "resource", created.id, { displayName: created.displayName });
+        return { success: true, message: `Resource "${created.displayName}" created (ID: ${created.id}).`, entityId: created.id };
+      }
+
+      case "update_resource": {
+        const resourceId = Number(action.data.resourceId);
+        if (!resourceId) return { success: false, message: "resourceId is required." };
+        const resource = await storage.getResource(resourceId);
+        if (!resource || resource.organizationId !== orgId) {
+          return { success: false, message: "Resource not found in this organization." };
+        }
+        const fields = sanitizeResourceFields(action.data);
+        if (Object.keys(fields).length === 0) {
+          return { success: false, message: "No valid fields to update." };
+        }
+        const updated = await storage.updateResource(resourceId, fields as any);
+        await logUserActivity(userId, "update_resource_via_friday", "resource", resourceId, { changes: Object.keys(fields) });
+        return { success: true, message: `Resource "${updated.displayName}" updated successfully.`, entityId: updated.id };
+      }
+
+      case "delete_resource": {
+        const resourceId = Number(action.data.resourceId);
+        if (!resourceId) return { success: false, message: "resourceId is required." };
+        const resource = await storage.getResource(resourceId);
+        if (!resource || resource.organizationId !== orgId) {
+          return { success: false, message: "Resource not found in this organization." };
+        }
+        await storage.deleteResource(resourceId);
+        await logUserActivity(userId, "delete_resource_via_friday", "resource", resourceId, { displayName: resource.displayName });
+        return { success: true, message: `Resource "${resource.displayName}" deleted.`, entityId: resourceId };
+      }
+
+      case "assign_resources_to_task": {
+        const taskId = Number(action.data.taskId);
+        const resourceIds = Array.isArray(action.data.resourceIds)
+          ? action.data.resourceIds.map(Number).filter((n: number) => Number.isFinite(n))
+          : [];
+        if (!taskId) return { success: false, message: "taskId is required." };
+        const [taskRow] = await db.select({ id: tasks.id, organizationId: tasks.organizationId, projectId: tasks.projectId })
+          .from(tasks).where(eq(tasks.id, taskId));
+        if (!taskRow || taskRow.organizationId !== orgId) {
+          return { success: false, message: "Task not found in this organization." };
+        }
+        await storage.updateTaskResourceAssignments(taskId, resourceIds);
+        await logUserActivity(userId, "assign_resources_via_friday", "task", taskId, { resourceIds });
+        return { success: true, message: `Assigned ${resourceIds.length} resource(s) to task.`, entityId: taskId };
+      }
+
+      // ────────────────── Members ──────────────────
+      case "invite_member": {
+        const email = typeof action.data.email === "string" ? action.data.email.trim().toLowerCase() : "";
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          return { success: false, message: "A valid email address is required." };
+        }
+        const requestedRole = pickEnum(action.data.role, INVITE_ROLES, "member")!;
+        // Seat-limit check (member + pending invite count vs maxSeats).
+        const seatCheck = await checkSeatLimit(orgId, 1);
+        if (!seatCheck.allowed) {
+          return { success: false, message: seatCheck.reason || "Seat limit reached. Upgrade your plan to invite more members." };
+        }
+        // Check existing membership by joining users on email.
+        const members = await storage.getOrganizationMembers(orgId);
+        const memberUserIds = members.map(m => m.userId);
+        if (memberUserIds.length > 0) {
+          const matchingUsers = await db.select({ id: users.id, email: users.email })
+            .from(users)
+            .where(and(inArray(users.id, memberUserIds), eq(sql`lower(${users.email})`, email)));
+          if (matchingUsers.length > 0) {
+            return { success: false, message: `${email} is already a member of this organization.` };
+          }
+        }
+        // Check & remove any existing pending invite for this email.
+        const existingInvites = await storage.getOrganizationInvites(orgId);
+        const dup = existingInvites.find(i => i.email.toLowerCase() === email && i.status === "pending");
+        if (dup) {
+          await db.delete(organizationInvites).where(eq(organizationInvites.id, dup.id));
+        }
+        const crypto = await import("crypto");
+        const token = crypto.randomBytes(32).toString("hex");
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        const invite = await storage.createOrganizationInvite({
+          organizationId: orgId,
+          email,
+          role: requestedRole,
+          invitedBy: userId,
+          status: "pending",
+          token,
+          expiresAt,
+        } as any);
+        // Send invite email (best-effort).
+        try {
+          const org = await storage.getOrganization(orgId);
+          const inviter = await storage.getUser(userId);
+          const inviterName = inviter
+            ? [inviter.firstName, inviter.lastName].filter(Boolean).join(" ") || inviter.email || "An administrator"
+            : "An administrator";
+          if (org) {
+            await sendOrganizationInviteEmail(email, org.name, inviterName, requestedRole, "https://fridayreport.ai", token);
+          }
+        } catch {
+          // Non-fatal; invite row is still created and user can resend.
+        }
+        await logUserActivity(userId, "invite_member_via_friday", "organization_invite", invite.id, { email, role: requestedRole });
+        return { success: true, message: `Invitation sent to ${email} (role: ${requestedRole}).`, entityId: invite.id };
+      }
+
+      case "remove_member": {
+        const targetUserId = typeof action.data.userId === "string" ? action.data.userId : "";
+        if (!targetUserId) return { success: false, message: "userId is required." };
+        if (targetUserId === userId) {
+          return { success: false, message: "You cannot remove yourself from the organization." };
+        }
+        const members = await storage.getOrganizationMembers(orgId);
+        const target = members.find(m => m.userId === targetUserId);
+        if (!target) return { success: false, message: "User is not a member of this organization." };
+        if (target.role === "owner") {
+          return { success: false, message: "Owners cannot be removed from the organization." };
+        }
+        await storage.removeOrganizationMember(orgId, targetUserId);
+        await logUserActivity(userId, "remove_member_via_friday", "organization_member", undefined, { removedUserId: targetUserId });
+        return { success: true, message: `Member removed from organization.` };
+      }
+
+      // ────────────────── Project misc (legacy) ──────────────────
+      case "add_note": {
+        if (!action.data.note || typeof action.data.note !== "string") {
+          return { success: false, message: "Note content is required." };
+        }
+        await db.update(projects).set({
+          notes: action.data.note.slice(0, 10000),
+          updatedAt: new Date(),
+        }).where(and(eq(projects.id, action.projectId!), eq(projects.organizationId, orgId)));
+        await logUserActivity(userId, "add_note_via_friday", "project", action.projectId!, {});
+        return { success: true, message: `Note added to project.`, entityId: action.projectId! };
+      }
+
+      case "flag_for_review": {
+        await db.update(projects).set({
+          health: "Red",
+          healthReason: (action.data.reason || "Flagged for review by Friday Report").slice(0, 1000),
+          healthReasonUpdatedAt: new Date(),
+          updatedAt: new Date(),
+        }).where(and(eq(projects.id, action.projectId!), eq(projects.organizationId, orgId)));
+        await logUserActivity(userId, "flag_for_review_via_friday", "project", action.projectId!, { reason: action.data.reason });
+        return { success: true, message: `Project flagged for review with Red health status.`, entityId: action.projectId! };
+      }
+
+      case "assign_owner": {
+        if (!action.data.userId || typeof action.data.userId !== "string") {
+          return { success: false, message: "Valid userId is required for assignment." };
+        }
+        const [member] = await db.select({ id: organizationMembers.id })
+          .from(organizationMembers)
+          .where(and(
+            eq(organizationMembers.organizationId, orgId),
+            eq(organizationMembers.userId, action.data.userId),
+          ));
+        if (!member) {
+          return { success: false, message: "User is not a member of this organization." };
+        }
+        await db.update(projects).set({
+          managerId: action.data.userId,
+          updatedAt: new Date(),
+        }).where(and(eq(projects.id, action.projectId!), eq(projects.organizationId, orgId)));
+        await logUserActivity(userId, "assign_owner_via_friday", "project", action.projectId!, { managerId: action.data.userId });
+        return { success: true, message: `Project manager assigned.`, entityId: action.projectId! };
+      }
+
+      default:
+        return { success: false, message: "Unknown action type." };
+    }
+  } catch (err: any) {
+    console.error("[JARVIS] executeJarvisAction error:", err);
+    return { success: false, message: err?.message || "Action failed unexpectedly." };
   }
 }

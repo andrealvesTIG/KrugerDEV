@@ -15,6 +15,9 @@ import {
   Info,
   ChevronRight,
   Loader2,
+  Trash2,
+  XCircle,
+  Check,
 } from "lucide-react";
 
 export type FridayCardType =
@@ -35,6 +38,48 @@ export interface FridayCardField {
   accent?: "default" | "muted" | "good" | "warn" | "danger";
 }
 
+export type FridayActionType =
+  | "create_task"
+  | "create_mitigation"
+  | "assign_owner"
+  | "add_note"
+  | "flag_for_review"
+  | "configure_organization"
+  | "create_portfolio"
+  | "update_portfolio"
+  | "delete_portfolio"
+  | "add_project_to_portfolio"
+  | "remove_project_from_portfolio"
+  | "create_project"
+  | "update_project"
+  | "delete_project"
+  | "create_issue"
+  | "update_risk"
+  | "delete_risk"
+  | "update_issue"
+  | "delete_issue"
+  | "update_task"
+  | "delete_task"
+  | "bulk_delete_tasks"
+  | "create_resource"
+  | "update_resource"
+  | "delete_resource"
+  | "assign_resources_to_task"
+  | "invite_member"
+  | "remove_member"
+  | "cancel";
+
+const DESTRUCTIVE_ACTIONS: ReadonlySet<FridayActionType> = new Set([
+  "delete_portfolio",
+  "delete_project",
+  "delete_risk",
+  "delete_issue",
+  "delete_task",
+  "bulk_delete_tasks",
+  "delete_resource",
+  "remove_member",
+]);
+
 export interface FridayCardActionData {
   industry?: string;
   dismiss?: boolean;
@@ -43,15 +88,10 @@ export interface FridayCardActionData {
 
 export interface FridayCardAction {
   label: string;
-  type:
-    | "create_task"
-    | "create_mitigation"
-    | "assign_owner"
-    | "add_note"
-    | "flag_for_review"
-    | "configure_organization";
+  type: FridayActionType;
+  /** Optional — required for project-scoped actions but absent for org-scoped ones (delete_portfolio, invite_member, etc.). */
   projectId?: number;
-  data: FridayCardActionData;
+  data?: FridayCardActionData;
 }
 
 function isDismissAction(action: FridayCardAction): boolean {
@@ -124,28 +164,26 @@ export function FridayCard({ card, onNavigate }: FridayCardProps) {
   const accent = ACCENT_CLASSES[card.accent ?? "default"];
   const [busyAction, setBusyAction] = useState<number | null>(null);
   const [runState, setRunState] = useState<ActionRunState | null>(null);
+  const [completedLabel, setCompletedLabel] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();
 
   const isClickable = !!card.href;
+  const isLocked = completedLabel !== null;
+
+  if (dismissed) return null;
 
   const handleAction = async (idx: number, action: FridayCardAction) => {
-    if (!currentOrganization?.id || busyAction !== null) return;
+    if (busyAction !== null || isLocked) return;
 
-    if (isDismissAction(action)) {
+    // Cancel / explicit dismiss data flag → pure local dismissal, no HTTP.
+    if (action.type === "cancel" || isDismissAction(action)) {
       setDismissed(true);
       return;
     }
 
-    const body: Record<string, unknown> = {
-      type: action.type,
-      data: action.data,
-    };
-    if (typeof action.projectId === "number") {
-      body.projectId = action.projectId;
-    }
-
+    if (!currentOrganization?.id) return;
     try {
       setBusyAction(idx);
       const res = await fetch("/api/jarvis/action", {
@@ -154,7 +192,11 @@ export function FridayCard({ card, onNavigate }: FridayCardProps) {
         credentials: "include",
         body: JSON.stringify({
           organizationId: currentOrganization.id,
-          action: body,
+          action: {
+            type: action.type,
+            ...(typeof action.projectId === "number" ? { projectId: action.projectId } : {}),
+            data: action.data ?? {},
+          },
         }),
       });
       const result = await res.json();
@@ -170,6 +212,9 @@ export function FridayCard({ card, onNavigate }: FridayCardProps) {
         });
       }
       toast({ title: "Done", description: result.message || `${action.label} completed.` });
+      // Lock the card after a successful (non-cancel) action so the user
+      // can't accidentally double-fire (especially for destructive ops).
+      setCompletedLabel(action.label);
     } catch (err: any) {
       const message = err.message || "Could not complete action.";
       if (action.type === "configure_organization") {
@@ -298,18 +343,31 @@ export function FridayCard({ card, onNavigate }: FridayCardProps) {
         {card.actions && card.actions.length > 0 && (
           <div className="mt-2.5 flex flex-wrap gap-1.5">
             {card.actions.map((a, i) => {
+              const isDestructive = DESTRUCTIVE_ACTIONS.has(a.type);
+              const isCancel = a.type === "cancel";
               const isDismiss = isDismissAction(a);
+              const variant = isDestructive
+                ? "destructive"
+                : isCancel || isDismiss
+                  ? "ghost"
+                  : "outline";
+              const ActionIcon = isDestructive
+                ? Trash2
+                : isCancel
+                  ? XCircle
+                  : Bolt;
+
               return (
                 <Button
                   key={i}
-                  variant={isDismiss ? "ghost" : "default"}
+                  variant={variant as any}
                   size="sm"
                   className={
                     isDismiss
                       ? "h-7 px-2 text-xs text-foreground hover:bg-accent"
                       : "h-7 px-2 text-xs"
                   }
-                  disabled={busyAction !== null && busyAction !== i}
+                  disabled={(busyAction !== null && busyAction !== i) || isLocked}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleAction(i, a);
@@ -318,8 +376,10 @@ export function FridayCard({ card, onNavigate }: FridayCardProps) {
                 >
                   {busyAction === i ? (
                     <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  ) : isLocked && completedLabel === a.label ? (
+                    <Check className="h-3 w-3 mr-1" />
                   ) : isDismiss ? null : (
-                    <Bolt className="h-3 w-3 mr-1" />
+                    <ActionIcon className="h-3 w-3 mr-1" />
                   )}
                   {a.label}
                 </Button>
@@ -334,6 +394,12 @@ export function FridayCard({ card, onNavigate }: FridayCardProps) {
             data-testid="friday-card-action-error"
           >
             {runState.message}
+          </div>
+        )}
+
+        {isLocked && (
+          <div className="mt-2 text-[11px] text-muted-foreground">
+            {completedLabel} completed.
           </div>
         )}
       </div>

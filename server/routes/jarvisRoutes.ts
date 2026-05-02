@@ -86,29 +86,33 @@ const chatRequestSchema = z.object({
   forceOnboarding: z.boolean().optional(),
 });
 
+const JARVIS_ACTION_TYPES = [
+  "create_task", "update_task", "delete_task", "bulk_delete_tasks",
+  "create_mitigation", "create_risk", "update_risk", "delete_risk",
+  "create_issue", "update_issue", "delete_issue",
+  "create_project", "update_project", "delete_project",
+  "create_portfolio", "update_portfolio", "delete_portfolio",
+  "add_project_to_portfolio", "remove_project_from_portfolio",
+  "create_resource", "update_resource", "delete_resource",
+  "assign_resources_to_task",
+  "invite_member", "remove_member",
+  "assign_owner", "add_note", "flag_for_review",
+  "configure_organization",
+] as const;
+
+const DESTRUCTIVE_ACTION_TYPES = new Set<string>([
+  "delete_project", "delete_portfolio", "delete_resource",
+  "delete_task", "bulk_delete_tasks",
+  "delete_risk", "delete_issue",
+  "remove_member",
+]);
+
 const actionRequestSchema = z.object({
   organizationId: z.number().int().positive(),
   action: z.object({
-    type: z.enum([
-      "create_task",
-      "create_mitigation",
-      "assign_owner",
-      "add_note",
-      "flag_for_review",
-      "configure_organization",
-    ]),
-    // configure_organization is org-scoped and doesn't carry a projectId.
-    // All other action types still require a numeric projectId.
+    type: z.enum(JARVIS_ACTION_TYPES),
     projectId: z.number().int().positive().optional(),
-    data: z.record(z.any()),
-  }).superRefine((value, ctx) => {
-    if (value.type !== "configure_organization" && !value.projectId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "projectId is required for this action type",
-        path: ["projectId"],
-      });
-    }
+    data: z.record(z.any()).optional().default({}),
   }),
 });
 
@@ -272,10 +276,11 @@ export function registerJarvisRoutes(app: Express) {
         action: {
           type: 'object',
           properties: {
-            type: { type: 'string', enum: ['create_task', 'create_mitigation', 'assign_owner', 'add_note', 'flag_for_review', 'configure_organization'] },
-            projectId: { type: 'integer' },
+            type: { type: 'string', enum: [...JARVIS_ACTION_TYPES] },
+            projectId: { type: 'integer', nullable: true, description: 'Required for project-scoped actions; omit for org-wide ones (e.g. delete_portfolio, invite_member, configure_organization).' },
             data: { type: 'object' },
           },
+          required: ['type'],
         },
       },
       required: ['organizationId', 'action'],
@@ -301,16 +306,23 @@ export function registerJarvisRoutes(app: Express) {
       }
 
       const role = await getUserOrgRole(userId, organizationId);
-      if (role === "viewer" || role === "team_member") {
-        return res.status(403).json({ message: "Insufficient permissions to perform this action" });
+      if (!role) {
+        return res.status(403).json({ message: "You are not a member of this organization" });
+      }
+      if (role === "viewer") {
+        return res.status(403).json({ message: "Viewers cannot perform write actions" });
+      }
+      if (DESTRUCTIVE_ACTION_TYPES.has(action.type) && role !== "owner" && role !== "org_admin") {
+        return res.status(403).json({ message: "Only organization admins or owners can perform this destructive action" });
       }
       // configure_organization seeds an entire workspace (portfolios,
       // projects, demo resources). That's a heavier operation than a
       // single task/risk write, so restrict it to org admins, the same
       // permission gate the regular onboarding wizard uses.
-      if (action.type === "configure_organization" && role !== "org_admin") {
+      if (action.type === "configure_organization" && role !== "org_admin" && role !== "owner") {
         return res.status(403).json({ message: "Only an Organization Admin can configure the workspace." });
       }
+      // executeJarvisAction performs additional admin-only checks for invite_member, etc.
 
       // Action requests are billable AI surfaces — 1 credit per success.
       const actionCreditCtx = {
