@@ -8,6 +8,7 @@ import { addMessage, setSubmittedIntake, setAttachmentAnalysis, setMessageExtrac
 import { ObjectStorageService } from "../replit_integrations/object_storage/objectStorage";
 import { extractAllAttachments } from "./powerbiAttachmentExtraction";
 import { analyzeAttachments, mergeAnalyses } from "./powerbiAttachmentAnalysis";
+import { AiCreditsLimitError } from "./aiCredits";
 import type { PbiAttachmentAnalysis } from "@shared/schema";
 
 export const ALLOWED_ATTACHMENT_TYPES = new Set<string>([
@@ -481,7 +482,7 @@ async function streamWithOpenAI(
   conversationLog: string,
   conversationDbId: number | null,
   onChunk: (s: string) => void,
-  meterPerCall: (round: number) => Promise<void>,
+  meterPerCall: <T>(round: number, fn: () => Promise<T>) => Promise<T>,
   onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
 ): Promise<string> {
   const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -502,18 +503,17 @@ async function streamWithOpenAI(
   let modelToUse = PBI_MODELS[modelTier].model;
 
   for (let round = 0; round <= MAX_ROUNDS; round++) {
-    const stream = await openai.chat.completions.create({
+    // Per-call enforcement + recording so tool-loop rounds cannot exceed
+    // the user's AI-credit budget. AiCreditsLimitError thrown here aborts
+    // the loop and bubbles up to onError in the caller.
+    const stream = await meterPerCall(round, () => openai.chat.completions.create({
       model: modelToUse,
       messages: apiMessages,
       stream: true,
       max_completion_tokens: 2048,
       temperature: 0.4,
       tools: powerbiTools,
-    });
-    // Meter exactly one AI credit per OpenAI chat.completions.create call.
-    try { await meterPerCall(round); } catch (e: any) {
-      console.error(`[PBI Agent] Failed to record per-call AI credit (round ${round}):`, e?.message || e);
-    }
+    }));
 
     const toolCalls = new Map<number, { id: string; name: string; arguments: string }>();
     let hasToolCalls = false;
@@ -579,7 +579,7 @@ async function streamWithAnthropic(
   conversationLog: string,
   conversationDbId: number | null,
   onChunk: (s: string) => void,
-  meterPerCall: (round: number) => Promise<void>,
+  meterPerCall: <T>(round: number, fn: () => Promise<T>) => Promise<T>,
   onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
 ): Promise<string> {
   if (!anthropic) throw new Error("Claude is not configured");
@@ -598,18 +598,16 @@ async function streamWithAnthropic(
   const MAX_ROUNDS = 3;
 
   for (let round = 0; round <= MAX_ROUNDS; round++) {
-    const stream = anthropic.messages.stream({
+    // Per-call enforcement + recording mirrors the OpenAI path so an
+    // over-limit user cannot drain extra credits via Claude tool loops.
+    const stream = await meterPerCall(round, async () => anthropic!.messages.stream({
       model: PBI_MODELS.claude.model,
       max_tokens: 2048,
       temperature: 0.4,
       system: SYSTEM_PROMPT,
       messages: apiMessages,
       tools: anthropicTools,
-    });
-    // Meter one AI credit per Anthropic stream call to mirror the OpenAI path.
-    try { await meterPerCall(round); } catch (e: any) {
-      console.error(`[PBI Agent] Failed to record per-call AI credit (round ${round}, claude):`, e?.message || e);
-    }
+    }));
 
     let assistantBlocks: Anthropic.ContentBlock[] = [];
     let stopReason = "";
@@ -740,7 +738,12 @@ export async function streamPowerBIAgentResponse(
   onChunk: (content: string) => void,
   onDone: (fullResponse: string) => void,
   onError: (error: Error) => void,
-  meterPerCall: (round: number) => Promise<void>,
+  /**
+   * Higher-order metering hook: enforces + records 1 credit per inner
+   * OpenAI / Anthropic streaming call so a tool loop cannot exceed the
+   * user's remaining AI-credit budget.
+   */
+  meterPerCall: <T>(round: number, fn: () => Promise<T>) => Promise<T>,
   onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
   onPhase?: (phase: { phase: "analyzing" | "analyzed"; fileCount?: number }) => void,
 ) {
@@ -770,10 +773,19 @@ export async function streamPowerBIAgentResponse(
     }).join("\n\n");
 
     let final: string;
-    if (modelTier === "claude") {
-      final = await streamWithAnthropic(orgId, userId, messages, conversationLog, conversationDbId, onChunk, meterPerCall, onIntakeSubmitted);
-    } else {
-      final = await streamWithOpenAI(modelTier, orgId, userId, messages, conversationLog, conversationDbId, onChunk, meterPerCall, onIntakeSubmitted);
+    try {
+      if (modelTier === "claude") {
+        final = await streamWithAnthropic(orgId, userId, messages, conversationLog, conversationDbId, onChunk, meterPerCall, onIntakeSubmitted);
+      } else {
+        final = await streamWithOpenAI(modelTier, orgId, userId, messages, conversationLog, conversationDbId, onChunk, meterPerCall, onIntakeSubmitted);
+      }
+    } catch (err) {
+      if (err instanceof AiCreditsLimitError) {
+        console.warn("[PBI Agent] Tool loop aborted — AI credit limit reached");
+        onError(err);
+        return;
+      }
+      throw err;
     }
 
     if (conversationDbId && final) {

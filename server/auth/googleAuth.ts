@@ -303,21 +303,17 @@ export function setupGoogleAuth(app: Express) {
         return res.redirect("/");
       }
 
-      const companyInfo = await lookupCompanyByEmail(email);
       const userId = crypto.randomUUID();
-      
+
       let uploadedPhotoUrl: string | null = null;
       if (profileImageUrl) {
         uploadedPhotoUrl = await fetchAndUploadGooglePhoto(profileImageUrl, userId);
       }
 
-      let detectedCompany: string | null = null;
-      let detectedIndustry: string | null = null;
-      if (companyInfo && !companyInfo.isPersonalEmail && companyInfo.companyName) {
-        detectedCompany = companyInfo.companyName;
-        detectedIndustry = companyInfo.industry || null;
-      }
-
+      // Create the user FIRST so we have a chargeable userId for the
+      // company-lookup AI call (companyLookup refuses to run an unmetered
+      // OpenAI call without one). detectedCompany/Industry are filled in
+      // via UPDATE right after the lookup returns.
       const [newUser] = await db
         .insert(users)
         .values({
@@ -328,12 +324,26 @@ export function setupGoogleAuth(app: Express) {
           lastName,
           profileImageUrl: uploadedPhotoUrl,
           avatarUrl: uploadedPhotoUrl,
-          detectedCompany,
-          detectedIndustry,
+          detectedCompany: null,
+          detectedIndustry: null,
           emailVerified: userInfo.email_verified,
           signupSource: req.session.oauthSignupSource || req.cookies?.oauth_signup_source || "google",
         })
         .returning();
+
+      try {
+        const companyInfo = await lookupCompanyByEmail(email, newUser.id, null);
+        if (companyInfo && !companyInfo.isPersonalEmail && companyInfo.companyName) {
+          await db.update(users).set({
+            detectedCompany: companyInfo.companyName,
+            detectedIndustry: companyInfo.industry || null,
+          }).where(eq(users.id, newUser.id));
+          newUser.detectedCompany = companyInfo.companyName;
+          newUser.detectedIndustry = companyInfo.industry || null;
+        }
+      } catch (err) {
+        console.error("Company lookup error (post-signup, google):", err);
+      }
 
       await ensureUserOrganization(newUser.id, email);
 

@@ -4,6 +4,7 @@ import type { FridayAgentConfig } from "@shared/schema";
 import { eq, and, sql, inArray, isNull, desc, gte, isNotNull } from "drizzle-orm";
 import OpenAI, { AzureOpenAI } from "openai";
 import { decryptApiKey } from "../routes/helpers";
+import { AiCreditsLimitError } from "./aiCredits";
 import {
   buildFiscalMonths,
   buildFiscalQuarters,
@@ -1383,7 +1384,14 @@ export async function streamJarvisResponse(
   onChunk: (content: string) => void,
   onDone: (fullResponse: string) => void,
   onError: (error: Error) => void,
-  meterPerCall: (round: number) => Promise<void>,
+  /**
+   * Higher-order metering hook: must wrap EACH OpenAI chat.completions.create
+   * call so the AI-credit limit is enforced + recorded per call. Throws
+   * AiCreditsLimitError if the user is over their limit; we catch that and
+   * abort the tool loop gracefully via onError so a single 1-credit user
+   * cannot drain N credits via a tool loop.
+   */
+  meterPerCall: <T>(round: number, fn: () => Promise<T>) => Promise<T>,
   pageContext?: PageContext,
   attachments?: FileAttachment[],
 ) {
@@ -1442,21 +1450,30 @@ CSV FILE IMPORT RULES:
     const MAX_TOOL_ROUNDS = 5;
 
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-      const stream = await callOpenAIWithRetry(
-        () => orgOpenai.chat.completions.create({
-          model: orgIsAzure ? orgDeployment : "gpt-4o",
-          messages: apiMessages,
-          stream: true,
-          max_completion_tokens: concise ? 4096 : 8192,
-          temperature: 0.3,
-          tools: jarvisTools,
-        }),
-        `stream round ${round}`,
-      );
-      // Meter exactly one AI credit per OpenAI chat.completions.create call
-      // (a tool loop can issue up to MAX_TOOL_ROUNDS+1 calls per HTTP turn).
-      try { await meterPerCall(round); } catch (e: any) {
-        console.error(`[JARVIS] Failed to record per-call AI credit (round ${round}):`, e?.message || e);
+      // Per-call enforcement + recording: withAiCredits inside meterPerCall
+      // checks the user's current credit balance BEFORE the OpenAI call
+      // runs and records 1 credit on success. If the user is over limit,
+      // AiCreditsLimitError surfaces here and we abort the loop gracefully.
+      let stream;
+      try {
+        stream = await meterPerCall(round, () => callOpenAIWithRetry(
+          () => orgOpenai.chat.completions.create({
+            model: orgIsAzure ? orgDeployment : "gpt-4o",
+            messages: apiMessages,
+            stream: true,
+            max_completion_tokens: concise ? 4096 : 8192,
+            temperature: 0.3,
+            tools: jarvisTools,
+          }),
+          `stream round ${round}`,
+        ));
+      } catch (err: any) {
+        if (err instanceof AiCreditsLimitError) {
+          console.warn(`[JARVIS] Tool loop aborted at round ${round} — AI credit limit reached`);
+          onError(err);
+          return;
+        }
+        throw err;
       }
 
       let currentToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();

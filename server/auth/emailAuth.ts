@@ -147,25 +147,15 @@ export async function setupAuth(app: Express) {
       }
 
       const passwordHash = await hashPassword(password);
-      
-      // Lookup company info from email domain
-      let detectedCompany: string | null = null;
-      let detectedIndustry: string | null = null;
-      
-      try {
-        const companyInfo = await lookupCompanyByEmail(email);
-        if (!companyInfo.isPersonalEmail && companyInfo.companyName) {
-          detectedCompany = companyInfo.companyName;
-          detectedIndustry = companyInfo.industry;
-        }
-      } catch (err) {
-        console.error("Company lookup error:", err);
-      }
 
       // Generate email verification token
       const emailVerificationToken = crypto.randomBytes(32).toString("hex");
       const emailVerificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
+      // Create the user FIRST so we have a chargeable userId for the
+      // company-lookup AI call. (companyLookup refuses to run an
+      // unmetered OpenAI call without a userId.) detectedCompany /
+      // detectedIndustry are filled in immediately after via UPDATE.
       const [newUser] = await db.insert(users).values({
         email,
         passwordHash,
@@ -173,13 +163,30 @@ export async function setupAuth(app: Express) {
         lastName: lastName || null,
         role: "user",
         onboardingCompleted: false,
-        detectedCompany,
-        detectedIndustry,
+        detectedCompany: null,
+        detectedIndustry: null,
         emailVerified: false,
         emailVerificationToken,
         emailVerificationExpiry,
         signupSource: signupSource || null,
       }).returning();
+
+      // Best-effort company lookup, charged to the new user. If it fails
+      // (network / parse / over-limit) we leave detected fields null;
+      // signup must not be blocked on a metering issue.
+      try {
+        const companyInfo = await lookupCompanyByEmail(email, newUser.id, null);
+        if (!companyInfo.isPersonalEmail && companyInfo.companyName) {
+          await db.update(users).set({
+            detectedCompany: companyInfo.companyName,
+            detectedIndustry: companyInfo.industry,
+          }).where(eq(users.id, newUser.id));
+          newUser.detectedCompany = companyInfo.companyName;
+          newUser.detectedIndustry = companyInfo.industry;
+        }
+      } catch (err) {
+        console.error("Company lookup error (post-signup):", err);
+      }
 
       // Capture acquisition snapshot for new signup
       try {

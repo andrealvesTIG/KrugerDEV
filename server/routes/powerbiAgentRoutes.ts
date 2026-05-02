@@ -42,8 +42,9 @@ import {
 import { apiRoute, body, r200, inputRes, authRes, stdRes } from "../route-registry";
 import {
   enforceAiCredits,
-  recordAiCredits,
+  withAiCredits,
   sendLimitExceeded,
+  writeSseLimitExceeded,
   AiCreditsLimitError,
 } from "../services/aiCredits";
 
@@ -407,21 +408,21 @@ export function registerPowerBIAgentRoutes(app: Express) {
         entityId: convId ?? undefined,
         requestId: pbiBaseRequestId,
       };
-      let chargeUserId: string;
       try {
-        // Pre-flight enforcement before opening SSE; per-call records happen
-        // inside streamPowerBIAgentResponse via meterPerCall (one per OpenAI
-        // / Anthropic chat call, including tool-loop rounds).
-        ({ chargeUserId } = await enforceAiCredits(creditCtx));
+        // Pre-flight enforcement before opening SSE so over-limit users get a
+        // normal 403. Per-call enforcement + recording happens inside
+        // streamPowerBIAgentResponse via meterPerCall — every model call
+        // (including tool-loop rounds) is independently gated + charged.
+        await enforceAiCredits(creditCtx);
       } catch (err) {
         if (sendLimitExceeded(res, err)) return;
         throw err;
       }
-      const meterPerCall = async (round: number): Promise<void> => {
-        await recordAiCredits(chargeUserId, {
-          ...creditCtx,
-          requestId: `${pbiBaseRequestId}_r${round}`,
-        });
+      const meterPerCall = async <T>(round: number, fn: () => Promise<T>): Promise<T> => {
+        return withAiCredits(
+          { ...creditCtx, requestId: `${pbiBaseRequestId}_r${round}` },
+          fn,
+        );
       };
 
       res.setHeader("Content-Type", "text/event-stream");
@@ -480,6 +481,11 @@ export function registerPowerBIAgentRoutes(app: Express) {
           res.end();
         },
         (error) => {
+          // Surface AI-credit limit (e.g. tool loop ran out mid-flight) as the
+          // standard limitExceeded SSE envelope so the client renders the
+          // upgrade prompt the same way it does for the pre-flight 403.
+          if (writeSseLimitExceeded(res, error)) return;
+          if (sendLimitExceeded(res, error)) return;
           console.error("[PowerBI Agent] Stream error:", error.message);
           sendSSE({ error: "An error occurred. Please try again." });
           res.end();

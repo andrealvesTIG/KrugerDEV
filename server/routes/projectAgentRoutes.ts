@@ -11,6 +11,7 @@ import {
 } from "../services/projectAgentService";
 import { apiRoute, pathId, ref, arrOf, r200, r201, body, authRes, fullRes, inputRes } from "../route-registry";
 import { isTeamMemberInOrg, getTeamMemberProjectIds, userHasOrgAccess } from "./helpers";
+import { sendLimitExceeded, AiCreditsLimitError } from "../services/aiCredits";
 
 function getUserIdFromRequest(req: Request): string | null {
   const user = req.user as any;
@@ -257,6 +258,11 @@ export function registerProjectAgentRoutes(app: Express) {
       }
       res.json({ message: `Action '${action}' executed successfully` });
     } catch (err: any) {
+      // Surface AI-credit limit errors as the standard 403 envelope so the
+      // client can render the upgrade prompt instead of a generic 500.
+      if (err instanceof AiCreditsLimitError) {
+        if (sendLimitExceeded(res, err)) return;
+      }
       res.status(500).json({ message: `Action failed: ${err.message}` });
     }
   });

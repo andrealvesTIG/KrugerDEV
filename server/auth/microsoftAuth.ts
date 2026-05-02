@@ -301,21 +301,11 @@ export async function setupMicrosoftAuth(app: Express) {
             })
             .where(eq(users.id, existingUser.id));
         } else {
-          let detectedCompany: string | null = null;
-          let detectedIndustry: string | null = null;
-          
-          try {
-            const companyInfo = await lookupCompanyByEmail(email);
-            if (!companyInfo.isPersonalEmail && companyInfo.companyName) {
-              detectedCompany = companyInfo.companyName;
-              detectedIndustry = companyInfo.industry;
-            }
-          } catch (err) {
-            console.error("Company lookup error:", err);
-          }
-
           isNewUser = true;
-          // emailVerified is true for Microsoft auth since the email is verified by Microsoft
+          // Create the user FIRST so the company-lookup AI call has a
+          // chargeable userId (companyLookup refuses to run unmetered).
+          // detectedCompany/Industry are filled in via UPDATE right after.
+          // emailVerified is true for Microsoft auth since the email is verified by Microsoft.
           [existingUser] = await db.insert(users).values({
             email,
             microsoftId,
@@ -324,11 +314,25 @@ export async function setupMicrosoftAuth(app: Express) {
             lastName: lastName || null,
             role: "user",
             onboardingCompleted: false,
-            detectedCompany,
-            detectedIndustry,
+            detectedCompany: null,
+            detectedIndustry: null,
             emailVerified: true,
             signupSource: req.session.oauthSignupSource || req.cookies?.oauth_signup_source || "microsoft",
           }).returning();
+
+          try {
+            const companyInfo = await lookupCompanyByEmail(email, existingUser.id, null);
+            if (!companyInfo.isPersonalEmail && companyInfo.companyName) {
+              await db.update(users).set({
+                detectedCompany: companyInfo.companyName,
+                detectedIndustry: companyInfo.industry,
+              }).where(eq(users.id, existingUser.id));
+              existingUser.detectedCompany = companyInfo.companyName;
+              existingUser.detectedIndustry = companyInfo.industry;
+            }
+          } catch (err) {
+            console.error("Company lookup error (post-signup, microsoft):", err);
+          }
 
           // Capture acquisition data (UTMs/referrer/device/geo) for the new user.
           try {

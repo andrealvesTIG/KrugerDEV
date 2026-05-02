@@ -25,6 +25,16 @@ class FakeAiCreditsLimitError extends Error {
 vi.mock("../server/services/aiCredits", () => ({
   enforceAiCredits: (...args: any[]) => enforceAiCreditsMock(...args),
   recordAiCredits: (...args: any[]) => recordAiCreditsMock(...args),
+  // withAiCredits is "enforce + run + record" so the test mock mirrors
+  // that contract. enforceAiCreditsMock can throw to simulate over-limit
+  // mid-tool-loop; recordAiCreditsMock fires only on successful fn().
+  withAiCredits: async (ctx: any, fn: () => Promise<any>) => {
+    const enforced = await enforceAiCreditsMock(ctx);
+    const result = await fn();
+    const chargeUserId = enforced?.chargeUserId ?? ctx.userId;
+    await recordAiCreditsMock(chargeUserId, ctx);
+    return result;
+  },
   sendLimitExceeded: (res: any, err: any) => {
     sendLimitExceededMock(err);
     if (err instanceof FakeAiCreditsLimitError) {
@@ -95,13 +105,14 @@ beforeEach(() => {
 });
 
 describe("POST /api/jarvis/chat — credit metering integration", () => {
-  it("enforces credits before SSE, then records ONE credit per OpenAI call via meterPerCall (round-suffixed requestId)", async () => {
+  it("enforces credits before SSE, then enforces+records ONE credit per OpenAI call via meterPerCall (round-suffixed requestId)", async () => {
     enforceAiCreditsMock.mockResolvedValue({ chargeUserId: TEST_USER });
     recordAiCreditsMock.mockResolvedValue(undefined);
 
-    // Simulate a single OpenAI call (no tool loop): meterPerCall(0) once,
-    // then onDone. Per-call metering happens inside the stream via the
-    // `meterPerCall` callback the route passes in.
+    // Simulate a single OpenAI call (no tool loop): meterPerCall(0, fn)
+    // wraps one call; per-call enforcement + recording happens INSIDE the
+    // stream via the higher-order `meterPerCall(round, fn)` the route
+    // passes in (which delegates to withAiCredits).
     streamJarvisResponseMock.mockImplementation(
       async (
         _orgId: number,
@@ -111,9 +122,9 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
         onChunk: (s: string) => void,
         onDone: (s: string) => void,
         _onError: any,
-        meterPerCall: (round: number) => Promise<void>,
+        meterPerCall: <T>(round: number, fn: () => Promise<T>) => Promise<T>,
       ) => {
-        await meterPerCall(0);
+        await meterPerCall(0, async () => "fake-stream");
         onChunk("hello ");
         onChunk("world");
         onDone("hello world");
@@ -131,12 +142,15 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
       });
 
     expect(res.status).toBe(200);
-    expect(enforceAiCreditsMock).toHaveBeenCalledTimes(1);
+    // Pre-flight enforce (1) + per-call enforce inside withAiCredits (1) = 2 calls.
+    expect(enforceAiCreditsMock).toHaveBeenCalledTimes(2);
     const enforceCtx = enforceAiCreditsMock.mock.calls[0][0];
     expect(enforceCtx.userId).toBe(TEST_USER);
     expect(enforceCtx.orgId).toBe(TEST_ORG);
     expect(enforceCtx.action).toBe("friday_chat");
     expect(enforceCtx.requestId).toMatch(/^friday_chat_\d+_[a-f0-9]{16}$/);
+    // Per-call enforce uses the round-suffixed requestId.
+    expect(enforceAiCreditsMock.mock.calls[1][0].requestId).toBe(`${enforceCtx.requestId}_r0`);
 
     // Exactly one OpenAI call -> exactly one recordAiCredits, with the
     // round-0 suffix derived from the upfront enforce requestId.
@@ -146,11 +160,12 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
     expect(recordCtx.requestId).toBe(`${enforceCtx.requestId}_r0`);
   });
 
-  it("records ONE credit PER OpenAI call when the model issues a tool loop (not just one credit per HTTP turn)", async () => {
+  it("enforces+records ONE credit PER OpenAI call when the model issues a tool loop (not just one credit per HTTP turn)", async () => {
     enforceAiCreditsMock.mockResolvedValue({ chargeUserId: TEST_USER });
     recordAiCreditsMock.mockResolvedValue(undefined);
 
     // Simulate a 3-round tool loop: 3 OpenAI calls in one HTTP request.
+    // Each round wraps a fake model call via meterPerCall(round, fn).
     streamJarvisResponseMock.mockImplementation(
       async (
         _orgId,
@@ -162,9 +177,9 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
         _onError,
         meterPerCall,
       ) => {
-        await meterPerCall(0);
-        await meterPerCall(1);
-        await meterPerCall(2);
+        await meterPerCall(0, async () => "stream-0");
+        await meterPerCall(1, async () => "stream-1");
+        await meterPerCall(2, async () => "stream-2");
         onDone("done");
       },
     );
@@ -179,11 +194,17 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
       });
 
     expect(res.status).toBe(200);
+    // Pre-flight enforce + 3 per-call enforces (one per round) = 4 enforce calls.
+    expect(enforceAiCreditsMock).toHaveBeenCalledTimes(4);
     expect(recordAiCreditsMock).toHaveBeenCalledTimes(3);
     const enforceReqId = enforceAiCreditsMock.mock.calls[0][0].requestId;
     expect(recordAiCreditsMock.mock.calls[0][1].requestId).toBe(`${enforceReqId}_r0`);
     expect(recordAiCreditsMock.mock.calls[1][1].requestId).toBe(`${enforceReqId}_r1`);
     expect(recordAiCreditsMock.mock.calls[2][1].requestId).toBe(`${enforceReqId}_r2`);
+    // And the per-round enforce calls also use the round-suffixed requestIds.
+    expect(enforceAiCreditsMock.mock.calls[1][0].requestId).toBe(`${enforceReqId}_r0`);
+    expect(enforceAiCreditsMock.mock.calls[2][0].requestId).toBe(`${enforceReqId}_r1`);
+    expect(enforceAiCreditsMock.mock.calls[3][0].requestId).toBe(`${enforceReqId}_r2`);
   });
 
   it("returns 403 limitExceeded JSON BEFORE opening SSE when credits are exhausted", async () => {
@@ -214,7 +235,7 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
     recordAiCreditsMock.mockResolvedValue(undefined);
     streamJarvisResponseMock.mockImplementation(
       async (_a, _b, _c, _d, _onChunk, onDone, _onErr, meterPerCall) => {
-        await meterPerCall(0);
+        await meterPerCall(0, async () => undefined);
         onDone("ok");
       },
     );
@@ -232,9 +253,12 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
     await request(app).post("/api/jarvis/chat").set("x-test-user-id", TEST_USER).send(payload);
     await request(app).post("/api/jarvis/chat").set("x-test-user-id", TEST_USER).send(payload);
 
-    expect(enforceAiCreditsMock).toHaveBeenCalledTimes(2);
+    // Each request: 1 pre-flight enforce + 1 per-call enforce = 2 enforce calls.
+    // Two identical requests => 4 total. The PRE-FLIGHT requestIds (calls 0 and 2)
+    // must match for retries to dedupe in usage_events.
+    expect(enforceAiCreditsMock).toHaveBeenCalledTimes(4);
     const id1 = enforceAiCreditsMock.mock.calls[0][0].requestId;
-    const id2 = enforceAiCreditsMock.mock.calls[1][0].requestId;
+    const id2 = enforceAiCreditsMock.mock.calls[2][0].requestId;
     expect(id1).toBe(id2);
   });
 });

@@ -12,7 +12,9 @@ import { apiRoute, body, r200, inputRes, authRes, stdRes } from "../route-regist
 import {
   enforceAiCredits,
   recordAiCredits,
+  withAiCredits,
   sendLimitExceeded,
+  writeSseLimitExceeded,
   AiCreditsLimitError,
 } from "../services/aiCredits";
 import {
@@ -173,22 +175,21 @@ export function registerJarvisRoutes(app: Express) {
         entityId: conversationId ?? undefined,
         requestId: baseRequestId,
       };
-      let chargeUserId: string;
       try {
         // Pre-flight enforcement so over-limit users get a normal 403 BEFORE
-        // we open the SSE stream. Per-call credits are recorded inside
-        // streamJarvisResponse via meterPerCall (one credit per OpenAI call,
-        // including any tool-loop rounds).
-        ({ chargeUserId } = await enforceAiCredits(creditCtx));
+        // we open the SSE stream. Per-call enforcement + recording happens
+        // inside streamJarvisResponse via meterPerCall — every model call
+        // (including tool-loop rounds) is independently checked + charged.
+        await enforceAiCredits(creditCtx);
       } catch (err) {
         if (sendLimitExceeded(res, err)) return;
         throw err;
       }
-      const meterPerCall = async (round: number): Promise<void> => {
-        await recordAiCredits(chargeUserId, {
-          ...creditCtx,
-          requestId: `${baseRequestId}_r${round}`,
-        });
+      const meterPerCall = async <T>(round: number, fn: () => Promise<T>): Promise<T> => {
+        return withAiCredits(
+          { ...creditCtx, requestId: `${baseRequestId}_r${round}` },
+          fn,
+        );
       };
 
       res.setHeader("Content-Type", "text/event-stream");
@@ -224,6 +225,12 @@ export function registerJarvisRoutes(app: Express) {
           }, req).catch(() => {});
         },
         (error: Error & { logDetails?: string; originalError?: any }) => {
+          // AI-credit limit reached mid-stream (e.g. tool loop ran out of
+          // credits) — surface the standard limitExceeded SSE envelope so
+          // the client can render the upgrade prompt the same way it does
+          // for the pre-flight 403.
+          if (writeSseLimitExceeded(res, error)) return;
+          if (sendLimitExceeded(res, error)) return;
           const userMessage = error.message || "An unexpected error occurred. Please try again.";
           const logDetails = error.logDetails || error.message;
           console.error(`[JARVIS] Stream error: ${logDetails}`, error.originalError?.stack || error.stack || "");
