@@ -8,7 +8,7 @@ import { useSpeechRecognition, useSpeechSynthesis } from "@/hooks/use-speech";
 import {
   Mic, MicOff, Send, Square,
   ChevronRight, X, MessageSquare, Minimize2, Zap, FileText,
-  Paperclip,
+  Paperclip, Plus,
   MessageCircle, AudioLines, PenLine,
 } from "lucide-react";
 import {
@@ -97,7 +97,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
     setTimeout(() => setMicError(null), 6000);
   }, []);
 
-  const { isListening, isSupported: micSupported, startListening, toggleListening, stopListening, error: speechError, clearError: clearSpeechError } = useSpeechRecognition({
+  const { isListening, isSupported: micSupported, startListening, stopListening } = useSpeechRecognition({
     onResult: handleVoiceResult,
     onInterimResult: handleInterimResult,
     onError: handleSpeechError,
@@ -387,6 +387,28 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                   <p className="text-xs">{conciseMode ? "Short replies (click for detailed)" : "Detailed replies (click for brief)"}</p>
                 </TooltipContent>
               </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      newConversation();
+                      setShowChat(false);
+                      lastSpokenRef.current = "";
+                      stopSpeaking();
+                    }}
+                    className="h-7 px-2 gap-1 text-cyan-300 hover:text-cyan-100 hover:bg-cyan-900/20"
+                    data-testid="button-friday-new-chat"
+                  >
+                    <Plus className="h-3 w-3" />
+                    <span className="text-xs">New</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p className="text-xs">Start a new conversation</p>
+                </TooltipContent>
+              </Tooltip>
               <RecentChatsMenu
                 conversations={conversations}
                 activeConversationId={activeConversationId}
@@ -402,7 +424,9 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                   lastSpokenRef.current = "";
                   stopSpeaking();
                 }}
-                size="icon"
+                size="sm"
+                alwaysVisibleLabel="Chats"
+                triggerClassName="text-cyan-300 hover:text-cyan-100 hover:bg-cyan-900/20"
               />
               <Button
                 variant="ghost"

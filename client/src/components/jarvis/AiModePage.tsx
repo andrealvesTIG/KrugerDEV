@@ -7,8 +7,9 @@ import { useSpeechRecognition } from "@/hooks/use-speech";
 import { setAiMode, useAiModeEscapeHandler } from "@/hooks/use-ai-mode";
 import {
   Send, Square, X, Paperclip, Mic, MicOff,
-  Sparkles, Zap, FileText, ArrowRight,
+  Sparkles, Zap, FileText, ArrowRight, Plus,
 } from "lucide-react";
+import { ModeToggle } from "@/components/layout/ModeToggle";
 import {
   Tooltip, TooltipContent, TooltipTrigger,
 } from "@/components/ui/tooltip";
@@ -29,7 +30,7 @@ import { RecentChatsMenu } from "./RecentChatsMenu";
 
 export default function AiModePage() {
   const {
-    messages, isLoading, sendMessage, clearMessages, stopGeneration,
+    messages, isLoading, sendMessage, stopGeneration,
     conciseMode, setConciseMode, pageContext,
     conversations, activeConversationId, switchConversation, newConversation,
   } = useJarvis();
@@ -231,27 +232,16 @@ export default function AiModePage() {
       {/* Slim header */}
       <header className="flex h-12 items-center justify-between border-b border-border bg-background/95 px-3 md:px-4 backdrop-blur-sm flex-shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={() => setAiMode(false)}
-                className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-full text-xs font-semibold tracking-wide transition-all border bg-primary text-primary-foreground border-primary shadow-[0_0_10px_rgba(59,130,246,0.35)]"
-                aria-pressed={true}
-                aria-label="Exit AI Mode"
-                data-testid="button-ai-mode-toggle-active"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>AI Mode</span>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p className="text-xs">AI Mode is on — click to exit</p>
-            </TooltipContent>
-          </Tooltip>
-          <span className="hidden sm:inline-block text-xs text-muted-foreground truncate">Friday agent</span>
+          <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_6px_rgba(0,200,255,0.6)] flex-shrink-0" />
+          <span
+            className="text-sm font-semibold text-cyan-600 dark:text-cyan-300 tracking-wider uppercase"
+            style={{ fontFamily: "'Outfit', sans-serif" }}
+          >
+            F.R.I.D.A.Y.
+          </span>
+          <span className="text-xs text-muted-foreground hidden sm:inline">Agent</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 sm:gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -269,31 +259,33 @@ export default function AiModePage() {
               <p className="text-xs">{conciseMode ? "Short replies (click for detailed)" : "Detailed replies (click for brief)"}</p>
             </TooltipContent>
           </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleNewChat}
+                className="h-8 px-2 gap-1"
+                data-testid="button-ai-new-chat"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span className="text-xs">New</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p className="text-xs">Start a new conversation</p>
+            </TooltipContent>
+          </Tooltip>
           <RecentChatsMenu
             conversations={conversations}
             activeConversationId={activeConversationId}
             onSwitch={handleSwitchConversation}
             onNew={handleNewChat}
             align="end"
+            alwaysVisibleLabel="Chats"
           />
+          <ModeToggle />
           <ThemeToggle />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setAiMode(false)}
-                className="h-8 w-8"
-                aria-label="Exit AI Mode"
-                data-testid="button-ai-exit"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p className="text-xs">Exit AI Mode (Esc)</p>
-            </TooltipContent>
-          </Tooltip>
         </div>
       </header>
 

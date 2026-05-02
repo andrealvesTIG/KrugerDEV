@@ -30,6 +30,12 @@ interface RecentChatsMenuProps {
   onNew: () => void;
   size?: "sm" | "icon";
   align?: "start" | "end";
+  /** When set, always render this as the visible trigger label (no responsive hiding). */
+  alwaysVisibleLabel?: string;
+  /** Optional override for the auto-derived label (active chat title) when size="sm". */
+  triggerLabelOverride?: string;
+  /** Optional className for the trigger button. */
+  triggerClassName?: string;
 }
 
 export function RecentChatsMenu({
@@ -39,12 +45,17 @@ export function RecentChatsMenu({
   onNew,
   size = "sm",
   align = "end",
+  alwaysVisibleLabel,
+  triggerLabelOverride,
+  triggerClassName,
 }: RecentChatsMenuProps) {
   const recent = useMemo(() => conversations.slice(0, 25), [conversations]);
 
-  const triggerLabel = activeConversationId
+  const autoLabel = activeConversationId
     ? recent.find((c) => c.id === activeConversationId)?.title || "Chat"
     : "Recent";
+  const triggerLabel = triggerLabelOverride ?? autoLabel;
+  const count = conversations.length;
 
   return (
     <DropdownMenu>
@@ -55,7 +66,7 @@ export function RecentChatsMenu({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8"
+                className={`h-8 w-8 ${triggerClassName ?? ""}`}
                 aria-label="Recent chats"
                 data-testid="button-friday-recent-chats"
               >
@@ -65,11 +76,19 @@ export function RecentChatsMenu({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2 gap-1"
+                className={`h-8 px-2 gap-1 ${triggerClassName ?? ""}`}
+                aria-label="Recent chats"
                 data-testid="button-friday-recent-chats"
               >
                 <History className="h-3.5 w-3.5" />
-                <span className="text-xs hidden sm:inline max-w-[140px] truncate">{triggerLabel}</span>
+                {alwaysVisibleLabel ? (
+                  <span className="text-xs">{alwaysVisibleLabel}</span>
+                ) : (
+                  <span className="text-xs hidden sm:inline max-w-[140px] truncate">{triggerLabel}</span>
+                )}
+                {count > 0 && (
+                  <span className="ml-0.5 text-[10px] tabular-nums opacity-70">{count > 99 ? "99+" : count}</span>
+                )}
               </Button>
             )}
           </DropdownMenuTrigger>
