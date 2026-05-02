@@ -244,19 +244,41 @@ export default function AiModePage() {
         <div className="flex items-center gap-1 sm:gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
+              <button
+                type="button"
+                role="switch"
+                aria-checked={conciseMode}
                 onClick={() => setConciseMode(!conciseMode)}
-                className="h-8 px-2 gap-1"
+                title={conciseMode ? "Brief replies (click for detailed)" : "Detailed replies (click for brief)"}
+                className="group inline-flex items-center gap-2 h-8 px-2 rounded-md hover:bg-accent transition-colors select-none"
                 data-testid="button-ai-concise-toggle"
               >
-                {conciseMode ? <Zap className="h-3.5 w-3.5" /> : <FileText className="h-3.5 w-3.5" />}
-                <span className="text-xs hidden sm:inline">{conciseMode ? "Brief" : "Detailed"}</span>
-              </Button>
+                {conciseMode ? (
+                  <Zap className="h-3.5 w-3.5 text-primary" />
+                ) : (
+                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+                <span className="text-xs font-medium hidden sm:inline">Brief</span>
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border transition-colors",
+                    conciseMode
+                      ? "bg-primary border-primary shadow-[0_0_8px_rgba(59,130,246,0.5)]"
+                      : "bg-muted border-border group-hover:border-primary/50",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "absolute top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.3)] transition-all duration-200 ease-out",
+                      conciseMode ? "left-[18px]" : "left-[2px]",
+                    )}
+                  />
+                </span>
+              </button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              <p className="text-xs">{conciseMode ? "Short replies (click for detailed)" : "Detailed replies (click for brief)"}</p>
+              <p className="text-xs">{conciseMode ? "Brief is on — short replies" : "Brief is off — detailed replies"}</p>
             </TooltipContent>
           </Tooltip>
           <Tooltip>
