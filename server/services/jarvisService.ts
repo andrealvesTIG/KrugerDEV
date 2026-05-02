@@ -815,6 +815,22 @@ const jarvisTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "generate_pdf",
+      description: "Generate a downloadable PDF report from markdown content. ALWAYS use this when the user asks for a PDF, document, report file, or anything that should be exported. Never tell the user you cannot generate PDFs — call this tool instead. Returns a download link the user can click. This is organization-scoped — no project ID needed.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Title shown at the top of the PDF and used as the document title (max 200 chars)." },
+          filename: { type: "string", description: "Optional filename for the download (e.g. 'weekly-update.pdf'). If omitted, a slug of the title is used." },
+          content: { type: "string", description: "The full body of the report as markdown. Supports headings (#, ##, ###), bullet lists (-, *), numbered lists, bold (**text**), and paragraphs." },
+        },
+        required: ["title", "content"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "bulk_create_tasks",
       description: "Create multiple tasks in a project at once from structured data (e.g. parsed from a CSV file). Call this ONLY after presenting the parsed data to the user and receiving explicit confirmation. Each task object should have at minimum a name.",
       parameters: {
@@ -846,10 +862,11 @@ const jarvisTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   },
 ];
 
-const ORG_SCOPED_TOOLS = new Set(["create_resource", "bulk_create_resources"]);
+const ORG_SCOPED_TOOLS = new Set(["create_resource", "bulk_create_resources", "generate_pdf"]);
 
 async function handleToolCall(
   orgId: number,
+  userId: string,
   toolName: string,
   args: Record<string, any>,
 ): Promise<string> {
@@ -857,7 +874,7 @@ async function handleToolCall(
   // turn's context reflects the change.
   invalidateOrganizationContextCache(orgId);
   if (ORG_SCOPED_TOOLS.has(toolName)) {
-    return handleOrgScopedToolCall(orgId, toolName, args);
+    return handleOrgScopedToolCall(orgId, userId, toolName, args);
   }
 
   const projectId = args.projectId;
@@ -1142,10 +1159,37 @@ function sanitizeResourceFields(r: Record<string, unknown>): ResourceSanitizedFi
 
 async function handleOrgScopedToolCall(
   orgId: number,
+  userId: string,
   toolName: string,
   args: Record<string, any>,
 ): Promise<string> {
   switch (toolName) {
+    case "generate_pdf": {
+      const title = typeof args.title === "string" && args.title.trim()
+        ? args.title.trim().slice(0, 200)
+        : "Friday Report";
+      const content = typeof args.content === "string" ? args.content : "";
+      if (!content.trim()) {
+        return JSON.stringify({ success: false, message: "Content is required to generate a PDF." });
+      }
+      const filenameRaw = typeof args.filename === "string" && args.filename.trim()
+        ? args.filename.trim()
+        : `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "report"}.pdf`;
+      const filename = (filenameRaw.endsWith(".pdf") ? filenameRaw : `${filenameRaw}.pdf`).slice(0, 120);
+
+      const { renderMarkdownToPdfBuffer } = await import("./fridayPdfGenerator");
+      const buffer = await renderMarkdownToPdfBuffer(title, content);
+      const { storeGeneratedFile } = await import("./fridayGeneratedFiles");
+      const file = storeGeneratedFile(userId, orgId, filename, "application/pdf", buffer);
+      const downloadUrl = `/api/jarvis/generated-files/${file.id}`;
+      return JSON.stringify({
+        success: true,
+        message: `PDF generated. Reply to the user with EXACTLY this markdown link so they can download it: [Download ${filename}](${downloadUrl}). Do NOT tell the user you cannot generate PDFs.`,
+        downloadUrl,
+        filename,
+      });
+    }
+
     case "create_resource": {
       const fields = sanitizeResourceFields(args);
       if (!fields.displayName) {
@@ -1395,7 +1439,6 @@ export async function streamJarvisResponse(
   pageContext?: PageContext,
   attachments?: FileAttachment[],
 ) {
-  void userId;
   try {
     const context = await gatherOrganizationContext(orgId);
     const dataContext = buildDataContext(context);
@@ -1447,6 +1490,7 @@ CSV FILE IMPORT RULES:
     const { client: orgOpenai, deployment: orgDeployment, isAzure: orgIsAzure } = await getOrgOpenAIClient(orgId);
 
     let fullResponse = "";
+    const pendingPdfLinks: Array<{ filename: string; downloadUrl: string }> = [];
     const MAX_TOOL_ROUNDS = 5;
 
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
@@ -1528,7 +1572,15 @@ CSV FILE IMPORT RULES:
       for (const [, tc] of currentToolCalls) {
         try {
           const args = JSON.parse(tc.arguments);
-          const result = await handleToolCall(orgId, tc.name, args);
+          const result = await handleToolCall(orgId, userId, tc.name, args);
+          if (tc.name === "generate_pdf") {
+            try {
+              const parsed = JSON.parse(result);
+              if (parsed?.success && typeof parsed.downloadUrl === "string" && typeof parsed.filename === "string") {
+                pendingPdfLinks.push({ filename: parsed.filename, downloadUrl: parsed.downloadUrl });
+              }
+            } catch {}
+          }
           apiMessages.push({
             role: "tool",
             tool_call_id: tc.id,
@@ -1544,6 +1596,17 @@ CSV FILE IMPORT RULES:
       }
 
       fullResponse = "";
+    }
+
+    // Deterministically guarantee the user sees a clickable download link for
+    // any PDF Friday generated this turn, even if the model forgot to echo it.
+    const missingLinks = pendingPdfLinks.filter(l => !fullResponse.includes(l.downloadUrl));
+    if (missingLinks.length > 0) {
+      const appended = missingLinks
+        .map(l => `\n\n[Download ${l.filename}](${l.downloadUrl})`)
+        .join("");
+      fullResponse += appended;
+      onChunk(appended);
     }
 
     onDone(fullResponse);

@@ -135,19 +135,33 @@ function renderInline(
     if (match[2] && match[3]) {
       const linkText = match[2];
       const linkPath = match[3];
+      const isDownload = linkPath.startsWith("/api/");
       parts.push(
-        <button
-          key={`il-${inlineKeyCounter++}`}
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onNavigate?.(linkPath);
-          }}
-          className={linkClass}
-        >
-          {linkText}
-        </button>
+        isDownload ? (
+          <a
+            key={`il-${inlineKeyCounter++}`}
+            href={linkPath}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={linkClass}
+            data-testid="link-friday-download"
+          >
+            {linkText}
+          </a>
+        ) : (
+          <button
+            key={`il-${inlineKeyCounter++}`}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onNavigate?.(linkPath);
+            }}
+            className={linkClass}
+          >
+            {linkText}
+          </button>
+        )
       );
     } else if (match[5]) {
       parts.push(
@@ -162,19 +176,33 @@ function renderInline(
     } else if (match[9] && match[10]) {
       const linkText = match[9];
       const linkPath = match[10];
+      const isDownload = linkPath.startsWith("/api/");
       parts.push(
-        <button
-          key={`il-${inlineKeyCounter++}`}
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onNavigate?.(linkPath);
-          }}
-          className={linkClassPlain}
-        >
-          {linkText}
-        </button>
+        isDownload ? (
+          <a
+            key={`il-${inlineKeyCounter++}`}
+            href={linkPath}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={linkClassPlain}
+            data-testid="link-friday-download"
+          >
+            {linkText}
+          </a>
+        ) : (
+          <button
+            key={`il-${inlineKeyCounter++}`}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onNavigate?.(linkPath);
+            }}
+            className={linkClassPlain}
+          >
+            {linkText}
+          </button>
+        )
       );
     }
     lastIndex = match.index + match[0].length;
