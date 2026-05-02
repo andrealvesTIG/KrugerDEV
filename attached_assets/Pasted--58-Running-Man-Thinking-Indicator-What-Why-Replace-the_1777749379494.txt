@@ -1,0 +1,24 @@
+#58 - Running Man Thinking Indicator
+What & Why
+Replace the chat's "Friday is thinking…" indicator with "Friday Agent is thinking like there is no tomorow..." and show the same animated running-man GIF used in the top-bar Friday countdown next to the text. Adds a bit of personality and ties the chat loading state visually to the existing Friday branding.
+
+Done looks like
+While the AI assistant is generating a response, the chat shows the message "Friday Agent is thinking like there is no tomorow..." (exact wording, including the typo "tomorow") instead of "Friday is thinking…".
+The animated running-man GIF (the same one used in the top-bar Friday countdown) appears alongside the text in the thinking indicator.
+The new indicator appears in both places the old one currently shows: the side panel chat and the full AI Mode page.
+The runner respects the existing themed-gif treatment so it looks correct in both light and dark mode.
+The pulsing-dot animation that currently sits next to the text can stay or be removed — choose whichever looks cleaner once the runner is in place; the runner itself must be present.
+Out of scope
+Changing the voice mode "Listening / Speaking / Thinking" sub-label.
+Changing the Friday countdown component in the top bar.
+Any other copy or visual changes to the chat UI.
+Fixing the intentional "tomorow" spelling — keep it as written.
+Steps
+Update the side-panel chat thinking indicator to use the new text and render the running-man GIF next to it, matching the themed-gif approach used by the Friday countdown.
+Apply the same change to the full AI Mode page thinking indicator so both surfaces stay consistent.
+Manually verify in both light and dark mode, in the side panel and the AI Mode page, that the runner animates and the text reads exactly "Friday Agent is thinking like there is no tomorow...".
+Relevant files
+client/src/components/jarvis/JarvisPanel.tsx:592-598
+client/src/components/jarvis/AiModePage.tsx:351-356
+client/src/components/layout/FridayCountdown.tsx
+client/src/assets/runcycle18_1772300373437.gif

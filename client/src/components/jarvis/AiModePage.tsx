@@ -7,7 +7,7 @@ import { useSpeechRecognition } from "@/hooks/use-speech";
 import { setAiMode, useAiModeEscapeHandler } from "@/hooks/use-ai-mode";
 import {
   Send, Square, X, Paperclip, Mic, MicOff,
-  Sparkles, Zap, FileText, ArrowRight, Plus,
+  Sparkles, Zap, Feather, ArrowRight, Plus,
 } from "lucide-react";
 import { ModeToggle } from "@/components/layout/ModeToggle";
 import {
@@ -244,41 +244,52 @@ export default function AiModePage() {
         <div className="flex items-center gap-1 sm:gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={conciseMode}
-                onClick={() => setConciseMode(!conciseMode)}
-                title={conciseMode ? "Brief replies (click for detailed)" : "Detailed replies (click for brief)"}
-                className="group inline-flex items-center gap-2 h-8 px-2 rounded-md hover:bg-accent transition-colors select-none"
+              <div
+                role="radiogroup"
+                aria-label="Response mode"
+                className="inline-flex items-center h-8 p-0.5 rounded-full bg-muted border border-border"
                 data-testid="button-ai-concise-toggle"
               >
-                {conciseMode ? (
-                  <Zap className="h-3.5 w-3.5 text-primary" />
-                ) : (
-                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                )}
-                <span className="text-xs font-medium hidden sm:inline">Brief</span>
-                <span
-                  aria-hidden="true"
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={conciseMode}
+                  onClick={() => setConciseMode(true)}
                   className={cn(
-                    "relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border transition-colors",
+                    "inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-xs font-semibold transition-all",
                     conciseMode
-                      ? "bg-primary border-primary shadow-[0_0_8px_rgba(59,130,246,0.5)]"
-                      : "bg-muted border-border group-hover:border-primary/50",
+                      ? "bg-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.55)]"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
+                  data-testid="button-ai-mode-light"
                 >
-                  <span
-                    className={cn(
-                      "absolute top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.3)] transition-all duration-200 ease-out",
-                      conciseMode ? "left-[18px]" : "left-[2px]",
-                    )}
-                  />
-                </span>
-              </button>
+                  <Feather className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Light</span>
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={!conciseMode}
+                  onClick={() => setConciseMode(false)}
+                  className={cn(
+                    "inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-xs font-semibold transition-all",
+                    !conciseMode
+                      ? "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-[0_0_12px_rgba(249,115,22,0.6)]"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                  data-testid="button-ai-mode-power"
+                >
+                  <Zap className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Power</span>
+                </button>
+              </div>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              <p className="text-xs">{conciseMode ? "Brief is on — short replies" : "Brief is off — detailed replies"}</p>
+              <p className="text-xs">
+                {conciseMode
+                  ? "Light Mode — short, fast replies"
+                  : "Power Mode — detailed, thorough replies"}
+              </p>
             </TooltipContent>
           </Tooltip>
           <Tooltip>
