@@ -27,7 +27,7 @@ import {
   FILE_ALLOWED_EXTENSIONS,
 } from "./jarvis-shared";
 import { RecentChatsMenu } from "./RecentChatsMenu";
-import logoIcon from "@assets/FridayReportAI_logo_F-symbol_1770231051194.png";
+import logoIcon from "@assets/image_1777744172216.png";
 
 export default function AiModePage() {
   const {
@@ -300,11 +300,11 @@ export default function AiModePage() {
               transition={{ duration: 0.4 }}
               className="w-full max-w-2xl mx-auto text-center"
             >
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 dark:bg-primary/15 ring-1 ring-primary/20 dark:ring-primary/30 mb-5 shadow-sm">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 ring-1 ring-border dark:ring-slate-700 mb-5 shadow-sm">
                 <img
                   src={logoIcon}
                   alt="FridayReport.AI"
-                  className="h-10 w-10 object-contain dark:[filter:brightness(0)_invert(1)]"
+                  className="h-11 w-11 object-contain"
                 />
               </div>
               <p
