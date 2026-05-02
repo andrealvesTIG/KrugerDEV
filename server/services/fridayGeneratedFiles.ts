@@ -53,3 +53,14 @@ export function getGeneratedFile(id: string): GeneratedFile | undefined {
   evictExpired();
   return store.get(id);
 }
+
+export function getGeneratedFileForUser(
+  id: string,
+  userId: string,
+  orgId: number,
+): GeneratedFile | undefined {
+  const file = getGeneratedFile(id);
+  if (!file) return undefined;
+  if (file.userId !== userId || file.orgId !== orgId) return undefined;
+  return file;
+}

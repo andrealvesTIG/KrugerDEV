@@ -815,6 +815,32 @@ const jarvisTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "send_email",
+      description: "Send an email on behalf of the user. Use when the user asks Friday to email a teammate, share a report, or notify someone. Recipients MUST be people who already exist in the user's organization (org members or resources with an email on file) — Friday cannot email arbitrary external addresses. To attach a PDF Friday just generated, pass its `pdfId` (returned by generate_pdf). Always confirm subject, recipients, and body summary with the user before calling unless they have already explicitly approved.",
+      parameters: {
+        type: "object",
+        properties: {
+          to: {
+            type: "array",
+            items: { type: "string" },
+            description: "List of recipient email addresses. Each must belong to an org member or a resource in this organization.",
+          },
+          cc: {
+            type: "array",
+            items: { type: "string" },
+            description: "Optional CC list. Same restriction as `to`.",
+          },
+          subject: { type: "string", description: "Email subject line (max 200 chars)." },
+          body: { type: "string", description: "Email body. Plain text or simple markdown (paragraphs, bullets with -, **bold**). Will be rendered as both text and HTML." },
+          pdfId: { type: "string", description: "Optional id of a PDF previously created with generate_pdf in this conversation. The file will be attached." },
+        },
+        required: ["to", "subject", "body"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "generate_pdf",
       description: "Generate a downloadable PDF report from markdown content. ALWAYS use this when the user asks for a PDF, document, report file, or anything that should be exported. Never tell the user you cannot generate PDFs — call this tool instead. Returns a download link the user can click. This is organization-scoped — no project ID needed.",
       parameters: {
@@ -862,7 +888,7 @@ const jarvisTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   },
 ];
 
-const ORG_SCOPED_TOOLS = new Set(["create_resource", "bulk_create_resources", "generate_pdf"]);
+const ORG_SCOPED_TOOLS = new Set(["create_resource", "bulk_create_resources", "generate_pdf", "send_email"]);
 
 async function handleToolCall(
   orgId: number,
@@ -1184,10 +1210,16 @@ async function handleOrgScopedToolCall(
       const downloadUrl = `/api/jarvis/generated-files/${file.id}`;
       return JSON.stringify({
         success: true,
-        message: `PDF generated. Reply to the user with EXACTLY this markdown link so they can download it: [Download ${filename}](${downloadUrl}). Do NOT tell the user you cannot generate PDFs.`,
+        message: `PDF generated. Reply to the user with EXACTLY this markdown link so they can download it: [Download ${filename}](${downloadUrl}). Do NOT tell the user you cannot generate PDFs. To attach this PDF to an email, pass pdfId="${file.id}" to send_email.`,
+        pdfId: file.id,
         downloadUrl,
         filename,
       });
+    }
+
+    case "send_email": {
+      const { sendFridayEmail } = await import("./fridayEmailTool");
+      return sendFridayEmail(orgId, userId, args);
     }
 
     case "create_resource": {
