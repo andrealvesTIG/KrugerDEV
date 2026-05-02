@@ -390,6 +390,38 @@ export function registerDashboardRoutes(app: Express) {
     }
   });
 
+  apiRoute(app, 'get', '/api/onboarding/org-setup-status', {
+    tag: 'Dashboards',
+    summary: 'Check whether the given organization is empty enough that Friday should run onboarding',
+    responses: { ...r200('Org setup status', { type: 'object' }), ...authRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgIdRaw = req.query.organizationId;
+      const organizationId = Number(Array.isArray(orgIdRaw) ? orgIdRaw[0] : orgIdRaw);
+      if (!Number.isFinite(organizationId) || organizationId <= 0) {
+        return res.status(400).json({ message: "organizationId is required" });
+      }
+      const memberships = await storage.getUserOrganizations(userId);
+      if (!memberships.some(m => m.organizationId === organizationId)) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      const role = memberships.find(m => m.organizationId === organizationId)?.role || null;
+      const { getOrganizationSetupStatus } = await import("../services/onboarding");
+      const status = await getOrganizationSetupStatus(organizationId, userId);
+      res.json({
+        ...status,
+        role,
+        canConfigure: role === "org_admin",
+      });
+    } catch (err) {
+      console.error("Error fetching org setup status:", err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? "Failed to fetch setup status" : classified.message });
+    }
+  });
+
   apiRoute(app, 'post', '/api/onboarding/complete', {
     tag: 'Dashboards',
     summary: 'Complete onboarding',

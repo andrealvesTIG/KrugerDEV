@@ -7,7 +7,7 @@ import { useSpeechRecognition } from "@/hooks/use-speech";
 import { setAiMode, useAiModeEscapeHandler } from "@/hooks/use-ai-mode";
 import {
   Send, Square, X, Paperclip, Mic, MicOff,
-  Sparkles, Zap, Feather, ArrowRight, Plus,
+  Sparkles, Zap, Feather, ArrowRight, Plus, Compass,
 } from "lucide-react";
 import { ModeToggle } from "@/components/layout/ModeToggle";
 import {
@@ -19,6 +19,7 @@ import { useLocation } from "wouter";
 import {
   MessageBubble,
   getSuggestedPrompts,
+  OnboardingPrompts,
   ALLOWED_FILE_TYPES,
   MAX_FILE_SIZE,
   CSV_CHUNK_BYTES,
@@ -26,6 +27,7 @@ import {
   FILE_ACCEPT_ATTR,
   FILE_ALLOWED_EXTENSIONS,
 } from "./jarvis-shared";
+import { useOrgSetupStatus } from "@/hooks/use-needs-org-setup";
 import { RecentChatsMenu } from "./RecentChatsMenu";
 import logoIcon from "@assets/image_1777744172216.png";
 import ThemedGif from "@/components/ui/themed-gif";
@@ -36,6 +38,7 @@ export default function AiModePage() {
     messages, isLoading, sendMessage, stopGeneration,
     conciseMode, setConciseMode, pageContext,
     conversations, activeConversationId, switchConversation, newConversation,
+    startOnboardingAgent, forceOnboarding,
   } = useJarvis();
 
   useAiModeEscapeHandler();
@@ -215,6 +218,13 @@ export default function AiModePage() {
     setTimeout(() => textareaRef.current?.focus(), 50);
   }, [newConversation]);
 
+  const handleStartOnboardingAgent = useCallback(() => {
+    startOnboardingAgent();
+    setInput("");
+    setPendingFiles([]);
+    setTimeout(() => textareaRef.current?.focus(), 50);
+  }, [startOnboardingAgent]);
+
   const handleSwitchConversation = useCallback((id: number) => {
     switchConversation(id);
     setInput("");
@@ -224,6 +234,9 @@ export default function AiModePage() {
 
   const suggestedPrompts = getSuggestedPrompts(pageContext.entityType);
   const hasMessages = messages.length > 0;
+  const { needsSetup: needsOrgSetup } = useOrgSetupStatus();
+  const showOnboarding =
+    forceOnboarding || (needsOrgSetup && pageContext.entityType === null);
 
   const composedTextareaValue =
     isListening && interimText
@@ -311,6 +324,26 @@ export default function AiModePage() {
               <p className="text-xs">Start a new conversation</p>
             </TooltipContent>
           </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleStartOnboardingAgent}
+                className={cn(
+                  "h-8 px-2 gap-1 border-primary/30 hover:bg-primary/10",
+                  forceOnboarding && "bg-primary/10 border-primary/50 text-primary",
+                )}
+                data-testid="button-ai-onboarding-agent"
+              >
+                <Compass className="h-3.5 w-3.5" />
+                <span className="text-xs hidden sm:inline">Onboarding agent</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p className="text-xs">Launch the onboarding agent to set up your workspace</p>
+            </TooltipContent>
+          </Tooltip>
           <RecentChatsMenu
             conversations={conversations}
             activeConversationId={activeConversationId}
@@ -347,28 +380,37 @@ export default function AiModePage() {
               >
                 Friday Agent
               </p>
-              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground dark:text-white mb-2">
-                How can Friday help today?
-              </h1>
-              <p className="text-sm text-muted-foreground dark:text-slate-300 mb-8">
-                Ask anything about your portfolios, projects, risks, or resources.
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {suggestedPrompts.map((prompt, idx) => (
-                  <motion.button
-                    key={prompt}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.1 + idx * 0.05 }}
-                    onClick={() => sendMessage(prompt)}
-                    className="group flex items-start gap-3 text-left p-4 rounded-xl border border-border dark:border-slate-700 bg-card dark:bg-slate-900 hover:bg-accent hover:border-primary/40 dark:hover:bg-slate-800 dark:hover:border-primary/60 transition-all shadow-sm dark:shadow-none"
-                    data-testid={`button-ai-suggested-${idx}`}
-                  >
-                    <ArrowRight className="h-4 w-4 mt-0.5 text-muted-foreground dark:text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 transition-all flex-shrink-0" />
-                    <span className="text-sm text-foreground dark:text-slate-100">{prompt}</span>
-                  </motion.button>
-                ))}
-              </div>
+              {showOnboarding ? (
+                <OnboardingPrompts
+                  variant="page"
+                  onPick={(message) => sendMessage(message)}
+                />
+              ) : (
+                <>
+                  <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground dark:text-white mb-2">
+                    How can Friday help today?
+                  </h1>
+                  <p className="text-sm text-muted-foreground dark:text-slate-300 mb-8">
+                    Ask anything about your portfolios, projects, risks, or resources.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {suggestedPrompts.map((prompt, idx) => (
+                      <motion.button
+                        key={prompt}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: 0.1 + idx * 0.05 }}
+                        onClick={() => sendMessage(prompt)}
+                        className="group flex items-start gap-3 text-left p-4 rounded-xl border border-border dark:border-slate-700 bg-card dark:bg-slate-900 hover:bg-accent hover:border-primary/40 dark:hover:bg-slate-800 dark:hover:border-primary/60 transition-all shadow-sm dark:shadow-none"
+                        data-testid={`button-ai-suggested-${idx}`}
+                      >
+                        <ArrowRight className="h-4 w-4 mt-0.5 text-muted-foreground dark:text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                        <span className="text-sm text-foreground dark:text-slate-100">{prompt}</span>
+                      </motion.button>
+                    ))}
+                  </div>
+                </>
+              )}
             </motion.div>
           </div>
         ) : (

@@ -1453,6 +1453,44 @@ async function callOpenAIWithRetry(
   }
 }
 
+async function detectOrgNeedsSetup(orgId: number, userId: string): Promise<boolean> {
+  try {
+    const [projectRows, portfolioRows, userRow] = await Promise.all([
+      db.select({ id: projects.id }).from(projects)
+        .where(and(eq(projects.organizationId, orgId), isNull(projects.deletedAt))).limit(1),
+      db.select({ id: portfolios.id }).from(portfolios)
+        .where(and(eq(portfolios.organizationId, orgId), isNull(portfolios.deletedAt))).limit(1),
+      db.select({ onboardingCompleted: users.onboardingCompleted })
+        .from(users).where(eq(users.id, userId)).limit(1),
+    ]);
+    const isEmpty = projectRows.length === 0 && portfolioRows.length === 0;
+    const onboardingCompleted = !!userRow[0]?.onboardingCompleted;
+    return isEmpty && !onboardingCompleted;
+  } catch (err) {
+    console.error("[jarvis] detectOrgNeedsSetup failed:", err);
+    return false;
+  }
+}
+
+const ONBOARDING_DIRECTIVE = `\n\nONBOARDING MODE — This workspace is brand new (no portfolios or projects yet) and the user has not finished onboarding.
+
+Your job in this conversation:
+1. Greet the user warmly, introduce yourself as Friday, and ask what industry they work in and what they're hoping to do in the app — unless they have already told you.
+2. Once they share an industry (either by clicking one of the suggested cards or typing it), briefly confirm what you heard.
+3. Then OFFER to configure the workspace for them by emitting a single Friday action card. Use this exact format on its own line as a top-level fenced block:
+
+\`\`\`friday-card
+{"type":"action","title":"Set up your workspace for {Industry}","subtitle":"I'll create a starter portfolio with sample projects, milestones, risks, and demo resources tailored to {Industry}.","accent":"default","fields":[{"label":"Industry","value":"{Industry}"},{"label":"What you'll get","value":"1 portfolio, 2 demo projects, milestones, risks, and resources"}],"actions":[{"label":"Apply setup","type":"configure_organization","data":{"industry":"{Industry}"}},{"label":"Not now","type":"configure_organization","data":{"dismiss":true}}]}
+\`\`\`
+
+Supported industry keys (use exactly these in the data.industry field): Technology, Healthcare, Finance, Manufacturing, Retail, Consulting. If the user describes "something else" or an industry that isn't in that list, set data.industry to "General" and tell them in the subtitle that you'll start with a generic Strategic Initiatives portfolio they can customize.
+
+4. Wait for the user to click Apply (the system runs configure_organization). Do NOT call any other tools or assume the configuration ran without confirmation.
+5. After Apply succeeds, your next reply should welcome the user and link to the new portfolio/projects (the action result will include their IDs and names — render them as markdown links like [Portfolio Name](/portfolios/{id})).
+6. If the user says "not now", "skip", or otherwise declines, drop the configure card offer and ask how else you can help.
+
+Important: only emit the configure_organization card while the workspace is empty. Never offer it for orgs that already have projects.`;
+
 export async function streamJarvisResponse(
   orgId: number,
   userId: string,
@@ -1471,13 +1509,18 @@ export async function streamJarvisResponse(
   meterPerCall: MeterPerCall,
   pageContext?: PageContext,
   attachments?: FileAttachment[],
+  options?: { forceOnboarding?: boolean },
 ) {
   void userId;
   try {
-    const context = await gatherOrganizationContext(orgId);
+    const [context, needsSetup] = await Promise.all([
+      gatherOrganizationContext(orgId),
+      detectOrgNeedsSetup(orgId, userId),
+    ]);
     const dataContext = buildDataContext(context);
     const pageDirective = buildPageContextDirective(pageContext, context);
     const attachmentContext = buildAttachmentContext(attachments);
+    const onboardingDirective = (needsSetup || options?.forceOnboarding) ? ONBOARDING_DIRECTIVE : "";
 
     const conciseDirective = concise
       ? `\n\nIMPORTANT — Concise mode is ON. Keep every reply SHORT: max 3-5 bullet points or 2-3 short sentences. No lengthy explanations. Omit sections that have nothing notable. If the user needs more detail, they will ask.`
@@ -1511,7 +1554,7 @@ CSV FILE IMPORT RULES:
 - Use the bulk_create_tasks tool to create all tasks at once — do NOT call create_task repeatedly.
 - After creation, report how many tasks were created successfully.`;
 
-    const systemMessage = `${SYSTEM_PROMPT}${pageDirective}${conciseDirective}${actionDirective}${attachmentContext}\n\n---\n\n${dataContext}`;
+    const systemMessage = `${SYSTEM_PROMPT}${onboardingDirective}${pageDirective}${conciseDirective}${actionDirective}${attachmentContext}\n\n---\n\n${dataContext}`;
 
     const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: "system", content: systemMessage },
@@ -1665,14 +1708,51 @@ export async function executeJarvisAction(
   orgId: number,
   userId: string,
   action: {
-    type: "create_task" | "create_mitigation" | "assign_owner" | "add_note" | "flag_for_review";
-    projectId: number;
+    type: "create_task" | "create_mitigation" | "assign_owner" | "add_note" | "flag_for_review" | "configure_organization";
+    projectId?: number;
     data: Record<string, any>;
   }
-): Promise<{ success: boolean; message: string; entityId?: number }> {
-  const validTypes = ["create_task", "create_mitigation", "assign_owner", "add_note", "flag_for_review"];
+): Promise<{
+  success: boolean;
+  message: string;
+  entityId?: number;
+  links?: Array<{ label: string; href: string }>;
+}> {
+  const validTypes = [
+    "create_task",
+    "create_mitigation",
+    "assign_owner",
+    "add_note",
+    "flag_for_review",
+    "configure_organization",
+  ];
   if (!validTypes.includes(action.type)) {
     return { success: false, message: "Unknown action type." };
+  }
+
+  // Org-scoped action — doesn't need a projectId and short-circuits before
+  // the project ownership check below.
+  if (action.type === "configure_organization") {
+    const industryRaw = typeof action.data?.industry === "string" ? action.data.industry : "General";
+    const { configureOrganizationFromIndustry } = await import("./onboarding");
+    const result = await configureOrganizationFromIndustry(userId, orgId, industryRaw);
+    if (!result.success) {
+      return { success: false, message: result.message };
+    }
+    invalidateOrganizationContextCache(orgId);
+    const links: Array<{ label: string; href: string }> = [];
+    if (result.portfolio) {
+      links.push({ label: result.portfolio.name, href: `/portfolios/${result.portfolio.id}` });
+    }
+    for (const project of result.projects ?? []) {
+      links.push({ label: project.name, href: `/projects/${project.id}` });
+    }
+    return {
+      success: true,
+      message: result.message,
+      entityId: result.portfolio?.id,
+      links,
+    };
   }
 
   if (!action.projectId || typeof action.projectId !== "number") {

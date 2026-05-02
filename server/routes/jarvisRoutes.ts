@@ -83,14 +83,32 @@ const chatRequestSchema = z.object({
   pageContext: pageContextSchema,
   attachments: z.array(attachmentSchema).max(MAX_ATTACHMENTS).optional(),
   conversationId: z.number().int().positive().optional(),
+  forceOnboarding: z.boolean().optional(),
 });
 
 const actionRequestSchema = z.object({
   organizationId: z.number().int().positive(),
   action: z.object({
-    type: z.enum(["create_task", "create_mitigation", "assign_owner", "add_note", "flag_for_review"]),
-    projectId: z.number().int().positive(),
+    type: z.enum([
+      "create_task",
+      "create_mitigation",
+      "assign_owner",
+      "add_note",
+      "flag_for_review",
+      "configure_organization",
+    ]),
+    // configure_organization is org-scoped and doesn't carry a projectId.
+    // All other action types still require a numeric projectId.
+    projectId: z.number().int().positive().optional(),
     data: z.record(z.any()),
+  }).superRefine((value, ctx) => {
+    if (value.type !== "configure_organization" && !value.projectId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "projectId is required for this action type",
+        path: ["projectId"],
+      });
+    }
   }),
 });
 
@@ -122,7 +140,7 @@ export function registerJarvisRoutes(app: Express) {
         return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
       }
 
-      const { messages, organizationId, concise, pageContext, attachments, conversationId: incomingConversationId } = parsed.data;
+      const { messages, organizationId, concise, pageContext, attachments, conversationId: incomingConversationId, forceOnboarding } = parsed.data;
 
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(organizationId)) {
@@ -231,6 +249,7 @@ export function registerJarvisRoutes(app: Express) {
         meterPerCall,
         pageContext ? { path: pageContext.path, entityType: pageContext.entityType, entityId: pageContext.entityId } : undefined,
         attachments,
+        { forceOnboarding: forceOnboarding === true },
       );
     } catch (error) {
       if (error instanceof AiCreditsLimitError) {
@@ -253,7 +272,7 @@ export function registerJarvisRoutes(app: Express) {
         action: {
           type: 'object',
           properties: {
-            type: { type: 'string', enum: ['create_task', 'create_mitigation', 'assign_owner', 'add_note', 'flag_for_review'] },
+            type: { type: 'string', enum: ['create_task', 'create_mitigation', 'assign_owner', 'add_note', 'flag_for_review', 'configure_organization'] },
             projectId: { type: 'integer' },
             data: { type: 'object' },
           },
@@ -285,6 +304,13 @@ export function registerJarvisRoutes(app: Express) {
       if (role === "viewer" || role === "team_member") {
         return res.status(403).json({ message: "Insufficient permissions to perform this action" });
       }
+      // configure_organization seeds an entire workspace (portfolios,
+      // projects, demo resources). That's a heavier operation than a
+      // single task/risk write, so restrict it to org admins, the same
+      // permission gate the regular onboarding wizard uses.
+      if (action.type === "configure_organization" && role !== "org_admin") {
+        return res.status(403).json({ message: "Only an Organization Admin can configure the workspace." });
+      }
 
       // Action requests are billable AI surfaces — 1 credit per success.
       const actionCreditCtx = {
@@ -311,7 +337,7 @@ export function registerJarvisRoutes(app: Express) {
         });
       }
 
-      await logUserActivity(userId, "jarvis_action", "jarvis", action.projectId, {
+      await logUserActivity(userId, "jarvis_action", "jarvis", action.projectId ?? undefined, {
         actionType: action.type,
         success: result.success,
         entityId: result.entityId,

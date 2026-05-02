@@ -551,6 +551,100 @@ export async function generateSampleDataForOrg(
   return { portfolio, projects: createdProjects };
 }
 
+export const SUPPORTED_ONBOARDING_INDUSTRIES = [
+  "Technology",
+  "Healthcare",
+  "Finance",
+  "Manufacturing",
+  "Retail",
+  "Consulting",
+] as const;
+
+export type SupportedOnboardingIndustry = typeof SUPPORTED_ONBOARDING_INDUSTRIES[number];
+
+export async function getOrganizationSetupStatus(
+  organizationId: number,
+  userId?: string,
+): Promise<{
+  needsSetup: boolean;
+  projectCount: number;
+  portfolioCount: number;
+  industry: string | null;
+  onboardingCompleted: boolean;
+}> {
+  const [projectRows, portfolioRows, userRow] = await Promise.all([
+    db.select({ id: projects.id })
+      .from(projects)
+      .where(and(eq(projects.organizationId, organizationId), isNull(projects.deletedAt))),
+    db.select({ id: portfolios.id })
+      .from(portfolios)
+      .where(and(eq(portfolios.organizationId, organizationId), isNull(portfolios.deletedAt))),
+    userId
+      ? db.select({ onboardingCompleted: users.onboardingCompleted })
+          .from(users).where(eq(users.id, userId)).limit(1)
+      : Promise.resolve([] as Array<{ onboardingCompleted: boolean | null }>),
+  ]);
+  const onboardingCompleted = !!userRow[0]?.onboardingCompleted;
+  const isEmpty = projectRows.length === 0 && portfolioRows.length === 0;
+  return {
+    needsSetup: isEmpty && !onboardingCompleted,
+    projectCount: projectRows.length,
+    portfolioCount: portfolioRows.length,
+    industry: null,
+    onboardingCompleted,
+  };
+}
+
+/**
+ * Friday-driven org setup. Refuses if the org already has projects/portfolios
+ * so we can't double-seed an active workspace. Reuses the existing
+ * `generateSampleDataForOrg` so we get the same templates the regular
+ * onboarding wizard produces.
+ */
+export async function configureOrganizationFromIndustry(
+  userId: string,
+  organizationId: number,
+  industry: string,
+): Promise<{
+  success: boolean;
+  message: string;
+  industry?: string;
+  portfolio?: { id: number; name: string } | null;
+  projects?: Array<{ id: number; name: string }>;
+}> {
+  const status = await getOrganizationSetupStatus(organizationId);
+  if (!status.needsSetup) {
+    return {
+      success: false,
+      message: `This workspace already has ${status.projectCount} project${status.projectCount === 1 ? "" : "s"} and ${status.portfolioCount} portfolio${status.portfolioCount === 1 ? "" : "s"}. To avoid duplicating data, the one-click setup only runs on empty workspaces. You can still ask me to create individual projects, tasks, or risks.`,
+    };
+  }
+
+  const matched = (SUPPORTED_ONBOARDING_INDUSTRIES as readonly string[]).includes(industry)
+    ? industry
+    : "General";
+
+  const result = await generateSampleDataForOrg(userId, organizationId, matched);
+
+  // Mark this user's onboarding as done so the legacy onboarding dialog
+  // doesn't pop up after Friday already configured the workspace.
+  try {
+    await db.update(users).set({ onboardingCompleted: true }).where(eq(users.id, userId));
+  } catch (err) {
+    console.error("[onboarding] Failed to mark user onboardingCompleted after Friday setup:", err);
+  }
+
+  return {
+    success: true,
+    message: `Configured your workspace with the ${matched} industry template.`,
+    industry: matched,
+    portfolio: result.portfolio
+      ? { id: result.portfolio.id, name: result.portfolio.name }
+      : null,
+    projects: (result.projects ?? []).map((p: any) => ({ id: p.id, name: p.name })),
+  };
+}
+
 export async function getUserOnboardingStatus(userId: string): Promise<{
   needsOnboarding: boolean;
   detectedCompany: string | null;

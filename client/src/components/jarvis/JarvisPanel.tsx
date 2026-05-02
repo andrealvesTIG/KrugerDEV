@@ -8,7 +8,7 @@ import { useSpeechRecognition, useSpeechSynthesis } from "@/hooks/use-speech";
 import {
   Mic, MicOff, Send, Square,
   ChevronRight, X, MessageSquare, Minimize2, Zap, FileText,
-  Paperclip, Plus,
+  Paperclip, Plus, Compass,
   MessageCircle, AudioLines, PenLine,
 } from "lucide-react";
 import {
@@ -22,11 +22,13 @@ import {
   getSuggestedPrompts,
   getContextIcon,
   getContextLabel,
+  OnboardingPrompts,
   ALLOWED_FILE_TYPES,
   MAX_FILE_SIZE,
   CSV_CHUNK_BYTES,
   splitCsvIntoChunks,
 } from "./jarvis-shared";
+import { useOrgSetupStatus } from "@/hooks/use-needs-org-setup";
 import { RecentChatsMenu } from "./RecentChatsMenu";
 import ThemedGif from "@/components/ui/themed-gif";
 import running_man from "@assets/runcycle18_1772300373437.gif";
@@ -51,7 +53,11 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
   const {
     messages, isLoading, sendMessage, stopGeneration, conciseMode, setConciseMode, pageContext,
     conversations, activeConversationId, switchConversation, newConversation,
+    startOnboardingAgent, forceOnboarding,
   } = useJarvis();
+  const { needsSetup: needsOrgSetup } = useOrgSetupStatus();
+  const showOnboarding =
+    forceOnboarding || (needsOrgSetup && pageContext.entityType === null);
   const [input, setInput] = useState("");
   const [interimText, setInterimText] = useState("");
   const [mode, setMode] = useState<InteractionMode>("chat");
@@ -410,6 +416,31 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                   <p className="text-xs">Start a new conversation</p>
                 </TooltipContent>
               </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      startOnboardingAgent();
+                      setShowChat(false);
+                      lastSpokenRef.current = "";
+                      stopSpeaking();
+                    }}
+                    className={cn(
+                      "h-7 px-2 gap-1 text-cyan-300 hover:text-cyan-100 hover:bg-cyan-900/20 border border-transparent",
+                      forceOnboarding && "border-cyan-500/50 text-cyan-100 bg-cyan-900/30",
+                    )}
+                    data-testid="button-friday-onboarding-agent"
+                  >
+                    <Compass className="h-3 w-3" />
+                    <span className="text-xs">Onboarding</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p className="text-xs">Launch the onboarding agent to set up your workspace</p>
+                </TooltipContent>
+              </Tooltip>
               <RecentChatsMenu
                 conversations={conversations}
                 activeConversationId={activeConversationId}
@@ -545,23 +576,32 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.2 }}
-                  className="w-full max-w-xs px-4"
+                  className="w-full px-4"
                 >
-                  <p className="text-[10px] font-medium text-cyan-300 uppercase tracking-widest mb-2 text-center">
-                    Suggested
-                  </p>
-                  <div className="space-y-1.5">
-                    {getSuggestedPrompts(pageContext.entityType).map((prompt) => (
-                      <button
-                        key={prompt}
-                        onClick={() => sendMessage(prompt)}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left rounded border border-cyan-900/30 text-cyan-100 hover:text-cyan-300 hover:bg-cyan-900/20 hover:border-cyan-700/30 transition-all group"
-                      >
-                        <ChevronRight className="h-3 w-3 text-cyan-300 group-hover:text-cyan-400 transition-colors flex-shrink-0" />
-                        <span className="truncate">{prompt}</span>
-                      </button>
-                    ))}
-                  </div>
+                  {showOnboarding ? (
+                    <OnboardingPrompts
+                      variant="panel"
+                      onPick={(message) => sendMessage(message)}
+                    />
+                  ) : (
+                    <div className="w-full max-w-xs mx-auto">
+                      <p className="text-[10px] font-medium text-cyan-300 uppercase tracking-widest mb-2 text-center">
+                        Suggested
+                      </p>
+                      <div className="space-y-1.5">
+                        {getSuggestedPrompts(pageContext.entityType).map((prompt) => (
+                          <button
+                            key={prompt}
+                            onClick={() => sendMessage(prompt)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left rounded border border-cyan-900/30 text-cyan-100 hover:text-cyan-300 hover:bg-cyan-900/20 hover:border-cyan-700/30 transition-all group"
+                          >
+                            <ChevronRight className="h-3 w-3 text-cyan-300 group-hover:text-cyan-400 transition-colors flex-shrink-0" />
+                            <span className="truncate">{prompt}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </motion.div>
               )}
             </div>

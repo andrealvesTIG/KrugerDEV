@@ -1,5 +1,20 @@
 import { JSX } from "react";
-import { Paperclip, FolderOpen, Briefcase, User2 } from "lucide-react";
+import {
+  Paperclip,
+  FolderOpen,
+  Briefcase,
+  User2,
+  Cpu,
+  HeartPulse,
+  Landmark,
+  Factory,
+  ShoppingBag,
+  Users as UsersIcon,
+  Sparkles,
+  Compass,
+  AlertTriangle,
+  TrendingUp,
+} from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { JarvisMessage } from "@/hooks/use-jarvis";
@@ -11,6 +26,134 @@ export const GLOBAL_PROMPTS = [
   "Summarize overall project health",
   "Draft an executive weekly update",
 ];
+
+// Industry choices shown during Friday's onboarding empty state. Keys must
+// stay in sync with `SUPPORTED_ONBOARDING_INDUSTRIES` on the backend; the
+// trailing "Other" option falls back to the General template.
+export const ONBOARDING_INDUSTRY_OPTIONS: Array<{
+  key: string;
+  label: string;
+  message: string;
+  icon: typeof Briefcase;
+}> = [
+  { key: "Technology", label: "Technology", message: "I work in Technology — I'd like to set up the workspace.", icon: Cpu },
+  { key: "Healthcare", label: "Healthcare", message: "I work in Healthcare — I'd like to set up the workspace.", icon: HeartPulse },
+  { key: "Finance", label: "Finance", message: "I work in Finance — I'd like to set up the workspace.", icon: Landmark },
+  { key: "Manufacturing", label: "Manufacturing", message: "I work in Manufacturing — I'd like to set up the workspace.", icon: Factory },
+  { key: "Retail", label: "Retail", message: "I work in Retail — I'd like to set up the workspace.", icon: ShoppingBag },
+  { key: "Consulting", label: "Consulting", message: "I work in Consulting — I'd like to set up the workspace.", icon: UsersIcon },
+  { key: "Other", label: "Something else", message: "My industry isn't listed — can you ask me a few questions to help set things up?", icon: Sparkles },
+];
+
+// "What are you trying to do" suggestions shown on the second row.
+export const ONBOARDING_GOAL_OPTIONS: Array<{
+  key: string;
+  label: string;
+  message: string;
+  icon: typeof Briefcase;
+}> = [
+  { key: "portfolio", label: "Manage a portfolio of projects", message: "I want to manage a portfolio of projects across my team.", icon: Briefcase },
+  { key: "risks", label: "Track risks and issues", message: "I want to track risks and issues across my projects.", icon: AlertTriangle },
+  { key: "evm", label: "Run capital projects with EVM", message: "I want to run capital projects with earned value management.", icon: TrendingUp },
+  { key: "explore", label: "Just exploring", message: "I'm just exploring the app for now — show me what it can do.", icon: Compass },
+];
+
+interface OnboardingPromptsProps {
+  variant?: "panel" | "page";
+  onPick: (message: string) => void;
+}
+
+export function OnboardingPrompts({ variant = "page", onPick }: OnboardingPromptsProps) {
+  const isPanel = variant === "panel";
+
+  const sectionLabelClass = isPanel
+    ? "text-[10px] font-medium text-cyan-300 uppercase tracking-widest mb-2"
+    : "text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase mb-3";
+
+  const buttonClass = isPanel
+    ? "group flex items-center gap-2 px-3 py-2 text-xs text-left rounded border border-cyan-900/30 text-cyan-100 hover:text-cyan-300 hover:bg-cyan-900/20 hover:border-cyan-700/30 transition-all"
+    : "group flex items-center gap-3 text-left p-3 rounded-xl border border-border bg-card hover:bg-accent hover:border-primary/40 transition-all shadow-sm";
+
+  const iconWrapClass = isPanel
+    ? "flex items-center justify-center h-6 w-6 rounded-md bg-cyan-900/30 text-cyan-300 group-hover:text-cyan-200 transition-colors flex-shrink-0"
+    : "flex items-center justify-center h-8 w-8 rounded-md bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors flex-shrink-0";
+
+  const labelClass = isPanel
+    ? "truncate text-cyan-100 group-hover:text-cyan-200"
+    : "text-sm text-foreground";
+
+  const greetingTitle = isPanel
+    ? "text-sm font-semibold text-cyan-100 mb-1"
+    : "text-xl md:text-2xl font-semibold text-foreground mb-2";
+
+  const greetingSubtitle = isPanel
+    ? "text-xs text-cyan-300/80 mb-4 leading-relaxed"
+    : "text-sm text-muted-foreground mb-6 leading-relaxed";
+
+  return (
+    <div className={isPanel ? "w-full max-w-xs px-2" : "w-full max-w-2xl mx-auto"}>
+      <div className={isPanel ? "text-center" : "text-center"}>
+        <p className={greetingTitle}>Welcome — let's set up your workspace</p>
+        <p className={greetingSubtitle}>
+          Tell me what industry you work in and what you're hoping to do, and I'll set up portfolios, projects, and starter content for you.
+        </p>
+      </div>
+
+      <div className={isPanel ? "mb-3" : "mb-6"}>
+        <p className={sectionLabelClass}>Pick your industry</p>
+        <div className={isPanel ? "grid grid-cols-2 gap-1.5" : "grid grid-cols-2 sm:grid-cols-3 gap-2"}>
+          {ONBOARDING_INDUSTRY_OPTIONS.map((opt) => {
+            const Icon = opt.icon;
+            return (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => onPick(opt.message)}
+                className={buttonClass}
+                data-testid={`button-friday-onboard-industry-${opt.key.toLowerCase().replace(/\s+/g, "-")}`}
+              >
+                <span className={iconWrapClass}>
+                  <Icon className={isPanel ? "h-3 w-3" : "h-4 w-4"} />
+                </span>
+                <span className={labelClass}>{opt.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <p className={sectionLabelClass}>What do you want to do?</p>
+        <div className={isPanel ? "grid grid-cols-1 gap-1.5" : "grid grid-cols-1 sm:grid-cols-2 gap-2"}>
+          {ONBOARDING_GOAL_OPTIONS.map((opt) => {
+            const Icon = opt.icon;
+            return (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => onPick(opt.message)}
+                className={buttonClass}
+                data-testid={`button-friday-onboard-goal-${opt.key}`}
+              >
+                <span className={iconWrapClass}>
+                  <Icon className={isPanel ? "h-3 w-3" : "h-4 w-4"} />
+                </span>
+                <span className={labelClass}>{opt.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <p className={cn(
+        "mt-4 text-center",
+        isPanel ? "text-[10px] text-cyan-400/70" : "text-xs text-muted-foreground",
+      )}>
+        Or just type your own message below.
+      </p>
+    </div>
+  );
+}
 
 export const PROJECT_PROMPTS = [
   "Summarize this project's status",

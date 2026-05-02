@@ -163,6 +163,11 @@ export function useJarvis() {
   const [pendingMessages, setPendingMessages] = useState<JarvisMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [conciseMode, setConciseMode] = useState(false);
+  // When true, the next chat requests force the onboarding directive on the
+  // server even if the org isn't auto-detected as empty. Set by the
+  // "Onboarding agent" launcher; cleared whenever the user switches to a
+  // different existing conversation.
+  const [forceOnboarding, setForceOnboarding] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const pageContext = parsePageContext(location);
@@ -219,13 +224,14 @@ export function useJarvis() {
   const toggleOpen = useCallback(() => setIsOpenGlobal(!_isOpen), []);
 
   const switchConversation = useCallback(
-    (id: number | null) => {
+    (id: number | null, opts?: { forceOnboarding?: boolean }) => {
       if (abortRef.current) {
         abortRef.current.abort();
         abortRef.current = null;
       }
       setIsLoading(false);
       setPendingMessages([]);
+      setForceOnboarding(opts?.forceOnboarding === true);
       setActiveConversationIdGlobal(orgId, id);
     },
     [orgId],
@@ -233,6 +239,13 @@ export function useJarvis() {
 
   const newConversation = useCallback(() => {
     switchConversation(null);
+  }, [switchConversation]);
+
+  // Start a fresh conversation with the onboarding directive forced ON,
+  // regardless of whether the org is auto-detected as empty. This powers the
+  // "Onboarding agent" launcher button.
+  const startOnboardingAgent = useCallback(() => {
+    switchConversation(null, { forceOnboarding: true });
   }, [switchConversation]);
 
   const sendMessage = useCallback(
@@ -288,6 +301,7 @@ export function useJarvis() {
               size: a.size,
               content: a.content,
             })),
+            forceOnboarding: forceOnboarding || undefined,
           }),
           signal: abortRef.current.signal,
         });
@@ -408,7 +422,7 @@ export function useJarvis() {
         if (!preservePendingOnFinish) setPendingMessages([]);
       }
     },
-    [orgId, isLoading, conciseMode, activeConversationId, persistedMessages, queryClient],
+    [orgId, isLoading, conciseMode, activeConversationId, persistedMessages, queryClient, forceOnboarding],
   );
 
   const clearMessages = useCallback(() => {
@@ -443,5 +457,7 @@ export function useJarvis() {
     activeConversationId,
     switchConversation,
     newConversation,
+    startOnboardingAgent,
+    forceOnboarding,
   };
 }
