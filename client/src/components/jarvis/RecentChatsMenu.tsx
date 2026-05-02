@@ -9,7 +9,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { History, Plus, MessageSquare } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { FridayConversationSummary } from "@/hooks/use-jarvis";
 
 function formatRelative(dateStr: string): string {
@@ -59,51 +58,46 @@ export function RecentChatsMenu({
 
   return (
     <DropdownMenu>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            {size === "icon" ? (
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`h-8 w-8 ${triggerClassName ?? ""}`}
-                aria-label="Recent chats"
-                data-testid="button-friday-recent-chats"
-              >
-                <History className="h-3.5 w-3.5" />
-              </Button>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`h-8 px-2 gap-1.5 ${triggerClassName ?? ""}`}
-                aria-label={count > 0 ? `Recent chats (${count})` : "Recent chats"}
-                data-testid="button-friday-recent-chats"
-              >
-                <History className="h-3.5 w-3.5" />
-                {alwaysVisibleLabel ? (
-                  <span className="text-xs whitespace-nowrap">
-                    {alwaysVisibleLabel}
-                    {count > 0 && (
-                      <span className="ml-1 tabular-nums opacity-70">({count > 99 ? "99+" : count})</span>
-                    )}
-                  </span>
-                ) : (
-                  <span className="text-xs hidden sm:inline max-w-[140px] truncate">
-                    {triggerLabel}
-                    {count > 0 && (
-                      <span className="ml-1 tabular-nums opacity-70">({count > 99 ? "99+" : count})</span>
-                    )}
-                  </span>
+      <DropdownMenuTrigger asChild>
+        {size === "icon" ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`h-8 w-8 ${triggerClassName ?? ""}`}
+            aria-label="Recent chats"
+            title="Recent chats"
+            data-testid="button-friday-recent-chats"
+          >
+            <History className="h-3.5 w-3.5" />
+          </Button>
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`h-8 px-2 gap-1.5 ${triggerClassName ?? ""}`}
+            aria-label={count > 0 ? `Recent chats (${count})` : "Recent chats"}
+            title="Recent chats"
+            data-testid="button-friday-recent-chats"
+          >
+            <History className="h-3.5 w-3.5" />
+            {alwaysVisibleLabel ? (
+              <span className="text-xs whitespace-nowrap">
+                {alwaysVisibleLabel}
+                {count > 0 && (
+                  <span className="ml-1 tabular-nums opacity-70">({count > 99 ? "99+" : count})</span>
                 )}
-              </Button>
+              </span>
+            ) : (
+              <span className="text-xs hidden sm:inline max-w-[140px] truncate">
+                {triggerLabel}
+                {count > 0 && (
+                  <span className="ml-1 tabular-nums opacity-70">({count > 99 ? "99+" : count})</span>
+                )}
+              </span>
             )}
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">
-          <p className="text-xs">Recent chats</p>
-        </TooltipContent>
-      </Tooltip>
+          </Button>
+        )}
+      </DropdownMenuTrigger>
       <DropdownMenuContent align={align} className="w-72 max-h-[60vh] overflow-y-auto">
         <DropdownMenuItem
           onClick={onNew}
