@@ -14,7 +14,7 @@ import {
   sendLimitExceeded,
   writeSseLimitExceeded,
   AiCreditsLimitError,
-  getRequestIdempotencyKey,
+  newAiRequestId,
   type MeterPerCall,
 } from "../services/aiCredits";
 import {
@@ -128,11 +128,9 @@ export function registerJarvisRoutes(app: Express) {
         return res.status(403).json({ message: "You don't have access to this organization" });
       }
 
-      // Pre-flight enforce BEFORE persisting the conversation/user message
-      // so over-limit users get a clean 403 with no backend state changes
-      // (and no orphan user message they can't see in the UI).
-      const idemKey = getRequestIdempotencyKey(req);
-      const baseRequestId = `friday_chat_${incomingConversationId ?? "new"}_${idemKey}`;
+      // Enforce credits BEFORE persisting anything so over-limit users
+      // get a clean 403 with no orphan conversation/message rows.
+      const baseRequestId = `friday_chat_${incomingConversationId ?? "new"}_${newAiRequestId()}`;
       const creditCtx = {
         userId,
         orgId: organizationId,
@@ -287,13 +285,12 @@ export function registerJarvisRoutes(app: Express) {
       }
 
       // Action requests are billable AI surfaces — 1 credit per success.
-      const actionIdemKey = getRequestIdempotencyKey(req);
       const actionCreditCtx = {
         userId,
         orgId: organizationId,
         action: "friday_action",
         entityId: action.projectId,
-        requestId: `friday_action_${action.type}_${action.projectId}_${actionIdemKey}`,
+        requestId: `friday_action_${action.type}_${action.projectId}_${newAiRequestId()}`,
       };
       let chargeUserId: string;
       try {

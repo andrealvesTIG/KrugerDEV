@@ -45,7 +45,7 @@ import {
   sendLimitExceeded,
   writeSseLimitExceeded,
   AiCreditsLimitError,
-  getRequestIdempotencyKey,
+  newAiRequestId,
   type MeterPerCall,
 } from "../services/aiCredits";
 
@@ -395,8 +395,7 @@ export function registerPowerBIAgentRoutes(app: Express) {
       }
 
       // Pre-flight enforce BEFORE opening SSE so over-limit users get a 403.
-      const pbiIdemKey = getRequestIdempotencyKey(req);
-      const pbiBaseRequestId = `powerbi_agent_chat_${convId}_${pbiIdemKey}`;
+      const pbiBaseRequestId = `powerbi_agent_chat_${convId}_${newAiRequestId()}`;
       const creditCtx = {
         userId,
         orgId: organizationId,

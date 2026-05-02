@@ -122,7 +122,7 @@ describe("Friday chat route → real aiCredits → billing.recordCreditUsage (en
     );
   });
 
-  it("same Idempotency-Key header → same requestId so usage_events deduplicates the retry", async () => {
+  it("client-supplied Idempotency-Key is IGNORED for billing — each request gets a fresh server requestId so OpenAI cannot be re-run for free", async () => {
     const app = await buildApp();
     const payload = {
       organizationId: TEST_ORG,
@@ -145,8 +145,12 @@ describe("Friday chat route → real aiCredits → billing.recordCreditUsage (en
     expect(recordCreditUsageMock).toHaveBeenCalledTimes(2);
     const reqId1 = recordCreditUsageMock.mock.calls[0][4];
     const reqId2 = recordCreditUsageMock.mock.calls[1][4];
-    expect(reqId1).toBe(reqId2);
-    expect(reqId1).toContain(idemKey);
+    // Critical billing-bypass guard: the server must NOT honor the
+    // client-supplied key, so the two requestIds differ and the
+    // usage_events table records both charges.
+    expect(reqId1).not.toBe(reqId2);
+    expect(reqId1).not.toContain(idemKey);
+    expect(reqId2).not.toContain(idemKey);
   });
 
   it("over-limit user → 403 limitExceeded, recordCreditUsage never called", async () => {

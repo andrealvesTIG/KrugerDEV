@@ -25,15 +25,7 @@ class FakeAiCreditsLimitError extends Error {
 vi.mock("../server/services/aiCredits", () => ({
   enforceAiCredits: (...args: any[]) => enforceAiCreditsMock(...args),
   recordAiCredits: (...args: any[]) => recordAiCreditsMock(...args),
-  getRequestIdempotencyKey: (req: any) => {
-    const raw = req?.headers?.["idempotency-key"];
-    const candidate = Array.isArray(raw) ? raw[0] : raw;
-    if (typeof candidate === "string" && /^[A-Za-z0-9._-]{8,128}$/.test(candidate)) {
-      return candidate;
-    }
-    // Use Node's randomUUID at runtime (not import-time) so the test stays simple.
-    return require("node:crypto").randomUUID();
-  },
+  newAiRequestId: () => require("node:crypto").randomUUID(),
   sendLimitExceeded: (res: any, err: any) => {
     sendLimitExceededMock(err);
     if (err instanceof FakeAiCreditsLimitError) {
@@ -148,10 +140,10 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
     expect(enforceCtx.userId).toBe(TEST_USER);
     expect(enforceCtx.orgId).toBe(TEST_ORG);
     expect(enforceCtx.action).toBe("friday_chat");
-    // requestId derives from a per-HTTP-request idempotency key (UUID by
-    // default), NOT from a content hash — see getRequestIdempotencyKey.
-    // Enforcement runs BEFORE conversation creation, so a request without
-    // an incoming conversationId uses the literal "new" placeholder.
+    // requestId is a server-generated UUID per AI execution (NOT a content
+    // hash and NOT a client-supplied header). Enforcement runs BEFORE
+    // conversation creation, so a request with no incoming conversationId
+    // uses the literal "new" placeholder.
     expect(enforceCtx.requestId).toMatch(
       /^friday_chat_(?:\d+|new)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
@@ -239,7 +231,7 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
     expect(recordAiCreditsMock).not.toHaveBeenCalled();
   });
 
-  it("two distinct identical-payload requests produce DIFFERENT requestIds (so they are billed independently, not deduped)", async () => {
+  it("two requests produce DIFFERENT server-generated requestIds so each AI execution is metered", async () => {
     enforceAiCreditsMock.mockResolvedValue({ chargeUserId: TEST_USER });
     recordAiCreditsMock.mockResolvedValue(undefined);
     streamJarvisResponseMock.mockImplementation(
@@ -260,10 +252,19 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
       messages: [{ role: "user" as const, content: "Same message twice" }],
     };
 
-    // Two separate POSTs with NO Idempotency-Key header — each must get
-    // its own server-generated UUID so usage_events records two charges.
-    await request(app).post("/api/jarvis/chat").set("x-test-user-id", TEST_USER).send(payload);
-    await request(app).post("/api/jarvis/chat").set("x-test-user-id", TEST_USER).send(payload);
+    // Even with an Idempotency-Key header set on both attempts, the server
+    // ignores it for billing purposes — each request gets a fresh UUID so
+    // every executed OpenAI call is charged.
+    await request(app)
+      .post("/api/jarvis/chat")
+      .set("x-test-user-id", TEST_USER)
+      .set("Idempotency-Key", "client-supplied-key-xyz")
+      .send(payload);
+    await request(app)
+      .post("/api/jarvis/chat")
+      .set("x-test-user-id", TEST_USER)
+      .set("Idempotency-Key", "client-supplied-key-xyz")
+      .send(payload);
 
     // 1 pre-flight + 1 per-call enforce per request = 4 total.
     expect(enforceAiCreditsMock).toHaveBeenCalledTimes(4);
@@ -272,54 +273,11 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
     const id1 = enforceAiCreditsMock.mock.calls[0][0].requestId;
     const id2 = enforceAiCreditsMock.mock.calls[2][0].requestId;
     expect(id1).not.toBe(id2);
-    // Both record calls also use distinct requestIds.
     const recId1 = recordAiCreditsMock.mock.calls[0][1].requestId;
     const recId2 = recordAiCreditsMock.mock.calls[1][1].requestId;
     expect(recId1).not.toBe(recId2);
-  });
-
-  it("explicit Idempotency-Key header → same requestId across calls (true network retry dedupes in usage_events)", async () => {
-    enforceAiCreditsMock.mockResolvedValue({ chargeUserId: TEST_USER });
-    recordAiCreditsMock.mockResolvedValue(undefined);
-    streamJarvisResponseMock.mockImplementation(
-      async (_a, _b, _c, _d, _onChunk, onDone, _onErr, meterPerCall) => {
-        const { recordSuccess } = await meterPerCall(0, async () => undefined);
-        await recordSuccess();
-        onDone("ok");
-      },
-    );
-
-    const fcMod = await import("../server/storage/fridayConversationStorage");
-    (fcMod.getConversation as any).mockResolvedValue({ id: 100, title: "x" });
-
-    const app = await buildApp();
-    const payload = {
-      organizationId: TEST_ORG,
-      conversationId: 100,
-      messages: [{ role: "user" as const, content: "Retry me" }],
-    };
-    const idemKey = "test-idem-key-abc123";
-
-    await request(app)
-      .post("/api/jarvis/chat")
-      .set("x-test-user-id", TEST_USER)
-      .set("Idempotency-Key", idemKey)
-      .send(payload);
-    await request(app)
-      .post("/api/jarvis/chat")
-      .set("x-test-user-id", TEST_USER)
-      .set("Idempotency-Key", idemKey)
-      .send(payload);
-
-    expect(enforceAiCreditsMock).toHaveBeenCalledTimes(4);
-    const id1 = enforceAiCreditsMock.mock.calls[0][0].requestId;
-    const id2 = enforceAiCreditsMock.mock.calls[2][0].requestId;
-    expect(id1).toBe(id2);
-    expect(id1).toContain(idemKey);
-    // Per-round requestIds also match across the two retry attempts.
-    expect(enforceAiCreditsMock.mock.calls[1][0].requestId).toBe(
-      enforceAiCreditsMock.mock.calls[3][0].requestId,
-    );
+    // Neither requestId contains the client-supplied key.
+    expect(id1).not.toContain("client-supplied-key-xyz");
   });
 });
 
@@ -342,9 +300,7 @@ describe("POST /api/jarvis/action — credit metering integration", () => {
     expect(enforceAiCreditsMock).toHaveBeenCalledTimes(1);
     const ctx = enforceAiCreditsMock.mock.calls[0][0];
     expect(ctx.action).toBe("friday_action");
-    // requestId derives from a per-HTTP-request idempotency key (UUID by
-    // default), NOT a content hash, so two distinct identical actions
-    // are billed independently.
+    // requestId is a server-generated UUID per AI execution.
     expect(ctx.requestId).toMatch(
       /^friday_action_create_task_1_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );

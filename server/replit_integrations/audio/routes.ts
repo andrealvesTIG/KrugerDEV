@@ -7,7 +7,7 @@ import {
   recordAiCredits,
   sendLimitExceeded,
   writeSseLimitExceeded,
-  getRequestIdempotencyKey,
+  newAiRequestId,
 } from "../../services/aiCredits";
 
 // Body parser with 50MB limit for audio payloads
@@ -95,7 +95,7 @@ export function registerAudioRoutes(app: Express): void {
       }
 
       // STT and the gpt-audio chat are metered as two independent AI calls.
-      const audioIdemKey = getRequestIdempotencyKey(req);
+      const audioIdemKey = newAiRequestId();
 
       // 1. Auto-detect format and convert to OpenAI-compatible format
       const rawBuffer = Buffer.from(audio, "base64");

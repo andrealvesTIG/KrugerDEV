@@ -4,7 +4,7 @@ import { getUserIdFromRequest, getUserOrgIds } from "../../routes/helpers";
 import {
   withAiCredits,
   sendLimitExceeded,
-  getRequestIdempotencyKey,
+  newAiRequestId,
 } from "../../services/aiCredits";
 
 export function registerImageRoutes(app: Express): void {
@@ -32,7 +32,7 @@ export function registerImageRoutes(app: Express): void {
         }
       }
 
-      const imgIdemKey = getRequestIdempotencyKey(req);
+      const imgIdemKey = newAiRequestId();
       const response = await withAiCredits(
         {
           userId,
