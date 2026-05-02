@@ -353,10 +353,9 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-cyan-900/20">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_6px_rgba(0,200,255,0.6)]" />
-              <span className="text-sm font-medium text-cyan-300 tracking-wider uppercase" style={{ fontFamily: "'Outfit', sans-serif" }}>
-                F.R.I.D.A.Y.
+              <span className="text-sm font-medium text-cyan-300 tracking-wide" style={{ fontFamily: "'Outfit', sans-serif" }}>
+                Friday Agent
               </span>
-              <span className="text-xs text-cyan-300">Agent</span>
               {pageContext.entityType && (() => {
                 const CtxIcon = getContextIcon(pageContext.entityType);
                 return (

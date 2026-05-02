@@ -235,12 +235,11 @@ export default function AiModePage() {
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_6px_rgba(0,200,255,0.6)] flex-shrink-0" />
           <span
-            className="text-sm font-semibold text-cyan-600 dark:text-cyan-300 tracking-wider uppercase"
+            className="text-sm font-semibold text-cyan-600 dark:text-cyan-300 tracking-wide"
             style={{ fontFamily: "'Outfit', sans-serif" }}
           >
-            F.R.I.D.A.Y.
+            Friday Agent
           </span>
-          <span className="text-xs text-muted-foreground hidden sm:inline">Agent</span>
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
           <Tooltip>
@@ -308,10 +307,10 @@ export default function AiModePage() {
                 />
               </div>
               <p
-                className="text-xs font-semibold tracking-[0.35em] text-primary uppercase mb-2"
+                className="text-xs font-semibold tracking-[0.25em] text-primary uppercase mb-2"
                 style={{ fontFamily: "'Outfit', sans-serif" }}
               >
-                F.R.I.D.A.Y.
+                Friday Agent
               </p>
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground dark:text-white mb-2">
                 How can Friday help today?
