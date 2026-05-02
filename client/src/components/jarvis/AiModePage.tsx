@@ -27,6 +27,7 @@ import {
   FILE_ALLOWED_EXTENSIONS,
 } from "./jarvis-shared";
 import { RecentChatsMenu } from "./RecentChatsMenu";
+import logoIcon from "@assets/FridayReportAI_logo_F-symbol_1770231051194.png";
 
 export default function AiModePage() {
   const {
@@ -299,8 +300,12 @@ export default function AiModePage() {
               transition={{ duration: 0.4 }}
               className="w-full max-w-2xl mx-auto text-center"
             >
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10 text-primary mb-5">
-                <Sparkles className="h-7 w-7" />
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 dark:bg-primary/15 ring-1 ring-primary/20 dark:ring-primary/30 mb-5 shadow-sm">
+                <img
+                  src={logoIcon}
+                  alt="FridayReport.AI"
+                  className="h-10 w-10 object-contain dark:[filter:brightness(0)_invert(1)]"
+                />
               </div>
               <p
                 className="text-xs font-semibold tracking-[0.35em] text-primary uppercase mb-2"
