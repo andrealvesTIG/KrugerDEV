@@ -1,8 +1,10 @@
 import { useState, useRef, useCallback, useMemo } from "react";
+import { useLocation } from "wouter";
 import { formatDuration } from "@/lib/workingDays";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
   Card,
@@ -200,6 +202,7 @@ function formatDays(days: number | null | undefined): string {
 export default function Templates() {
   const { currentOrganization } = useOrganization();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const reimportFileInputRef = useRef<HTMLInputElement>(null);
@@ -357,7 +360,20 @@ export default function Templates() {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       setShowCreateProjectDialog(false);
       resetCreateProjectForm();
-      toast({ title: "Project created", description: data.message || "Project has been created from the template." });
+      const newProjectId = data?.project?.id as number | undefined;
+      toast({
+        title: "Project created",
+        description: data.message || "Project has been created from the template.",
+        action: newProjectId ? (
+          <ToastAction
+            altText="Open project"
+            onClick={() => setLocation(`/projects/${newProjectId}`)}
+            data-testid="toast-action-open-created-project"
+          >
+            Open
+          </ToastAction>
+        ) : undefined,
+      });
     },
     onError: (err: Error) => {
       toast({ title: "Error", description: err.message, variant: "destructive" });
