@@ -29,12 +29,14 @@ vi.mock("../server/services/jarvisService", () => ({
   executeJarvisAction: (...args: any[]) => executeJarvisActionMock(...args),
 }));
 
+const createConversationMock = vi.fn().mockResolvedValue({ id: 100 });
+const addMessageMock = vi.fn().mockResolvedValue(undefined);
 vi.mock("../server/storage/fridayConversationStorage", () => ({
-  createConversation: vi.fn().mockResolvedValue({ id: 100 }),
+  createConversation: (...args: any[]) => createConversationMock(...args),
   listConversations: vi.fn().mockResolvedValue([]),
   getConversation: vi.fn().mockResolvedValue({ id: 100, title: "x" }),
   getMessages: vi.fn().mockResolvedValue([]),
-  addMessage: vi.fn().mockResolvedValue(undefined),
+  addMessage: (...args: any[]) => addMessageMock(...args),
   updateConversationTitle: vi.fn().mockResolvedValue(undefined),
   archiveConversation: vi.fn().mockResolvedValue(undefined),
   deleteConversation: vi.fn().mockResolvedValue(undefined),
@@ -69,6 +71,8 @@ beforeEach(() => {
   recordCreditUsageMock.mockReset();
   streamJarvisResponseMock.mockReset();
   executeJarvisActionMock.mockReset();
+  createConversationMock.mockClear();
+  addMessageMock.mockClear();
 
   // Default: under limit.
   checkAndEnforceLimitMock.mockResolvedValue({ allowed: true });
@@ -162,5 +166,25 @@ describe("Friday chat route → real aiCredits → billing.recordCreditUsage (en
     expect(res.body).toMatchObject({ limitExceeded: true, resourceType: "ai_runs" });
     expect(streamJarvisResponseMock).not.toHaveBeenCalled();
     expect(recordCreditUsageMock).not.toHaveBeenCalled();
+  });
+
+  it("over-limit user → no conversation created and no user message persisted (clean 403, no orphan state)", async () => {
+    checkAndEnforceLimitMock.mockResolvedValueOnce({ allowed: false, error: "out of credits" });
+
+    const app = await buildApp();
+    const res = await request(app)
+      .post("/api/jarvis/chat")
+      .set("x-test-user-id", TEST_USER)
+      .send({
+        organizationId: TEST_ORG,
+        // No conversationId — would normally trigger createConversation.
+        messages: [{ role: "user" as const, content: "first message" }],
+      });
+
+    expect(res.status).toBe(403);
+    // Critical: enforce runs BEFORE persistence so the over-limit user
+    // doesn't leave an orphan conversation/user message in the DB.
+    expect(createConversationMock).not.toHaveBeenCalled();
+    expect(addMessageMock).not.toHaveBeenCalled();
   });
 });

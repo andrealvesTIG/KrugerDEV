@@ -262,6 +262,12 @@ export function useJarvis() {
 
       const currentPageContext = parsePageContext(window.location.pathname);
       let resolvedConversationId: number | null = activeConversationId;
+      // When the AI-credits limit is hit, the friendly error message is
+      // shown via the pending overlay but is NOT persisted to the
+      // conversation. We must therefore preserve the overlay through the
+      // `finally` cleanup so the user actually sees it (next sendMessage
+      // call will replace it).
+      let preservePendingOnFinish = false;
 
       try {
         abortRef.current = new AbortController();
@@ -302,6 +308,7 @@ export function useJarvis() {
               if (last.role === "assistant") last.content = friendly;
               return updated;
             });
+            preservePendingOnFinish = true;
             return;
           }
           throw new Error(err.message || "Request failed");
@@ -339,6 +346,7 @@ export function useJarvis() {
                   if (last.role === "assistant") last.content = errText;
                   return updated;
                 });
+                if (isAiLimit) preservePendingOnFinish = true;
                 continue;
               }
               if (data.conversationId && !resolvedConversationId) {
@@ -400,7 +408,9 @@ export function useJarvis() {
             queryKey: ["/api/jarvis/conversations", orgId],
           });
         }
-        setPendingMessages([]);
+        // Preserve the AI-limit overlay so the user sees the friendly
+        // upgrade message; it will be cleared on the next sendMessage.
+        if (!preservePendingOnFinish) setPendingMessages([]);
       }
     },
     [orgId, isLoading, conciseMode, activeConversationId, persistedMessages, queryClient],

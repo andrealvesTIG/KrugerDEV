@@ -128,6 +128,25 @@ export function registerJarvisRoutes(app: Express) {
         return res.status(403).json({ message: "You don't have access to this organization" });
       }
 
+      // Pre-flight enforce BEFORE persisting the conversation/user message
+      // so over-limit users get a clean 403 with no backend state changes
+      // (and no orphan user message they can't see in the UI).
+      const idemKey = getRequestIdempotencyKey(req);
+      const baseRequestId = `friday_chat_${incomingConversationId ?? "new"}_${idemKey}`;
+      const creditCtx = {
+        userId,
+        orgId: organizationId,
+        action: "friday_chat",
+        entityId: incomingConversationId ?? undefined,
+        requestId: baseRequestId,
+      };
+      try {
+        await enforceAiCredits(creditCtx);
+      } catch (err) {
+        if (sendLimitExceeded(res, err)) return;
+        throw err;
+      }
+
       // Resolve or create persistent conversation for this user+org
       let conversationId: number | null = null;
       if (incomingConversationId) {
@@ -156,23 +175,6 @@ export function registerJarvisRoutes(app: Express) {
           attachments ? attachments.map((a) => ({ name: a.name, type: a.type, size: a.size })) : null,
           pageContext ? { path: pageContext.path, entityType: pageContext.entityType ?? undefined, entityId: pageContext.entityId ?? undefined } : null,
         );
-      }
-
-      // Pre-flight enforce BEFORE opening SSE so over-limit users get a 403.
-      const idemKey = getRequestIdempotencyKey(req);
-      const baseRequestId = `friday_chat_${conversationId ?? "new"}_${idemKey}`;
-      const creditCtx = {
-        userId,
-        orgId: organizationId,
-        action: "friday_chat",
-        entityId: conversationId ?? undefined,
-        requestId: baseRequestId,
-      };
-      try {
-        await enforceAiCredits(creditCtx);
-      } catch (err) {
-        if (sendLimitExceeded(res, err)) return;
-        throw err;
       }
       // Per-call: enforce before opening the stream, return a recordSuccess
       // callback the service must invoke after the stream completes.

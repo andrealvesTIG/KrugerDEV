@@ -150,8 +150,10 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
     expect(enforceCtx.action).toBe("friday_chat");
     // requestId derives from a per-HTTP-request idempotency key (UUID by
     // default), NOT from a content hash — see getRequestIdempotencyKey.
+    // Enforcement runs BEFORE conversation creation, so a request without
+    // an incoming conversationId uses the literal "new" placeholder.
     expect(enforceCtx.requestId).toMatch(
-      /^friday_chat_\d+_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+      /^friday_chat_(?:\d+|new)_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
     // Per-call enforce uses the round-suffixed requestId.
     expect(enforceAiCreditsMock.mock.calls[1][0].requestId).toBe(`${enforceCtx.requestId}_r0`);
