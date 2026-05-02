@@ -229,9 +229,9 @@ export default function AiModePage() {
       : input;
 
   return (
-    <div className="fixed inset-0 z-[200] flex flex-col bg-background">
+    <div className="fixed inset-0 z-[200] flex flex-col bg-background dark:bg-slate-950">
       {/* Slim header */}
-      <header className="flex h-12 items-center justify-between border-b border-border bg-background/95 px-3 md:px-4 backdrop-blur-sm flex-shrink-0">
+      <header className="flex h-12 items-center justify-between border-b border-border dark:border-slate-700 bg-background/95 dark:bg-slate-900/95 px-3 md:px-4 backdrop-blur-sm flex-shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_6px_rgba(0,200,255,0.6)] flex-shrink-0" />
           <span
@@ -313,10 +313,10 @@ export default function AiModePage() {
               >
                 F.R.I.D.A.Y.
               </p>
-              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight mb-2">
+              <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground dark:text-white mb-2">
                 How can Friday help today?
               </h1>
-              <p className="text-sm text-muted-foreground mb-8">
+              <p className="text-sm text-muted-foreground dark:text-slate-300 mb-8">
                 Ask anything about your portfolios, projects, risks, or resources.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -327,11 +327,11 @@ export default function AiModePage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: 0.1 + idx * 0.05 }}
                     onClick={() => sendMessage(prompt)}
-                    className="group flex items-start gap-3 text-left p-4 rounded-xl border border-border bg-card hover:bg-accent hover:border-primary/30 transition-all"
+                    className="group flex items-start gap-3 text-left p-4 rounded-xl border border-border dark:border-slate-700 bg-card dark:bg-slate-900 hover:bg-accent hover:border-primary/40 dark:hover:bg-slate-800 dark:hover:border-primary/60 transition-all shadow-sm dark:shadow-none"
                     data-testid={`button-ai-suggested-${idx}`}
                   >
-                    <ArrowRight className="h-4 w-4 mt-0.5 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all flex-shrink-0" />
-                    <span className="text-sm text-foreground">{prompt}</span>
+                    <ArrowRight className="h-4 w-4 mt-0.5 text-muted-foreground dark:text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                    <span className="text-sm text-foreground dark:text-slate-100">{prompt}</span>
                   </motion.button>
                 ))}
               </div>
@@ -366,7 +366,7 @@ export default function AiModePage() {
       </div>
 
       {/* Composer */}
-      <div className="flex-shrink-0 border-t border-border bg-background/95 backdrop-blur-sm">
+      <div className="flex-shrink-0 border-t border-border dark:border-slate-700 bg-background/95 dark:bg-slate-900/95 backdrop-blur-sm">
         <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-3">
           <input
             ref={fileInputRef}
@@ -438,7 +438,7 @@ export default function AiModePage() {
             </div>
           )}
 
-          <div className="flex items-end gap-2 rounded-2xl border border-border bg-card px-2 py-1.5 shadow-sm focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/20 transition-all">
+          <div className="flex items-end gap-2 rounded-2xl border border-border dark:border-slate-600 bg-card dark:bg-slate-800 px-2 py-1.5 shadow-sm focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/20 dark:focus-within:border-primary/60 dark:focus-within:ring-primary/30 transition-all">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -525,8 +525,8 @@ export default function AiModePage() {
             )}
           </div>
 
-          <p className="mt-2 text-[10px] text-muted-foreground text-center tracking-wide">
-            AI-generated. Press <kbd className="px-1 py-0.5 rounded border border-border bg-muted text-[10px]">Esc</kbd> to exit AI Mode.
+          <p className="mt-2 text-[10px] text-muted-foreground dark:text-slate-400 text-center tracking-wide">
+            AI-generated. Press <kbd className="px-1 py-0.5 rounded border border-border dark:border-slate-600 bg-muted dark:bg-slate-700 dark:text-slate-200 text-[10px]">Esc</kbd> to exit AI Mode.
           </p>
         </div>
       </div>
