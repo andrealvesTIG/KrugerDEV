@@ -332,8 +332,9 @@ export function MessageBubble({ message, index, onNavigate, variant = "panel" }:
     ? "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-primary-foreground/10 text-primary-foreground/90 border border-primary-foreground/20"
     : "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-cyan-900/20 text-cyan-500 border border-cyan-800/20";
 
-  const loadingTextClass = variant === "page" ? "text-muted-foreground" : "text-cyan-400/60";
-  const loadingDotClass = variant === "page" ? "bg-muted-foreground" : "bg-cyan-400";
+  if (!isUser && !message.content) {
+    return null;
+  }
 
   return (
     <motion.div
@@ -360,17 +361,8 @@ export function MessageBubble({ message, index, onNavigate, variant = "panel" }:
               </div>
             )}
           </div>
-        ) : message.content ? (
-          <MarkdownContent content={message.content} onNavigate={onNavigate} variant={variant} />
         ) : (
-          <div className={cn("flex items-center gap-2 text-sm", loadingTextClass)}>
-            <div className="flex gap-1">
-              <span className={cn("w-1.5 h-1.5 rounded-full animate-bounce", loadingDotClass)} style={{ animationDelay: "0ms" }} />
-              <span className={cn("w-1.5 h-1.5 rounded-full animate-bounce", loadingDotClass)} style={{ animationDelay: "150ms" }} />
-              <span className={cn("w-1.5 h-1.5 rounded-full animate-bounce", loadingDotClass)} style={{ animationDelay: "300ms" }} />
-            </div>
-            Analyzing data...
-          </div>
+          <MarkdownContent content={message.content} onNavigate={onNavigate} variant={variant} />
         )}
       </div>
     </motion.div>
