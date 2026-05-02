@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
@@ -202,6 +203,18 @@ export default function AgentsPage() {
   const sharedAgents = useMemo(() => customAgents.filter(a => !(a.category === "mine" || a.isOwner)), [customAgents]);
 
   const startCreate = () => orgId && setEditing(DEFAULT_DRAFT(orgId));
+
+  const [location, setLocation] = useLocation();
+  useEffect(() => {
+    if (!orgId) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") === "1" && !editing) {
+      setEditing(DEFAULT_DRAFT(orgId));
+      params.delete("new");
+      const qs = params.toString();
+      setLocation(`/agents${qs ? `?${qs}` : ""}`, { replace: true });
+    }
+  }, [orgId, location, editing, setLocation]);
   const startEdit = (a: Agent) => {
     if (!a.isOwner && !a.isAdmin) return;
     setEditing({ ...a, memberIds: [] });

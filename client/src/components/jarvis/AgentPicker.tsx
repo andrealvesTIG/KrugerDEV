@@ -6,7 +6,7 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Bot, ChevronDown, Sparkles, BarChart3, ClipboardList, Settings as SettingsIcon } from "lucide-react";
+import { Bot, ChevronDown, Sparkles, BarChart3, ClipboardList, Settings as SettingsIcon, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type AgentRow = {
@@ -96,6 +96,9 @@ export default function AgentPicker({ activeAgentId, onSelect, variant = "panel"
           </>
         )}
         <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => setLocation("/agents?new=1")} className="gap-2" data-testid="picker-create-agent">
+          <Plus className="h-4 w-4" /> Create new agent…
+        </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => setLocation("/agents")} className="gap-2">
           <SettingsIcon className="h-4 w-4" /> Manage agents…
         </DropdownMenuItem>
