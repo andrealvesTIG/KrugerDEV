@@ -1,5 +1,4 @@
 import express, { type Express, type Request, type Response } from "express";
-import { createHash } from "node:crypto";
 import { chatStorage } from "../chat/storage";
 import { openai, speechToText, ensureCompatibleFormat } from "./client";
 import { getUserIdFromRequest, getUserOrgIds } from "../../routes/helpers";
@@ -8,6 +7,7 @@ import {
   recordAiCredits,
   sendLimitExceeded,
   writeSseLimitExceeded,
+  getRequestIdempotencyKey,
 } from "../../services/aiCredits";
 
 // Body parser with 50MB limit for audio payloads
@@ -95,11 +95,9 @@ export function registerAudioRoutes(app: Express): void {
       }
 
       // STT and the gpt-audio chat are metered as two independent AI calls.
-      // Stable per-turn requestIds dedupe retries in usage_events.
-      const audioHash = createHash("sha256")
-        .update(Buffer.from(audio, "base64"))
-        .digest("hex")
-        .slice(0, 16);
+      // Per-HTTP-request idempotency key dedupes only true network retries —
+      // two distinct voice turns charge independently.
+      const audioIdemKey = getRequestIdempotencyKey(req);
 
       // 1. Auto-detect format and convert to OpenAI-compatible format
       const rawBuffer = Buffer.from(audio, "base64");
@@ -113,7 +111,7 @@ export function registerAudioRoutes(app: Express): void {
           orgId: requestedOrgId,
           action: "integrations_audio_stt",
           entityId: conversationId,
-          requestId: `integrations_audio_stt_${conversationId}_${audioHash}`,
+          requestId: `integrations_audio_stt_${conversationId}_${audioIdemKey}`,
         }, audioBuffer, inputFormat);
       } catch (limitErr) {
         if (sendLimitExceeded(res, limitErr)) return;
@@ -137,7 +135,7 @@ export function registerAudioRoutes(app: Express): void {
         orgId: requestedOrgId,
         action: "integrations_audio_chat",
         entityId: conversationId,
-        requestId: `integrations_audio_chat_${conversationId}_${audioHash}`,
+        requestId: `integrations_audio_chat_${conversationId}_${audioIdemKey}`,
       };
       let chatChargeUserId: string;
       try {

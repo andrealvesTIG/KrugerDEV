@@ -1,8 +1,11 @@
 import type { Express, Request, Response } from "express";
-import { createHash } from "node:crypto";
 import { openai } from "./client";
 import { getUserIdFromRequest, getUserOrgIds } from "../../routes/helpers";
-import { withAiCredits, sendLimitExceeded } from "../../services/aiCredits";
+import {
+  withAiCredits,
+  sendLimitExceeded,
+  getRequestIdempotencyKey,
+} from "../../services/aiCredits";
 
 export function registerImageRoutes(app: Express): void {
   app.post("/api/generate-image", async (req: Request, res: Response) => {
@@ -29,17 +32,16 @@ export function registerImageRoutes(app: Express): void {
         }
       }
 
-      // Stable per-request requestId so identical retries dedupe.
-      const promptHash = createHash("sha256")
-        .update(`${prompt}|${size}`)
-        .digest("hex")
-        .slice(0, 16);
+      // Per-HTTP-request idempotency key (user/org-scoped via withAiCredits
+      // ctx) — NOT content hash — so two identical prompts charge twice
+      // while a true network retry with the same key dedupes.
+      const imgIdemKey = getRequestIdempotencyKey(req);
       const response = await withAiCredits(
         {
           userId,
           orgId: requestedOrgId,
           action: "integrations_image_generate",
-          requestId: `integrations_image_generate_${promptHash}`,
+          requestId: `integrations_image_generate_${userId}_${requestedOrgId ?? "no_org"}_${imgIdemKey}`,
         },
         () => openai.images.generate({
           model: "gpt-image-1",

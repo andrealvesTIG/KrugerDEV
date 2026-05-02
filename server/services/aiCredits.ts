@@ -10,7 +10,8 @@
  * tokens, or modality. We rely on the central `resource_credit_costs` table
  * for the actual unit cost.
  */
-import type { Response } from "express";
+import type { Request, Response } from "express";
+import { randomUUID } from "node:crypto";
 import { eq, and } from "drizzle-orm";
 import { db } from "../db";
 import { organizationMembers } from "@shared/schema";
@@ -20,6 +21,27 @@ import {
   METER_CODES,
   RESOURCE_TYPES,
 } from "./billing";
+
+/**
+ * Per-HTTP-request idempotency key for billing.
+ *
+ * Reads a client-supplied `Idempotency-Key` header so a true network retry
+ * of the SAME request dedupes in `usage_events`. If absent or malformed,
+ * generates a fresh UUID so two distinct user actions are billed
+ * independently — content-derived hashes are NOT used (two identical
+ * prompts must charge twice).
+ *
+ * Validation: 8-128 chars, URL-safe alphabet (RFC 4648 base64url plus dot),
+ * matching the standard `Idempotency-Key` HTTP header recommendation.
+ */
+export function getRequestIdempotencyKey(req: Pick<Request, "headers">): string {
+  const raw = req.headers?.["idempotency-key"];
+  const candidate = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof candidate === "string" && /^[A-Za-z0-9._-]{8,128}$/.test(candidate)) {
+    return candidate;
+  }
+  return randomUUID();
+}
 
 export interface AiCreditContext {
   /** End-user that initiated the action. May be null for scheduled jobs — pass `orgId` instead. */

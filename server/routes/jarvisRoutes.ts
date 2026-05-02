@@ -1,5 +1,4 @@
 import type { Express } from "express";
-import { createHash } from "node:crypto";
 import { z } from "zod";
 import { streamJarvisResponse, executeJarvisAction, type JarvisMessage } from "../services/jarvisService";
 import {
@@ -15,6 +14,7 @@ import {
   sendLimitExceeded,
   writeSseLimitExceeded,
   AiCreditsLimitError,
+  getRequestIdempotencyKey,
   type MeterPerCall,
 } from "../services/aiCredits";
 import {
@@ -159,12 +159,12 @@ export function registerJarvisRoutes(app: Express) {
       }
 
       // Pre-flight enforce BEFORE opening SSE so over-limit users get a
-      // normal 403. Stable per-turn requestId dedupes retries.
-      const turnHash = createHash("sha256")
-        .update(`${conversationId}|${lastUserMessage?.content ?? ""}`)
-        .digest("hex")
-        .slice(0, 16);
-      const baseRequestId = `friday_chat_${conversationId}_${turnHash}`;
+      // normal 403. Per-HTTP-request idempotency key (client-supplied
+      // `Idempotency-Key` header or server-generated UUID) — NOT content
+      // hash — so two identical prompts charge twice while a true network
+      // retry with the same key dedupes in usage_events.
+      const idemKey = getRequestIdempotencyKey(req);
+      const baseRequestId = `friday_chat_${conversationId ?? "new"}_${idemKey}`;
       const creditCtx = {
         userId,
         orgId: organizationId,
@@ -288,18 +288,16 @@ export function registerJarvisRoutes(app: Express) {
         return res.status(403).json({ message: "Insufficient permissions to perform this action" });
       }
 
-      // Action requests are billable AI surfaces — 1 credit per success,
-      // with a deterministic requestId so retries dedupe.
-      const actionHash = createHash("sha256")
-        .update(`${action.type}|${action.projectId}|${JSON.stringify(action.data ?? {})}`)
-        .digest("hex")
-        .slice(0, 16);
+      // Action requests are billable AI surfaces — 1 credit per success.
+      // Per-HTTP-request idempotency key dedupes true network retries
+      // without conflating two distinct identical user actions.
+      const actionIdemKey = getRequestIdempotencyKey(req);
       const actionCreditCtx = {
         userId,
         orgId: organizationId,
         action: "friday_action",
         entityId: action.projectId,
-        requestId: `friday_action_${action.type}_${action.projectId}_${actionHash}`,
+        requestId: `friday_action_${action.type}_${action.projectId}_${actionIdemKey}`,
       };
       let chargeUserId: string;
       try {

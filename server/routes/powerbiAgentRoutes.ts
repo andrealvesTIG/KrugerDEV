@@ -1,5 +1,4 @@
 import type { Express } from "express";
-import { createHash } from "node:crypto";
 import { z } from "zod";
 import {
   streamPowerBIAgentResponse,
@@ -46,6 +45,7 @@ import {
   sendLimitExceeded,
   writeSseLimitExceeded,
   AiCreditsLimitError,
+  getRequestIdempotencyKey,
   type MeterPerCall,
 } from "../services/aiCredits";
 
@@ -395,12 +395,12 @@ export function registerPowerBIAgentRoutes(app: Express) {
       }
 
       // Pre-flight enforce BEFORE opening SSE so over-limit users get a
-      // normal 403. Stable per-turn requestId dedupes retries.
-      const pbiTurnHash = createHash("sha256")
-        .update(`${convId}|${last?.role}|${last?.content ?? ""}`)
-        .digest("hex")
-        .slice(0, 16);
-      const pbiBaseRequestId = `powerbi_agent_chat_${convId}_${pbiTurnHash}`;
+      // normal 403. Per-HTTP-request idempotency key (client-supplied
+      // `Idempotency-Key` header or server-generated UUID) — NOT content
+      // hash — so two identical prompts charge twice while a true network
+      // retry with the same key dedupes in usage_events.
+      const pbiIdemKey = getRequestIdempotencyKey(req);
+      const pbiBaseRequestId = `powerbi_agent_chat_${convId}_${pbiIdemKey}`;
       const creditCtx = {
         userId,
         orgId: organizationId,
