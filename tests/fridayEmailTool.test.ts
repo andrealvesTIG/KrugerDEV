@@ -53,6 +53,21 @@ beforeEach(() => {
 });
 
 describe('sendFridayEmail', () => {
+  it('returns a preview without sending when userConfirmed is false', async () => {
+    const { sendFridayEmail } = await import('../server/services/fridayEmailTool');
+    const result = await sendFridayEmail(1, 'me', {
+      to: ['alice@org.test'],
+      subject: 'Hi',
+      body: 'Body',
+      userConfirmed: false,
+    });
+    expect(sendEmailMock).not.toHaveBeenCalled();
+    const parsed = JSON.parse(result);
+    expect(parsed.requiresConfirmation).toBe(true);
+    expect(parsed.preview.to).toEqual(['alice@org.test']);
+    expect(parsed.preview.subject).toBe('Hi');
+  });
+
   it('sends one email per To recipient and shares CC', async () => {
     const { sendFridayEmail } = await import('../server/services/fridayEmailTool');
     const result = await sendFridayEmail(1, 'me', {
@@ -60,6 +75,7 @@ describe('sendFridayEmail', () => {
       cc: ['contractor@org.test'],
       subject: 'Hello',
       body: 'Hi team\n\n- one\n- two',
+      userConfirmed: true,
     });
     expect(sendEmailMock).toHaveBeenCalledTimes(2);
     expect(sendEmailMock.mock.calls[0][0].to).toBe('alice@org.test');
@@ -80,6 +96,7 @@ describe('sendFridayEmail', () => {
       to: ['outsider@example.com'],
       subject: 'Hi',
       body: 'Body',
+      userConfirmed: true,
     });
     expect(sendEmailMock).not.toHaveBeenCalled();
     const parsed = JSON.parse(result);
@@ -103,6 +120,7 @@ describe('sendFridayEmail', () => {
       subject: 'Report',
       body: 'See attached.',
       pdfId: 'pdf-1',
+      userConfirmed: true,
     });
     expect(sendEmailMock).toHaveBeenCalledTimes(1);
     const call = sendEmailMock.mock.calls[0][0];
@@ -121,6 +139,7 @@ describe('sendFridayEmail', () => {
       subject: 'x',
       body: 'y',
       pdfId: 'gone',
+      userConfirmed: true,
     });
     expect(sendEmailMock).not.toHaveBeenCalled();
     const parsed = JSON.parse(result);
@@ -135,6 +154,7 @@ describe('sendFridayEmail', () => {
       to: ['alice@org.test', 'bob@org.test'],
       subject: 'x',
       body: 'y',
+      userConfirmed: true,
     });
     const parsed = JSON.parse(result);
     expect(parsed.success).toBe(false);

@@ -81,6 +81,7 @@ export async function sendFridayEmail(
   const subject = typeof args.subject === "string" ? args.subject.trim().slice(0, 200) : "";
   const body = typeof args.body === "string" ? args.body : "";
   const pdfId = typeof args.pdfId === "string" ? args.pdfId : undefined;
+  const userConfirmed = args.userConfirmed === true;
 
   if (!subject) return JSON.stringify({ success: false, message: "Subject is required." });
   if (!body.trim()) return JSON.stringify({ success: false, message: "Body is required." });
@@ -145,9 +146,23 @@ export async function sendFridayEmail(
   const html = htmlEmail(subject, markdownToHtml(body), senderName);
   const text = `${body}\n\n— Sent on behalf of ${senderName} via Friday in FridayReport.AI`;
 
-  // sendEmail() accepts a single `to` per call. Send one email per primary
-  // recipient (sharing the same CC list) so no `to` address is silently
-  // downgraded into CC.
+  if (!userConfirmed) {
+    const bodyPreview = body.length > 280 ? body.slice(0, 280) + "…" : body;
+    return JSON.stringify({
+      success: false,
+      requiresConfirmation: true,
+      message: "Show the user this preview and ask them to confirm. Only after they explicitly say yes, call send_email again with the same arguments AND userConfirmed=true.",
+      preview: {
+        to: toList,
+        cc: ccList,
+        subject,
+        bodyPreview,
+        attachedFilenames: pdfId ? ["(pdf will be attached)"] : [],
+        from: senderName,
+      },
+    });
+  }
+
   const sentTo: string[] = [];
   const failedTo: string[] = [];
   for (const recipient of toList) {

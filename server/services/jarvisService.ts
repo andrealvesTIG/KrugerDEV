@@ -816,25 +816,26 @@ const jarvisTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "send_email",
-      description: "Send an email on behalf of the user. Use when the user asks Friday to email a teammate, share a report, or notify someone. Recipients MUST be people who already exist in the user's organization (org members or resources with an email on file) — Friday cannot email arbitrary external addresses. To attach a PDF Friday just generated, pass its `pdfId` (returned by generate_pdf). Always confirm subject, recipients, and body summary with the user before calling unless they have already explicitly approved.",
+      description: "Send an email on behalf of the user. Two-step flow REQUIRED: (1) First call with userConfirmed=false to validate recipients and preview — this returns a preview without sending. (2) Show the user the preview (recipients, subject, body summary, attachments) and ask 'Send it?'. Only after the user explicitly says yes (e.g. 'yes', 'send', 'go ahead'), call again with userConfirmed=true to actually send. Recipients must already exist in the user's organization (members or resources with email on file). To attach a PDF, pass its pdfId from generate_pdf.",
       parameters: {
         type: "object",
         properties: {
           to: {
             type: "array",
             items: { type: "string" },
-            description: "List of recipient email addresses. Each must belong to an org member or a resource in this organization.",
+            description: "Recipient email addresses (org members or resources only).",
           },
           cc: {
             type: "array",
             items: { type: "string" },
-            description: "Optional CC list. Same restriction as `to`.",
+            description: "Optional CC list (org members or resources only).",
           },
-          subject: { type: "string", description: "Email subject line (max 200 chars)." },
-          body: { type: "string", description: "Email body. Plain text or simple markdown (paragraphs, bullets with -, **bold**). Will be rendered as both text and HTML." },
-          pdfId: { type: "string", description: "Optional id of a PDF previously created with generate_pdf in this conversation. The file will be attached." },
+          subject: { type: "string", description: "Subject line (max 200 chars)." },
+          body: { type: "string", description: "Body in plain text or simple markdown." },
+          pdfId: { type: "string", description: "Optional pdfId from a prior generate_pdf call." },
+          userConfirmed: { type: "boolean", description: "Set false to preview/validate; set true ONLY after the user has explicitly approved sending in chat." },
         },
-        required: ["to", "subject", "body"],
+        required: ["to", "subject", "body", "userConfirmed"],
       },
     },
   },
