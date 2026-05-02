@@ -1472,6 +1472,7 @@ export async function streamJarvisResponse(
   pageContext?: PageContext,
   attachments?: FileAttachment[],
 ) {
+  void userId;
   try {
     const context = await gatherOrganizationContext(orgId);
     const dataContext = buildDataContext(context);

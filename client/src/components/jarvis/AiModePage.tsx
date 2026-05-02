@@ -560,6 +560,28 @@ export default function AiModePage() {
           <p className="mt-2 text-[10px] text-muted-foreground dark:text-slate-400 text-center tracking-wide">
             AI-generated. Press <kbd className="px-1 py-0.5 rounded border border-border dark:border-slate-600 bg-muted dark:bg-slate-700 dark:text-slate-200 text-[10px]">Esc</kbd> to exit AI Mode.
           </p>
+
+          <div className="mt-2 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-4">
+            <p className="text-[10px] text-muted-foreground">Copyright Friday Report LLC</p>
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => handleNavigate("/terms")}
+                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                data-testid="link-ai-terms"
+              >
+                Terms of Service
+              </button>
+              <button
+                type="button"
+                onClick={() => handleNavigate("/privacy")}
+                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                data-testid="link-ai-privacy"
+              >
+                Privacy Statement
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
