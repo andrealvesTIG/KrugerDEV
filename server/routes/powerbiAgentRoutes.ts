@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import {
   streamPowerBIAgentResponse,
@@ -393,11 +394,17 @@ export function registerPowerBIAgentRoutes(app: Express) {
 
       // Enforce AI credit limit BEFORE opening the SSE stream so an
       // over-limit response is a normal 403 JSON the frontend can handle.
+      // Stable per-turn requestId so SSE reconnects / retries dedupe.
+      const pbiTurnHash = createHash("sha256")
+        .update(`${convId}|${last?.role}|${last?.content ?? ""}`)
+        .digest("hex")
+        .slice(0, 16);
       const creditCtx = {
         userId,
         orgId: organizationId,
         action: "powerbi_agent_chat",
         entityId: convId ?? undefined,
+        requestId: `powerbi_agent_chat_${convId}_${pbiTurnHash}`,
       };
       let chargeUserId: string;
       try {

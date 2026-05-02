@@ -1,4 +1,3 @@
-import OpenAI from "openai";
 import { db } from "../db";
 import { eq } from "drizzle-orm";
 import { userEnrichment, type UserEnrichment, type InsertUserEnrichment } from "@shared/schema";

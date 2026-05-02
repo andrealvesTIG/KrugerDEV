@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { streamJarvisResponse, executeJarvisAction, type JarvisMessage } from "../services/jarvisService";
 import {
@@ -157,11 +158,19 @@ export function registerJarvisRoutes(app: Express) {
 
       // Enforce AI credit limit BEFORE opening the SSE stream so an
       // over-limit response is a normal 403 JSON the frontend can handle.
+      // Build a deterministic per-turn requestId so retries / dropped
+      // SSE reconnects that resend the same logical message dedupe in
+      // the underlying usage_events table instead of double-charging.
+      const turnHash = createHash("sha256")
+        .update(`${conversationId}|${lastUserMessage?.content ?? ""}`)
+        .digest("hex")
+        .slice(0, 16);
       const creditCtx = {
         userId,
         orgId: organizationId,
         action: "friday_chat",
         entityId: conversationId ?? undefined,
+        requestId: `friday_chat_${conversationId}_${turnHash}`,
       };
       let chargeUserId: string;
       try {
@@ -273,7 +282,38 @@ export function registerJarvisRoutes(app: Express) {
         return res.status(403).json({ message: "Insufficient permissions to perform this action" });
       }
 
+      // Friday Agent action requests are billable AI surfaces too — charge
+      // exactly 1 AI credit per executed action. Use a deterministic
+      // requestId so accidental client retries with the same payload
+      // dedupe instead of double-charging.
+      const actionHash = createHash("sha256")
+        .update(`${action.type}|${action.projectId}|${JSON.stringify(action.data ?? {})}`)
+        .digest("hex")
+        .slice(0, 16);
+      const actionCreditCtx = {
+        userId,
+        orgId: organizationId,
+        action: "friday_action",
+        entityId: action.projectId,
+        requestId: `friday_action_${action.type}_${action.projectId}_${actionHash}`,
+      };
+      let chargeUserId: string;
+      try {
+        ({ chargeUserId } = await enforceAiCredits(actionCreditCtx));
+      } catch (limitErr) {
+        if (sendLimitExceeded(res, limitErr)) return;
+        throw limitErr;
+      }
+
       const result = await executeJarvisAction(Number(organizationId), userId, action);
+
+      // Only charge on successful execution. On failure, skip recording so
+      // the user isn't billed for a no-op error path.
+      if (result.success) {
+        await recordAiCredits(chargeUserId, actionCreditCtx).catch((err) => {
+          console.error("[JARVIS] Failed to record action credit usage:", err);
+        });
+      }
 
       await logUserActivity(userId, "jarvis_action", "jarvis", action.projectId, {
         actionType: action.type,
@@ -283,6 +323,7 @@ export function registerJarvisRoutes(app: Express) {
 
       res.json(result);
     } catch (error: any) {
+      if (sendLimitExceeded(res, error)) return;
       console.error("[JARVIS] Action error:", error);
       res.status(500).json({ message: error.message || "Failed to execute action" });
     }

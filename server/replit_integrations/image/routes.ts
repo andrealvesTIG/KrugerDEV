@@ -1,4 +1,5 @@
 import type { Express, Request, Response } from "express";
+import { createHash } from "node:crypto";
 import { openai } from "./client";
 import { getUserIdFromRequest } from "../../routes/helpers";
 import { withAiCredits, sendLimitExceeded } from "../../services/aiCredits";
@@ -17,11 +18,17 @@ export function registerImageRoutes(app: Express): void {
         return res.status(401).json({ error: "Authentication required" });
       }
 
+      // Stable per-request requestId so identical retries dedupe.
+      const promptHash = createHash("sha256")
+        .update(`${prompt}|${size}`)
+        .digest("hex")
+        .slice(0, 16);
       const response = await withAiCredits(
         {
           userId,
           orgId: organizationId ? Number(organizationId) : null,
           action: "integrations_image_generate",
+          requestId: `integrations_image_generate_${promptHash}`,
         },
         () => openai.images.generate({
           model: "gpt-image-1",

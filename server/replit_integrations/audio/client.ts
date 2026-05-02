@@ -5,11 +5,52 @@ import { writeFile, unlink, readFile } from "fs/promises";
 import { randomUUID } from "crypto";
 import { tmpdir } from "os";
 import { join } from "path";
+import {
+  enforceAiCredits,
+  recordAiCredits,
+  withAiCredits,
+  type AiCreditContext,
+} from "../../services/aiCredits";
 
 export const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
+
+/**
+ * Required metering option for every direct OpenAI helper in this module.
+ * Pass an `AiCreditContext` to charge 1 AI credit when the underlying call
+ * succeeds. Pass the literal string `"skip"` ONLY when the caller has
+ * already enforced + recorded credits at its own request boundary (e.g.
+ * `audio/routes.ts` meters once per voice turn around its own
+ * `openai.chat.completions.create` invocation, so calling `speechToText`
+ * inside that turn must not double-charge).
+ *
+ * Making this argument required means a new caller cannot accidentally
+ * invoke a billable model without thinking about credits.
+ */
+export type AiMeter = AiCreditContext | "skip";
+
+async function runMetered<T>(meter: AiMeter, fn: () => Promise<T>): Promise<T> {
+  if (meter === "skip") return fn();
+  return withAiCredits(meter, fn);
+}
+
+async function startStreamMeter(meter: AiMeter): Promise<
+  { mode: "skip" } | { mode: "charge"; chargeUserId: string; ctx: AiCreditContext }
+> {
+  if (meter === "skip") return { mode: "skip" };
+  const { chargeUserId } = await enforceAiCredits(meter);
+  return { mode: "charge", chargeUserId, ctx: meter };
+}
+
+async function finishStreamMeter(
+  state: { mode: "skip" } | { mode: "charge"; chargeUserId: string; ctx: AiCreditContext },
+): Promise<void> {
+  if (state.mode === "charge") {
+    await recordAiCredits(state.chargeUserId, state.ctx);
+  }
+}
 
 export type AudioFormat = "wav" | "mp3" | "webm" | "mp4" | "ogg" | "unknown";
 
@@ -111,47 +152,46 @@ export async function ensureCompatibleFormat(
  * Note: Browser records WebM/opus - convert to WAV using ffmpeg before calling this.
  */
 export async function voiceChat(
+  meter: AiMeter,
   audioBuffer: Buffer,
   voice: "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer" = "alloy",
   inputFormat: "wav" | "mp3" = "wav",
   outputFormat: "wav" | "mp3" = "mp3"
 ): Promise<{ transcript: string; audioResponse: Buffer }> {
-  const audioBase64 = audioBuffer.toString("base64");
-  const response = await openai.chat.completions.create({
-    model: "gpt-audio",
-    modalities: ["text", "audio"],
-    audio: { voice, format: outputFormat },
-    messages: [{
-      role: "user",
-      content: [
-        { type: "input_audio", input_audio: { data: audioBase64, format: inputFormat } },
-      ],
-    }],
+  return runMetered(meter, async () => {
+    const audioBase64 = audioBuffer.toString("base64");
+    const response = await openai.chat.completions.create({
+      model: "gpt-audio",
+      modalities: ["text", "audio"],
+      audio: { voice, format: outputFormat },
+      messages: [{
+        role: "user",
+        content: [
+          { type: "input_audio", input_audio: { data: audioBase64, format: inputFormat } },
+        ],
+      }],
+    });
+    const message = response.choices[0]?.message as any;
+    const transcript = message?.audio?.transcript || message?.content || "";
+    const audioData = message?.audio?.data ?? "";
+    return {
+      transcript,
+      audioResponse: Buffer.from(audioData, "base64"),
+    };
   });
-  const message = response.choices[0]?.message as any;
-  const transcript = message?.audio?.transcript || message?.content || "";
-  const audioData = message?.audio?.data ?? "";
-  return {
-    transcript,
-    audioResponse: Buffer.from(audioData, "base64"),
-  };
 }
 
 /**
  * Streaming Voice Chat: For real-time audio responses.
  * Note: Streaming only supports pcm16 output format.
- *
- * @example
- * // Converting browser WebM to WAV before calling:
- * const webmBuffer = Buffer.from(req.body.audio, "base64");
- * const wavBuffer = await convertWebmToWav(webmBuffer);
- * for await (const chunk of voiceChatStream(wavBuffer)) { ... }
  */
 export async function voiceChatStream(
+  meter: AiMeter,
   audioBuffer: Buffer,
   voice: "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer" = "alloy",
   inputFormat: "wav" | "mp3" = "wav"
 ): Promise<AsyncIterable<{ type: "transcript" | "audio"; data: string }>> {
+  const meterState = await startStreamMeter(meter);
   const audioBase64 = audioBuffer.toString("base64");
   const stream = await openai.chat.completions.create({
     model: "gpt-audio",
@@ -167,15 +207,20 @@ export async function voiceChatStream(
   });
 
   return (async function* () {
-    for await (const chunk of stream) {
-      const delta = chunk.choices?.[0]?.delta as any;
-      if (!delta) continue;
-      if (delta?.audio?.transcript) {
-        yield { type: "transcript", data: delta.audio.transcript };
+    try {
+      for await (const chunk of stream) {
+        const delta = chunk.choices?.[0]?.delta as any;
+        if (!delta) continue;
+        if (delta?.audio?.transcript) {
+          yield { type: "transcript", data: delta.audio.transcript };
+        }
+        if (delta?.audio?.data) {
+          yield { type: "audio", data: delta.audio.data };
+        }
       }
-      if (delta?.audio?.data) {
-        yield { type: "audio", data: delta.audio.data };
-      }
+      await finishStreamMeter(meterState);
+    } catch (err) {
+      throw err;
     }
   })();
 }
@@ -185,21 +230,24 @@ export async function voiceChatStream(
  * Uses gpt-audio model via Replit AI Integrations.
  */
 export async function textToSpeech(
+  meter: AiMeter,
   text: string,
   voice: "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer" = "alloy",
   format: "wav" | "mp3" | "flac" | "opus" | "pcm16" = "wav"
 ): Promise<Buffer> {
-  const response = await openai.chat.completions.create({
-    model: "gpt-audio",
-    modalities: ["text", "audio"],
-    audio: { voice, format },
-    messages: [
-      { role: "system", content: "You are an assistant that performs text-to-speech." },
-      { role: "user", content: `Repeat the following text verbatim: ${text}` },
-    ],
+  return runMetered(meter, async () => {
+    const response = await openai.chat.completions.create({
+      model: "gpt-audio",
+      modalities: ["text", "audio"],
+      audio: { voice, format },
+      messages: [
+        { role: "system", content: "You are an assistant that performs text-to-speech." },
+        { role: "user", content: `Repeat the following text verbatim: ${text}` },
+      ],
+    });
+    const audioData = (response.choices[0]?.message as any)?.audio?.data ?? "";
+    return Buffer.from(audioData, "base64");
   });
-  const audioData = (response.choices[0]?.message as any)?.audio?.data ?? "";
-  return Buffer.from(audioData, "base64");
 }
 
 /**
@@ -208,9 +256,11 @@ export async function textToSpeech(
  * Note: Streaming only supports pcm16 output format.
  */
 export async function textToSpeechStream(
+  meter: AiMeter,
   text: string,
   voice: "alloy" | "echo" | "fable" | "onyx" | "nova" | "shimmer" = "alloy"
 ): Promise<AsyncIterable<string>> {
+  const meterState = await startStreamMeter(meter);
   const stream = await openai.chat.completions.create({
     model: "gpt-audio",
     modalities: ["text", "audio"],
@@ -230,6 +280,7 @@ export async function textToSpeechStream(
         yield delta.audio.data;
       }
     }
+    await finishStreamMeter(meterState);
   })();
 }
 
@@ -238,15 +289,18 @@ export async function textToSpeechStream(
  * Uses gpt-4o-mini-transcribe for accurate transcription.
  */
 export async function speechToText(
+  meter: AiMeter,
   audioBuffer: Buffer,
   format: "wav" | "mp3" | "webm" = "wav"
 ): Promise<string> {
-  const file = await toFile(audioBuffer, `audio.${format}`);
-  const response = await openai.audio.transcriptions.create({
-    file,
-    model: "gpt-4o-mini-transcribe",
+  return runMetered(meter, async () => {
+    const file = await toFile(audioBuffer, `audio.${format}`);
+    const response = await openai.audio.transcriptions.create({
+      file,
+      model: "gpt-4o-mini-transcribe",
+    });
+    return response.text;
   });
-  return response.text;
 }
 
 /**
@@ -254,9 +308,11 @@ export async function speechToText(
  * Uses gpt-4o-mini-transcribe for accurate transcription.
  */
 export async function speechToTextStream(
+  meter: AiMeter,
   audioBuffer: Buffer,
   format: "wav" | "mp3" | "webm" = "wav"
 ): Promise<AsyncIterable<string>> {
+  const meterState = await startStreamMeter(meter);
   const file = await toFile(audioBuffer, `audio.${format}`);
   const stream = await openai.audio.transcriptions.create({
     file,
@@ -270,5 +326,6 @@ export async function speechToTextStream(
         yield event.delta;
       }
     }
+    await finishStreamMeter(meterState);
   })();
 }

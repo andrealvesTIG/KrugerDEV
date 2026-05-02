@@ -1,4 +1,5 @@
 import express, { type Express, type Request, type Response } from "express";
+import { createHash } from "node:crypto";
 import { chatStorage } from "../chat/storage";
 import { openai, speechToText, ensureCompatibleFormat } from "./client";
 import { getUserIdFromRequest } from "../../routes/helpers";
@@ -81,15 +82,23 @@ export function registerAudioRoutes(app: Express): void {
         return res.status(401).json({ error: "Authentication required" });
       }
 
-      // Enforce AI credits BEFORE opening SSE stream
+      // Enforce AI credits BEFORE opening SSE stream.
+      // Stable per-turn requestId (sha256 of audio bytes + conversation)
+      // so retries that resend the same recording dedupe.
+      const audioHash = createHash("sha256")
+        .update(Buffer.from(audio, "base64"))
+        .digest("hex")
+        .slice(0, 16);
+      const audioCreditCtx = {
+        userId,
+        orgId: organizationId ? Number(organizationId) : null,
+        action: "integrations_audio",
+        entityId: conversationId,
+        requestId: `integrations_audio_${conversationId}_${audioHash}`,
+      };
       let chargeUserId: string;
       try {
-        ({ chargeUserId } = await enforceAiCredits({
-          userId,
-          orgId: organizationId ? Number(organizationId) : null,
-          action: "integrations_audio",
-          entityId: conversationId,
-        }));
+        ({ chargeUserId } = await enforceAiCredits(audioCreditCtx));
       } catch (limitErr) {
         if (sendLimitExceeded(res, limitErr)) return;
         throw limitErr;
@@ -100,7 +109,9 @@ export function registerAudioRoutes(app: Express): void {
       const { buffer: audioBuffer, format: inputFormat } = await ensureCompatibleFormat(rawBuffer);
 
       // 2. Transcribe user audio
-      const userTranscript = await speechToText(audioBuffer, inputFormat);
+      // Inner STT helper: pass "skip" since this route already meters the
+      // whole voice turn (1 credit per /api/conversations/:id/messages).
+      const userTranscript = await speechToText("skip", audioBuffer, inputFormat);
 
       // 3. Save user message
       await chatStorage.createMessage(conversationId, "user", userTranscript);
@@ -147,13 +158,9 @@ export function registerAudioRoutes(app: Express): void {
       // 7. Save assistant message
       await chatStorage.createMessage(conversationId, "assistant", assistantTranscript);
 
-      // Record credits after successful generation
-      await recordAiCredits(chargeUserId, {
-        userId,
-        orgId: organizationId ? Number(organizationId) : null,
-        action: "integrations_audio",
-        entityId: conversationId,
-      });
+      // Record credits after successful generation (uses the same stable
+      // requestId enforced above so retries dedupe in usage_events).
+      await recordAiCredits(chargeUserId, audioCreditCtx);
 
       res.write(`data: ${JSON.stringify({ type: "done", transcript: assistantTranscript })}\n\n`);
       res.end();
