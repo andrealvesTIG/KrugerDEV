@@ -60,7 +60,22 @@ import {
   Rocket,
   RefreshCw,
   GitMerge,
-  Info
+  Info,
+  HardHat,
+  ClipboardList,
+  MessageSquare,
+  FileImage,
+  ShieldCheck,
+  Hammer,
+  Truck,
+  GitBranch,
+  Mic,
+  Mail,
+  Radar,
+  Bot,
+  GraduationCap,
+  Copy,
+  ListChecks
 } from "lucide-react";
 import { HelpDialog } from "@/components/HelpDialog";
 import { useAuth } from "@/hooks/use-auth";
@@ -82,16 +97,34 @@ const sections = [
   { id: "decisions", name: "Decision Log", icon: Scale },
   { id: "lessons", name: "Lessons Learned", icon: Lightbulb },
   { id: "tasks", name: "Tasks", icon: CheckSquare },
+  { id: "gantt-timeline", name: "Gantt & Timeline", icon: GanttChart },
   { id: "issues", name: "Issues", icon: CircleDot },
   { id: "timesheets", name: "Timesheets", icon: Clock },
   { id: "resources", name: "Resources", icon: UserCog },
   { id: "calendar", name: "Calendar", icon: Calendar },
   { id: "invoices", name: "Invoices", icon: DollarSign },
   { id: "simulation", name: "Simulation", icon: Activity },
+  { id: "pmo-radar", name: "PMO Radar", icon: Radar },
+  { id: "powerbi-agent", name: "Power BI Agent", icon: Bot },
+  { id: "construction-overview", name: "Construction Suite", icon: HardHat },
+  { id: "daily-logs", name: "Daily Logs", icon: ClipboardList },
+  { id: "rfis", name: "RFIs", icon: HelpCircle },
+  { id: "submittals", name: "Submittals", icon: FileText },
+  { id: "drawings", name: "Drawings", icon: FileImage },
+  { id: "punch-list", name: "Punch List", icon: ListChecks },
+  { id: "quality-safety", name: "Quality & Safety", icon: ShieldCheck },
+  { id: "bidding", name: "Bidding", icon: Hammer },
+  { id: "vendors", name: "Vendors", icon: Truck },
+  { id: "change-orders", name: "Change Orders", icon: GitBranch },
+  { id: "construction-invoices", name: "Construction Invoices", icon: Receipt },
+  { id: "meetings", name: "Meetings", icon: Mic },
+  { id: "correspondence", name: "Correspondence", icon: Mail },
   { id: "integrations", name: "Integrations", icon: Plug },
   { id: "custom-links", name: "Custom Links", icon: Link2 },
   { id: "custom-fields", name: "Custom Fields", icon: Sliders },
   { id: "custom-tabs", name: "Custom Tabs", icon: LayoutTemplate },
+  { id: "templates", name: "Templates", icon: Copy },
+  { id: "training", name: "Training (Friday Academy)", icon: GraduationCap },
   { id: "billing", name: "Billing & Credits", icon: CreditCard },
   { id: "organizations", name: "Organizations", icon: Building2 },
   { id: "users", name: "User Management", icon: Users },
@@ -311,7 +344,7 @@ const UserGuidePDF = () => (
       <Text style={pdfStyles.coverTitle}>FridayReport.AI</Text>
       <Text style={pdfStyles.coverSubtitle}>Project Portfolio Management</Text>
       <Text style={pdfStyles.coverSubtitle}>Complete User Guide</Text>
-      <Text style={pdfStyles.coverVersion}>Version 1.0 - January 2026</Text>
+      <Text style={pdfStyles.coverVersion}>Version 2.0 - May 2026</Text>
     </Page>
 
     <Page size="A4" style={pdfStyles.tocPage}>
@@ -993,6 +1026,301 @@ const UserGuidePDF = () => (
       <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
       <Text style={pdfStyles.pageNumber}>16</Text>
     </Page>
+
+    <Page size="A4" style={pdfStyles.page}>
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Gantt &amp; Timeline</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Visualize task schedules and dependencies</Text>
+        <Text style={pdfStyles.paragraph}>
+          Every project includes an interactive Gantt-style timeline. Drag bars to reschedule, link
+          tasks to create dependencies, and use the critical path overlay to spot the sequence of
+          work that drives the end date.
+        </Text>
+        <Text style={pdfStyles.heading}>Core Capabilities:</Text>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Drag-to-Reschedule with auto-recalculated durations</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Dependencies: FS, SS, FF, SF</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Critical path highlighting</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Milestones, baselines, today marker, progress overlay</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Zoom levels: day, week, month, quarter, year</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Export to PDF/PNG and print for status meetings</Text></View>
+      </View>
+
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>PMO Radar</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Early-warning system for portfolio risk and health</Text>
+        <Text style={pdfStyles.paragraph}>
+          PMO Radar continuously scans every project across the organization and surfaces the ones
+          that need attention with severity, signal type, and one-click drill-down.
+        </Text>
+        <Text style={pdfStyles.heading}>Signal Categories:</Text>
+        <Text style={pdfStyles.listItem}>Schedule, Budget, Quality, Engagement, Risk, Resource</Text>
+        <Text style={pdfStyles.heading}>Severity:</Text>
+        <Text style={pdfStyles.listItem}>Critical, High, Medium, Low</Text>
+        <Text style={pdfStyles.heading}>Workflow:</Text>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Filter by portfolio, owner, severity, or signal type</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Acknowledge, snooze, or dismiss alerts with reasons</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Trend view of red/yellow project counts over time</Text></View>
+        <Text style={pdfStyles.heading}>How to access:</Text>
+        <Text style={pdfStyles.listItem}>Sidebar &gt; PMO Radar (path /pmo-radar)</Text>
+      </View>
+      <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
+      <Text style={pdfStyles.pageNumber}>17</Text>
+    </Page>
+
+    <Page size="A4" style={pdfStyles.page}>
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Power BI Agent</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Ask questions about your portfolio in plain English</Text>
+        <Text style={pdfStyles.paragraph}>
+          The Power BI Agent is an AI assistant that turns natural-language questions into the right
+          query against your analytics dataset and returns a chart or table you can pin or export.
+        </Text>
+        <Text style={pdfStyles.heading}>Example Prompts:</Text>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>"Which projects are over budget this quarter?"</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>"Show the top 10 most overdue tasks across the portfolio."</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>"Compare planned vs actual hours for Marketing last month."</Text></View>
+        <Text style={pdfStyles.heading}>How It Works:</Text>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Plain-language input with auto-visualization</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Refine in place ("group by portfolio", "limit to 90 days")</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Pin to dashboards, export to Excel, copy as image</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Respects organization permissions and shows the underlying query</Text></View>
+        <Text style={pdfStyles.heading}>How to access:</Text>
+        <Text style={pdfStyles.listItem}>Sidebar &gt; Power BI Agent (path /powerbi-agent)</Text>
+      </View>
+
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Construction Suite</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Field-ready modules for general contractors and owners</Text>
+        <Text style={pdfStyles.paragraph}>
+          The Construction Suite layers purpose-built modules on top of every construction-flagged
+          project. Each module follows the same role and permission model as the rest of the
+          platform.
+        </Text>
+        <Text style={pdfStyles.heading}>Modules:</Text>
+        <Text style={pdfStyles.listItem}>Daily Logs, RFIs, Submittals, Drawings, Punch List, Quality &amp; Safety, Bidding, Vendors, Change Orders, Construction Invoices, Meetings, Correspondence</Text>
+      </View>
+      <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
+      <Text style={pdfStyles.pageNumber}>18</Text>
+    </Page>
+
+    <Page size="A4" style={pdfStyles.page}>
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Daily Logs</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Capture daily field activity</Text>
+        <Text style={pdfStyles.paragraph}>
+          The field journal for the project. Each log is unique per project per date and captures
+          weather, labor, equipment, visitors, notes, and attachments.
+        </Text>
+        <Text style={pdfStyles.heading}>Key fields:</Text>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Log date, weather (condition, temperature, wind, precipitation)</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Labor entries (company, trade, headcount, hours, notes)</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Equipment entries (name, quantity, hours, status)</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Visitors, notes, photos and attachments</Text></View>
+        <Text style={pdfStyles.heading}>How to access:</Text>
+        <Text style={pdfStyles.listItem}>Project &gt; Construction &gt; Daily Logs (path /daily-logs)</Text>
+      </View>
+
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>RFIs (Requests for Information)</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Formally raise and resolve design questions</Text>
+        <Text style={pdfStyles.paragraph}>
+          Auto-numbered RFIs are routed to a primary reviewer with optional cc'd parties, time-stamped
+          at every step, and tracked against required-by dates so SLAs are visible.
+        </Text>
+        <Text style={pdfStyles.heading}>Status:</Text>
+        <Text style={pdfStyles.listItem}>New RFIs default to Open and are closed once a response is accepted</Text>
+        <Text style={pdfStyles.heading}>Key Features:</Text>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Discussion thread with attachments and internal notes</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Required-by date, distribution list, and link to change orders</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Aging report by reviewer to surface bottlenecks</Text></View>
+        <Text style={pdfStyles.heading}>How to access:</Text>
+        <Text style={pdfStyles.listItem}>Project &gt; Construction &gt; RFIs (path /rfis)</Text>
+      </View>
+
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Submittals</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Shop drawings, product data, and samples</Text>
+        <Text style={pdfStyles.paragraph}>
+          Manage formal submittal exchange between subs, GC, and design team with stamps, mark-ups,
+          and full revision tracking.
+        </Text>
+        <Text style={pdfStyles.heading}>Status &amp; type defaults:</Text>
+        <Text style={pdfStyles.listItem}>Status defaults to Pending; type defaults to Product Data</Text>
+        <Text style={pdfStyles.heading}>Features:</Text>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Spec section tagging for coverage audits</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Lead-time tracking feeds the procurement schedule</Text></View>
+        <Text style={pdfStyles.heading}>How to access:</Text>
+        <Text style={pdfStyles.listItem}>Project &gt; Construction &gt; Submittals (path /submittals)</Text>
+      </View>
+      <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
+      <Text style={pdfStyles.pageNumber}>19</Text>
+    </Page>
+
+    <Page size="A4" style={pdfStyles.page}>
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Drawings</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Single source of truth for the current set</Text>
+        <Text style={pdfStyles.paragraph}>
+          Drawings stores every revision of every sheet so the field always works from the latest
+          set. Sheets are organized by discipline and number, version controlled, and viewable in the
+          browser.
+        </Text>
+        <Text style={pdfStyles.heading}>Capabilities:</Text>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Drawings carry number, title, discipline, and current revision</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Versioned sets (e.g. Bid Set, Issued for Construction, As-Built)</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>In-browser viewer with markups stored per revision</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Download the current revision file at any time</Text></View>
+        <Text style={pdfStyles.heading}>How to access:</Text>
+        <Text style={pdfStyles.listItem}>Project &gt; Construction &gt; Drawings (path /drawings)</Text>
+      </View>
+
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Punch List</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Track close-out items to final acceptance</Text>
+        <Text style={pdfStyles.paragraph}>
+          Items are tied to a location, trade, and due date and travel from open to verified with
+          photo evidence at every step.
+        </Text>
+        <Text style={pdfStyles.heading}>Status &amp; defaults:</Text>
+        <Text style={pdfStyles.listItem}>Status defaults to Open, priority defaults to Medium</Text>
+        <Text style={pdfStyles.heading}>Key fields:</Text>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Number, title, description, location, category</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Assigned to, due date, closed date</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Photos with type (e.g. issue / fixed) and a status history log</Text></View>
+        <Text style={pdfStyles.heading}>How to access:</Text>
+        <Text style={pdfStyles.listItem}>Project &gt; Construction &gt; Punch List (path /punch-list)</Text>
+      </View>
+
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Quality &amp; Safety</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Inspections, observations, incidents</Text>
+        <Text style={pdfStyles.paragraph}>
+          Reusable inspection templates, field observations, and incident reports — each with the
+          corrective actions assigned, tracked, and verified to closure.
+        </Text>
+        <Text style={pdfStyles.heading}>Defaults:</Text>
+        <Text style={pdfStyles.listItem}>Inspection status: Scheduled. Observation: category Safety, severity Low, status Open</Text>
+        <Text style={pdfStyles.heading}>How to access:</Text>
+        <Text style={pdfStyles.listItem}>Project &gt; Construction &gt; Quality &amp; Safety (path /quality-safety)</Text>
+      </View>
+      <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
+      <Text style={pdfStyles.pageNumber}>20</Text>
+    </Page>
+
+    <Page size="A4" style={pdfStyles.page}>
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Bidding</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Invitations to bid and award packages</Text>
+        <Text style={pdfStyles.paragraph}>
+          Run a bid package from invitation through award. Each package has its own scope, vendor
+          invitations, bids, line items, and award decision.
+        </Text>
+        <Text style={pdfStyles.heading}>Defaults:</Text>
+        <Text style={pdfStyles.listItem}>Package: Draft. Invitation: Invited. Bid: Submitted</Text>
+        <Text style={pdfStyles.heading}>How to access:</Text>
+        <Text style={pdfStyles.listItem}>Project &gt; Construction &gt; Bidding (path /bidding)</Text>
+      </View>
+
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Vendors</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Subcontractor and supplier directory</Text>
+        <Text style={pdfStyles.paragraph}>
+          Master list of vendors with contact, address, trade specialty, license number, insurance
+          expiry, bonding capacity, status (defaults to Active), rating, and an optional
+          prequalification record.
+        </Text>
+        <Text style={pdfStyles.heading}>How to access:</Text>
+        <Text style={pdfStyles.listItem}>Sidebar &gt; Vendors (path /vendors)</Text>
+      </View>
+
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Change Orders</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Originate, price, and execute changes</Text>
+        <Text style={pdfStyles.paragraph}>
+          Tier defaults to PCO and can be promoted to a Change Order Request, Owner Change Order, or
+          Subcontract Change Order as the change progresses. Status defaults to Draft. Each record
+          carries cost impact, schedule-impact days, and line items.
+        </Text>
+        <Text style={pdfStyles.heading}>How to access:</Text>
+        <Text style={pdfStyles.listItem}>Project &gt; Construction &gt; Change Orders (path /change-orders)</Text>
+      </View>
+      <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
+      <Text style={pdfStyles.pageNumber}>21</Text>
+    </Page>
+
+    <Page size="A4" style={pdfStyles.page}>
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Construction Invoices</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Schedule-of-values billing per period</Text>
+        <Text style={pdfStyles.paragraph}>
+          Each invoice covers one billing period and captures contract amount, total amount with
+          approved changes, previous billed, current billed, balance to finish, retainage, period
+          dates, and paid amount. Status defaults to Draft.
+        </Text>
+        <Text style={pdfStyles.heading}>Line items:</Text>
+        <Text style={pdfStyles.listItem}>Each line carries scheduled value and percent complete that drives current billing</Text>
+        <Text style={pdfStyles.heading}>How to access:</Text>
+        <Text style={pdfStyles.listItem}>Project &gt; Construction &gt; Construction Invoices (path /construction-invoices)</Text>
+      </View>
+
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Meetings</Text>
+        <Text style={pdfStyles.sectionSubtitle}>OAC, coordination, and subcontractor meetings</Text>
+        <Text style={pdfStyles.paragraph}>
+          Each meeting captures number, title, type (defaults to General), status (defaults to
+          Scheduled), date / time / location, attendees, minutes, agenda items, and action items.
+          Action items default to status Open and priority Medium.
+        </Text>
+        <Text style={pdfStyles.heading}>How to access:</Text>
+        <Text style={pdfStyles.listItem}>Project &gt; Construction &gt; Meetings (path /meetings)</Text>
+      </View>
+
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Correspondence</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Letters, transmittals, notices</Text>
+        <Text style={pdfStyles.paragraph}>
+          Auto-numbered formal communication record per project. Type defaults to Letter, status to
+          Draft, priority to Normal. Each item carries from / to name and email, date, subject, body,
+          and attachments.
+        </Text>
+        <Text style={pdfStyles.heading}>How to access:</Text>
+        <Text style={pdfStyles.listItem}>Project &gt; Construction &gt; Correspondence (path /correspondence)</Text>
+      </View>
+      <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
+      <Text style={pdfStyles.pageNumber}>22</Text>
+    </Page>
+
+    <Page size="A4" style={pdfStyles.page}>
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Templates</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Reusable starting points for new work</Text>
+        <Text style={pdfStyles.paragraph}>
+          Define a template once — with task list, custom fields, custom tabs, scoring criteria, and
+          intake form — and create new projects (or accept intake submissions) that inherit that
+          structure.
+        </Text>
+        <Text style={pdfStyles.heading}>Template Types:</Text>
+        <Text style={pdfStyles.listItem}>Project, Portfolio, Intake Form, Scoring</Text>
+        <Text style={pdfStyles.heading}>Governance:</Text>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Only org admins can publish or retire templates</Text></View>
+        <View style={pdfStyles.listRow}><View style={pdfStyles.bulletPoint} /><Text style={pdfStyles.listItem}>Version history protects in-flight projects</Text></View>
+      </View>
+
+      <View style={pdfStyles.section}>
+        <Text style={pdfStyles.sectionTitle}>Training (Friday Academy)</Text>
+        <Text style={pdfStyles.sectionSubtitle}>Self-paced learning paths for every role</Text>
+        <Text style={pdfStyles.paragraph}>
+          Friday Academy groups short video lessons, quick quizzes, and in-product walkthroughs into
+          role-based learning paths so new users can ramp up without leaving the product.
+        </Text>
+        <Text style={pdfStyles.heading}>Paths:</Text>
+        <Text style={pdfStyles.listItem}>Team Member, Project Manager, Portfolio Manager, Org Admin, Construction Lead, Analyst</Text>
+        <Text style={pdfStyles.heading}>Lesson Format:</Text>
+        <Text style={pdfStyles.listItem}>2-5 minute videos, quick quizzes, certificates on path completion</Text>
+      </View>
+      <Text style={pdfStyles.footer}>FridayReport.AI User Guide</Text>
+      <Text style={pdfStyles.pageNumber}>23</Text>
+    </Page>
   </Document>
 );
 
@@ -1563,6 +1891,23 @@ export default function UserGuide() {
                       <span><strong>Project Conversion:</strong> Convert approved intakes directly to active projects</span>
                     </li>
                   </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    Whenever someone wants the organization to start new work — capturing the request through intake gives
+                    you priority, sponsor, and rough sizing before it competes for resources or budget.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Sidebar &rarr; <code>Project Intakes</code>. Submitters can also use a public intake form when one is
+                    published for the organization.
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Approve only what you have capacity to staff — leaving requests as Submitted
+                    is a healthier signal to the business than starting work that will sit idle.
+                  </p>
                 </CardContent>
               </Card>
             </section>
@@ -1643,6 +1988,23 @@ export default function UserGuide() {
                     overall project score for comparison and prioritization. Saved project scores automatically 
                     flow into the portfolio-level Scoring Rollup.
                   </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    During project selection or annual portfolio refresh — anywhere you need to compare candidates on
+                    consistent, weighted criteria instead of subjective opinion.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Open a project &rarr; <em>More</em> dropdown &rarr; <code>Scoring</code>. Aggregate results appear on
+                    the parent portfolio's Scoring Rollup.
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Define criteria once at the org level and reuse them — comparing scores across
+                    projects only works when the criteria and weights are identical.
+                  </p>
                 </CardContent>
               </Card>
             </section>
@@ -1721,6 +2083,22 @@ export default function UserGuide() {
                     <ArrowRight className="h-4 w-4 text-slate-400" />
                     <Badge variant="outline">Fully Realized</Badge>
                   </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    Define benefits at business case time and update actuals on a cadence (often quarterly) after
+                    go-live, so the project's promised value is tracked beyond the closeout date.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Open a project &rarr; <em>More</em> dropdown &rarr; <code>Benefits</code>.
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Set realistic target dates beyond go-live — most benefits realize over months,
+                    not on the day the project closes.
+                  </p>
                 </CardContent>
               </Card>
             </section>
@@ -1791,6 +2169,22 @@ export default function UserGuide() {
                     <Badge variant="outline" className="border-yellow-500 text-yellow-600">Medium</Badge>
                     <Badge variant="outline" className="border-slate-400 text-slate-600">Low</Badge>
                   </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    Any time the team makes a non-trivial choice — scope trade-off, vendor selection, schedule
+                    re-baseline. Logging it in the moment beats trying to reconstruct context months later.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Open a project &rarr; <em>More</em> dropdown &rarr; <code>Decisions</code>.
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Capture <em>options considered</em> alongside the chosen path — that's what
+                    makes the log useful when someone asks "why didn't we just&hellip;" three months later.
+                  </p>
                 </CardContent>
               </Card>
             </section>
@@ -1877,6 +2271,23 @@ export default function UserGuide() {
                   <p className="text-muted-foreground">
                     Access the dedicated Lessons Learned page from the sidebar to view lessons across all projects 
                     in your organization. Use filters to search by project, category, type, or status.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    Capture lessons in the moment they happen, then formally review them at project close — and revisit
+                    the org-wide list at the start of every new initiative as part of planning.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Sidebar &rarr; <code>Lessons Learned</code> for the org view, or open a project &rarr; <em>More</em>
+                    &rarr; <code>Lessons Learned</code> to scope to one project.
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Move lessons through the workflow — Draft to Approved — so the cross-project
+                    list shows only validated insights rather than half-formed observations.
                   </p>
                 </CardContent>
               </Card>
@@ -2381,6 +2792,22 @@ export default function UserGuide() {
                       <span><strong>Color-Coded Events:</strong> Different colors for different projects</span>
                     </li>
                   </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    Use the calendar when you need a date-based view of milestones and key dates — schedule planning,
+                    weekly look-aheads, or talking the leadership team through an upcoming month.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Sidebar &rarr; <code>Calendar</code>.
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Treat the calendar as an output, not an input — milestones come from the
+                    project's key dates, so to change what shows up here, edit the project.
+                  </p>
                 </CardContent>
               </Card>
             </section>
@@ -2832,6 +3259,23 @@ export default function UserGuide() {
                       <span><strong>Remove:</strong> Delete links that are no longer needed</span>
                     </li>
                   </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    To make non-FridayReport.AI tools — internal wikis, BI portals, intranet pages — reachable without
+                    asking people to remember a URL.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Org Settings &rarr; <em>Custom Links</em>. Configured links appear at the bottom of the sidebar for
+                    everyone in the organization.
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Use the embedded mode for tools that already render well in an iframe; use
+                    new-tab for anything that breaks under X-Frame-Options or needs SSO redirects.
+                  </p>
                 </CardContent>
               </Card>
             </section>
@@ -2927,6 +3371,22 @@ export default function UserGuide() {
                       <span><strong>Required Fields:</strong> Mark fields as required to ensure data is always captured</span>
                     </li>
                   </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    When the standard project record is missing something your organization tracks — strategic theme,
+                    cost center, business owner — define it once as a custom field and it's available on every project.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Org Settings &rarr; <em>Custom Fields</em>.
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Avoid making fields required until the team is in the habit of filling them —
+                    required fields on a half-adopted form just produce throwaway values.
+                  </p>
                 </CardContent>
               </Card>
             </section>
@@ -3016,6 +3476,23 @@ export default function UserGuide() {
                     Once created, custom tabs appear in the "More" dropdown menu on project detail pages alongside 
                     other features like Scoring, Benefits, and Decisions. Click on a custom tab to view its designed layout 
                     with the configured fields and sections.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    Once you've added several custom fields, group them into a tab so the project page stays readable
+                    instead of becoming a long scroll of inputs.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Org Settings &rarr; <em>Custom Tabs</em>. Configured tabs appear in each project's <em>More</em>
+                    dropdown.
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Keep tab names short — they show up in a dropdown and overflow becomes
+                    unreadable quickly.
                   </p>
                 </CardContent>
               </Card>
@@ -3166,6 +3643,23 @@ export default function UserGuide() {
                     Use the organization dropdown in the sidebar to switch between organizations. 
                     The current organization determines which data is displayed throughout the application.
                   </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    Anyone who works across multiple organizations (consultants, super-admins, multi-tenant operators)
+                    will use the switcher daily; everyone else can ignore it.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Top of the sidebar &mdash; the organization name doubles as a dropdown when you're a member of more
+                    than one.
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Re-read the sidebar after switching — portfolios, projects, vendors, and
+                    custom links all change with the active organization.
+                  </p>
                 </CardContent>
               </Card>
             </section>
@@ -3214,6 +3708,22 @@ export default function UserGuide() {
                       description="Sign out of the application"
                     />
                   </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    Update your display name, email, and notification preferences here. Org admins also use this menu
+                    to jump into Org Settings without leaving their current page.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Sidebar &rarr; click your avatar at the bottom of the sidebar.
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Set your timezone correctly on the profile screen — it drives when scheduled
+                    reports arrive in your inbox.
+                  </p>
                 </CardContent>
               </Card>
             </section>
@@ -3263,6 +3773,24 @@ export default function UserGuide() {
                       description="System-wide settings (Super Admins only)"
                     />
                   </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    The Settings hub is the entry point for organization-wide configuration: members, custom fields,
+                    custom tabs, custom links, integrations, and branding.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Sidebar &rarr; user menu &rarr; <code>Org Settings</code>. Settings pages are scoped to the active
+                    organization.
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Decide on custom fields and tabs <em>before</em> rolling the workspace out —
+                    retrofitting a structure on top of dozens of existing projects is much harder than getting it right
+                    on day one.
+                  </p>
                 </CardContent>
               </Card>
             </section>
@@ -3309,6 +3837,22 @@ export default function UserGuide() {
                   <p className="text-sm text-muted-foreground mt-4">
                     Your theme preference is saved automatically and will persist across sessions. 
                     Simply click the sun or moon icon in the header to toggle between themes instantly.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    Switch to dark mode for long evening sessions or bright office lighting; light mode is generally
+                    easier when projecting onto a screen for a meeting.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Header &rarr; sun / moon icon. Your choice is remembered per browser.
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Hit the toggle once during onboarding — the dark theme lands well with
+                    technical users and is easier to live in all day.
                   </p>
                 </CardContent>
               </Card>
@@ -3371,6 +3915,22 @@ export default function UserGuide() {
                     The notification bell icon in the header shows your unread notification count. Click it to view 
                     recent notifications, mark them as read, and navigate directly to the related project or task.
                   </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    Check the bell once or twice a day to clear your queue — it's the digest of mentions, assignments,
+                    and status changes that affect projects you're on.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Header &rarr; bell icon. Each notification deep-links to the related record.
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Mark items as read as you act on them — a constantly red badge stops being a
+                    useful signal.
+                  </p>
                 </CardContent>
               </Card>
             </section>
@@ -3431,6 +3991,22 @@ export default function UserGuide() {
                       <span><strong>Edit Schedule:</strong> Update frequency, recipients, or included dashboards at any time</span>
                     </li>
                   </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    Use scheduled reports to push status to people who don't log in — sponsors, finance partners,
+                    leadership — instead of asking them to come to you for the latest numbers.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Sidebar &rarr; <code>Scheduled Reports</code>.
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Match frequency to the audience's decision cadence — weekly for delivery
+                    teams, monthly for steering committees. Daily reports usually get muted within a week.
+                  </p>
                 </CardContent>
               </Card>
             </section>
@@ -3505,6 +4081,1115 @@ export default function UserGuide() {
                       <p className="text-sm text-muted-foreground">Track Terms of Service and Privacy Policy acceptance records with version history</p>
                     </div>
                   </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    Day-to-day platform operations: investigating support tickets, adjusting an org's plan, deactivating
+                    abandoned tenants, and reviewing engagement to spot organizations that need outreach.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Sidebar &rarr; user menu &rarr; <code>Super Admin</code>. Visible only to accounts with the Super
+                    Admin role.
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Prefer deactivation over hard delete — soft-delete keeps the audit trail and
+                    lets you reactivate a customer without restoring from backup.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+            )}
+
+            {activeSection === "gantt-timeline" && (
+            <section id="gantt-timeline">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                      <GanttChart className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Gantt & Timeline</CardTitle>
+                      <CardDescription>Visualize task schedules and dependencies on an interactive timeline</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Every project includes a Gantt-style timeline that visualizes tasks across days, weeks, months, or quarters.
+                    Drag bars to reschedule, link tasks to create dependencies, and use the critical path overlay to spot the
+                    sequence of work that drives your end date.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Core Capabilities:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    <FeatureHighlight icon={GanttChart} title="Drag-to-Reschedule" description="Move task bars to change start/end dates; durations recalculate automatically" color="blue" />
+                    <FeatureHighlight icon={GitMerge} title="Dependencies" description="Link tasks with finish-to-start, start-to-start, finish-to-finish, or start-to-finish relationships" color="purple" />
+                    <FeatureHighlight icon={Activity} title="Critical Path" description="Highlight the longest chain of dependent tasks that determines project completion" color="red" />
+                    <FeatureHighlight icon={Milestone} title="Milestones" description="Zero-duration markers stand out on the timeline as diamond shapes for major checkpoints" color="orange" />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Zoom Levels:</h4>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <Badge variant="outline">Day</Badge>
+                    <Badge variant="outline">Week</Badge>
+                    <Badge variant="outline">Month</Badge>
+                    <Badge variant="outline">Quarter</Badge>
+                    <Badge variant="outline">Year</Badge>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Working with the Timeline:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Today Marker:</strong> A vertical line shows the current date so you can quickly compare planned vs. actual progress</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Progress Overlay:</strong> Each bar fills proportionally with the task's percent-complete value</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Group by Phase:</strong> Tasks can be grouped into phases or summary tasks that roll up dates and progress</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Baselines:</strong> Save a snapshot of the planned schedule, then compare it against the live plan to track slippage</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Print &amp; Export:</strong> Export the timeline as PDF or PNG for status meetings and stakeholder reports</span></li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">Imported Schedules:</h4>
+                  <p className="text-muted-foreground">
+                    Plans imported from Microsoft Planner Premium / Project for the Web, Microsoft Project (.mpp), or
+                    Excel/CSV files appear in the Gantt with their original durations, hierarchy, and dependencies preserved.
+                    Imported tasks are read-only by default to keep them in sync with the source system.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+            )}
+
+            {activeSection === "pmo-radar" && (
+            <section id="pmo-radar">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-100 dark:bg-cyan-900/30">
+                      <Radar className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+                    </div>
+                    <div>
+                      <CardTitle>PMO Radar</CardTitle>
+                      <CardDescription>Early-warning system for portfolio-level risk and health</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    PMO Radar continuously scans every project across your organization and surfaces the ones that need
+                    attention. Instead of clicking through dozens of dashboards, you see a single ranked list of issues
+                    with the underlying signals that triggered each alert.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Signal Categories:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                      <Badge className="bg-red-100 text-red-700">Schedule</Badge>
+                      <p className="text-sm text-muted-foreground mt-1">Tasks past their due date, milestones at risk, slipping critical path</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800">
+                      <Badge className="bg-orange-100 text-orange-700">Budget</Badge>
+                      <p className="text-sm text-muted-foreground mt-1">Burn rate exceeding plan, forecast over budget, unapproved variances</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
+                      <Badge className="bg-yellow-100 text-yellow-700">Quality</Badge>
+                      <p className="text-sm text-muted-foreground mt-1">Open critical issues, overdue defects, declining test pass rates</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                      <Badge className="bg-blue-100 text-blue-700">Engagement</Badge>
+                      <p className="text-sm text-muted-foreground mt-1">Stale status reports, missing weekly updates, low team activity</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800">
+                      <Badge className="bg-purple-100 text-purple-700">Risk</Badge>
+                      <p className="text-sm text-muted-foreground mt-1">High-severity risks without mitigation, expired risk reviews</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+                      <Badge className="bg-emerald-100 text-emerald-700">Resource</Badge>
+                      <p className="text-sm text-muted-foreground mt-1">Over-allocated team members, missing assignments, capacity gaps</p>
+                    </div>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Severity Levels:</h4>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge className="bg-red-100 text-red-700">Critical</Badge>
+                    <Badge className="bg-orange-100 text-orange-700">High</Badge>
+                    <Badge className="bg-yellow-100 text-yellow-700">Medium</Badge>
+                    <Badge variant="outline">Low</Badge>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Working the Radar:</h4>
+                  <div className="space-y-3">
+                    <ActionItem icon={Filter} title="Filter & Group" description="Filter by portfolio, owner, severity, or signal type to focus on what's yours to act on" />
+                    <ActionItem icon={Eye} title="Drill Down" description="Click any item to jump to the underlying project, task, risk, or issue with one click" />
+                    <ActionItem icon={CheckSquare} title="Acknowledge or Snooze" description="Mark items as acknowledged, snooze them for a defined period, or dismiss with a reason" />
+                    <ActionItem icon={Activity} title="Trend View" description="See how the count of red/yellow projects has changed over the last 30/60/90 days" />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    Open PMO Radar at the start of each day or week to triage what's slipping across your portfolios — it's
+                    much faster than opening every project status report individually.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Sidebar &rarr; <code>PMO Radar</code> (path <code>/pmo-radar</code>). Available to anyone with access to at
+                    least one portfolio.
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Filter to portfolios you own first — the unfiltered view often spans more work
+                    than is yours to act on.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+            )}
+
+            {activeSection === "powerbi-agent" && (
+            <section id="powerbi-agent">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                      <Bot className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Power BI Agent</CardTitle>
+                      <CardDescription>Ask questions about your portfolio in plain English</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    The Power BI Agent is an AI assistant that answers natural-language questions about your projects,
+                    portfolios, finances, and resources. It generates the right query against the analytics dataset and
+                    returns a chart or table you can drop straight into a status report.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Example Prompts:</h4>
+                  <div className="space-y-2">
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 text-sm">"Which projects are over budget this quarter?"</div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 text-sm">"Show me the top 10 most overdue tasks across the portfolio."</div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 text-sm">"Compare planned vs actual hours for the Marketing portfolio last month."</div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 text-sm">"List the resources allocated above 100% next sprint."</div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 text-sm">"Trend the open critical issues by week for 2026."</div>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">How It Works:</h4>
+                  <div className="space-y-3">
+                    <ActionItem icon={MessageSquare} title="Ask in Plain Language" description="Type a question or pick a suggested prompt — no DAX or SQL required" />
+                    <ActionItem icon={BarChart3} title="Auto-Visualize" description="The agent picks the most useful chart type (bar, line, pie, table) for the answer" />
+                    <ActionItem icon={Filter} title="Refine in Place" description="Follow up with 'group by portfolio' or 'limit to last 90 days' to iterate without starting over" />
+                    <ActionItem icon={Download} title="Pin & Export" description="Pin charts to a dashboard, export to Excel, or copy as an image for slides and emails" />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Data Sources:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span>The agent uses the same analytics tables that power Power BI integration: projects, portfolios, tasks, risks, issues, time entries, and invoices</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span>Results respect your organization permissions — you only see data from projects you have access to</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span>Every answer shows the underlying query so analysts can verify or extend the result in Power BI</span></li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Sidebar &rarr; <code>Power BI Agent</code> (path <code>/powerbi-agent</code>). Each conversation is kept on
+                    the page so you can scroll back to earlier prompts and answers.
+                  </p>
+
+                  <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 mt-3">
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      <strong>Tip:</strong> Be specific about the time window and grouping ("last 90 days, by portfolio") —
+                      vague prompts produce vague charts.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+            )}
+
+            {activeSection === "construction-overview" && (
+            <section id="construction-overview">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                      <HardHat className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Construction Suite</CardTitle>
+                      <CardDescription>Purpose-built tools for construction, EPC, and capital project teams</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    The Construction Suite layers field-ready modules on top of the standard project workspace so general
+                    contractors, owners, and subs can manage paperwork, field operations, and trades from a single tool.
+                    Each module follows the same role and permission model as the rest of FridayReport.AI.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Modules at a Glance:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <FeatureHighlight icon={ClipboardList} title="Daily Logs" description="Capture daily field activity, weather, manpower, and progress photos" color="orange" />
+                    <FeatureHighlight icon={HelpCircle} title="RFIs" description="Submit, route, and close out Requests for Information with full audit history" color="blue" />
+                    <FeatureHighlight icon={FileText} title="Submittals" description="Manage shop drawings, product data, and samples through the approval workflow" color="purple" />
+                    <FeatureHighlight icon={FileImage} title="Drawings" description="Upload, version, and markup construction drawings tied to sheets and revisions" color="green" />
+                    <FeatureHighlight icon={ListChecks} title="Punch List" description="Track close-out items by location and trade with photos and sign-offs" color="red" />
+                    <FeatureHighlight icon={ShieldCheck} title="Quality &amp; Safety" description="Inspections, observations, and incident reports with corrective actions" color="yellow" />
+                    <FeatureHighlight icon={Hammer} title="Bidding" description="Run invitations to bid, compare bidder responses, and award packages" color="orange" />
+                    <FeatureHighlight icon={Truck} title="Vendors" description="Maintain a vendor directory with insurance, prequal, and contact information" color="blue" />
+                    <FeatureHighlight icon={GitBranch} title="Change Orders" description="Originate, price, and execute prime / subcontract change orders" color="purple" />
+                    <FeatureHighlight icon={Receipt} title="Construction Invoices" description="Schedule-of-values billing for subcontractor invoices and owner pay applications, with retainage" color="green" />
+                    <FeatureHighlight icon={Mic} title="Meetings" description="Run OAC and coordination meetings with agendas, minutes, and action items" color="orange" />
+                    <FeatureHighlight icon={Mail} title="Correspondence" description="Track letters, transmittals, and formal notices with delivery records" color="blue" />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Where to Find It:</h4>
+                  <p className="text-muted-foreground">
+                    On any construction-flagged project the modules appear as tabs along the top of the project workspace.
+                    Organization admins can enable the suite on a per-project or per-portfolio basis from Organization
+                    Settings &rarr; Construction.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+            )}
+
+            {activeSection === "daily-logs" && (
+            <section id="daily-logs">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/30">
+                      <ClipboardList className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Daily Logs</CardTitle>
+                      <CardDescription>Capture what happened on site every day</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Daily Logs are the field journal for the project. Each log records weather, manpower, equipment,
+                    activities completed, delays encountered, visitors, and supporting photos. Logs are date-stamped and
+                    locked once approved so you have a defensible record for claims and audits.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">What Goes in a Log:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <ActionItem icon={Sun} title="Weather" description="Condition, temperature, wind speed, and precipitation" />
+                    <ActionItem icon={Users} title="Labor entries" description="One row per crew on site: company / trade, headcount, hours worked, notes" />
+                    <ActionItem icon={Hammer} title="Equipment entries" description="Equipment name, quantity, hours used, status, notes" />
+                    <ActionItem icon={UserCircle} title="Visitors" description="Free-text list of inspectors, owners, or third parties who visited the site" />
+                    <ActionItem icon={FileText} title="Notes" description="Narrative of the day — activities completed, delays, deliveries, issues" />
+                    <ActionItem icon={FileImage} title="Photos &amp; attachments" description="Upload images and files alongside each log" />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    Every day the site is active. The daily log is the contemporaneous field record used for billing
+                    disputes, schedule analysis, and as evidence in claims.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Project &rarr; Construction tab &rarr; <code>Daily Logs</code>, or sidebar path <code>/daily-logs</code>. Logs
+                    are unique per project per date.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Walkthrough:</h4>
+                  <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                    <li>Click <em>New Log</em> and pick a date</li>
+                    <li>Fill weather, then add labor and equipment rows for crews on site</li>
+                    <li>Write the narrative under <em>Notes</em>, attach photos, save</li>
+                    <li>Export the log to PDF when you need to send it out</li>
+                  </ol>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Logs back-fill nicely, but it's much harder to remember headcount three days
+                    later — log before you leave the trailer.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+            )}
+
+            {activeSection === "rfis" && (
+            <section id="rfis">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                      <HelpCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                      <CardTitle>RFIs (Requests for Information)</CardTitle>
+                      <CardDescription>Formally raise and resolve design questions</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Use RFIs to formally ask the design team for clarification on drawings, specs, or field conditions.
+                    Every RFI is auto-numbered, routed through reviewers, and time-stamped at each step so you can
+                    measure response times and protect the schedule when answers are slow.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Status:</h4>
+                  <p className="text-muted-foreground">
+                    A new RFI starts as <Badge className="bg-blue-100 text-blue-700">Open</Badge> and moves through your
+                    team's review until a response is accepted as the official answer and the RFI is closed.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    Whenever the field needs a written, traceable answer about the design — drawing conflicts, missing
+                    details, spec clarifications, substitutions.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Project &rarr; Construction &rarr; <code>RFIs</code> (path <code>/rfis</code>).
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Creating an RFI:</h4>
+                  <div className="space-y-3">
+                    <ActionItem icon={Plus} title="Number &amp; subject" description="The RFI number is auto-assigned per project; add a clear subject" />
+                    <ActionItem icon={FileText} title="Question &amp; background" description="Describe the question, reference drawings / specs, and attach photos or markups" />
+                    <ActionItem icon={Users} title="Routing" description="Pick a primary reviewer (assigned to) and add a distribution list for cc'd parties" />
+                    <ActionItem icon={Clock} title="Required-By Date" description="Set the date a response is needed; SLA timers start as soon as the RFI is sent" />
+                    <ActionItem icon={MessageSquare} title="Discussion Thread" description="Replies, internal notes, and attachments stay together on the RFI record" />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Schedule &amp; Cost Impact:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span>Flag whether the RFI has cost or schedule impact, then link it to a future change order if it does</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span>Aging report shows open RFIs grouped by days outstanding and reviewer to surface bottlenecks</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span>Closed RFIs become part of the searchable project history and can be referenced from drawings or punch list items</span></li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </section>
+            )}
+
+            {activeSection === "submittals" && (
+            <section id="submittals">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                      <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Submittals</CardTitle>
+                      <CardDescription>Shop drawings, product data, and samples through formal review</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Submittals manage the formal exchange of shop drawings, product data sheets, samples, and mock-ups
+                    between subcontractors, the GC, and the design team. The module enforces a complete review chain
+                    with stamps, mark-ups, and revision tracking.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Submittal Types:</h4>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <Badge variant="secondary">Shop Drawings</Badge>
+                    <Badge variant="secondary">Product Data</Badge>
+                    <Badge variant="secondary">Samples</Badge>
+                    <Badge variant="secondary">Mock-ups</Badge>
+                    <Badge variant="secondary">Test Reports</Badge>
+                    <Badge variant="secondary">O&amp;M Manuals</Badge>
+                    <Badge variant="secondary">Warranties</Badge>
+                    <Badge variant="secondary">Closeout</Badge>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Review Outcomes:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20"><Badge className="bg-green-100 text-green-700">Approved</Badge><p className="text-sm text-muted-foreground mt-1">No exceptions; release for fabrication or installation</p></div>
+                    <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20"><Badge className="bg-yellow-100 text-yellow-700">Approved as Noted</Badge><p className="text-sm text-muted-foreground mt-1">Minor changes annotated; proceed with corrections</p></div>
+                    <div className="p-3 rounded-lg bg-orange-50 dark:bg-orange-900/20"><Badge className="bg-orange-100 text-orange-700">Revise &amp; Resubmit</Badge><p className="text-sm text-muted-foreground mt-1">Substantive changes required; new revision needed</p></div>
+                    <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20"><Badge className="bg-red-100 text-red-700">Rejected</Badge><p className="text-sm text-muted-foreground mt-1">Does not meet specifications; restart submittal</p></div>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Workflow Features:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Spec Section Tagging:</strong> Tie each submittal to a CSI spec section so coverage is easy to audit</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Revisions:</strong> Each new revision keeps the prior versions accessible with a clear history of changes</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Lead-Time Tracking:</strong> Capture fabrication and delivery lead times to feed the procurement schedule</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Submittal Log:</strong> The master log shows status, days in review, and required-on-site dates across all packages</span></li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </section>
+            )}
+
+            {activeSection === "drawings" && (
+            <section id="drawings">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/30">
+                      <FileImage className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Drawings</CardTitle>
+                      <CardDescription>Single source of truth for the current set of construction documents</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    The Drawings module stores every revision of every sheet so the field always works from the latest set.
+                    Sheets are organized by discipline and number, version controlled, and viewable directly in the
+                    browser without external software.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Sheet Organization:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Disciplines:</strong> Architectural, Structural, Mechanical, Electrical, Plumbing, Civil, Landscape, etc.</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Sheet Numbers:</strong> Standard prefixes (A-, S-, M-, E-, P-, C-) keep navigation predictable</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Sets:</strong> Group sheets by issue (Bid Set, IFC, As-Built) and switch between sets quickly</span></li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">Working with Sheets:</h4>
+                  <div className="space-y-3">
+                    <ActionItem icon={Plus} title="Upload sheets" description="Add drawings to a set with their drawing number, title, and discipline; upload PDF or image files as the current revision" />
+                    <ActionItem icon={RefreshCw} title="Versioning" description="Uploading a new revision on an existing drawing keeps prior revisions accessible in history" />
+                    <ActionItem icon={Edit} title="Markups" description="Annotate sheets directly in the viewer; markup data is stored alongside the revision" />
+                    <ActionItem icon={Download} title="Download" description="Download the current revision file at any time" />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    To keep the team working from one current set instead of emailed PDFs that go stale the moment the
+                    next addendum drops.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Project &rarr; Construction &rarr; <code>Drawings</code> (path <code>/drawings</code>).
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Keep set names disciplined ("IFC v3 – 2025-04-15") so the field can tell at a
+                    glance which set is current.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+            )}
+
+            {activeSection === "punch-list" && (
+            <section id="punch-list">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/30">
+                      <ListChecks className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Punch List</CardTitle>
+                      <CardDescription>Track close-out items from substantial completion to final acceptance</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    The Punch List module captures items that need to be fixed, completed, or replaced before the owner
+                    accepts the work. Items are tied to a location, a responsible trade, and a due date — and travel from
+                    open to verified with photo evidence at every step.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Status:</h4>
+                  <p className="text-muted-foreground">
+                    A punch item starts as <Badge className="bg-red-100 text-red-700">Open</Badge> and is closed once it
+                    has been fixed and verified. Status changes are kept in a history log for auditability.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Key fields:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Number, title, description, location</strong></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Category</strong> — group items (e.g. drywall, MEP, finishes)</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Priority:</strong> Low / Medium / High (defaults to Medium)</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Assigned to</strong> — pick the user responsible for resolving the item</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Due date and closed date</strong></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Photos</strong> — attach as many as you need; each photo carries a type so you can keep "issue" and "fixed" shots separate</span></li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    From substantial completion to final acceptance — anything that needs to be fixed, completed, or
+                    replaced before the owner signs off.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Project &rarr; Construction &rarr; <code>Punch List</code> (path <code>/punch-list</code>).
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Filter the list by assignee and export — that's the simplest way to hand each
+                    subcontractor their own punch.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+            )}
+
+            {activeSection === "quality-safety" && (
+            <section id="quality-safety">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
+                      <ShieldCheck className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Quality &amp; Safety</CardTitle>
+                      <CardDescription>Inspections, observations, and incidents with corrective actions</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Quality &amp; Safety brings inspection checklists, field observations, and incident reporting into one
+                    auditable workspace. Every item supports photos, follow-ups, and corrective actions so issues are
+                    actually closed instead of getting lost on a clipboard.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Record Types:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <FeatureHighlight icon={ShieldCheck} title="Inspections" description="Templated checklists for daily safety walks, pre-pour, mechanical roughs, etc." color="yellow" />
+                    <FeatureHighlight icon={Eye} title="Observations" description="One-off field notes for hazards, near-misses, and good catches" color="blue" />
+                    <FeatureHighlight icon={AlertTriangle} title="Incidents" description="Recordable events including injuries, property damage, and environmental spills" color="red" />
+                    <FeatureHighlight icon={CheckSquare} title="Corrective Actions" description="Assign, track, and verify the actions required to resolve a finding" color="green" />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Severity / Risk Levels:</h4>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <Badge variant="outline" className="border-red-500 text-red-600">Critical</Badge>
+                    <Badge variant="outline" className="border-orange-500 text-orange-600">High</Badge>
+                    <Badge variant="outline" className="border-yellow-500 text-yellow-600">Medium</Badge>
+                    <Badge variant="outline">Low</Badge>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Inspections in detail:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Inspection templates:</strong> Reusable checklists you fill out per inspection</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Inspections:</strong> Type, location, scheduled date, inspector, status (defaults to <em>Scheduled</em>), overall result, and per-line results</span></li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">Observations in detail:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Category:</strong> Defaults to <em>Safety</em></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Observation type:</strong> Negative or Positive</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Severity:</strong> Defaults to Low</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Status:</strong> Defaults to <em>Open</em>; closes when corrective actions are completed</span></li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">Incidents in detail:</h4>
+                  <p className="text-muted-foreground">
+                    Capture severity and a narrative; attach as many corrective actions as needed. Track each action to
+                    closure with an assignee and due date.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    Inspections for planned checklists, observations for one-off field notes, and incidents for
+                    recordable events — and the corrective actions that follow each.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Project &rarr; Construction &rarr; <code>Quality &amp; Safety</code> (path <code>/quality-safety</code>).
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Don't reserve this module for incidents — logging positive observations and
+                    near-misses surfaces leading indicators before something goes wrong.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+            )}
+
+            {activeSection === "bidding" && (
+            <section id="bidding">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/30">
+                      <Hammer className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Bidding</CardTitle>
+                      <CardDescription>Run invitations to bid and award packages with confidence</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    The Bidding module helps you invite vendors, distribute bid documents, collect responses, and tabulate
+                    pricing for award. Each bid package is its own workspace with documents, Q&amp;A, and a comparison grid.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Bid package fields:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Number, title, description, trade category, scope</strong></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Estimated budget, due date, pre-bid date</strong></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Status:</strong> Defaults to <em>Draft</em>; awarded packages capture the awarded vendor, amount, and date</span></li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">Bid invitations &amp; bids:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Invitation</strong> per vendor — status defaults to <em>Invited</em>; can be marked declined with a reason</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Bid record:</strong> total amount, alternates, bond included flag, valid-until date, evaluation score, recommended flag</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Bid line items</strong> for side-by-side tabulation</span></li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">Running a Package:</h4>
+                  <div className="space-y-3">
+                    <ActionItem icon={Plus} title="Create package" description="Define scope, trade category, estimated budget, and due dates" />
+                    <ActionItem icon={Truck} title="Invite vendors" description="Pick from the vendor directory or add new bidders by email" />
+                    <ActionItem icon={BarChart3} title="Tabulate bids" description="Compare bidders side by side using bid line items and your evaluation score" />
+                    <ActionItem icon={CheckSquare} title="Award" description="Mark the winner and capture the awarded vendor, amount, and date on the package" />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    When you're putting work out to bid — anything from a single trade package to a full prime contract
+                    solicitation.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Project &rarr; Construction &rarr; <code>Bidding</code> (path <code>/bidding</code>).
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Use the evaluation score to record more than just price — schedule, references,
+                    and exclusions matter, and the score makes the rationale defensible at award.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+            )}
+
+            {activeSection === "vendors" && (
+            <section id="vendors">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                      <Truck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Vendors</CardTitle>
+                      <CardDescription>Maintain your subcontractor and supplier directory</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    The Vendor directory is the master list of subcontractors and suppliers your organization works with.
+                    Each vendor record stores contact details, trade scopes, certificates of insurance, prequalification
+                    status, and historical performance ratings.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Vendor record fields:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <ActionItem icon={Building2} title="Company info" description="Company name, primary contact name, email, phone, website" />
+                    <ActionItem icon={Mail} title="Address" description="Street, city, state, zip" />
+                    <ActionItem icon={Hammer} title="Trade specialty" description="The scopes the vendor is qualified to perform" />
+                    <ActionItem icon={ShieldCheck} title="Compliance" description="License number, insurance expiry, bonding capacity" />
+                    <ActionItem icon={CheckSquare} title="Status" description="Defaults to Active; pause vendors who shouldn't be invited to bid" />
+                    <ActionItem icon={Star} title="Rating" description="Your overall confidence score for the vendor" />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Prequalification:</h4>
+                  <p className="text-muted-foreground">
+                    Each vendor can carry a prequalification record with safety, financial, quality, and experience
+                    ratings, EMR rate, OSHA 300 log, insurance certificate, bonding letter, and an overall score. The
+                    qualification status defaults to <em>Pending</em>.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    Whenever you need a controlled list of subs and suppliers across projects — bidding, awards,
+                    insurance compliance, and prequal all read from this directory.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Sidebar &rarr; <code>Vendors</code> (path <code>/vendors</code>).
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Set <em>insurance expiry</em> on every vendor — it's the single field that
+                    keeps you from paying a vendor whose coverage just lapsed.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+            )}
+
+            {activeSection === "change-orders" && (
+            <section id="change-orders">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                      <GitBranch className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Change Orders</CardTitle>
+                      <CardDescription>Originate, price, and execute changes to scope, cost, and schedule</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Change Orders manages every change to the prime contract and to subcontracts in a single workflow.
+                    Origination, pricing, owner approval, and subcontract execution are all linked so the budget,
+                    schedule, and contract values stay in sync.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Document Types:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <FeatureHighlight icon={AlertTriangle} title="PCO (Potential)" description="Identifies a potential change before pricing is finalized" color="yellow" />
+                    <FeatureHighlight icon={DollarSign} title="COR (Request)" description="Priced request submitted to the owner for approval" color="orange" />
+                    <FeatureHighlight icon={CheckSquare} title="OCO (Owner)" description="Executed owner change order modifying the prime contract" color="green" />
+                    <FeatureHighlight icon={GitMerge} title="SCO (Subcontract)" description="Change order issued to a subcontractor under their existing contract" color="purple" />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Key fields:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Change order number, title, description</strong></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Tier:</strong> Defaults to <em>PCO</em>; promote to a Change Order Request, an Owner Change Order, or a Subcontract Change Order as it progresses</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Status:</strong> Defaults to <em>Draft</em></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Reason code, cost impact, schedule impact in days</strong></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Original / revised contract amounts</strong></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Requested / reviewed / approved by &amp; dates</strong></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Promoted from</strong> — link back to the lower-tier change it grew out of</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Line items</strong> for the cost build-up</span></li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    For every change to scope, cost, or schedule — whether you're identifying a potential change, pricing
+                    a request to the owner, or issuing a change to a subcontractor.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Project &rarr; Construction &rarr; <code>Change Orders</code> (path <code>/change-orders</code>).
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Open a PCO the moment you see a potential change — even before pricing — so the
+                    trail starts at the point of discovery, not the day pricing arrives.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+            )}
+
+            {activeSection === "construction-invoices" && (
+            <section id="construction-invoices">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
+                      <Receipt className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Construction Invoices</CardTitle>
+                      <CardDescription>Schedule-of-values billing for subcontractor invoices and owner pay applications</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    The Construction Invoices module captures each billing period against a contract: what was billed
+                    last period, what's billed this period, what's left to bill, and what's been paid. Each invoice has
+                    line items that follow a schedule-of-values pattern.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Status:</h4>
+                  <p className="text-muted-foreground">
+                    A new invoice starts as <Badge variant="outline">Draft</Badge>. Status, submitted date, approved date,
+                    and paid date are all captured on the invoice record.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Key fields per invoice:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Invoice number, title, description</strong></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Vendor name &amp; email</strong></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Contract amount</strong> (base) and <strong>total amount</strong> (with approved changes)</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Previous billed, current billed, balance to finish</strong></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Retainage</strong> held this period</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Period from / period to</strong></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Paid amount</strong></span></li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">Line items:</h4>
+                  <p className="text-muted-foreground">
+                    Each line carries a scheduled value and a percent complete; the percent drives the current billed
+                    amount on that line.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    For each billing period — typically monthly — to record what was billed, what was paid, and what's
+                    left against the contract.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Project &rarr; Construction &rarr; <code>Construction Invoices</code> (path
+                    <code> /construction-invoices</code>).
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Reconcile the schedule of values against approved change orders before each
+                    billing — a missed change order on the SOV is the most common cause of an underbilled period.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+            )}
+
+            {activeSection === "meetings" && (
+            <section id="meetings">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100 dark:bg-orange-900/30">
+                      <Mic className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Meetings</CardTitle>
+                      <CardDescription>Run OAC, coordination, and subcontractor meetings with traceable minutes</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Meetings centralizes recurring construction meetings — Owner-Architect-Contractor, weekly subcontractor
+                    coordination, safety stand-downs — with structured agendas, attendance, minutes, and action items
+                    that carry forward week to week.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Meeting Types:</h4>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <Badge variant="secondary">OAC</Badge>
+                    <Badge variant="secondary">Subcontractor Coordination</Badge>
+                    <Badge variant="secondary">Safety</Badge>
+                    <Badge variant="secondary">Pre-Construction</Badge>
+                    <Badge variant="secondary">Pre-Installation</Badge>
+                    <Badge variant="secondary">Owner Update</Badge>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Key fields per meeting:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Meeting number, title, description</strong></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Meeting type</strong> — defaults to <em>General</em></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Status</strong> — defaults to <em>Scheduled</em></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Date, start time, end time, location</strong></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Attendees</strong> and <strong>minutes / notes</strong></span></li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">Agenda items:</h4>
+                  <p className="text-muted-foreground">
+                    Add as many agenda items as you need, each with a title, description, presenter, and duration. Tick
+                    them off as the meeting progresses.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Action items:</h4>
+                  <p className="text-muted-foreground">
+                    Capture commitments inside the meeting — title, description, assignee, due date, status (defaults to
+                    <em> Open</em>) and priority (defaults to <em>Medium</em>).
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    Owner-Architect-Contractor (OAC) meetings, subcontractor coordination, safety stand-downs,
+                    pre-installs — any meeting that needs an agenda, attendees, minutes, and follow-up actions.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Project &rarr; Construction &rarr; <code>Meetings</code> (path <code>/meetings</code>).
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Capture action items inside the meeting record as they're agreed — they carry
+                    an assignee and a due date, and they show up to action owners outside the meeting.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+            )}
+
+            {activeSection === "correspondence" && (
+            <section id="correspondence">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                      <Mail className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Correspondence</CardTitle>
+                      <CardDescription>Track formal letters, transmittals, and notices across the project</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Correspondence is the formal record of letters, transmittals, and notices sent between the parties on
+                    a project. Use it for anything that needs to be archived for the contract record — directives,
+                    notices of delay, transmittals of submittals or drawings, and meeting confirmations.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Document Types:</h4>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <Badge variant="secondary">Letter</Badge>
+                    <Badge variant="secondary">Transmittal</Badge>
+                    <Badge variant="secondary">Notice</Badge>
+                    <Badge variant="secondary">Directive</Badge>
+                    <Badge variant="secondary">Memo</Badge>
+                    <Badge variant="secondary">Email Capture</Badge>
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Key fields:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Correspondence number:</strong> Auto-assigned per project</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Type</strong> — defaults to <em>Letter</em></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Subject &amp; body</strong></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>From name / from email, to name / to email</strong></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Date</strong></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Status</strong> — defaults to <em>Draft</em></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Priority</strong> — defaults to <em>Normal</em></span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Attachments</strong></span></li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">When to use it:</h4>
+                  <p className="text-muted-foreground">
+                    For formal contractual communication — letters, transmittals, notices, directives, memos — that you
+                    need to find, cite, and reference later.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">How to access it:</h4>
+                  <p className="text-muted-foreground">
+                    Project &rarr; Construction &rarr; <code>Correspondence</code> (path <code>/correspondence</code>).
+                  </p>
+
+                  <p className="text-sm text-muted-foreground mt-3">
+                    <strong>Tip:</strong> Move items off <em>Draft</em> as soon as they're issued — anything still showing
+                    Draft is effectively unsent in an audit.
+                  </p>
+                </CardContent>
+              </Card>
+            </section>
+            )}
+
+            {activeSection === "templates" && (
+            <section id="templates">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
+                      <Copy className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Templates</CardTitle>
+                      <CardDescription>Spin up new projects, portfolios, and intake forms from reusable starting points</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Templates let you standardize how new work is created across your organization. Define a template once
+                    — with its task list, custom fields, custom tabs, scoring criteria, and intake form — and then create
+                    new projects (or invite intake submissions) that inherit that structure.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Template Types:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <FeatureHighlight icon={FolderKanban} title="Project Template" description="Pre-configured project with phases, tasks, key dates, and team roles" color="blue" />
+                    <FeatureHighlight icon={Briefcase} title="Portfolio Template" description="Strategy, scoring criteria, and standard reports for a class of portfolios" color="purple" />
+                    <FeatureHighlight icon={Inbox} title="Intake Form Template" description="Question set and approval workflow for new project requests" color="orange" />
+                    <FeatureHighlight icon={Star} title="Scoring Template" description="Weighted criteria reusable across projects in the same portfolio" color="yellow" />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Working with Templates:</h4>
+                  <div className="space-y-3">
+                    <ActionItem icon={Plus} title="Create from Existing" description="Save any project as a template to capture its structure for re-use" />
+                    <ActionItem icon={Edit} title="Curate the Library" description="Tag templates by industry or methodology so teams pick the right starting point" />
+                    <ActionItem icon={Settings} title="Apply on New" description="When creating a project, choose a template to pre-populate its content" />
+                    <ActionItem icon={RefreshCw} title="Apply to Existing" description="Selectively apply template components (e.g., add a custom tab) to in-flight projects" />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Governance:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span>Only org admins can publish or retire templates</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span>Templates can be marked Required for an intake type to enforce process consistency</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span>Template version history makes it safe to evolve templates without breaking existing projects</span></li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </section>
+            )}
+
+            {activeSection === "training" && (
+            <section id="training">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-pink-100 dark:bg-pink-900/30">
+                      <GraduationCap className="h-5 w-5 text-pink-600 dark:text-pink-400" />
+                    </div>
+                    <div>
+                      <CardTitle>Training (Friday Academy)</CardTitle>
+                      <CardDescription>Self-paced learning paths for every role on the platform</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-muted-foreground">
+                    Friday Academy is the in-app training portal. It groups short video lessons, quick quizzes, and
+                    walkthroughs into role-based learning paths so new users can ramp up without leaving the product.
+                  </p>
+
+                  <h4 className="font-semibold text-foreground mt-4">Learning Paths:</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <FeatureHighlight icon={UserCircle} title="Team Member" description="Day-to-day tasks: timesheets, tasks, issues, calendar, notifications" color="blue" />
+                    <FeatureHighlight icon={FolderKanban} title="Project Manager" description="Project setup, scheduling, risks, status reports, and stakeholder updates" color="green" />
+                    <FeatureHighlight icon={Briefcase} title="Portfolio Manager" description="Portfolio strategy, scoring, prioritization, and PMO Radar" color="purple" />
+                    <FeatureHighlight icon={Building2} title="Org Admin" description="User management, custom fields/tabs, integrations, and templates" color="orange" />
+                    <FeatureHighlight icon={HardHat} title="Construction Lead" description="Daily logs, RFIs, submittals, change orders, and pay apps" color="yellow" />
+                    <FeatureHighlight icon={BarChart3} title="Analyst" description="Power BI, scheduled reports, and the Power BI Agent" color="red" />
+                  </div>
+
+                  <h4 className="font-semibold text-foreground mt-4">Lesson Format:</h4>
+                  <ul className="space-y-2 text-muted-foreground">
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Short Videos:</strong> 2-5 minute lessons that get straight to the point</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Try It:</strong> Optional in-product walkthroughs that highlight the actual buttons</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Quick Quiz:</strong> 3-5 questions per lesson to confirm understanding</span></li>
+                    <li className="flex items-start gap-2"><ChevronRight className="h-4 w-4 mt-1 text-primary shrink-0" /><span><strong>Certificates:</strong> Completing a path earns a certificate that admins can verify</span></li>
+                  </ul>
+
+                  <h4 className="font-semibold text-foreground mt-4">Progress Tracking:</h4>
+                  <p className="text-muted-foreground">
+                    Each user sees their own completion progress on the Training page. Org admins can view team-wide
+                    completion to identify training gaps and roll out new lessons as part of onboarding plans.
+                  </p>
                 </CardContent>
               </Card>
             </section>

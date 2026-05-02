@@ -59,7 +59,25 @@ import {
   Sliders,
   LayoutTemplate,
   Menu,
-  X
+  X,
+  HardHat,
+  ClipboardList,
+  HelpCircle,
+  FileImage,
+  ShieldCheck,
+  Hammer,
+  Truck,
+  GitBranch,
+  Mic,
+  Mail,
+  Radar,
+  Bot,
+  GraduationCap,
+  Copy,
+  ListChecks,
+  Receipt,
+  MessageSquare,
+  GitMerge
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -81,19 +99,41 @@ const sections = [
   { id: "decisions", name: "Decision Log", icon: Scale },
   { id: "lessons", name: "Lessons Learned", icon: Lightbulb },
   { id: "tasks", name: "Tasks", icon: CheckSquare },
+  { id: "gantt-timeline", name: "Gantt & Timeline", icon: GanttChart },
   { id: "issues", name: "Issues", icon: CircleDot },
   { id: "timesheets", name: "Timesheets", icon: Clock },
   { id: "resources", name: "Resources", icon: UserCog },
   { id: "calendar", name: "Calendar", icon: Calendar },
+  { id: "invoices", name: "Invoices", icon: DollarSign },
+  { id: "simulation", name: "Simulation", icon: Activity },
+  { id: "pmo-radar", name: "PMO Radar", icon: Radar },
+  { id: "powerbi-agent", name: "Power BI Agent", icon: Bot },
+  { id: "construction-overview", name: "Construction Suite", icon: HardHat },
+  { id: "daily-logs", name: "Daily Logs", icon: ClipboardList },
+  { id: "rfis", name: "RFIs", icon: HelpCircle },
+  { id: "submittals", name: "Submittals", icon: FileText },
+  { id: "drawings", name: "Drawings", icon: FileImage },
+  { id: "punch-list", name: "Punch List", icon: ListChecks },
+  { id: "quality-safety", name: "Quality & Safety", icon: ShieldCheck },
+  { id: "bidding", name: "Bidding", icon: Hammer },
+  { id: "vendors", name: "Vendors", icon: Truck },
+  { id: "change-orders", name: "Change Orders", icon: GitBranch },
+  { id: "construction-invoices", name: "Construction Invoices", icon: Receipt },
+  { id: "meetings", name: "Meetings", icon: Mic },
+  { id: "correspondence", name: "Correspondence", icon: Mail },
   { id: "integrations", name: "Integrations", icon: Plug },
   { id: "custom-links", name: "Custom Links", icon: Link2 },
   { id: "custom-fields", name: "Custom Fields", icon: Sliders },
   { id: "custom-tabs", name: "Custom Tabs", icon: LayoutTemplate },
+  { id: "templates", name: "Templates", icon: Copy },
+  { id: "training", name: "Training", icon: GraduationCap },
   { id: "billing", name: "Billing & Credits", icon: CreditCard },
   { id: "organizations", name: "Organizations", icon: Building2 },
   { id: "users", name: "User Management", icon: Users },
   { id: "settings", name: "Settings", icon: Settings },
   { id: "themes", name: "Themes", icon: Moon },
+  { id: "notifications", name: "Notifications", icon: Flag },
+  { id: "reports", name: "Scheduled Reports", icon: FileText },
 ];
 
 export default function PublicUserGuide() {
@@ -897,6 +937,696 @@ export default function PublicUserGuide() {
                   <li><strong className="text-slate-200">Accent Colors:</strong> Choose from multiple accent color options</li>
                   <li><strong className="text-slate-200">Per-User Settings:</strong> Each user can set their preferred theme</li>
                   <li><strong className="text-slate-200">System Preference:</strong> Automatically match your device settings</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "gantt-timeline":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <GanttChart className="h-6 w-6 text-blue-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Gantt &amp; Timeline</h1>
+                <p className="text-slate-400">Visualize task schedules and dependencies</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p>Every project includes an interactive Gantt-style timeline with rich scheduling features:</p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Drag-to-Reschedule:</strong> Move bars to change dates; durations recalculate automatically</li>
+                  <li><strong className="text-slate-200">Dependencies:</strong> Finish-to-start, start-to-start, finish-to-finish, and start-to-finish links</li>
+                  <li><strong className="text-slate-200">Critical Path:</strong> Highlight the chain of dependent tasks driving project completion</li>
+                  <li><strong className="text-slate-200">Milestones:</strong> Diamond markers for major checkpoints</li>
+                  <li><strong className="text-slate-200">Zoom Levels:</strong> Day, week, month, quarter, year</li>
+                  <li><strong className="text-slate-200">Baselines:</strong> Snapshot the planned schedule and track slippage</li>
+                  <li><strong className="text-slate-200">Export:</strong> Print or export to PDF/PNG for status meetings</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "invoices":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                <DollarSign className="h-6 w-6 text-emerald-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Invoices</h1>
+                <p className="text-slate-400">Track and manage invoices from external systems</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p>Track invoices imported from external accounting and ERP systems:</p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Statuses:</strong> Draft, Pending, Paid, Overdue, Cancelled</li>
+                  <li><strong className="text-slate-200">Dynamics 365 Sync:</strong> Automatic invoice import from Microsoft Dynamics 365</li>
+                  <li><strong className="text-slate-200">Filtering:</strong> Find invoices quickly by status, project, or vendor</li>
+                  <li><strong className="text-slate-200">Project Linking:</strong> Tie invoices back to the originating project for cost reporting</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "simulation":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                <Activity className="h-6 w-6 text-orange-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Simulation</h1>
+                <p className="text-slate-400">Monte Carlo-style portfolio forecasting</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p>Run scenario simulations to forecast portfolio outcomes before they happen:</p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Scenarios:</strong> Baseline, Optimistic, Pessimistic, Risk-Heavy, Resource Constrained</li>
+                  <li><strong className="text-slate-200">Real-Time Controls:</strong> Play, pause, and step through simulations</li>
+                  <li><strong className="text-slate-200">Budget Variance:</strong> Probability-weighted budget projections</li>
+                  <li><strong className="text-slate-200">Schedule Variance:</strong> Forecast delays and acceleration per project</li>
+                  <li><strong className="text-slate-200">Resource Forecasting:</strong> Predicted resource demand and capacity gaps</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "pmo-radar":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-cyan-500/10 flex items-center justify-center">
+                <Radar className="h-6 w-6 text-cyan-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">PMO Radar</h1>
+                <p className="text-slate-400">Portfolio-wide early-warning view of projects that need attention</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p><strong className="text-slate-200">When to use it:</strong> When you own a portfolio (or several) and need a single screen that highlights the projects pulling the portfolio off-track instead of clicking into every status report.</p>
+                <p><strong className="text-slate-200">How to access it:</strong> Sidebar &rarr; <code className="text-cyan-300">PMO Radar</code> (path <code className="text-cyan-300">/pmo-radar</code>). The link is visible to anyone with access to at least one portfolio.</p>
+                <p><strong className="text-slate-200">What you see:</strong></p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Signal Categories:</strong> Schedule, Budget, Quality, Engagement, Risk, Resource</li>
+                  <li><strong className="text-slate-200">Severity:</strong> Critical, High, Medium, Low</li>
+                  <li><strong className="text-slate-200">Filters:</strong> Portfolio, owner, severity, signal type</li>
+                  <li><strong className="text-slate-200">Drill Down:</strong> Click any row to open the underlying project, task, risk, or issue</li>
+                  <li><strong className="text-slate-200">Trends:</strong> Track red/yellow project counts over time</li>
+                </ul>
+                <p className="text-sm text-slate-500"><strong className="text-slate-300">Tip:</strong> Filter by <em>your</em> owned portfolios first — the unfiltered list often spans more work than is yours to act on.</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "powerbi-agent":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                <Bot className="h-6 w-6 text-purple-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Power BI Agent</h1>
+                <p className="text-slate-400">Ask questions about your portfolio in plain English</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p><strong className="text-slate-200">When to use it:</strong> When you want a chart or number from your portfolio data and don't want to hand-build it in Power BI or Excel.</p>
+                <p><strong className="text-slate-200">How to access it:</strong> Sidebar &rarr; <code className="text-purple-300">Power BI Agent</code> (path <code className="text-purple-300">/powerbi-agent</code>).</p>
+                <p><strong className="text-slate-200">How it works:</strong></p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Plain language prompt:</strong> Type a question such as "Which projects are over budget this quarter?" or "Top 10 overdue tasks by owner"</li>
+                  <li><strong className="text-slate-200">Suggested visualisation:</strong> The agent picks a chart type that fits the answer (bar, line, table, KPI)</li>
+                  <li><strong className="text-slate-200">Refine in place:</strong> Follow-up prompts like "group by portfolio" or "limit to the last 90 days"</li>
+                  <li><strong className="text-slate-200">Permissions respected:</strong> Results only include data you already have access to</li>
+                  <li><strong className="text-slate-200">Conversation history:</strong> Previous prompts and answers stay visible for audit</li>
+                </ul>
+                <p className="text-sm text-slate-500"><strong className="text-slate-300">Tip:</strong> Be specific about the time window and grouping ("last 90 days, by portfolio") — vague prompts produce vague charts.</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "construction-overview":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                <HardHat className="h-6 w-6 text-amber-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Construction Suite</h1>
+                <p className="text-slate-400">Field-ready modules for general contractors and owners</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p>The Construction Suite layers purpose-built modules on top of every project workspace:</p>
+                <div className="grid sm:grid-cols-2 gap-3 mt-2">
+                  <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-700"><strong className="text-slate-200">Daily Logs</strong><p className="text-sm text-slate-400">Field activity, weather, manpower, photos</p></div>
+                  <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-700"><strong className="text-slate-200">RFIs</strong><p className="text-sm text-slate-400">Requests for Information with full audit history</p></div>
+                  <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-700"><strong className="text-slate-200">Submittals</strong><p className="text-sm text-slate-400">Shop drawings and product data approval flow</p></div>
+                  <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-700"><strong className="text-slate-200">Drawings</strong><p className="text-sm text-slate-400">Versioned sheets with markup and revisions</p></div>
+                  <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-700"><strong className="text-slate-200">Punch List</strong><p className="text-sm text-slate-400">Close-out items by location and trade</p></div>
+                  <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-700"><strong className="text-slate-200">Quality &amp; Safety</strong><p className="text-sm text-slate-400">Inspections, observations, and incidents</p></div>
+                  <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-700"><strong className="text-slate-200">Bidding</strong><p className="text-sm text-slate-400">Invitations to bid, tabulation, and award</p></div>
+                  <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-700"><strong className="text-slate-200">Vendors</strong><p className="text-sm text-slate-400">Subcontractor directory with insurance and prequal</p></div>
+                  <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-700"><strong className="text-slate-200">Change Orders</strong><p className="text-sm text-slate-400">PCO, COR, OCO, SCO with pricing build-up</p></div>
+                  <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-700"><strong className="text-slate-200">Pay Apps</strong><p className="text-sm text-slate-400">Schedule-of-values billing with retainage</p></div>
+                  <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-700"><strong className="text-slate-200">Meetings</strong><p className="text-sm text-slate-400">OAC and coordination minutes with action items</p></div>
+                  <div className="p-3 rounded-lg bg-slate-900/40 border border-slate-700"><strong className="text-slate-200">Correspondence</strong><p className="text-sm text-slate-400">Formal letters, transmittals, and notices</p></div>
+                </div>
+                <p className="text-sm text-slate-400 mt-2">Org admins enable the suite on a per-project or per-portfolio basis from Organization Settings &rarr; Construction.</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "daily-logs":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                <ClipboardList className="h-6 w-6 text-orange-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Daily Logs</h1>
+                <p className="text-slate-400">Capture what happened on site every day</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p><strong className="text-slate-200">When to use it:</strong> Every day the site is active. The daily log is your contemporaneous field record — used for billing disputes, schedule analysis, and as evidence if a claim arises.</p>
+                <p><strong className="text-slate-200">How to access it:</strong> Open a project &rarr; Construction tab &rarr; <code className="text-orange-300">Daily Logs</code>, or go straight to <code className="text-orange-300">/daily-logs</code>.</p>
+                <p><strong className="text-slate-200">Key fields on a log:</strong></p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Log date:</strong> The day the work happened (one log per project per day)</li>
+                  <li><strong className="text-slate-200">Weather:</strong> Condition, temperature, wind speed, precipitation</li>
+                  <li><strong className="text-slate-200">Labor entries:</strong> Company / trade, headcount, hours worked, notes</li>
+                  <li><strong className="text-slate-200">Equipment entries:</strong> Equipment name, quantity, hours used, status, notes</li>
+                  <li><strong className="text-slate-200">Visitors:</strong> Free-text list of inspectors, owners, third parties on site</li>
+                  <li><strong className="text-slate-200">Notes:</strong> Narrative of the day — activities, delays, deliveries</li>
+                  <li><strong className="text-slate-200">Photos &amp; attachments:</strong> Upload images and files with each log</li>
+                </ul>
+                <p><strong className="text-slate-200">Walkthrough:</strong></p>
+                <ol className="list-decimal list-inside space-y-1 text-slate-400">
+                  <li>Click <em>New Log</em> and pick a date</li>
+                  <li>Fill weather (or accept the auto-suggested values)</li>
+                  <li>Add a labor row per crew on site, then equipment rows</li>
+                  <li>Write the narrative under <em>Notes</em>, attach photos, save</li>
+                  <li>Export the log to PDF for distribution</li>
+                </ol>
+                <p className="text-sm text-slate-500"><strong className="text-slate-300">Tip:</strong> Logs back-fill nicely, but it's much harder to remember headcount three days later — get into the habit of logging before you leave the trailer.</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "rfis":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <HelpCircle className="h-6 w-6 text-blue-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">RFIs</h1>
+                <p className="text-slate-400">Formally raise and resolve design questions</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p><strong className="text-slate-200">When to use it:</strong> Whenever the field needs a written, traceable answer about the design — conflicts on the drawings, missing details, spec clarifications, substitutions.</p>
+                <p><strong className="text-slate-200">How to access it:</strong> Project &rarr; Construction &rarr; <code className="text-blue-300">RFIs</code> (path <code className="text-blue-300">/rfis</code>).</p>
+                <p><strong className="text-slate-200">Key fields on an RFI:</strong></p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">RFI number:</strong> Auto-assigned per project</li>
+                  <li><strong className="text-slate-200">Subject &amp; question:</strong> The clarifying request itself</li>
+                  <li><strong className="text-slate-200">Status:</strong> Defaults to <em>Open</em>; closes when an answer is accepted</li>
+                  <li><strong className="text-slate-200">Priority:</strong> Low / Medium / High (defaults to Medium)</li>
+                  <li><strong className="text-slate-200">Category, assigned to, due date</strong></li>
+                  <li><strong className="text-slate-200">Distribution list:</strong> Additional parties cc'd on the thread</li>
+                  <li><strong className="text-slate-200">Cost &amp; schedule impact flags</strong> with optional dollar / day estimates</li>
+                  <li><strong className="text-slate-200">References &amp; attachments</strong> — link drawings, specs, photos</li>
+                  <li><strong className="text-slate-200">Responses:</strong> Multiple replies per RFI; one can be marked the <em>official</em> answer</li>
+                </ul>
+                <p className="text-sm text-slate-500"><strong className="text-slate-300">Tip:</strong> If the answer changes scope, flag the cost/schedule impact when you log the RFI — it makes the change-order conversation much shorter later.</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "submittals":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                <FileText className="h-6 w-6 text-purple-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Submittals</h1>
+                <p className="text-slate-400">Shop drawings, product data, samples, and mock-ups</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p><strong className="text-slate-200">When to use it:</strong> For every submittal required by the specifications — shop drawings, product data, samples, mock-ups, O&amp;M manuals, warranties, closeout deliverables.</p>
+                <p><strong className="text-slate-200">How to access it:</strong> Project &rarr; Construction &rarr; <code className="text-purple-300">Submittals</code> (path <code className="text-purple-300">/submittals</code>).</p>
+                <p><strong className="text-slate-200">Key fields on a submittal:</strong></p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Submittal number, title, description</strong></li>
+                  <li><strong className="text-slate-200">Spec section</strong> — CSI section reference</li>
+                  <li><strong className="text-slate-200">Type:</strong> Defaults to <em>Product Data</em>; choose Shop Drawings, Sample, Mock-up, etc.</li>
+                  <li><strong className="text-slate-200">Status:</strong> Defaults to <em>Pending</em> through review</li>
+                  <li><strong className="text-slate-200">Submitted by, reviewer</strong></li>
+                  <li><strong className="text-slate-200">Submit / required / received / reviewed dates</strong> and <strong>lead time</strong> in days</li>
+                  <li><strong className="text-slate-200">Cost &amp; schedule impact</strong> flags</li>
+                  <li><strong className="text-slate-200">Attachments &amp; current revision</strong> — every revision is kept with its own status and review notes</li>
+                </ul>
+                <p className="text-sm text-slate-500"><strong className="text-slate-300">Tip:</strong> Set <em>required date</em> based on procurement lead time, not the install date — long-lead items often drive the schedule before they're even ordered.</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "drawings":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-green-500/10 flex items-center justify-center">
+                <FileImage className="h-6 w-6 text-green-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Drawings</h1>
+                <p className="text-slate-400">Single source of truth for the current set of construction documents</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p><strong className="text-slate-200">When to use it:</strong> To keep the team working from one current set instead of emailed PDFs that go stale the moment the next addendum drops.</p>
+                <p><strong className="text-slate-200">How to access it:</strong> Project &rarr; Construction &rarr; <code className="text-green-300">Drawings</code> (path <code className="text-green-300">/drawings</code>).</p>
+                <p><strong className="text-slate-200">How it's organised:</strong></p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Drawing sets</strong> — name and discipline (e.g. "Bid Set – Architectural", "IFC – MEP")</li>
+                  <li><strong className="text-slate-200">Drawings</strong> within a set — drawing number, title, discipline, status (defaults to <em>Current</em>), description</li>
+                  <li><strong className="text-slate-200">Revisions</strong> — each upload is a numbered/versioned revision with the file URL, name, type, and a thumbnail</li>
+                  <li><strong className="text-slate-200">Markups</strong> — annotate sheets directly in the viewer; the markup data is stored alongside the revision</li>
+                </ul>
+                <p><strong className="text-slate-200">Walkthrough:</strong></p>
+                <ol className="list-decimal list-inside space-y-1 text-slate-400">
+                  <li>Create or open a drawing set</li>
+                  <li>Add drawings (number, title, discipline) and upload the file as the current revision</li>
+                  <li>When a new revision arrives, upload it on the existing drawing — older revisions remain accessible in history</li>
+                  <li>Open a sheet in the viewer to add markups</li>
+                </ol>
+                <p className="text-sm text-slate-500"><strong className="text-slate-300">Tip:</strong> Keep set names disciplined ("IFC v3 – 2025-04-15") so the field can tell at a glance which set is current.</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "punch-list":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-red-500/10 flex items-center justify-center">
+                <ListChecks className="h-6 w-6 text-red-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Punch List</h1>
+                <p className="text-slate-400">Track close-out items from substantial completion to acceptance</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p><strong className="text-slate-200">When to use it:</strong> From substantial completion to final acceptance — anything that needs to be fixed, completed or replaced before the owner signs off.</p>
+                <p><strong className="text-slate-200">How to access it:</strong> Project &rarr; Construction &rarr; <code className="text-red-300">Punch List</code> (path <code className="text-red-300">/punch-list</code>).</p>
+                <p><strong className="text-slate-200">Key fields per item:</strong></p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Number, title, description, location</strong></li>
+                  <li><strong className="text-slate-200">Category</strong> — group items (e.g. drywall, MEP, finishes)</li>
+                  <li><strong className="text-slate-200">Priority:</strong> Low / Medium / High (defaults to Medium)</li>
+                  <li><strong className="text-slate-200">Status:</strong> Defaults to <em>Open</em>; status changes are kept in a history log</li>
+                  <li><strong className="text-slate-200">Assigned to, due date, closed date</strong></li>
+                  <li><strong className="text-slate-200">Photos</strong> — attach as many as you need; each photo carries a type so you can keep "issue" and "fixed" shots separate</li>
+                </ul>
+                <p className="text-sm text-slate-500"><strong className="text-slate-300">Tip:</strong> Filter the list by assignee and export — that's the simplest way to hand each subcontractor their own punch.</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "quality-safety":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+                <ShieldCheck className="h-6 w-6 text-yellow-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Quality &amp; Safety</h1>
+                <p className="text-slate-400">Inspections, observations, and incidents with corrective actions</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p><strong className="text-slate-200">When to use it:</strong> For inspections (planned checklists), observations (one-off field notes) and incidents (recordable events) — and the corrective actions that follow each.</p>
+                <p><strong className="text-slate-200">How to access it:</strong> Project &rarr; Construction &rarr; <code className="text-yellow-300">Quality &amp; Safety</code> (path <code className="text-yellow-300">/quality-safety</code>).</p>
+                <p><strong className="text-slate-200">What's inside:</strong></p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Inspection templates:</strong> Reusable checklists you fill out per inspection</li>
+                  <li><strong className="text-slate-200">Inspections:</strong> Type, location, scheduled date, inspector, status (defaults to <em>Scheduled</em>), overall result, line-item results</li>
+                  <li><strong className="text-slate-200">Incidents:</strong> Severity, status, narrative, with linked corrective actions</li>
+                  <li><strong className="text-slate-200">Observations:</strong> Category (defaults to <em>Safety</em>), observation type (Negative / Positive), severity (defaults to Low), status (defaults to <em>Open</em>), with corrective actions</li>
+                </ul>
+                <p className="text-sm text-slate-500"><strong className="text-slate-300">Tip:</strong> Don't reserve this module for incidents — logging positive observations and near-misses is what surfaces leading indicators before something goes wrong.</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "bidding":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                <Hammer className="h-6 w-6 text-orange-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Bidding</h1>
+                <p className="text-slate-400">Run invitations to bid and award packages with confidence</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p><strong className="text-slate-200">When to use it:</strong> When you're putting work out to bid — anything from a single trade package to a full prime contract solicitation.</p>
+                <p><strong className="text-slate-200">How to access it:</strong> Project &rarr; Construction &rarr; <code className="text-orange-300">Bidding</code> (path <code className="text-orange-300">/bidding</code>).</p>
+                <p><strong className="text-slate-200">Bid package fields:</strong></p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Number, title, description, trade category, scope</strong></li>
+                  <li><strong className="text-slate-200">Estimated budget, due date, pre-bid date</strong></li>
+                  <li><strong className="text-slate-200">Status:</strong> Defaults to <em>Draft</em>; awarded packages capture awarded vendor, amount and date</li>
+                  <li><strong className="text-slate-200">Bid invitations:</strong> One per invited vendor — status defaults to <em>Invited</em>; can be marked declined with a reason</li>
+                  <li><strong className="text-slate-200">Bids:</strong> Total amount, alternates, bond included flag, valid-until date, evaluation score, recommended flag</li>
+                  <li><strong className="text-slate-200">Bid line items:</strong> Side-by-side comparison across bidders</li>
+                </ul>
+                <p className="text-sm text-slate-500"><strong className="text-slate-300">Tip:</strong> Use the evaluation score to record more than just price — schedule, references and exclusions matter, and the score makes the rationale defensible at award.</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "vendors":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <Truck className="h-6 w-6 text-blue-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Vendors</h1>
+                <p className="text-slate-400">Maintain your subcontractor and supplier directory</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p><strong className="text-slate-200">When to use it:</strong> Whenever you need a controlled list of subs and suppliers across projects — bidding, awards, insurance compliance and prequal all read from this directory.</p>
+                <p><strong className="text-slate-200">How to access it:</strong> Sidebar &rarr; <code className="text-blue-300">Vendors</code> (path <code className="text-blue-300">/vendors</code>).</p>
+                <p><strong className="text-slate-200">Vendor record fields:</strong></p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Company name, primary contact name, email, phone, website</strong></li>
+                  <li><strong className="text-slate-200">Address, city, state, zip</strong></li>
+                  <li><strong className="text-slate-200">Trade specialty</strong></li>
+                  <li><strong className="text-slate-200">License number, insurance expiry, bonding capacity</strong></li>
+                  <li><strong className="text-slate-200">Status</strong> — defaults to <em>Active</em></li>
+                  <li><strong className="text-slate-200">Rating</strong> — your overall confidence score</li>
+                </ul>
+                <p><strong className="text-slate-200">Prequalification:</strong> Each vendor can carry a prequalification record with safety, financial, quality and experience ratings, EMR rate, OSHA 300 log, insurance certificate, bonding letter and an overall score. The qualification status defaults to <em>Pending</em>.</p>
+                <p className="text-sm text-slate-500"><strong className="text-slate-300">Tip:</strong> Set <em>insurance expiry</em> on every vendor — it's the single field that prevents you from cutting a check to a vendor whose coverage just lapsed.</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "change-orders":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                <GitBranch className="h-6 w-6 text-purple-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Change Orders</h1>
+                <p className="text-slate-400">Originate, price, and execute changes to scope, cost, and schedule</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p><strong className="text-slate-200">When to use it:</strong> For every change to scope, cost or schedule — whether you're identifying a potential change, pricing a request to the owner, or issuing a change to a subcontractor.</p>
+                <p><strong className="text-slate-200">How to access it:</strong> Project &rarr; Construction &rarr; <code className="text-purple-300">Change Orders</code> (path <code className="text-purple-300">/change-orders</code>).</p>
+                <p><strong className="text-slate-200">Key fields per change order:</strong></p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Change order number, title, description</strong></li>
+                  <li><strong className="text-slate-200">Tier:</strong> Defaults to <em>PCO</em> (potential); promote up to a Change Order Request, an Owner Change Order, or a Subcontract Change Order as it progresses</li>
+                  <li><strong className="text-slate-200">Status:</strong> Defaults to <em>Draft</em></li>
+                  <li><strong className="text-slate-200">Reason code, cost impact, schedule impact in days</strong></li>
+                  <li><strong className="text-slate-200">Original / revised contract amounts</strong></li>
+                  <li><strong className="text-slate-200">Requested / reviewed / approved by &amp; dates</strong></li>
+                  <li><strong className="text-slate-200">Promoted from</strong> — link back to the lower-tier change it grew out of</li>
+                  <li><strong className="text-slate-200">Line items</strong> for the cost build-up</li>
+                </ul>
+                <p className="text-sm text-slate-500"><strong className="text-slate-300">Tip:</strong> Open a PCO the moment you see a potential change — even before pricing — so the trail starts at the point of discovery, not the day pricing arrives.</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "construction-invoices":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                <Receipt className="h-6 w-6 text-emerald-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Construction Invoices</h1>
+                <p className="text-slate-400">Schedule-of-values billing for subcontractor invoices and owner pay applications</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p><strong className="text-slate-200">When to use it:</strong> For each billing period — typically monthly — to record what was billed, what was paid and what's left to bill against the contract.</p>
+                <p><strong className="text-slate-200">How to access it:</strong> Project &rarr; Construction &rarr; <code className="text-emerald-300">Construction Invoices</code> (path <code className="text-emerald-300">/construction-invoices</code>).</p>
+                <p><strong className="text-slate-200">Key fields on an invoice:</strong></p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Invoice number, title, description</strong></li>
+                  <li><strong className="text-slate-200">Vendor name &amp; email</strong></li>
+                  <li><strong className="text-slate-200">Contract amount</strong> (base) and <strong>total amount</strong> (with approved changes)</li>
+                  <li><strong className="text-slate-200">Previous billed, current billed, balance to finish</strong></li>
+                  <li><strong className="text-slate-200">Retainage</strong> held this period</li>
+                  <li><strong className="text-slate-200">Status:</strong> Defaults to <em>Draft</em>; track Submitted, Approved, Paid dates</li>
+                  <li><strong className="text-slate-200">Period from / period to</strong></li>
+                  <li><strong className="text-slate-200">Paid amount</strong></li>
+                </ul>
+                <p><strong className="text-slate-200">Line items</strong> follow a schedule-of-values pattern: each line has a scheduled value and a percent complete that drives current billed.</p>
+                <p className="text-sm text-slate-500"><strong className="text-slate-300">Tip:</strong> Reconcile the schedule of values against approved change orders before each billing — a missed change order on the SOV is the most common cause of an underbilled period.</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "meetings":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                <Mic className="h-6 w-6 text-orange-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Meetings</h1>
+                <p className="text-slate-400">Run OAC, coordination, and subcontractor meetings with traceable minutes</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p><strong className="text-slate-200">When to use it:</strong> Owner-Architect-Contractor (OAC) meetings, subcontractor coordination, safety stand-downs, pre-installs — any meeting that needs an agenda, attendees, minutes and follow-up actions.</p>
+                <p><strong className="text-slate-200">How to access it:</strong> Project &rarr; Construction &rarr; <code className="text-orange-300">Meetings</code> (path <code className="text-orange-300">/meetings</code>).</p>
+                <p><strong className="text-slate-200">Key fields on a meeting:</strong></p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Meeting number, title, description</strong></li>
+                  <li><strong className="text-slate-200">Meeting type</strong> — defaults to <em>General</em></li>
+                  <li><strong className="text-slate-200">Status</strong> — defaults to <em>Scheduled</em></li>
+                  <li><strong className="text-slate-200">Date, start time, end time, location</strong></li>
+                  <li><strong className="text-slate-200">Attendees</strong></li>
+                  <li><strong className="text-slate-200">Agenda items</strong> — title, description, presenter, duration</li>
+                  <li><strong className="text-slate-200">Action items</strong> — title, description, assignee, due date, status (defaults to <em>Open</em>), priority</li>
+                  <li><strong className="text-slate-200">Minutes / notes</strong></li>
+                </ul>
+                <p className="text-sm text-slate-500"><strong className="text-slate-300">Tip:</strong> Capture action items inside the meeting record as they're agreed — they carry an assignee and due date and become visible to owners outside the meeting.</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "correspondence":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <Mail className="h-6 w-6 text-blue-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Correspondence</h1>
+                <p className="text-slate-400">Track formal letters, transmittals, and notices</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p><strong className="text-slate-200">When to use it:</strong> For formal contractual communication — letters, transmittals, notices, directives, memos — that you need to find, cite and reference later.</p>
+                <p><strong className="text-slate-200">How to access it:</strong> Project &rarr; Construction &rarr; <code className="text-blue-300">Correspondence</code> (path <code className="text-blue-300">/correspondence</code>).</p>
+                <p><strong className="text-slate-200">Key fields per item:</strong></p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Correspondence number</strong> — auto-assigned per project</li>
+                  <li><strong className="text-slate-200">Type</strong> — defaults to <em>Letter</em></li>
+                  <li><strong className="text-slate-200">Subject &amp; body</strong></li>
+                  <li><strong className="text-slate-200">From name / from email, to name / to email</strong></li>
+                  <li><strong className="text-slate-200">Date</strong></li>
+                  <li><strong className="text-slate-200">Status</strong> — defaults to <em>Draft</em></li>
+                  <li><strong className="text-slate-200">Priority</strong> — defaults to <em>Normal</em></li>
+                  <li><strong className="text-slate-200">Attachments</strong></li>
+                </ul>
+                <p className="text-sm text-slate-500"><strong className="text-slate-300">Tip:</strong> Move items off <em>Draft</em> as soon as they're issued — anything still showing Draft is effectively unsent in an audit.</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "templates":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-indigo-500/10 flex items-center justify-center">
+                <Copy className="h-6 w-6 text-indigo-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Templates</h1>
+                <p className="text-slate-400">Spin up new projects, portfolios, and intake forms from reusable starting points</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p>Standardize how new work is created across your organization:</p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Project Templates:</strong> Pre-configured phases, tasks, key dates, team roles</li>
+                  <li><strong className="text-slate-200">Portfolio Templates:</strong> Strategy, scoring criteria, standard reports</li>
+                  <li><strong className="text-slate-200">Intake Templates:</strong> Question set and approval workflow for project requests</li>
+                  <li><strong className="text-slate-200">Scoring Templates:</strong> Reusable weighted criteria across portfolios</li>
+                  <li><strong className="text-slate-200">Save from Existing:</strong> Save any project as a template to capture its structure</li>
+                  <li><strong className="text-slate-200">Versioning:</strong> Evolve templates safely without breaking existing projects</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "training":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-pink-500/10 flex items-center justify-center">
+                <GraduationCap className="h-6 w-6 text-pink-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Training (Friday Academy)</h1>
+                <p className="text-slate-400">Self-paced learning paths for every role on the platform</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p>Friday Academy groups short video lessons, quick quizzes, and walkthroughs into role-based paths:</p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Team Member:</strong> Timesheets, tasks, issues, calendar, notifications</li>
+                  <li><strong className="text-slate-200">Project Manager:</strong> Project setup, scheduling, risks, status reports</li>
+                  <li><strong className="text-slate-200">Portfolio Manager:</strong> Portfolio strategy, scoring, prioritization, PMO Radar</li>
+                  <li><strong className="text-slate-200">Org Admin:</strong> User management, custom fields/tabs, integrations, templates</li>
+                  <li><strong className="text-slate-200">Construction Lead:</strong> Daily logs, RFIs, submittals, change orders, pay apps</li>
+                  <li><strong className="text-slate-200">Analyst:</strong> Power BI, scheduled reports, Power BI Agent</li>
+                  <li><strong className="text-slate-200">Lessons:</strong> 2-5 minute videos, in-product walkthroughs, quick quizzes, certificates</li>
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "notifications":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+                <Flag className="h-6 w-6 text-yellow-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Notifications</h1>
+                <p className="text-slate-400">Stay on top of changes that matter to you</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p><strong className="text-slate-200">When to use it:</strong> Tune what you get pinged about so the inbox stays useful.</p>
+                <p><strong className="text-slate-200">How to access it:</strong> Profile menu &rarr; Notification Preferences (or Settings &rarr; Notifications).</p>
+                <p><strong className="text-slate-200">What you can control:</strong></p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">In-app inbox:</strong> Assignments, status changes, mentions and approvals appear in the bell menu</li>
+                  <li><strong className="text-slate-200">Email:</strong> Choose whether each event type also goes to email</li>
+                  <li><strong className="text-slate-200">Per-event toggles:</strong> Turn individual event types on or off independently</li>
+                  <li><strong className="text-slate-200">Mentions:</strong> Get notified when someone @mentions you in a comment or note</li>
+                </ul>
+                <p className="text-sm text-slate-500"><strong className="text-slate-300">Tip:</strong> Start with everything on for a week, then turn off the categories you find yourself ignoring — it's the fastest way to find your signal-to-noise sweet spot.</p>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case "reports":
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                <FileText className="h-6 w-6 text-blue-400" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Scheduled Reports</h1>
+                <p className="text-slate-400">Automated status reports delivered on your schedule</p>
+              </div>
+            </div>
+            <Card className="bg-slate-800/50 border-slate-700">
+              <CardContent className="p-6 space-y-4 text-slate-300">
+                <p>Build report templates once and let the system deliver them on a recurring cadence:</p>
+                <ul className="list-disc list-inside space-y-2 text-slate-400">
+                  <li><strong className="text-slate-200">Templates:</strong> Project status, portfolio health, executive summary, financial roll-up</li>
+                  <li><strong className="text-slate-200">Schedule:</strong> Daily, weekly, monthly, quarterly with custom send time</li>
+                  <li><strong className="text-slate-200">Recipients:</strong> Internal users plus external email addresses</li>
+                  <li><strong className="text-slate-200">Filters:</strong> Limit to selected portfolios, projects, owners, or status</li>
+                  <li><strong className="text-slate-200">Format:</strong> PDF, Excel, or inline email body</li>
+                  <li><strong className="text-slate-200">History:</strong> Browse and re-send any past report</li>
                 </ul>
               </CardContent>
             </Card>
