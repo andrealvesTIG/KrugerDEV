@@ -165,20 +165,31 @@ export function registerJarvisRoutes(app: Express) {
         .update(`${conversationId}|${lastUserMessage?.content ?? ""}`)
         .digest("hex")
         .slice(0, 16);
+      const baseRequestId = `friday_chat_${conversationId}_${turnHash}`;
       const creditCtx = {
         userId,
         orgId: organizationId,
         action: "friday_chat",
         entityId: conversationId ?? undefined,
-        requestId: `friday_chat_${conversationId}_${turnHash}`,
+        requestId: baseRequestId,
       };
       let chargeUserId: string;
       try {
+        // Pre-flight enforcement so over-limit users get a normal 403 BEFORE
+        // we open the SSE stream. Per-call credits are recorded inside
+        // streamJarvisResponse via meterPerCall (one credit per OpenAI call,
+        // including any tool-loop rounds).
         ({ chargeUserId } = await enforceAiCredits(creditCtx));
       } catch (err) {
         if (sendLimitExceeded(res, err)) return;
         throw err;
       }
+      const meterPerCall = async (round: number): Promise<void> => {
+        await recordAiCredits(chargeUserId, {
+          ...creditCtx,
+          requestId: `${baseRequestId}_r${round}`,
+        });
+      };
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
@@ -196,10 +207,8 @@ export function registerJarvisRoutes(app: Express) {
           res.write(`data: ${JSON.stringify({ content })}\n\n`);
         },
         (fullResponse) => {
-          // Charge exactly one AI credit on successful completion.
-          recordAiCredits(chargeUserId, creditCtx).catch((err) => {
-            console.error("[JARVIS] Failed to record AI credit usage:", err);
-          });
+          // Per-call credits already recorded inside streamJarvisResponse via
+          // meterPerCall — nothing else to charge at completion.
           res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
           res.end();
           // Persist the assistant message
@@ -225,6 +234,7 @@ export function registerJarvisRoutes(app: Express) {
             res.status(500).json({ message: userMessage });
           }
         },
+        meterPerCall,
         pageContext ? { path: pageContext.path, entityType: pageContext.entityType, entityId: pageContext.entityId } : undefined,
         attachments,
       );

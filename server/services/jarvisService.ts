@@ -1383,6 +1383,7 @@ export async function streamJarvisResponse(
   onChunk: (content: string) => void,
   onDone: (fullResponse: string) => void,
   onError: (error: Error) => void,
+  meterPerCall: (round: number) => Promise<void>,
   pageContext?: PageContext,
   attachments?: FileAttachment[],
 ) {
@@ -1452,6 +1453,11 @@ CSV FILE IMPORT RULES:
         }),
         `stream round ${round}`,
       );
+      // Meter exactly one AI credit per OpenAI chat.completions.create call
+      // (a tool loop can issue up to MAX_TOOL_ROUNDS+1 calls per HTTP turn).
+      try { await meterPerCall(round); } catch (e: any) {
+        console.error(`[JARVIS] Failed to record per-call AI credit (round ${round}):`, e?.message || e);
+      }
 
       let currentToolCalls: Map<number, { id: string; name: string; arguments: string }> = new Map();
       let hasToolCalls = false;

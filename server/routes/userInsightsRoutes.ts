@@ -945,6 +945,10 @@ export function registerUserInsightsRoutes(app: Express) {
 
       res.json({ draft: saved, quota: { used: quota.used + 1, limit: quota.limit } });
     } catch (err) {
+      // Surface AI-credit limit errors as the standard 403 envelope so the
+      // admin UI can show the upgrade prompt instead of a generic 500.
+      const { sendLimitExceeded } = await import('../services/aiCredits');
+      if (sendLimitExceeded(res, err)) return;
       console.error('POST /api/admin/users/:userId/followup-draft failed:', err);
       res.status(500).json({ message: 'Failed to generate follow-up draft' });
     }

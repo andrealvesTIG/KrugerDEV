@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import OpenAI from "openai";
 import { chatStorage } from "./storage";
-import { getUserIdFromRequest } from "../../routes/helpers";
+import { getUserIdFromRequest, getUserOrgIds } from "../../routes/helpers";
 import {
   enforceAiCredits,
   recordAiCredits,
@@ -77,13 +77,24 @@ export function registerChatRoutes(app: Express): void {
         return res.status(401).json({ error: "Authentication required" });
       }
 
+      // Verify the caller belongs to the org they're billing — without
+      // this any user could drain another org's credits by passing a
+      // foreign organizationId in the body.
+      const requestedOrgId = organizationId ? Number(organizationId) : null;
+      if (requestedOrgId !== null) {
+        const memberOrgs = await getUserOrgIds(userId);
+        if (!memberOrgs.includes(requestedOrgId)) {
+          return res.status(403).json({ error: "You are not a member of this organization" });
+        }
+      }
+
       // Enforce AI credits BEFORE opening SSE stream so over-limit users
       // get a normal 403 they can render as an upgrade prompt.
       let chargeUserId: string;
       try {
         ({ chargeUserId } = await enforceAiCredits({
           userId,
-          orgId: organizationId ? Number(organizationId) : null,
+          orgId: requestedOrgId,
           action: "integrations_chat",
           entityId: conversationId,
         }));
@@ -131,7 +142,7 @@ export function registerChatRoutes(app: Express): void {
       // Record credits only after a successful generation
       await recordAiCredits(chargeUserId, {
         userId,
-        orgId: organizationId ? Number(organizationId) : null,
+        orgId: requestedOrgId,
         action: "integrations_chat",
         entityId: conversationId,
       });

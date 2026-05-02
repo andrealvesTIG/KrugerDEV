@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createHash } from "node:crypto";
 import { openai } from "./client";
-import { getUserIdFromRequest } from "../../routes/helpers";
+import { getUserIdFromRequest, getUserOrgIds } from "../../routes/helpers";
 import { withAiCredits, sendLimitExceeded } from "../../services/aiCredits";
 
 export function registerImageRoutes(app: Express): void {
@@ -18,6 +18,17 @@ export function registerImageRoutes(app: Express): void {
         return res.status(401).json({ error: "Authentication required" });
       }
 
+      // Verify the caller belongs to the org they're billing — without
+      // this any user could drain another org's credits by passing a
+      // foreign organizationId in the body.
+      const requestedOrgId = organizationId ? Number(organizationId) : null;
+      if (requestedOrgId !== null) {
+        const memberOrgs = await getUserOrgIds(userId);
+        if (!memberOrgs.includes(requestedOrgId)) {
+          return res.status(403).json({ error: "You are not a member of this organization" });
+        }
+      }
+
       // Stable per-request requestId so identical retries dedupe.
       const promptHash = createHash("sha256")
         .update(`${prompt}|${size}`)
@@ -26,7 +37,7 @@ export function registerImageRoutes(app: Express): void {
       const response = await withAiCredits(
         {
           userId,
-          orgId: organizationId ? Number(organizationId) : null,
+          orgId: requestedOrgId,
           action: "integrations_image_generate",
           requestId: `integrations_image_generate_${promptHash}`,
         },

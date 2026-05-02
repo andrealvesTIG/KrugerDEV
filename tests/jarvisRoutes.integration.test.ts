@@ -95,10 +95,13 @@ beforeEach(() => {
 });
 
 describe("POST /api/jarvis/chat — credit metering integration", () => {
-  it("enforces credits before SSE, then records exactly one credit on completion with a stable requestId", async () => {
+  it("enforces credits before SSE, then records ONE credit per OpenAI call via meterPerCall (round-suffixed requestId)", async () => {
     enforceAiCreditsMock.mockResolvedValue({ chargeUserId: TEST_USER });
     recordAiCreditsMock.mockResolvedValue(undefined);
 
+    // Simulate a single OpenAI call (no tool loop): meterPerCall(0) once,
+    // then onDone. Per-call metering happens inside the stream via the
+    // `meterPerCall` callback the route passes in.
     streamJarvisResponseMock.mockImplementation(
       async (
         _orgId: number,
@@ -107,7 +110,10 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
         _concise: boolean,
         onChunk: (s: string) => void,
         onDone: (s: string) => void,
+        _onError: any,
+        meterPerCall: (round: number) => Promise<void>,
       ) => {
+        await meterPerCall(0);
         onChunk("hello ");
         onChunk("world");
         onDone("hello world");
@@ -130,15 +136,54 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
     expect(enforceCtx.userId).toBe(TEST_USER);
     expect(enforceCtx.orgId).toBe(TEST_ORG);
     expect(enforceCtx.action).toBe("friday_chat");
-    expect(typeof enforceCtx.requestId).toBe("string");
     expect(enforceCtx.requestId).toMatch(/^friday_chat_\d+_[a-f0-9]{16}$/);
 
+    // Exactly one OpenAI call -> exactly one recordAiCredits, with the
+    // round-0 suffix derived from the upfront enforce requestId.
     expect(recordAiCreditsMock).toHaveBeenCalledTimes(1);
     expect(recordAiCreditsMock.mock.calls[0][0]).toBe(TEST_USER);
     const recordCtx = recordAiCreditsMock.mock.calls[0][1];
-    // Same requestId on enforce + record so the underlying usage_events
-    // table dedupes on retries.
-    expect(recordCtx.requestId).toBe(enforceCtx.requestId);
+    expect(recordCtx.requestId).toBe(`${enforceCtx.requestId}_r0`);
+  });
+
+  it("records ONE credit PER OpenAI call when the model issues a tool loop (not just one credit per HTTP turn)", async () => {
+    enforceAiCreditsMock.mockResolvedValue({ chargeUserId: TEST_USER });
+    recordAiCreditsMock.mockResolvedValue(undefined);
+
+    // Simulate a 3-round tool loop: 3 OpenAI calls in one HTTP request.
+    streamJarvisResponseMock.mockImplementation(
+      async (
+        _orgId,
+        _uid,
+        _msgs,
+        _concise,
+        _onChunk,
+        onDone,
+        _onError,
+        meterPerCall,
+      ) => {
+        await meterPerCall(0);
+        await meterPerCall(1);
+        await meterPerCall(2);
+        onDone("done");
+      },
+    );
+
+    const app = await buildApp();
+    const res = await request(app)
+      .post("/api/jarvis/chat")
+      .set("x-test-user-id", TEST_USER)
+      .send({
+        organizationId: TEST_ORG,
+        messages: [{ role: "user" as const, content: "Use the tools, please." }],
+      });
+
+    expect(res.status).toBe(200);
+    expect(recordAiCreditsMock).toHaveBeenCalledTimes(3);
+    const enforceReqId = enforceAiCreditsMock.mock.calls[0][0].requestId;
+    expect(recordAiCreditsMock.mock.calls[0][1].requestId).toBe(`${enforceReqId}_r0`);
+    expect(recordAiCreditsMock.mock.calls[1][1].requestId).toBe(`${enforceReqId}_r1`);
+    expect(recordAiCreditsMock.mock.calls[2][1].requestId).toBe(`${enforceReqId}_r2`);
   });
 
   it("returns 403 limitExceeded JSON BEFORE opening SSE when credits are exhausted", async () => {
@@ -160,8 +205,6 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
       limitExceeded: true,
       resourceType: "ai_runs",
     });
-    // Stream must NOT be invoked and credits must NOT be recorded when
-    // enforcement fails.
     expect(streamJarvisResponseMock).not.toHaveBeenCalled();
     expect(recordAiCreditsMock).not.toHaveBeenCalled();
   });
@@ -170,10 +213,12 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
     enforceAiCreditsMock.mockResolvedValue({ chargeUserId: TEST_USER });
     recordAiCreditsMock.mockResolvedValue(undefined);
     streamJarvisResponseMock.mockImplementation(
-      async (_a, _b, _c, _d, _onChunk, onDone) => onDone("ok"),
+      async (_a, _b, _c, _d, _onChunk, onDone, _onErr, meterPerCall) => {
+        await meterPerCall(0);
+        onDone("ok");
+      },
     );
 
-    // Pre-create the conversation so both calls land on the same conversationId.
     const fcMod = await import("../server/storage/fridayConversationStorage");
     (fcMod.getConversation as any).mockResolvedValue({ id: 100, title: "x" });
 

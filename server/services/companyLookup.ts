@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { withAiCredits } from "./aiCredits";
+import { AiCreditsLimitError, withAiCredits } from "./aiCredits";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -59,14 +59,23 @@ export async function lookupCompanyByDomain(
     max_completion_tokens: 200,
   });
 
+  // Signup-time / unauthenticated lookups skip the OpenAI call entirely
+  // and return a domain-derived heuristic. We never call a billable model
+  // without a chargeable user — silent metering bypass would be a billing bug.
+  if (!userId) {
+    return {
+      companyName: formatDomainAsName(domain),
+      industry: 'General',
+      description: '',
+      isPersonalEmail: false,
+    };
+  }
+
   try {
-    // Signup-time lookups (pre-auth) skip credit gating.
-    const response = userId
-      ? await withAiCredits(
-          { userId, orgId: orgId ?? null, action: "company_lookup" },
-          callOpenAI,
-        )
-      : await callOpenAI();
+    const response = await withAiCredits(
+      { userId, orgId: orgId ?? null, action: "company_lookup" },
+      callOpenAI,
+    );
 
     const content = response.choices[0]?.message?.content || '{}';
     const parsed = JSON.parse(content);
@@ -78,6 +87,9 @@ export async function lookupCompanyByDomain(
       isPersonalEmail: false,
     };
   } catch (error) {
+    // Always surface credit-limit errors so the route can return the
+    // standardized 403 {limitExceeded:true,resourceType:"ai_runs"} payload.
+    if (error instanceof AiCreditsLimitError) throw error;
     console.error('Company lookup error:', error);
     return {
       companyName: formatDomainAsName(domain),

@@ -2,7 +2,7 @@ import express, { type Express, type Request, type Response } from "express";
 import { createHash } from "node:crypto";
 import { chatStorage } from "../chat/storage";
 import { openai, speechToText, ensureCompatibleFormat } from "./client";
-import { getUserIdFromRequest } from "../../routes/helpers";
+import { getUserIdFromRequest, getUserOrgIds } from "../../routes/helpers";
 import {
   enforceAiCredits,
   recordAiCredits,
@@ -82,6 +82,18 @@ export function registerAudioRoutes(app: Express): void {
         return res.status(401).json({ error: "Authentication required" });
       }
 
+      // Verify the caller is actually a member of the organization they
+      // claim to be billing against. Without this check a caller could
+      // pass any organizationId in the body and drain another org's
+      // credits / pin AI usage to the wrong subscription.
+      const requestedOrgId = organizationId ? Number(organizationId) : null;
+      if (requestedOrgId !== null) {
+        const memberOrgs = await getUserOrgIds(userId);
+        if (!memberOrgs.includes(requestedOrgId)) {
+          return res.status(403).json({ error: "You are not a member of this organization" });
+        }
+      }
+
       // Enforce AI credits BEFORE opening SSE stream.
       // Stable per-turn requestId (sha256 of audio bytes + conversation)
       // so retries that resend the same recording dedupe.
@@ -91,7 +103,7 @@ export function registerAudioRoutes(app: Express): void {
         .slice(0, 16);
       const audioCreditCtx = {
         userId,
-        orgId: organizationId ? Number(organizationId) : null,
+        orgId: requestedOrgId,
         action: "integrations_audio",
         entityId: conversationId,
         requestId: `integrations_audio_${conversationId}_${audioHash}`,

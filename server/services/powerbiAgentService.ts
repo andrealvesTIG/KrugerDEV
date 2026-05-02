@@ -481,6 +481,7 @@ async function streamWithOpenAI(
   conversationLog: string,
   conversationDbId: number | null,
   onChunk: (s: string) => void,
+  meterPerCall: (round: number) => Promise<void>,
   onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
 ): Promise<string> {
   const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -509,6 +510,10 @@ async function streamWithOpenAI(
       temperature: 0.4,
       tools: powerbiTools,
     });
+    // Meter exactly one AI credit per OpenAI chat.completions.create call.
+    try { await meterPerCall(round); } catch (e: any) {
+      console.error(`[PBI Agent] Failed to record per-call AI credit (round ${round}):`, e?.message || e);
+    }
 
     const toolCalls = new Map<number, { id: string; name: string; arguments: string }>();
     let hasToolCalls = false;
@@ -574,6 +579,7 @@ async function streamWithAnthropic(
   conversationLog: string,
   conversationDbId: number | null,
   onChunk: (s: string) => void,
+  meterPerCall: (round: number) => Promise<void>,
   onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
 ): Promise<string> {
   if (!anthropic) throw new Error("Claude is not configured");
@@ -600,6 +606,10 @@ async function streamWithAnthropic(
       messages: apiMessages,
       tools: anthropicTools,
     });
+    // Meter one AI credit per Anthropic stream call to mirror the OpenAI path.
+    try { await meterPerCall(round); } catch (e: any) {
+      console.error(`[PBI Agent] Failed to record per-call AI credit (round ${round}, claude):`, e?.message || e);
+    }
 
     let assistantBlocks: Anthropic.ContentBlock[] = [];
     let stopReason = "";
@@ -730,6 +740,7 @@ export async function streamPowerBIAgentResponse(
   onChunk: (content: string) => void,
   onDone: (fullResponse: string) => void,
   onError: (error: Error) => void,
+  meterPerCall: (round: number) => Promise<void>,
   onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
   onPhase?: (phase: { phase: "analyzing" | "analyzed"; fileCount?: number }) => void,
 ) {
@@ -760,9 +771,9 @@ export async function streamPowerBIAgentResponse(
 
     let final: string;
     if (modelTier === "claude") {
-      final = await streamWithAnthropic(orgId, userId, messages, conversationLog, conversationDbId, onChunk, onIntakeSubmitted);
+      final = await streamWithAnthropic(orgId, userId, messages, conversationLog, conversationDbId, onChunk, meterPerCall, onIntakeSubmitted);
     } else {
-      final = await streamWithOpenAI(modelTier, orgId, userId, messages, conversationLog, conversationDbId, onChunk, onIntakeSubmitted);
+      final = await streamWithOpenAI(modelTier, orgId, userId, messages, conversationLog, conversationDbId, onChunk, meterPerCall, onIntakeSubmitted);
     }
 
     if (conversationDbId && final) {

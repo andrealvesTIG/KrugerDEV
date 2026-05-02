@@ -399,20 +399,30 @@ export function registerPowerBIAgentRoutes(app: Express) {
         .update(`${convId}|${last?.role}|${last?.content ?? ""}`)
         .digest("hex")
         .slice(0, 16);
+      const pbiBaseRequestId = `powerbi_agent_chat_${convId}_${pbiTurnHash}`;
       const creditCtx = {
         userId,
         orgId: organizationId,
         action: "powerbi_agent_chat",
         entityId: convId ?? undefined,
-        requestId: `powerbi_agent_chat_${convId}_${pbiTurnHash}`,
+        requestId: pbiBaseRequestId,
       };
       let chargeUserId: string;
       try {
+        // Pre-flight enforcement before opening SSE; per-call records happen
+        // inside streamPowerBIAgentResponse via meterPerCall (one per OpenAI
+        // / Anthropic chat call, including tool-loop rounds).
         ({ chargeUserId } = await enforceAiCredits(creditCtx));
       } catch (err) {
         if (sendLimitExceeded(res, err)) return;
         throw err;
       }
+      const meterPerCall = async (round: number): Promise<void> => {
+        await recordAiCredits(chargeUserId, {
+          ...creditCtx,
+          requestId: `${pbiBaseRequestId}_r${round}`,
+        });
+      };
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -444,10 +454,8 @@ export function registerPowerBIAgentRoutes(app: Express) {
         convId,
         (content) => { assistantBuffer += content; sendSSE({ content }); },
         async (_full) => {
-          // Charge exactly one AI credit on successful completion of the chat turn.
-          recordAiCredits(chargeUserId, creditCtx).catch((err) => {
-            console.error("[PBI Agent] Failed to record AI credit usage:", err);
-          });
+          // Per-call credits already recorded inside streamPowerBIAgentResponse
+          // via meterPerCall — nothing else to charge at completion.
           // Re-extract intake state now that the assistant turn is complete.
           // Done before sending `done` so the client's follow-up fetch sees fresh data.
           try {
@@ -476,6 +484,7 @@ export function registerPowerBIAgentRoutes(app: Express) {
           sendSSE({ error: "An error occurred. Please try again." });
           res.end();
         },
+        meterPerCall,
         (info) => sendSSE({ intake: info }),
         (phase) => sendSSE(phase),
       );
