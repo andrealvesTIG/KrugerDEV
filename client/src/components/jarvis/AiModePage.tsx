@@ -262,45 +262,40 @@ export default function AiModePage() {
         <div className="flex items-center gap-1 sm:gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
-              <div
-                role="radiogroup"
-                aria-label="Response mode"
-                className="inline-flex items-center h-8 p-0.5 rounded-full bg-muted border border-border"
+              <button
+                type="button"
+                role="switch"
+                aria-checked={!conciseMode}
+                aria-label="Toggle response mode between Light and Power"
+                onClick={() => setConciseMode(!conciseMode)}
+                className="inline-flex items-center h-8 p-0.5 rounded-full bg-muted border border-border cursor-pointer"
                 data-testid="button-ai-concise-toggle"
               >
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={conciseMode}
-                  onClick={() => setConciseMode(true)}
+                <span
                   className={cn(
-                    "inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-xs font-semibold transition-all",
+                    "inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-xs font-semibold transition-all pointer-events-none",
                     conciseMode
                       ? "bg-emerald-500 text-white shadow-[0_0_10px_rgba(16,185,129,0.55)]"
-                      : "text-muted-foreground hover:text-foreground",
+                      : "text-muted-foreground",
                   )}
                   data-testid="button-ai-mode-light"
                 >
                   <Feather className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Light</span>
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={!conciseMode}
-                  onClick={() => setConciseMode(false)}
+                </span>
+                <span
                   className={cn(
-                    "inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-xs font-semibold transition-all",
+                    "inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-xs font-semibold transition-all pointer-events-none",
                     !conciseMode
                       ? "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-[0_0_12px_rgba(249,115,22,0.6)]"
-                      : "text-muted-foreground hover:text-foreground",
+                      : "text-muted-foreground",
                   )}
                   data-testid="button-ai-mode-power"
                 >
                   <Zap className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Power</span>
-                </button>
-              </div>
+                </span>
+              </button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
               <p className="text-xs">
