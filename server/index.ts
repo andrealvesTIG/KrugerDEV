@@ -18,6 +18,7 @@ import { checkDueDateNotifications } from "./services/dueDateNotifications";
 import { cleanupDuplicateBillingCycles } from "./services/billing";
 import { backfillFinancialEntries } from "./migrations/backfillFinancialEntries";
 import { migrateMonthToCalendar } from "./migrations/migrateMonthToCalendar";
+import { runSchemaDriftCheck } from "./schemaDriftCheck";
 
 process.on('uncaughtException', (err) => {
   const msg = err instanceof Error ? err.message : String(err);
@@ -171,6 +172,19 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Detect schema drift before any routes accept traffic. In development this
+  // throws so missing tables/columns surface immediately; in production it
+  // logs loudly but keeps the server up so partial functionality stays online.
+  try {
+    await runSchemaDriftCheck();
+  } catch (err) {
+    console.error(
+      "[startup] Aborting boot due to schema drift:",
+      err instanceof Error ? err.message : String(err),
+    );
+    process.exit(1);
+  }
+
   registerObjectStorageRoutes(app);
   await registerRoutes(httpServer, app);
   setupSwagger(app);
