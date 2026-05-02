@@ -7,16 +7,8 @@ interface ModeToggleProps {
   className?: string;
 }
 
-const TRACK_WIDTH = 116;
-const THUMB_SIZE = 24;
-const THUMB_INSET = 4;
-
 export function ModeToggle({ className }: ModeToggleProps) {
   const { aiMode } = useAiMode();
-
-  const thumbLeft = aiMode
-    ? `${TRACK_WIDTH - THUMB_SIZE - THUMB_INSET}px`
-    : `${THUMB_INSET}px`;
 
   return (
     <Tooltip>
@@ -25,39 +17,51 @@ export function ModeToggle({ className }: ModeToggleProps) {
           type="button"
           role="switch"
           onClick={() => setAiMode(!aiMode)}
+          aria-checked={aiMode}
+          aria-label={aiMode ? "AI Mode is on. Click to turn off." : "AI Mode is off. Click to turn on."}
+          data-testid="button-ai-mode-toggle"
           className={cn(
-            "group relative inline-flex items-center h-8 rounded-full transition-all overflow-hidden select-none",
-            aiMode
-              ? "bg-primary text-primary-foreground border border-primary shadow-[0_0_10px_rgba(59,130,246,0.45)] hover:shadow-[0_0_14px_rgba(59,130,246,0.65)]"
-              : "bg-primary/95 text-primary-foreground border border-primary/80 shadow-[0_0_10px_rgba(59,130,246,0.35)] hover:bg-primary hover:shadow-[0_0_14px_rgba(59,130,246,0.55)]",
+            "group inline-flex items-center gap-2 h-8 px-2 rounded-md hover:bg-accent transition-colors select-none",
             className,
           )}
-          style={{ width: TRACK_WIDTH }}
-          aria-checked={aiMode}
-          aria-label={aiMode ? "AI Mode is on. Click to exit AI Mode." : "AI Mode is off. Click to switch to AI Mode."}
-          data-testid="button-ai-mode-toggle"
         >
-          <span
-            aria-hidden="true"
-            className="absolute top-1 bg-white rounded-full shadow-[0_2px_4px_rgba(0,0,0,0.25)] transition-all duration-300 ease-out group-hover:scale-105"
-            style={{ width: THUMB_SIZE, height: THUMB_SIZE, left: thumbLeft }}
+          <Sparkles
+            className={cn(
+              "h-3.5 w-3.5 transition-colors",
+              aiMode ? "text-primary" : "text-muted-foreground group-hover:text-foreground",
+            )}
           />
           <span
             className={cn(
-              "relative z-10 w-full flex items-center justify-center gap-1 text-xs font-semibold tracking-wide transition-all duration-300",
-              aiMode ? "pr-7" : "pl-7",
+              "text-xs font-semibold tracking-wide transition-colors",
+              aiMode ? "text-foreground" : "text-foreground",
             )}
           >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>{aiMode ? "Exit AI" : "AI Mode"}</span>
+            AI Mode
+          </span>
+          <span
+            aria-hidden="true"
+            className={cn(
+              "relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border transition-colors",
+              aiMode
+                ? "bg-primary border-primary shadow-[0_0_8px_rgba(59,130,246,0.5)]"
+                : "bg-muted border-border group-hover:border-primary/50",
+            )}
+          >
+            <span
+              className={cn(
+                "absolute top-1/2 -translate-y-1/2 h-4 w-4 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.3)] transition-all duration-200 ease-out",
+                aiMode ? "left-[18px]" : "left-[2px]",
+              )}
+            />
           </span>
         </button>
       </TooltipTrigger>
       <TooltipContent side="bottom">
         <p className="text-xs">
           {aiMode
-            ? "Click to exit AI Mode (Esc)"
-            : "Click to switch to AI Mode — full-page Friday chat"}
+            ? "AI Mode is on — click to exit (Esc)"
+            : "Switch to AI Mode — full-page Friday chat"}
         </p>
       </TooltipContent>
     </Tooltip>
