@@ -89,23 +89,19 @@ export class AiCreditsLimitError extends Error {
 }
 
 /**
- * Resolve a charging userId for scheduled / system jobs that don't have an
- * acting user. We prefer the org owner; if none exists we fall back to any
- * org admin, and finally any member. Returns null if the org has no
- * members at all (caller should warn-and-skip in that case).
+ * Resolve the chargeable userId for scheduled / system jobs that don't have
+ * an acting user. STRICTLY returns the org owner so billing always lands on
+ * the account responsible for the subscription. Returns null when the org
+ * has no owner — callers MUST warn-and-skip the AI call rather than silently
+ * bypass billing.
  */
 export async function resolveSystemUserId(orgId: number): Promise<string | null> {
   if (!orgId || !Number.isFinite(orgId)) return null;
-  const members = await db
-    .select({ userId: organizationMembers.userId, role: organizationMembers.role })
+  const owners = await db
+    .select({ userId: organizationMembers.userId })
     .from(organizationMembers)
-    .where(eq(organizationMembers.organizationId, orgId));
-  if (members.length === 0) return null;
-  const owner = members.find((m) => m.role === "owner");
-  if (owner) return owner.userId;
-  const admin = members.find((m) => m.role === "org_admin" || m.role === "admin");
-  if (admin) return admin.userId;
-  return members[0].userId;
+    .where(and(eq(organizationMembers.organizationId, orgId), eq(organizationMembers.role, "owner")));
+  return owners[0]?.userId ?? null;
 }
 
 function buildRequestId(ctx: AiCreditContext): string {

@@ -13,9 +13,9 @@ const openai = new OpenAI({
 /**
  * Resolve who to charge for a scheduled/on-demand agent action. If a
  * `triggerUserId` is supplied (on-demand button), charge them. Otherwise
- * (scheduled cron) walk the org membership to find an owner/admin/member.
- * Returns null when the org has no eligible user, in which case the caller
- * should warn-skip the AI call rather than silently bypass billing.
+ * (scheduled cron) charge the org owner. Returns null when the org has
+ * no owner — callers MUST warn-skip the AI call rather than silently
+ * bypass billing.
  */
 async function resolveAgentChargeUser(projectId: number, triggerUserId: string | null): Promise<{ userId: string; orgId: number | null } | null> {
   const [proj] = await db.select({ organizationId: projects.organizationId })
