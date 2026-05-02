@@ -64,8 +64,8 @@ export function RecentChatsMenu({
             variant="ghost"
             size="icon"
             className={`h-8 w-8 ${triggerClassName ?? ""}`}
-            aria-label="Recent chats"
-            title="Recent chats"
+            aria-label="Conversation history"
+            title="Conversation history"
             data-testid="button-friday-recent-chats"
           >
             <History className="h-3.5 w-3.5" />
@@ -75,8 +75,8 @@ export function RecentChatsMenu({
             variant="ghost"
             size="sm"
             className={`h-8 px-2 gap-1.5 ${triggerClassName ?? ""}`}
-            aria-label={count > 0 ? `Recent chats (${count})` : "Recent chats"}
-            title="Recent chats"
+            aria-label={count > 0 ? `Conversation history (${count})` : "Conversation history"}
+            title="Conversation history"
             data-testid="button-friday-recent-chats"
           >
             <History className="h-3.5 w-3.5" />
@@ -98,7 +98,7 @@ export function RecentChatsMenu({
           </Button>
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align={align} className="w-72 max-h-[60vh] overflow-y-auto">
+      <DropdownMenuContent align={align} className="w-72 max-h-[60vh] overflow-y-auto z-[300]">
         <DropdownMenuItem
           onClick={onNew}
           className="gap-2 cursor-pointer"
@@ -111,7 +111,7 @@ export function RecentChatsMenu({
           <>
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Recent
+              Conversation history
             </DropdownMenuLabel>
             {recent.map((c) => (
               <DropdownMenuItem

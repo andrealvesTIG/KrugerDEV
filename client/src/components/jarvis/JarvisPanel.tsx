@@ -424,7 +424,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                   stopSpeaking();
                 }}
                 size="sm"
-                alwaysVisibleLabel="Chats"
+                alwaysVisibleLabel="Conversation History"
                 triggerClassName="text-cyan-300 hover:text-cyan-100 hover:bg-cyan-900/20"
               />
               <Button

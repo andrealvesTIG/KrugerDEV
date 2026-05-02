@@ -282,7 +282,7 @@ export default function AiModePage() {
             onSwitch={handleSwitchConversation}
             onNew={handleNewChat}
             align="end"
-            alwaysVisibleLabel="Chats"
+            alwaysVisibleLabel="Conversation History"
           />
           <ModeToggle />
           <ThemeToggle />
