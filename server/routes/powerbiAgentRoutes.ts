@@ -373,7 +373,25 @@ export function registerPowerBIAgentRoutes(app: Express) {
         return res.status(403).json({ message: "Access denied to this organization" });
       }
 
-      // Resolve / create conversation
+      // Admission check: enforce credits BEFORE persisting anything so
+      // over-limit users get a clean 403 with no orphan conversation/
+      // message rows. NOT recorded — only the per-round meterPerCall
+      // checks below charge usage_events on stream success.
+      const pbiBaseRequestId = `powerbi_agent_chat_${conversationId ?? "new"}_${newAiRequestId()}`;
+      const creditCtx = {
+        userId,
+        orgId: organizationId,
+        action: "powerbi_agent_chat",
+        entityId: conversationId ?? undefined,
+        requestId: pbiBaseRequestId,
+      };
+      try {
+        await enforceAiCredits(creditCtx);
+      } catch (err) {
+        if (sendLimitExceeded(res, err)) return;
+        throw err;
+      }
+
       let convId = conversationId ?? null;
       if (convId) {
         const existing = await getConversation(convId, organizationId, userId);
@@ -388,29 +406,13 @@ export function registerPowerBIAgentRoutes(app: Express) {
         await updateConversationModel(convId, modelTier);
       }
 
-      // Persist the latest user turn (assume the last message is the new user input that the client just sent)
       const last = messages[messages.length - 1];
       if (last?.role === "user") {
         await addMessage(convId, "user", last.content, last.attachments ?? null);
       }
 
-      // Pre-flight enforce BEFORE opening SSE so over-limit users get a 403.
-      const pbiBaseRequestId = `powerbi_agent_chat_${convId}_${newAiRequestId()}`;
-      const creditCtx = {
-        userId,
-        orgId: organizationId,
-        action: "powerbi_agent_chat",
-        entityId: convId ?? undefined,
-        requestId: pbiBaseRequestId,
-      };
-      try {
-        await enforceAiCredits(creditCtx);
-      } catch (err) {
-        if (sendLimitExceeded(res, err)) return;
-        throw err;
-      }
-      // Per-call: enforce before opening the stream, return a recordSuccess
-      // callback the service must invoke after the stream completes.
+      // Per-call meter: BILLED enforce + record on success, once per
+      // underlying OpenAI round inside the tool loop.
       const meterPerCall: MeterPerCall = async <T>(round: number, fn: () => Promise<T>) => {
         const ctx = { ...creditCtx, requestId: `${pbiBaseRequestId}_r${round}` };
         const { chargeUserId } = await enforceAiCredits(ctx);

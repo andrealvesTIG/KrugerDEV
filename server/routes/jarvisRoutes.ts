@@ -128,8 +128,9 @@ export function registerJarvisRoutes(app: Express) {
         return res.status(403).json({ message: "You don't have access to this organization" });
       }
 
-      // Enforce credits BEFORE persisting anything so over-limit users
-      // get a clean 403 with no orphan conversation/message rows.
+      // Admission check: enforce BEFORE persisting anything so over-limit
+      // users get a clean 403 with no orphan rows. NOT recorded — only
+      // the per-round meterPerCall below charges usage_events.
       const baseRequestId = `friday_chat_${incomingConversationId ?? "new"}_${newAiRequestId()}`;
       const creditCtx = {
         userId,
