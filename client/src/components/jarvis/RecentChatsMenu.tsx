@@ -76,18 +76,25 @@ export function RecentChatsMenu({
               <Button
                 variant="ghost"
                 size="sm"
-                className={`h-8 px-2 gap-1 ${triggerClassName ?? ""}`}
-                aria-label="Recent chats"
+                className={`h-8 px-2 gap-1.5 ${triggerClassName ?? ""}`}
+                aria-label={count > 0 ? `Recent chats (${count})` : "Recent chats"}
                 data-testid="button-friday-recent-chats"
               >
                 <History className="h-3.5 w-3.5" />
                 {alwaysVisibleLabel ? (
-                  <span className="text-xs">{alwaysVisibleLabel}</span>
+                  <span className="text-xs whitespace-nowrap">
+                    {alwaysVisibleLabel}
+                    {count > 0 && (
+                      <span className="ml-1 tabular-nums opacity-70">({count > 99 ? "99+" : count})</span>
+                    )}
+                  </span>
                 ) : (
-                  <span className="text-xs hidden sm:inline max-w-[140px] truncate">{triggerLabel}</span>
-                )}
-                {count > 0 && (
-                  <span className="ml-0.5 text-[10px] tabular-nums opacity-70">{count > 99 ? "99+" : count}</span>
+                  <span className="text-xs hidden sm:inline max-w-[140px] truncate">
+                    {triggerLabel}
+                    {count > 0 && (
+                      <span className="ml-1 tabular-nums opacity-70">({count > 99 ? "99+" : count})</span>
+                    )}
+                  </span>
                 )}
               </Button>
             )}
