@@ -12,10 +12,10 @@ import { apiRoute, body, r200, inputRes, authRes, stdRes } from "../route-regist
 import {
   enforceAiCredits,
   recordAiCredits,
-  withAiCredits,
   sendLimitExceeded,
   writeSseLimitExceeded,
   AiCreditsLimitError,
+  type MeterPerCall,
 } from "../services/aiCredits";
 import {
   createConversation as fcCreate,
@@ -158,11 +158,8 @@ export function registerJarvisRoutes(app: Express) {
         );
       }
 
-      // Enforce AI credit limit BEFORE opening the SSE stream so an
-      // over-limit response is a normal 403 JSON the frontend can handle.
-      // Build a deterministic per-turn requestId so retries / dropped
-      // SSE reconnects that resend the same logical message dedupe in
-      // the underlying usage_events table instead of double-charging.
+      // Pre-flight enforce BEFORE opening SSE so over-limit users get a
+      // normal 403. Stable per-turn requestId dedupes retries.
       const turnHash = createHash("sha256")
         .update(`${conversationId}|${lastUserMessage?.content ?? ""}`)
         .digest("hex")
@@ -176,20 +173,18 @@ export function registerJarvisRoutes(app: Express) {
         requestId: baseRequestId,
       };
       try {
-        // Pre-flight enforcement so over-limit users get a normal 403 BEFORE
-        // we open the SSE stream. Per-call enforcement + recording happens
-        // inside streamJarvisResponse via meterPerCall — every model call
-        // (including tool-loop rounds) is independently checked + charged.
         await enforceAiCredits(creditCtx);
       } catch (err) {
         if (sendLimitExceeded(res, err)) return;
         throw err;
       }
-      const meterPerCall = async <T>(round: number, fn: () => Promise<T>): Promise<T> => {
-        return withAiCredits(
-          { ...creditCtx, requestId: `${baseRequestId}_r${round}` },
-          fn,
-        );
+      // Per-call: enforce before opening the stream, return a recordSuccess
+      // callback the service must invoke after the stream completes.
+      const meterPerCall: MeterPerCall = async <T>(round: number, fn: () => Promise<T>) => {
+        const ctx = { ...creditCtx, requestId: `${baseRequestId}_r${round}` };
+        const { chargeUserId } = await enforceAiCredits(ctx);
+        const result = await fn();
+        return { result, recordSuccess: () => recordAiCredits(chargeUserId, ctx) };
       };
 
       res.setHeader("Content-Type", "text/event-stream");
@@ -208,8 +203,6 @@ export function registerJarvisRoutes(app: Express) {
           res.write(`data: ${JSON.stringify({ content })}\n\n`);
         },
         (fullResponse) => {
-          // Per-call credits already recorded inside streamJarvisResponse via
-          // meterPerCall — nothing else to charge at completion.
           res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
           res.end();
           // Persist the assistant message
@@ -225,10 +218,6 @@ export function registerJarvisRoutes(app: Express) {
           }, req).catch(() => {});
         },
         (error: Error & { logDetails?: string; originalError?: any }) => {
-          // AI-credit limit reached mid-stream (e.g. tool loop ran out of
-          // credits) — surface the standard limitExceeded SSE envelope so
-          // the client can render the upgrade prompt the same way it does
-          // for the pre-flight 403.
           if (writeSseLimitExceeded(res, error)) return;
           if (sendLimitExceeded(res, error)) return;
           const userMessage = error.message || "An unexpected error occurred. Please try again.";
@@ -299,10 +288,8 @@ export function registerJarvisRoutes(app: Express) {
         return res.status(403).json({ message: "Insufficient permissions to perform this action" });
       }
 
-      // Friday Agent action requests are billable AI surfaces too — charge
-      // exactly 1 AI credit per executed action. Use a deterministic
-      // requestId so accidental client retries with the same payload
-      // dedupe instead of double-charging.
+      // Action requests are billable AI surfaces — 1 credit per success,
+      // with a deterministic requestId so retries dedupe.
       const actionHash = createHash("sha256")
         .update(`${action.type}|${action.projectId}|${JSON.stringify(action.data ?? {})}`)
         .digest("hex")
@@ -324,8 +311,7 @@ export function registerJarvisRoutes(app: Express) {
 
       const result = await executeJarvisAction(Number(organizationId), userId, action);
 
-      // Only charge on successful execution. On failure, skip recording so
-      // the user isn't billed for a no-op error path.
+      // Only charge on success — failed actions are no-ops.
       if (result.success) {
         await recordAiCredits(chargeUserId, actionCreditCtx).catch((err) => {
           console.error("[JARVIS] Failed to record action credit usage:", err);

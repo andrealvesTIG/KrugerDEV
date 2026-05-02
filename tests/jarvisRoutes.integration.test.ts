@@ -25,16 +25,6 @@ class FakeAiCreditsLimitError extends Error {
 vi.mock("../server/services/aiCredits", () => ({
   enforceAiCredits: (...args: any[]) => enforceAiCreditsMock(...args),
   recordAiCredits: (...args: any[]) => recordAiCreditsMock(...args),
-  // withAiCredits is "enforce + run + record" so the test mock mirrors
-  // that contract. enforceAiCreditsMock can throw to simulate over-limit
-  // mid-tool-loop; recordAiCreditsMock fires only on successful fn().
-  withAiCredits: async (ctx: any, fn: () => Promise<any>) => {
-    const enforced = await enforceAiCreditsMock(ctx);
-    const result = await fn();
-    const chargeUserId = enforced?.chargeUserId ?? ctx.userId;
-    await recordAiCreditsMock(chargeUserId, ctx);
-    return result;
-  },
   sendLimitExceeded: (res: any, err: any) => {
     sendLimitExceededMock(err);
     if (err instanceof FakeAiCreditsLimitError) {
@@ -109,10 +99,10 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
     enforceAiCreditsMock.mockResolvedValue({ chargeUserId: TEST_USER });
     recordAiCreditsMock.mockResolvedValue(undefined);
 
-    // Simulate a single OpenAI call (no tool loop): meterPerCall(0, fn)
-    // wraps one call; per-call enforcement + recording happens INSIDE the
-    // stream via the higher-order `meterPerCall(round, fn)` the route
-    // passes in (which delegates to withAiCredits).
+    // Simulate a single OpenAI call (no tool loop). The route enforces
+    // credits BEFORE the stream opens (inside meterPerCall) and the
+    // service records credits AFTER the stream completes by invoking
+    // the returned recordSuccess callback.
     streamJarvisResponseMock.mockImplementation(
       async (
         _orgId: number,
@@ -122,11 +112,12 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
         onChunk: (s: string) => void,
         onDone: (s: string) => void,
         _onError: any,
-        meterPerCall: <T>(round: number, fn: () => Promise<T>) => Promise<T>,
+        meterPerCall: <T>(round: number, fn: () => Promise<T>) => Promise<{ result: T; recordSuccess: () => Promise<void> }>,
       ) => {
-        await meterPerCall(0, async () => "fake-stream");
+        const { recordSuccess } = await meterPerCall(0, async () => "fake-stream");
         onChunk("hello ");
         onChunk("world");
+        await recordSuccess();
         onDone("hello world");
       },
     );
@@ -165,7 +156,7 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
     recordAiCreditsMock.mockResolvedValue(undefined);
 
     // Simulate a 3-round tool loop: 3 OpenAI calls in one HTTP request.
-    // Each round wraps a fake model call via meterPerCall(round, fn).
+    // Each round enforces upfront and records after stream success.
     streamJarvisResponseMock.mockImplementation(
       async (
         _orgId,
@@ -177,9 +168,12 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
         _onError,
         meterPerCall,
       ) => {
-        await meterPerCall(0, async () => "stream-0");
-        await meterPerCall(1, async () => "stream-1");
-        await meterPerCall(2, async () => "stream-2");
+        const r0 = await meterPerCall(0, async () => "stream-0");
+        await r0.recordSuccess();
+        const r1 = await meterPerCall(1, async () => "stream-1");
+        await r1.recordSuccess();
+        const r2 = await meterPerCall(2, async () => "stream-2");
+        await r2.recordSuccess();
         onDone("done");
       },
     );
@@ -235,7 +229,8 @@ describe("POST /api/jarvis/chat — credit metering integration", () => {
     recordAiCreditsMock.mockResolvedValue(undefined);
     streamJarvisResponseMock.mockImplementation(
       async (_a, _b, _c, _d, _onChunk, onDone, _onErr, meterPerCall) => {
-        await meterPerCall(0, async () => undefined);
+        const { recordSuccess } = await meterPerCall(0, async () => undefined);
+        await recordSuccess();
         onDone("ok");
       },
     );

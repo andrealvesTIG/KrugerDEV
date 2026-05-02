@@ -4,7 +4,8 @@ import { chatStorage } from "../chat/storage";
 import { openai, speechToText, ensureCompatibleFormat } from "./client";
 import { getUserIdFromRequest, getUserOrgIds } from "../../routes/helpers";
 import {
-  withAiCredits,
+  enforceAiCredits,
+  recordAiCredits,
   sendLimitExceeded,
   writeSseLimitExceeded,
 } from "../../services/aiCredits";
@@ -93,12 +94,8 @@ export function registerAudioRoutes(app: Express): void {
         }
       }
 
-      // A voice turn issues TWO independent OpenAI calls — STT (transcribe)
-      // and the gpt-audio chat completion. Each is metered separately so
-      // every billable model invocation is gated against the user's
-      // remaining AI credits and recorded on success. Stable per-turn
-      // requestIds (sha256 of audio bytes + conversation) make retries
-      // dedupe in usage_events.
+      // STT and the gpt-audio chat are metered as two independent AI calls.
+      // Stable per-turn requestIds dedupe retries in usage_events.
       const audioHash = createHash("sha256")
         .update(Buffer.from(audio, "base64"))
         .digest("hex")
@@ -108,9 +105,7 @@ export function registerAudioRoutes(app: Express): void {
       const rawBuffer = Buffer.from(audio, "base64");
       const { buffer: audioBuffer, format: inputFormat } = await ensureCompatibleFormat(rawBuffer);
 
-      // 2. Transcribe user audio (METERED — separate AI call). Pre-flight
-      // enforcement happens inside withAiCredits so an over-limit user
-      // gets a normal 403 BEFORE we open SSE.
+      // 2. Transcribe user audio (metered).
       let userTranscript: string;
       try {
         userTranscript = await speechToText({
@@ -135,39 +130,39 @@ export function registerAudioRoutes(app: Express): void {
         content: m.content,
       }));
 
-      // 5. Set up SSE
+      // 5. Enforce credits for the chat call BEFORE opening SSE so
+      // over-limit users get a normal 403 instead of an SSE error.
+      const chatCreditCtx = {
+        userId,
+        orgId: requestedOrgId,
+        action: "integrations_audio_chat",
+        entityId: conversationId,
+        requestId: `integrations_audio_chat_${conversationId}_${audioHash}`,
+      };
+      let chatChargeUserId: string;
+      try {
+        ({ chargeUserId: chatChargeUserId } = await enforceAiCredits(chatCreditCtx));
+      } catch (limitErr) {
+        if (sendLimitExceeded(res, limitErr)) return;
+        throw limitErr;
+      }
+
+      // 6. Set up SSE
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
       res.write(`data: ${JSON.stringify({ type: "user_transcript", data: userTranscript })}\n\n`);
 
-      // 6. Stream audio response from gpt-audio (METERED — separate AI
-      // call). withAiCredits enforces remaining credits BEFORE opening
-      // the OpenAI stream and records 1 credit on success.
-      let stream;
-      try {
-        stream = await withAiCredits(
-          {
-            userId,
-            orgId: requestedOrgId,
-            action: "integrations_audio_chat",
-            entityId: conversationId,
-            requestId: `integrations_audio_chat_${conversationId}_${audioHash}`,
-          },
-          () => openai.chat.completions.create({
-            model: "gpt-audio",
-            modalities: ["text", "audio"],
-            audio: { voice, format: "pcm16" },
-            messages: chatHistory,
-            stream: true,
-          }),
-        );
-      } catch (limitErr) {
-        if (writeSseLimitExceeded(res, limitErr)) return;
-        if (sendLimitExceeded(res, limitErr)) return;
-        throw limitErr;
-      }
+      // 7. Stream audio response from gpt-audio. Credits are recorded only
+      // AFTER the stream completes successfully (failed streams aren't billed).
+      const stream = await openai.chat.completions.create({
+        model: "gpt-audio",
+        modalities: ["text", "audio"],
+        audio: { voice, format: "pcm16" },
+        messages: chatHistory,
+        stream: true,
+      });
 
       let assistantTranscript = "";
 
@@ -185,7 +180,9 @@ export function registerAudioRoutes(app: Express): void {
         }
       }
 
-      // 7. Save assistant message
+      await recordAiCredits(chatChargeUserId, chatCreditCtx);
+
+      // 8. Save assistant message
       await chatStorage.createMessage(conversationId, "assistant", assistantTranscript);
 
       res.write(`data: ${JSON.stringify({ type: "done", transcript: assistantTranscript })}\n\n`);

@@ -42,10 +42,11 @@ import {
 import { apiRoute, body, r200, inputRes, authRes, stdRes } from "../route-registry";
 import {
   enforceAiCredits,
-  withAiCredits,
+  recordAiCredits,
   sendLimitExceeded,
   writeSseLimitExceeded,
   AiCreditsLimitError,
+  type MeterPerCall,
 } from "../services/aiCredits";
 
 const MAX_MESSAGES = 50;
@@ -393,9 +394,8 @@ export function registerPowerBIAgentRoutes(app: Express) {
         await addMessage(convId, "user", last.content, last.attachments ?? null);
       }
 
-      // Enforce AI credit limit BEFORE opening the SSE stream so an
-      // over-limit response is a normal 403 JSON the frontend can handle.
-      // Stable per-turn requestId so SSE reconnects / retries dedupe.
+      // Pre-flight enforce BEFORE opening SSE so over-limit users get a
+      // normal 403. Stable per-turn requestId dedupes retries.
       const pbiTurnHash = createHash("sha256")
         .update(`${convId}|${last?.role}|${last?.content ?? ""}`)
         .digest("hex")
@@ -409,20 +409,18 @@ export function registerPowerBIAgentRoutes(app: Express) {
         requestId: pbiBaseRequestId,
       };
       try {
-        // Pre-flight enforcement before opening SSE so over-limit users get a
-        // normal 403. Per-call enforcement + recording happens inside
-        // streamPowerBIAgentResponse via meterPerCall — every model call
-        // (including tool-loop rounds) is independently gated + charged.
         await enforceAiCredits(creditCtx);
       } catch (err) {
         if (sendLimitExceeded(res, err)) return;
         throw err;
       }
-      const meterPerCall = async <T>(round: number, fn: () => Promise<T>): Promise<T> => {
-        return withAiCredits(
-          { ...creditCtx, requestId: `${pbiBaseRequestId}_r${round}` },
-          fn,
-        );
+      // Per-call: enforce before opening the stream, return a recordSuccess
+      // callback the service must invoke after the stream completes.
+      const meterPerCall: MeterPerCall = async <T>(round: number, fn: () => Promise<T>) => {
+        const ctx = { ...creditCtx, requestId: `${pbiBaseRequestId}_r${round}` };
+        const { chargeUserId } = await enforceAiCredits(ctx);
+        const result = await fn();
+        return { result, recordSuccess: () => recordAiCredits(chargeUserId, ctx) };
       };
 
       res.setHeader("Content-Type", "text/event-stream");
@@ -455,18 +453,16 @@ export function registerPowerBIAgentRoutes(app: Express) {
         convId,
         (content) => { assistantBuffer += content; sendSSE({ content }); },
         async (_full) => {
-          // Per-call credits already recorded inside streamPowerBIAgentResponse
-          // via meterPerCall — nothing else to charge at completion.
           // Re-extract intake state now that the assistant turn is complete.
           // Done before sending `done` so the client's follow-up fetch sees fresh data.
+          // extractIntakeState is itself a metered AI call.
           try {
             if (finalConvId) {
               const previous = await getConversationIntakeState(finalConvId);
               const fullTranscript = [...transcript, { role: "assistant" as const, content: assistantBuffer, attachments: null }];
               const conv = await getConversation(finalConvId, organizationId, userId);
               const analysis = (conv?.attachmentAnalysis as any) ?? null;
-              // Same chat turn was already charged above; don't double-charge.
-              const newState = await extractIntakeState(fullTranscript, previous, analysis, organizationId, userId, { meter: false });
+              const newState = await extractIntakeState(fullTranscript, previous, analysis, organizationId, userId);
               if (conv?.submittedIntakeId) {
                 newState.submittedRequestNumber = previous?.submittedRequestNumber ?? null;
                 newState.submittedIntakeNumber = previous?.submittedIntakeNumber ?? null;
@@ -475,15 +471,15 @@ export function registerPowerBIAgentRoutes(app: Express) {
               sendSSE({ intakeState: newState, intakeCounts: countCaptured(newState) });
             }
           } catch (e: any) {
+            // If the intake-extract AI call exhausted credits, surface the
+            // standard limitExceeded SSE envelope so the client can handle it.
+            if (writeSseLimitExceeded(res, e)) return;
             console.error("[PBI Agent] intake extraction failed:", e.message);
           }
           sendSSE({ done: true });
           res.end();
         },
         (error) => {
-          // Surface AI-credit limit (e.g. tool loop ran out mid-flight) as the
-          // standard limitExceeded SSE envelope so the client renders the
-          // upgrade prompt the same way it does for the pre-flight 403.
           if (writeSseLimitExceeded(res, error)) return;
           if (sendLimitExceeded(res, error)) return;
           console.error("[PowerBI Agent] Stream error:", error.message);

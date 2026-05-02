@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import type { PbiAttachmentAnalysis, PbiAttachmentExtraction } from "@shared/schema";
 import { ObjectStorageService } from "../replit_integrations/object_storage/objectStorage";
-import { withAiCredits } from "./aiCredits";
+import { withAiCredits, AiCreditsLimitError } from "./aiCredits";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -187,7 +187,6 @@ export async function analyzeAttachments(
   modelTier: "fast" | "smart" | "claude",
   orgId: number,
   userId: string,
-  options?: { meter?: boolean },
 ): Promise<PbiAttachmentAnalysis> {
   if (!extractions.length) return emptyAnalysis("No attachments to analyse.");
   const hasAnyContent = extractions.some(e => e.text || e.contentType.startsWith("image/"));
@@ -198,19 +197,16 @@ export async function analyzeAttachments(
       sourceFiles: extractions.map(e => e.name),
     };
   }
-  const meter = options?.meter !== false;
   const run = () => modelTier === "claude" && anthropic
     ? analyzeWithAnthropic(extractions)
     : analyzeWithOpenAI(extractions);
   try {
-    if (meter) {
-      return await withAiCredits(
-        { userId, orgId, action: "powerbi_attachment_analyze" },
-        run,
-      );
-    }
-    return await run();
+    return await withAiCredits(
+      { userId, orgId, action: "powerbi_attachment_analyze" },
+      run,
+    );
   } catch (e: any) {
+    if (e instanceof AiCreditsLimitError) throw e;
     console.error("[PBI Analysis] failed:", e?.message);
     return {
       ...emptyAnalysis(`Analysis failed: ${e?.message || "unknown error"}`),

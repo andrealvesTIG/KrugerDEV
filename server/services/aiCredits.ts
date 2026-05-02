@@ -45,6 +45,17 @@ export interface AiCreditContext {
   requestId?: string;
 }
 
+/**
+ * Per-call credit metering hook for streaming endpoints. The route enforces
+ * credits BEFORE each inner stream opens, runs `fn` (which returns the
+ * stream object), and returns a `recordSuccess` callback the service must
+ * invoke AFTER the stream completes successfully so failed streams aren't billed.
+ */
+export type MeterPerCall = <T>(
+  round: number,
+  fn: () => Promise<T>,
+) => Promise<{ result: T; recordSuccess: () => Promise<void> }>;
+
 export class AiCreditsLimitError extends Error {
   readonly limitExceeded = true as const;
   readonly resourceType = "ai_runs" as const;

@@ -8,7 +8,7 @@ import { addMessage, setSubmittedIntake, setAttachmentAnalysis, setMessageExtrac
 import { ObjectStorageService } from "../replit_integrations/object_storage/objectStorage";
 import { extractAllAttachments } from "./powerbiAttachmentExtraction";
 import { analyzeAttachments, mergeAnalyses } from "./powerbiAttachmentAnalysis";
-import { AiCreditsLimitError } from "./aiCredits";
+import { AiCreditsLimitError, type MeterPerCall } from "./aiCredits";
 import type { PbiAttachmentAnalysis } from "@shared/schema";
 
 export const ALLOWED_ATTACHMENT_TYPES = new Set<string>([
@@ -482,7 +482,7 @@ async function streamWithOpenAI(
   conversationLog: string,
   conversationDbId: number | null,
   onChunk: (s: string) => void,
-  meterPerCall: <T>(round: number, fn: () => Promise<T>) => Promise<T>,
+  meterPerCall: MeterPerCall,
   onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
 ): Promise<string> {
   const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -503,10 +503,8 @@ async function streamWithOpenAI(
   let modelToUse = PBI_MODELS[modelTier].model;
 
   for (let round = 0; round <= MAX_ROUNDS; round++) {
-    // Per-call enforcement + recording so tool-loop rounds cannot exceed
-    // the user's AI-credit budget. AiCreditsLimitError thrown here aborts
-    // the loop and bubbles up to onError in the caller.
-    const stream = await meterPerCall(round, () => openai.chat.completions.create({
+    // Enforce credits BEFORE the stream opens; record after it completes.
+    const { result: stream, recordSuccess } = await meterPerCall(round, () => openai.chat.completions.create({
       model: modelToUse,
       messages: apiMessages,
       stream: true,
@@ -537,6 +535,8 @@ async function streamWithOpenAI(
         }
       }
     }
+
+    await recordSuccess();
 
     if (!hasToolCalls || finishReason !== "tool_calls") break;
 
@@ -579,7 +579,7 @@ async function streamWithAnthropic(
   conversationLog: string,
   conversationDbId: number | null,
   onChunk: (s: string) => void,
-  meterPerCall: <T>(round: number, fn: () => Promise<T>) => Promise<T>,
+  meterPerCall: MeterPerCall,
   onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
 ): Promise<string> {
   if (!anthropic) throw new Error("Claude is not configured");
@@ -598,9 +598,8 @@ async function streamWithAnthropic(
   const MAX_ROUNDS = 3;
 
   for (let round = 0; round <= MAX_ROUNDS; round++) {
-    // Per-call enforcement + recording mirrors the OpenAI path so an
-    // over-limit user cannot drain extra credits via Claude tool loops.
-    const stream = await meterPerCall(round, async () => anthropic!.messages.stream({
+    // Enforce credits BEFORE the stream opens; record after it completes.
+    const { result: stream, recordSuccess } = await meterPerCall(round, async () => anthropic!.messages.stream({
       model: PBI_MODELS.claude.model,
       max_tokens: 2048,
       temperature: 0.4,
@@ -623,6 +622,8 @@ async function streamWithAnthropic(
     const final = await stream.finalMessage();
     assistantBlocks = final.content;
     stopReason = final.stop_reason || "";
+
+    await recordSuccess();
 
     const toolUses = assistantBlocks.filter(b => b.type === "tool_use") as Anthropic.ToolUseBlock[];
     if (stopReason !== "tool_use" || toolUses.length === 0) break;
@@ -720,9 +721,7 @@ async function ensureAttachmentAnalysis(
     try { await setMessageExtractions(messageId, extractions); } catch {}
   }
 
-  // Don't meter the inner analysis call — the parent chat turn is charged
-  // exactly once at the route layer (powerbiAgentRoutes.ts).
-  const fresh = await analyzeAttachments(extractions, modelTier, orgId, userId, { meter: false });
+  const fresh = await analyzeAttachments(extractions, modelTier, orgId, userId);
   const merged = mergeAnalyses(existing, fresh);
   try { await setAttachmentAnalysis(conversationDbId, merged); } catch {}
   onPhase?.({ phase: "analyzed", fileCount: newAttachments.length });
@@ -739,11 +738,11 @@ export async function streamPowerBIAgentResponse(
   onDone: (fullResponse: string) => void,
   onError: (error: Error) => void,
   /**
-   * Higher-order metering hook: enforces + records 1 credit per inner
-   * OpenAI / Anthropic streaming call so a tool loop cannot exceed the
-   * user's remaining AI-credit budget.
+   * Per-call credit metering: enforces 1 credit BEFORE each inner stream
+   * opens and returns a recordSuccess() callback the service must invoke
+   * AFTER the stream completes successfully (so failed streams aren't billed).
    */
-  meterPerCall: <T>(round: number, fn: () => Promise<T>) => Promise<T>,
+  meterPerCall: MeterPerCall,
   onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
   onPhase?: (phase: { phase: "analyzing" | "analyzed"; fileCount?: number }) => void,
 ) {

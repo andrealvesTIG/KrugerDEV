@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import type { PbiIntakeState, PbiAttachmentAnalysis } from "@shared/schema";
 import type { PbiAttachment } from "../storage/powerbiAgentStorage";
-import { withAiCredits } from "./aiCredits";
+import { withAiCredits, AiCreditsLimitError } from "./aiCredits";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -106,7 +106,6 @@ export async function extractIntakeState(
   analysis: PbiAttachmentAnalysis | null | undefined,
   orgId: number,
   userId: string,
-  options?: { meter?: boolean },
 ): Promise<PbiIntakeState> {
   const base = previous && typeof previous === "object" ? { ...emptyIntakeState(), ...previous } : emptyIntakeState();
   const editedFields = Array.isArray(base.editedFields) ? base.editedFields : [];
@@ -117,7 +116,6 @@ export async function extractIntakeState(
 
   const transcript = formatTranscript(messages.slice(-30));
 
-  const meter = options?.meter !== false;
   const runOpenAI = () => openai.chat.completions.create({
     model: "gpt-4o-mini",
     temperature: 0,
@@ -134,12 +132,14 @@ export async function extractIntakeState(
 
   let extracted: Partial<PbiIntakeState> = {};
   try {
-    const completion = meter
-      ? await withAiCredits({ userId, orgId, action: "powerbi_intake_extract" }, runOpenAI)
-      : await runOpenAI();
+    const completion = await withAiCredits(
+      { userId, orgId, action: "powerbi_intake_extract" },
+      runOpenAI,
+    );
     const raw = completion.choices[0]?.message?.content;
     if (raw) extracted = JSON.parse(raw) as Partial<PbiIntakeState>;
   } catch (e: any) {
+    if (e instanceof AiCreditsLimitError) throw e;
     console.error("[PBI Extract] failed:", e.message);
   }
 

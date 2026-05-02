@@ -4,7 +4,7 @@ import type { FridayAgentConfig } from "@shared/schema";
 import { eq, and, sql, inArray, isNull, desc, gte, isNotNull } from "drizzle-orm";
 import OpenAI, { AzureOpenAI } from "openai";
 import { decryptApiKey } from "../routes/helpers";
-import { AiCreditsLimitError } from "./aiCredits";
+import { AiCreditsLimitError, type MeterPerCall } from "./aiCredits";
 import {
   buildFiscalMonths,
   buildFiscalQuarters,
@@ -1391,7 +1391,7 @@ export async function streamJarvisResponse(
    * abort the tool loop gracefully via onError so a single 1-credit user
    * cannot drain N credits via a tool loop.
    */
-  meterPerCall: <T>(round: number, fn: () => Promise<T>) => Promise<T>,
+  meterPerCall: MeterPerCall,
   pageContext?: PageContext,
   attachments?: FileAttachment[],
 ) {
@@ -1450,13 +1450,12 @@ CSV FILE IMPORT RULES:
     const MAX_TOOL_ROUNDS = 5;
 
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
-      // Per-call enforcement + recording: withAiCredits inside meterPerCall
-      // checks the user's current credit balance BEFORE the OpenAI call
-      // runs and records 1 credit on success. If the user is over limit,
-      // AiCreditsLimitError surfaces here and we abort the loop gracefully.
+      // Enforce credits BEFORE opening the stream; record only after the
+      // stream completes successfully (see recordSuccess() below).
       let stream;
+      let recordSuccess: () => Promise<void>;
       try {
-        stream = await meterPerCall(round, () => callOpenAIWithRetry(
+        ({ result: stream, recordSuccess } = await meterPerCall(round, () => callOpenAIWithRetry(
           () => orgOpenai.chat.completions.create({
             model: orgIsAzure ? orgDeployment : "gpt-4o",
             messages: apiMessages,
@@ -1466,7 +1465,7 @@ CSV FILE IMPORT RULES:
             tools: jarvisTools,
           }),
           `stream round ${round}`,
-        ));
+        )));
       } catch (err: any) {
         if (err instanceof AiCreditsLimitError) {
           console.warn(`[JARVIS] Tool loop aborted at round ${round} — AI credit limit reached`);
@@ -1508,6 +1507,9 @@ CSV FILE IMPORT RULES:
           }
         }
       }
+
+      // Stream completed without throwing — charge 1 credit for this round.
+      await recordSuccess();
 
       if (!hasToolCalls || finishReason !== "tool_calls") {
         break;
