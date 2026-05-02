@@ -394,11 +394,7 @@ export function registerPowerBIAgentRoutes(app: Express) {
         await addMessage(convId, "user", last.content, last.attachments ?? null);
       }
 
-      // Pre-flight enforce BEFORE opening SSE so over-limit users get a
-      // normal 403. Per-HTTP-request idempotency key (client-supplied
-      // `Idempotency-Key` header or server-generated UUID) — NOT content
-      // hash — so two identical prompts charge twice while a true network
-      // retry with the same key dedupes in usage_events.
+      // Pre-flight enforce BEFORE opening SSE so over-limit users get a 403.
       const pbiIdemKey = getRequestIdempotencyKey(req);
       const pbiBaseRequestId = `powerbi_agent_chat_${convId}_${pbiIdemKey}`;
       const creditCtx = {

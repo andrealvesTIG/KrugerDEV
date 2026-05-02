@@ -25,9 +25,6 @@ class FakeAiCreditsLimitError extends Error {
 vi.mock("../server/services/aiCredits", () => ({
   enforceAiCredits: (...args: any[]) => enforceAiCreditsMock(...args),
   recordAiCredits: (...args: any[]) => recordAiCreditsMock(...args),
-  // Re-implement the real helper here so requestId derivation in the route
-  // is exercised end-to-end (Idempotency-Key header → stable id; absent →
-  // fresh UUID per request).
   getRequestIdempotencyKey: (req: any) => {
     const raw = req?.headers?.["idempotency-key"];
     const candidate = Array.isArray(raw) ? raw[0] : raw;

@@ -95,8 +95,6 @@ export function registerAudioRoutes(app: Express): void {
       }
 
       // STT and the gpt-audio chat are metered as two independent AI calls.
-      // Per-HTTP-request idempotency key dedupes only true network retries —
-      // two distinct voice turns charge independently.
       const audioIdemKey = getRequestIdempotencyKey(req);
 
       // 1. Auto-detect format and convert to OpenAI-compatible format

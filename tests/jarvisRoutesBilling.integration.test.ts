@@ -1,18 +1,7 @@
 /**
- * End-to-end billing-integrity test for the Friday chat route.
- *
- * Unlike `tests/jarvisRoutes.integration.test.ts`, this suite mocks ONLY
- * the lower-level `server/services/billing` module — `aiCredits.ts` runs
- * for real. That way we verify the full pipeline:
- *
- *   route → enforceAiCredits/recordAiCredits → billing.recordCreditUsage
- *
- * In particular this asserts the underlying `recordCreditUsage` is invoked
- * with a per-request requestId that:
- *   - Differs across two distinct identical-payload requests (so two
- *     usage_events rows would be written, not deduped).
- *   - Matches across two requests sharing an `Idempotency-Key` header
- *     (so a true network retry dedupes at the usage_events PK).
+ * End-to-end billing-integrity test: mocks ONLY `server/services/billing`,
+ * lets the real `aiCredits` service run, and asserts `recordCreditUsage`
+ * is invoked with the expected per-request requestId.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";
@@ -105,7 +94,7 @@ beforeEach(() => {
 });
 
 describe("Friday chat route → real aiCredits → billing.recordCreditUsage (end-to-end billing)", () => {
-  it("writes a usage event with a fresh per-request requestId for each distinct request (no content-hash dedup)", async () => {
+  it("two distinct requests → two separate usage events with different requestIds", async () => {
     const app = await buildApp();
     const payload = {
       organizationId: TEST_ORG,
@@ -116,28 +105,20 @@ describe("Friday chat route → real aiCredits → billing.recordCreditUsage (en
     await request(app).post("/api/jarvis/chat").set("x-test-user-id", TEST_USER).send(payload);
     await request(app).post("/api/jarvis/chat").set("x-test-user-id", TEST_USER).send(payload);
 
-    // Stream mock invokes recordSuccess once per request → recordAiCredits
-    // calls billing.recordCreditUsage exactly once per request.
     expect(recordCreditUsageMock).toHaveBeenCalledTimes(2);
-
-    // recordCreditUsage signature: (userId, resourceType, resourceId, orgId, requestId)
+    // recordCreditUsage(userId, resourceType, resourceId, orgId, requestId)
     const [c1, c2] = recordCreditUsageMock.mock.calls;
     expect(c1[0]).toBe(TEST_USER);
     expect(c1[1]).toBe("ai_runs");
     expect(c1[3]).toBe(TEST_ORG);
-    // The 5th arg is the requestId — must differ between the two calls so
-    // the usage_events table records both, not dedupes.
     expect(c1[4]).not.toBe(c2[4]);
-    // resourceId (3rd arg) is also the requestId in our recorder, so it
-    // also differs — the unique key is honored at both DB columns.
     expect(c1[2]).not.toBe(c2[2]);
-    // Each requestId is the route-derived format: friday_chat_<conv>_<uuid>_r0
     expect(c1[4]).toMatch(
       /^friday_chat_100_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_r0$/,
     );
   });
 
-  it("explicit Idempotency-Key header → billing.recordCreditUsage gets the SAME requestId across attempts (true retry dedup)", async () => {
+  it("same Idempotency-Key header → same requestId so usage_events deduplicates the retry", async () => {
     const app = await buildApp();
     const payload = {
       organizationId: TEST_ORG,
@@ -160,13 +141,11 @@ describe("Friday chat route → real aiCredits → billing.recordCreditUsage (en
     expect(recordCreditUsageMock).toHaveBeenCalledTimes(2);
     const reqId1 = recordCreditUsageMock.mock.calls[0][4];
     const reqId2 = recordCreditUsageMock.mock.calls[1][4];
-    // Both attempts share the same requestId — the underlying usage_events
-    // table will dedupe via its requestId unique constraint.
     expect(reqId1).toBe(reqId2);
     expect(reqId1).toContain(idemKey);
   });
 
-  it("does NOT call billing.recordCreditUsage when the user is over the AI-credits limit (no double-billing on 403)", async () => {
+  it("over-limit user → 403 limitExceeded, recordCreditUsage never called", async () => {
     checkAndEnforceLimitMock.mockResolvedValueOnce({ allowed: false, error: "out of credits" });
 
     const app = await buildApp();

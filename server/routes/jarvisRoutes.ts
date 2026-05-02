@@ -158,11 +158,7 @@ export function registerJarvisRoutes(app: Express) {
         );
       }
 
-      // Pre-flight enforce BEFORE opening SSE so over-limit users get a
-      // normal 403. Per-HTTP-request idempotency key (client-supplied
-      // `Idempotency-Key` header or server-generated UUID) — NOT content
-      // hash — so two identical prompts charge twice while a true network
-      // retry with the same key dedupes in usage_events.
+      // Pre-flight enforce BEFORE opening SSE so over-limit users get a 403.
       const idemKey = getRequestIdempotencyKey(req);
       const baseRequestId = `friday_chat_${conversationId ?? "new"}_${idemKey}`;
       const creditCtx = {
@@ -289,8 +285,6 @@ export function registerJarvisRoutes(app: Express) {
       }
 
       // Action requests are billable AI surfaces — 1 credit per success.
-      // Per-HTTP-request idempotency key dedupes true network retries
-      // without conflating two distinct identical user actions.
       const actionIdemKey = getRequestIdempotencyKey(req);
       const actionCreditCtx = {
         userId,

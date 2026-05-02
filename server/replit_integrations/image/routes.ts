@@ -32,9 +32,6 @@ export function registerImageRoutes(app: Express): void {
         }
       }
 
-      // Per-HTTP-request idempotency key (user/org-scoped via withAiCredits
-      // ctx) — NOT content hash — so two identical prompts charge twice
-      // while a true network retry with the same key dedupes.
       const imgIdemKey = getRequestIdempotencyKey(req);
       const response = await withAiCredits(
         {
