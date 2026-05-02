@@ -302,10 +302,14 @@ export function FridayCard({ card, onNavigate }: FridayCardProps) {
               return (
                 <Button
                   key={i}
-                  variant={isDismiss ? "ghost" : "outline"}
+                  variant={isDismiss ? "ghost" : "default"}
                   size="sm"
-                  className="h-7 px-2 text-xs"
-                  disabled={busyAction !== null}
+                  className={
+                    isDismiss
+                      ? "h-7 px-2 text-xs text-foreground hover:bg-accent"
+                      : "h-7 px-2 text-xs"
+                  }
+                  disabled={busyAction !== null && busyAction !== i}
                   onClick={(e) => {
                     e.stopPropagation();
                     handleAction(i, a);
