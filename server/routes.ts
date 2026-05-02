@@ -32,6 +32,7 @@ import { registerPartnerRoutes } from "./routes/partnerRoutes";
 import { registerUserActivityRoutes } from "./routes/userActivityRoutes";
 import { registerUserInsightsRoutes } from "./routes/userInsightsRoutes";
 import { registerProjectAgentRoutes } from "./routes/projectAgentRoutes";
+import { registerCustomAgentRoutes } from "./routes/customAgentRoutes";
 import { registerJarvisRoutes } from "./routes/jarvisRoutes";
 import { registerInvestorRoutes } from "./routes/investorRoutes";
 import { registerDailyLogRoutes } from "./routes/dailyLogRoutes";
@@ -134,6 +135,7 @@ export async function registerRoutes(
   registerUserActivityRoutes(app);
   registerUserInsightsRoutes(app);
   registerProjectAgentRoutes(app);
+  registerCustomAgentRoutes(app);
   registerJarvisRoutes(app);
   registerInvestorRoutes(app);
   registerDailyLogRoutes(app);

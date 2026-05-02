@@ -1453,6 +1453,12 @@ async function callOpenAIWithRetry(
   }
 }
 
+export interface CustomAgentDataScope {
+  type: "org" | "portfolios" | "projects";
+  portfolioIds?: number[];
+  projectIds?: number[];
+}
+
 async function detectOrgNeedsSetup(orgId: number, userId: string): Promise<boolean> {
   try {
     const [projectRows, portfolioRows, userRow] = await Promise.all([
@@ -1491,6 +1497,60 @@ Supported industry keys (use exactly these in the data.industry field): Technolo
 
 Important: only emit the configure_organization card while the workspace is empty. Never offer it for orgs that already have projects.`;
 
+export interface CustomAgentRuntimeConfig {
+  systemPrompt: string;
+  model: string;                                    // 'gpt-4o' | 'gpt-4o-mini'
+  allowedTools: string[];
+  dataScope: CustomAgentDataScope;
+  /**
+   * Called once per *confirmed write* tool execution to enforce + record an
+   * additional AI-credit charge under `custom_chat_agent_action`. Throws
+   * AiCreditsLimitError if the user is out of credits — the runtime then
+   * skips the tool and informs the model via a tool-error message.
+   */
+  meterAction?: () => Promise<void>;
+}
+
+const CUSTOM_AGENT_SAFE_TOOLS = new Set([
+  "create_task",
+  "create_risk",
+  "create_issue",
+  "add_project_note",
+  "flag_project_for_review",
+  "assign_resources_to_task",
+]);
+
+function filterContextByScope(ctx: JarvisContext, scope: CustomAgentRuntimeConfig["dataScope"]): JarvisContext {
+  if (scope.type === "org") return ctx;
+  let allowedProjectIds: Set<number>;
+  if (scope.type === "projects") {
+    allowedProjectIds = new Set(scope.projectIds ?? []);
+  } else {
+    const portfolioSet = new Set(scope.portfolioIds ?? []);
+    allowedProjectIds = new Set(
+      ctx.projects.filter((p: any) => p.portfolioId && portfolioSet.has(p.portfolioId)).map((p: any) => p.id)
+    );
+  }
+  const filterByProj = <T extends { projectId?: number }>(arr: T[]) => arr.filter(x => x.projectId == null || allowedProjectIds.has(x.projectId));
+  return {
+    ...ctx,
+    projects: ctx.projects.filter((p: any) => allowedProjectIds.has(p.id)),
+    portfolios: scope.type === "portfolios"
+      ? ctx.portfolios.filter((p: any) => (scope.portfolioIds ?? []).includes(p.id))
+      : ctx.portfolios.filter((p: any) => ctx.projects.some((pr: any) => pr.portfolioId === p.id && allowedProjectIds.has(pr.id))),
+    risks: filterByProj(ctx.risks as any[]),
+    issues: filterByProj(ctx.issues as any[]),
+    tasks: filterByProj(ctx.tasks as any[]),
+    milestones: filterByProj(ctx.milestones as any[]),
+    dependencies: filterByProj(ctx.dependencies as any[]),
+    statusReports: filterByProj(ctx.statusReports as any[]),
+    healthHistory: filterByProj(ctx.healthHistory as any[]),
+    financialsRollup: ctx.financialsRollup.filter(r => allowedProjectIds.has(r.projectId)),
+    timesheetsRollup: ctx.timesheetsRollup.filter(r => allowedProjectIds.has(r.projectId)),
+    deliverables: ctx.deliverables.filter(d => allowedProjectIds.has(d.projectId)),
+  };
+}
+
 export async function streamJarvisResponse(
   orgId: number,
   userId: string,
@@ -1510,13 +1570,15 @@ export async function streamJarvisResponse(
   pageContext?: PageContext,
   attachments?: FileAttachment[],
   options?: { forceOnboarding?: boolean },
+  agentConfig?: CustomAgentRuntimeConfig,
 ) {
   void userId;
   try {
-    const [context, needsSetup] = await Promise.all([
+    let [context, needsSetup] = await Promise.all([
       gatherOrganizationContext(orgId),
-      detectOrgNeedsSetup(orgId, userId),
+      agentConfig ? Promise.resolve(false) : detectOrgNeedsSetup(orgId, userId),
     ]);
+    if (agentConfig) context = filterContextByScope(context, agentConfig.dataScope);
     const dataContext = buildDataContext(context);
     const pageDirective = buildPageContextDirective(pageContext, context);
     const attachmentContext = buildAttachmentContext(attachments);
@@ -1554,7 +1616,27 @@ CSV FILE IMPORT RULES:
 - Use the bulk_create_tasks tool to create all tasks at once — do NOT call create_task repeatedly.
 - After creation, report how many tasks were created successfully.`;
 
-    const systemMessage = `${SYSTEM_PROMPT}${onboardingDirective}${pageDirective}${conciseDirective}${actionDirective}${attachmentContext}\n\n---\n\n${dataContext}`;
+    const baseSystem = agentConfig ? agentConfig.systemPrompt : SYSTEM_PROMPT;
+    const includeActionDirective = agentConfig
+      ? agentConfig.allowedTools.some(t => CUSTOM_AGENT_SAFE_TOOLS.has(t))
+      : true;
+
+    // Precompute scope-allowed projects so every tool call can be authorised
+    // against the agent's configured data scope, not just the model's view.
+    let agentAllowedProjectIds: Set<number> | null = null;
+    if (agentConfig && agentConfig.dataScope.type !== "org") {
+      if (agentConfig.dataScope.type === "projects") {
+        agentAllowedProjectIds = new Set(agentConfig.dataScope.projectIds ?? []);
+      } else {
+        const ps = new Set(agentConfig.dataScope.portfolioIds ?? []);
+        agentAllowedProjectIds = new Set(
+          context.projects
+            .filter((p) => p.portfolioId != null && ps.has(p.portfolioId))
+            .map((p) => p.id)
+        );
+      }
+    }
+    const systemMessage = `${baseSystem}${onboardingDirective}${pageDirective}${conciseDirective}${includeActionDirective ? actionDirective : ""}${attachmentContext}\n\n---\n\n${dataContext}`;
 
     const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: "system", content: systemMessage },
@@ -1576,14 +1658,17 @@ CSV FILE IMPORT RULES:
       let stream;
       let recordSuccess: () => Promise<void>;
       try {
+        const filteredTools = agentConfig
+          ? jarvisTools.filter(t => t.type === "function" && agentConfig.allowedTools.includes(t.function.name))
+          : jarvisTools;
         ({ result: stream, recordSuccess } = await meterPerCall(round, () => callOpenAIWithRetry(
           () => orgOpenai.chat.completions.create({
-            model: orgIsAzure ? orgDeployment : "gpt-4o",
+            model: orgIsAzure ? orgDeployment : (agentConfig?.model || "gpt-4o"),
             messages: apiMessages,
             stream: true,
             max_completion_tokens: concise ? 4096 : 8192,
             temperature: 0.3,
-            tools: jarvisTools,
+            ...(filteredTools.length > 0 ? { tools: filteredTools } : {}),
           }),
           `stream round ${round}`,
         )));
@@ -1649,6 +1734,52 @@ CSV FILE IMPORT RULES:
       for (const [, tc] of currentToolCalls) {
         try {
           const args = JSON.parse(tc.arguments);
+
+          // Custom-agent guardrails: enforce data scope + per-action metering
+          // BEFORE executing any write. The model can hallucinate a projectId
+          // that's outside the agent's scope; reject those server-side.
+          if (agentConfig) {
+            if (!agentConfig.allowedTools.includes(tc.name)) {
+              apiMessages.push({
+                role: "tool", tool_call_id: tc.id,
+                content: JSON.stringify({ success: false, message: `Tool '${tc.name}' is not enabled for this agent.` }),
+              });
+              continue;
+            }
+            const isOrgScoped = ORG_SCOPED_TOOLS.has(tc.name);
+            if (isOrgScoped && agentConfig.dataScope.type !== "org") {
+              apiMessages.push({
+                role: "tool", tool_call_id: tc.id,
+                content: JSON.stringify({ success: false, message: "This agent's data scope does not permit org-wide tools." }),
+              });
+              continue;
+            }
+            if (!isOrgScoped && agentAllowedProjectIds) {
+              const pid = typeof args.projectId === "number" ? args.projectId : Number(args.projectId);
+              if (!Number.isFinite(pid) || !agentAllowedProjectIds.has(pid)) {
+                apiMessages.push({
+                  role: "tool", tool_call_id: tc.id,
+                  content: JSON.stringify({ success: false, message: `Project ${args.projectId ?? "(none)"} is outside this agent's data scope.` }),
+                });
+                continue;
+              }
+            }
+            if (agentConfig.meterAction) {
+              try {
+                await agentConfig.meterAction();
+              } catch (meterErr: unknown) {
+                if (meterErr instanceof AiCreditsLimitError) {
+                  apiMessages.push({
+                    role: "tool", tool_call_id: tc.id,
+                    content: JSON.stringify({ success: false, message: "AI credit limit reached for write actions." }),
+                  });
+                  continue;
+                }
+                throw meterErr;
+              }
+            }
+          }
+
           const result = await handleToolCall(orgId, userId, tc.name, args);
           if (tc.name === "generate_pdf") {
             try {

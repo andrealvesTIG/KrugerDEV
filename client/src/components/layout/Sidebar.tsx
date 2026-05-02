@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate, ClipboardList, MessageSquare, FileCheck, PenSquare, ClipboardCheck, Shield, Gavel, FileSignature, CalendarDays, MailOpen, Newspaper, BarChart3, Check, Search, ChevronsUpDown } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate, ClipboardList, MessageSquare, FileCheck, PenSquare, ClipboardCheck, Shield, Gavel, FileSignature, CalendarDays, MailOpen, Newspaper, BarChart3, Check, Search, ChevronsUpDown, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
@@ -113,6 +113,7 @@ const moduleDefinitions: Record<string, { name: string; href: string; icon: Reac
   correspondence: { name: "Correspondence", href: "/correspondence", icon: MailOpen },
   media: { name: "Media", href: "/media", icon: Newspaper },
   "powerbi-agent": { name: "Power BI Request", href: "/powerbi-agent", icon: BarChart3 },
+  agents: { name: "Agents", href: "/agents", icon: Bot },
 };
 
 const navigation = [
@@ -175,6 +176,7 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
     { id: "help", name: "Help", isDefault: true, hidden: false, collapsedByDefault: true, items: [
       { type: "module" as const, key: "calendar", hidden: false },
       { type: "module" as const, key: "lessons-learned", hidden: false },
+      { type: "module" as const, key: "agents", hidden: false },
       { type: "module" as const, key: "user-guide", hidden: false },
       { type: "module" as const, key: "training", hidden: false },
       { type: "module" as const, key: "media", hidden: false },
@@ -296,6 +298,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   ensureModule("meetings", "portfolio", "construction-invoices", true);
   ensureModule("correspondence", "portfolio", "meetings", true);
   ensureModule("media", "help", "training");
+  ensureModule("agents", "help", "lessons-learned");
 
   // Remove the legacy Power BI Request sidebar entry: it now lives only inside the
   // New Intake dialog as an intake type that redirects to /powerbi-agent.

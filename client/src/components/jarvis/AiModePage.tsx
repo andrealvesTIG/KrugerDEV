@@ -29,6 +29,7 @@ import {
 } from "./jarvis-shared";
 import { useOrgSetupStatus } from "@/hooks/use-needs-org-setup";
 import { RecentChatsMenu } from "./RecentChatsMenu";
+import AgentPicker from "./AgentPicker";
 import logoIcon from "@assets/image_1777744172216.png";
 import ThemedGif from "@/components/ui/themed-gif";
 import running_man from "@assets/runcycle18_1772300373437.gif";
@@ -39,6 +40,7 @@ export default function AiModePage() {
     conciseMode, setConciseMode, pageContext,
     conversations, activeConversationId, switchConversation, newConversation,
     startOnboardingAgent, forceOnboarding,
+    activeAgentId, switchAgent,
   } = useJarvis();
 
   useAiModeEscapeHandler();
@@ -255,6 +257,7 @@ export default function AiModePage() {
           >
             Friday Agent
           </span>
+          <AgentPicker activeAgentId={activeAgentId} onSelect={switchAgent} variant="page" />
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
           <Tooltip>

@@ -34,6 +34,14 @@ export interface FridayConversationSummary {
 }
 
 const ACTIVE_CONV_KEY_PREFIX = "friday_active_conversation_";
+const ACTIVE_AGENT_KEY_PREFIX = "friday_active_agent_";
+
+function agentScope(agentId: number | null): string {
+  return agentId ? `agent_${agentId}` : "friday";
+}
+function convKey(orgId: number | undefined, agentId: number | null): string {
+  return `${ACTIVE_CONV_KEY_PREFIX}${orgId}_${agentScope(agentId)}`;
+}
 
 function parsePageContext(pathname: string): PageContext {
   const projectMatch = pathname.match(/^\/projects\/(\d+)/);
@@ -51,24 +59,39 @@ function parsePageContext(pathname: string): PageContext {
   return { path: pathname, entityType: null, entityId: null, label: null };
 }
 
-function loadActiveConversationId(orgId: number | undefined): number | null {
+function loadActiveConversationId(orgId: number | undefined, agentId: number | null): number | null {
   if (!orgId) return null;
   try {
-    const v = sessionStorage.getItem(ACTIVE_CONV_KEY_PREFIX + orgId);
+    const v = sessionStorage.getItem(convKey(orgId, agentId));
     return v ? Number(v) : null;
   } catch {
     return null;
   }
 }
 
-function saveActiveConversationId(orgId: number | undefined, id: number | null) {
+function saveActiveConversationId(orgId: number | undefined, agentId: number | null, id: number | null) {
   if (!orgId) return;
   try {
-    if (id) sessionStorage.setItem(ACTIVE_CONV_KEY_PREFIX + orgId, String(id));
-    else sessionStorage.removeItem(ACTIVE_CONV_KEY_PREFIX + orgId);
+    if (id) sessionStorage.setItem(convKey(orgId, agentId), String(id));
+    else sessionStorage.removeItem(convKey(orgId, agentId));
   } catch {
     // ignore
   }
+}
+
+function loadActiveAgentId(orgId: number | undefined): number | null {
+  if (!orgId) return null;
+  try {
+    const v = sessionStorage.getItem(ACTIVE_AGENT_KEY_PREFIX + orgId);
+    return v ? Number(v) : null;
+  } catch { return null; }
+}
+function saveActiveAgentId(orgId: number | undefined, id: number | null) {
+  if (!orgId) return;
+  try {
+    if (id) sessionStorage.setItem(ACTIVE_AGENT_KEY_PREFIX + orgId, String(id));
+    else sessionStorage.removeItem(ACTIVE_AGENT_KEY_PREFIX + orgId);
+  } catch { /* ignore */ }
 }
 
 // ----- Cross-component shared state for the active conversation + open state -----
@@ -79,6 +102,7 @@ function saveActiveConversationId(orgId: number | undefined, id: number | null) 
 // 404 on the server-side org check and confuse the UI).
 
 let _activeConversationId: number | null = null;
+let _activeAgentId: number | null = null;
 let _activeOrgId: number | undefined = undefined;
 let _isOpen = false;
 const _listeners = new Set<() => void>();
@@ -90,7 +114,16 @@ function notify() {
 function setActiveConversationIdGlobal(orgId: number | undefined, id: number | null) {
   _activeConversationId = id;
   _activeOrgId = orgId;
-  saveActiveConversationId(orgId, id);
+  saveActiveConversationId(orgId, _activeAgentId, id);
+  notify();
+}
+
+function setActiveAgentIdGlobal(orgId: number | undefined, agentId: number | null) {
+  _activeAgentId = agentId;
+  _activeOrgId = orgId;
+  saveActiveAgentId(orgId, agentId);
+  // Restore the conversation pointer scoped to this agent.
+  _activeConversationId = loadActiveConversationId(orgId, agentId);
   notify();
 }
 
@@ -108,7 +141,7 @@ function useFridaySharedState() {
       _listeners.delete(fn);
     };
   }, []);
-  return { activeConversationId: _activeConversationId, isOpen: _isOpen };
+  return { activeConversationId: _activeConversationId, activeAgentId: _activeAgentId, isOpen: _isOpen };
 }
 
 // ----- Server message shape -----
@@ -142,7 +175,7 @@ export function useJarvis() {
   const orgId = currentOrganization?.id;
   const queryClient = useQueryClient();
   const [location] = useLocation();
-  const { activeConversationId, isOpen } = useFridaySharedState();
+  const { activeConversationId, activeAgentId, isOpen } = useFridaySharedState();
 
   // Sync active conversation id with the current organization. When orgId
   // changes (org switcher), discard any previous-org conversationId and
@@ -153,11 +186,23 @@ export function useJarvis() {
     if (!orgId) return;
     if (_activeOrgId !== orgId) {
       _activeOrgId = orgId;
-      const saved = loadActiveConversationId(orgId);
-      _activeConversationId = saved ?? null;
+      _activeAgentId = loadActiveAgentId(orgId);
+      _activeConversationId = loadActiveConversationId(orgId, _activeAgentId);
       notify();
     }
   }, [orgId]);
+
+  // URL helpers that route to either Friday or a custom-agent endpoint.
+  const convListUrl = activeAgentId
+    ? `/api/agents/${activeAgentId}/conversations?organizationId=${orgId}`
+    : `/api/jarvis/conversations?organizationId=${orgId}`;
+  const convDetailUrl = (cid: number) => activeAgentId
+    ? `/api/agents/${activeAgentId}/conversations/${cid}?organizationId=${orgId}`
+    : `/api/jarvis/conversations/${cid}?organizationId=${orgId}`;
+  const chatUrl = activeAgentId ? `/api/agents/${activeAgentId}/chat` : `/api/jarvis/chat`;
+  const convQueryKey: (string | number | null | undefined)[] = activeAgentId
+    ? ["/api/agents", activeAgentId, "conversations", orgId]
+    : ["/api/jarvis/conversations", orgId];
 
   // Local in-flight overlay (optimistic user msg + streaming assistant msg)
   const [pendingMessages, setPendingMessages] = useState<JarvisMessage[]>([]);
@@ -174,12 +219,10 @@ export function useJarvis() {
 
   // Conversations list
   const conversationsQuery = useQuery<FridayConversationSummary[]>({
-    queryKey: ["/api/jarvis/conversations", orgId],
+    queryKey: [...convQueryKey],
     queryFn: async () => {
       if (!orgId) return [];
-      const res = await fetch(`/api/jarvis/conversations?organizationId=${orgId}`, {
-        credentials: "include",
-      });
+      const res = await fetch(convListUrl, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load conversations");
       return res.json();
     },
@@ -189,13 +232,10 @@ export function useJarvis() {
 
   // Active conversation messages
   const conversationQuery = useQuery<ServerConversationDetail | null>({
-    queryKey: ["/api/jarvis/conversations", orgId, activeConversationId],
+    queryKey: [...convQueryKey, activeConversationId],
     queryFn: async () => {
       if (!orgId || !activeConversationId) return null;
-      const res = await fetch(
-        `/api/jarvis/conversations/${activeConversationId}?organizationId=${orgId}`,
-        { credentials: "include" },
-      );
+      const res = await fetch(convDetailUrl(activeConversationId), { credentials: "include" });
       if (!res.ok) {
         if (res.status === 404) return null;
         throw new Error("Failed to load conversation");
@@ -281,7 +321,7 @@ export function useJarvis() {
 
       try {
         abortRef.current = new AbortController();
-        const response = await fetch("/api/jarvis/chat", {
+        const response = await fetch(chatUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
@@ -413,16 +453,16 @@ export function useJarvis() {
         // Refetch to swap in persisted versions, then clear overlay
         if (resolvedConversationId && orgId) {
           await queryClient.invalidateQueries({
-            queryKey: ["/api/jarvis/conversations", orgId, resolvedConversationId],
+            queryKey: [...convQueryKey, resolvedConversationId],
           });
           await queryClient.invalidateQueries({
-            queryKey: ["/api/jarvis/conversations", orgId],
+            queryKey: [...convQueryKey],
           });
         }
         if (!preservePendingOnFinish) setPendingMessages([]);
       }
     },
-    [orgId, isLoading, conciseMode, activeConversationId, persistedMessages, queryClient, forceOnboarding],
+    [orgId, isLoading, conciseMode, activeConversationId, activeAgentId, persistedMessages, queryClient, chatUrl, convQueryKey, forceOnboarding],
   );
 
   const clearMessages = useCallback(() => {
@@ -438,6 +478,13 @@ export function useJarvis() {
       setIsLoading(false);
     }
   }, []);
+
+  const switchAgent = useCallback((agentId: number | null) => {
+    if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
+    setIsLoading(false);
+    setPendingMessages([]);
+    setActiveAgentIdGlobal(orgId, agentId);
+  }, [orgId]);
 
   return {
     messages,
@@ -459,5 +506,7 @@ export function useJarvis() {
     newConversation,
     startOnboardingAgent,
     forceOnboarding,
+    activeAgentId,
+    switchAgent,
   };
 }

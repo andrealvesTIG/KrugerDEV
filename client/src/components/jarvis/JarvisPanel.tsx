@@ -30,6 +30,7 @@ import {
 } from "./jarvis-shared";
 import { useOrgSetupStatus } from "@/hooks/use-needs-org-setup";
 import { RecentChatsMenu } from "./RecentChatsMenu";
+import AgentPicker from "./AgentPicker";
 import ThemedGif from "@/components/ui/themed-gif";
 import running_man from "@assets/runcycle18_1772300373437.gif";
 
@@ -54,6 +55,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
     messages, isLoading, sendMessage, stopGeneration, conciseMode, setConciseMode, pageContext,
     conversations, activeConversationId, switchConversation, newConversation,
     startOnboardingAgent, forceOnboarding,
+    activeAgentId, switchAgent,
   } = useJarvis();
   const { needsSetup: needsOrgSetup } = useOrgSetupStatus();
   const showOnboarding =
@@ -364,6 +366,8 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
               <span className="text-sm font-medium text-cyan-300 tracking-wide" style={{ fontFamily: "'Outfit', sans-serif" }}>
                 Friday Agent
               </span>
+              <AgentPicker activeAgentId={activeAgentId} onSelect={switchAgent} />
+              
               {pageContext.entityType && (() => {
                 const CtxIcon = getContextIcon(pageContext.entityType);
                 return (

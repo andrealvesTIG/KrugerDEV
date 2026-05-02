@@ -13,6 +13,7 @@ import cron from "node-cron";
 import { checkAndSendDueReports } from "./services/scheduledReports";
 import { runScheduledReminders } from "./services/timesheetReminderEngine";
 import { checkAndRunDueAgentActions } from "./services/projectAgentService";
+import { checkAndRunDueCustomScheduledAgents } from "./services/customAgentService";
 import { checkDueDateNotifications } from "./services/dueDateNotifications";
 import { cleanupDuplicateBillingCycles } from "./services/billing";
 import { backfillFinancialEntries } from "./migrations/backfillFinancialEntries";
@@ -322,6 +323,14 @@ app.use((req, res, next) => {
             }
           } catch (error) {
             console.error("Error in project agent cron job:", error);
+          }
+          try {
+            const count = await checkAndRunDueCustomScheduledAgents();
+            if (count > 0) {
+              log(`Custom scheduled agents: executed ${count} run(s)`, "cron");
+            }
+          } catch (error) {
+            console.error("Error in custom scheduled agent cron job:", error);
           }
         });
         log("AI Project Agent cron job started (every 15 minutes)", "cron");

@@ -5373,6 +5373,102 @@ export const userFollowupDrafts = pgTable("user_followup_drafts", {
 export type UserFollowupDraft = typeof userFollowupDrafts.$inferSelect;
 export type InsertUserFollowupDraft = typeof userFollowupDrafts.$inferInsert;
 
+// ===========================================================================
+// Custom AI Agents (chat + scheduled). Built-ins (Friday, Power BI, Project
+// Agent) are virtual; only user-built agents are persisted here.
+// ===========================================================================
+
+export const customAgents = pgTable("custom_agents", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  type: text("type").notNull(),                     // 'chat' | 'scheduled'
+  name: text("name").notNull(),
+  description: text("description"),
+  icon: text("icon").default("Bot"),                // curated lucide icon name
+  systemPrompt: text("system_prompt").notNull(),
+  model: text("model").notNull().default("gpt-4o-mini"), // 'gpt-4o' | 'gpt-4o-mini'
+  dataScope: jsonb("data_scope").$type<{
+    type: "org" | "portfolios" | "projects";
+    portfolioIds?: number[];
+    projectIds?: number[];
+  }>().notNull().default({ type: "org" }),
+  allowedTools: text("allowed_tools").array().notNull().default(sql`'{}'::text[]`),
+  visibility: text("visibility").notNull().default("private"), // 'private' | 'org' | 'members'
+  // Scheduled-only:
+  enabled: boolean("enabled").notNull().default(true),
+  scheduleDay: integer("schedule_day"),             // 0-6 (Sun..Sat)
+  scheduleTime: text("schedule_time"),              // HH:MM UTC
+  timezone: text("timezone").default("America/New_York"),
+  recipientEmails: text("recipient_emails").array(),
+  emailSubject: text("email_subject"),
+  lastRun: timestamp("last_run"),
+  nextRun: timestamp("next_run"),
+  archivedAt: timestamp("archived_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("custom_agents_org_idx").on(t.organizationId),
+  index("custom_agents_creator_idx").on(t.createdBy),
+  index("custom_agents_next_run_idx").on(t.nextRun),
+]);
+
+export const customAgentMembers = pgTable("custom_agent_members", {
+  id: serial("id").primaryKey(),
+  agentId: integer("agent_id").notNull().references(() => customAgents.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  uniqueIndex("custom_agent_members_unique").on(t.agentId, t.userId),
+]);
+
+export const customAgentConversations = pgTable("custom_agent_conversations", {
+  id: serial("id").primaryKey(),
+  agentId: integer("agent_id").notNull().references(() => customAgents.id, { onDelete: "cascade" }),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title"),
+  archivedAt: timestamp("archived_at"),
+  lastMessageAt: timestamp("last_message_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  index("custom_agent_conversations_user_idx").on(t.agentId, t.userId, t.lastMessageAt),
+]);
+
+export const customAgentMessages = pgTable("custom_agent_messages", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id").notNull().references(() => customAgentConversations.id, { onDelete: "cascade" }),
+  role: text("role").notNull(),                     // 'user' | 'assistant'
+  content: text("content").notNull(),
+  attachments: jsonb("attachments").$type<{ name: string; type: string; size: number }[] | null>(),
+  pageContext: jsonb("page_context").$type<Record<string, any> | null>(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("custom_agent_messages_conv_idx").on(t.conversationId, t.createdAt),
+]);
+
+export const customAgentLogs = pgTable("custom_agent_logs", {
+  id: serial("id").primaryKey(),
+  agentId: integer("agent_id").notNull().references(() => customAgents.id, { onDelete: "cascade" }),
+  status: text("status").notNull(),                 // 'success' | 'error' | 'skipped'
+  subject: text("subject"),
+  recipientEmails: text("recipient_emails").array(),
+  emailPreview: text("email_preview"),
+  errorMessage: text("error_message"),
+  triggeredBy: varchar("triggered_by"),             // user id or 'cron'
+  createdAt: timestamp("created_at").defaultNow(),
+}, (t) => [
+  index("custom_agent_logs_agent_idx").on(t.agentId, t.createdAt),
+]);
+
+export type CustomAgent = typeof customAgents.$inferSelect;
+export type InsertCustomAgent = typeof customAgents.$inferInsert;
+export type CustomAgentMember = typeof customAgentMembers.$inferSelect;
+export type CustomAgentConversation = typeof customAgentConversations.$inferSelect;
+export type CustomAgentMessage = typeof customAgentMessages.$inferSelect;
+export type CustomAgentLog = typeof customAgentLogs.$inferSelect;
+
 // Custom one-shot migration tracker used by `server/migrations/*` (e.g.
 // `migrateMonthToCalendar`). Declared here so `drizzle-kit push` recognises
 // the existing table instead of suggesting a rename to a new schema table.

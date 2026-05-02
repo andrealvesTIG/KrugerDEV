@@ -96,6 +96,7 @@ const Correspondence = lazy(() => import("@/pages/Correspondence"));
 const Blog = lazy(() => import("@/pages/Blog"));
 const BlogPost = lazy(() => import("@/pages/BlogPost"));
 const PowerBIAgent = lazy(() => import("@/pages/PowerBIAgent"));
+const AgentsPage = lazy(() => import("@/pages/Agents"));
 const CompareP6Page = lazy(() => import("@/pages/CompareP6Page"));
 const CompareMsProjectPage = lazy(() => import("@/pages/CompareMsProjectPage"));
 const CompareProcorePage = lazy(() => import("@/pages/CompareProcorePage"));
@@ -266,6 +267,7 @@ function Router() {
           <GuardedRoute path="/training/:moduleId" component={TrainingModule} moduleKey="training" />
           <GuardedRoute path="/training" component={Training} moduleKey="training" />
           <GuardedRoute path="/powerbi-agent" component={PowerBIAgent} moduleKey="powerbi-agent" />
+          <GuardedRoute path="/agents" component={AgentsPage} moduleKey="agents" />
           <Route path="/scheduled-reports" component={ReportSubscriptions} />
           <Route path="/risk-assessment/share/:token" component={SharedRiskAssessment} />
           <Route path="/project-risk-assessment/share/:token" component={SharedProjectRiskAssessment} />
