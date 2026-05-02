@@ -1592,16 +1592,17 @@ export function registerResourceRoutes(app: Express) {
       const membership = memberships.find(m => m.organizationId === orgId);
       if (!membership) return res.status(403).json({ message: "Not a member of this organization" });
 
-      const { checkAndEnforceLimit, METER_CODES, recordResourceUsage } = await import("../services/billing");
-      const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.AI_RUNS, 1, orgId);
-      if (!limitCheck.allowed) {
-        return res.status(403).json({ message: limitCheck.error || "AI run limit reached", limitExceeded: true, resourceType: "ai_run" });
-      }
-
+      // AI credit enforcement + recording happens inside
+      // `generateResourceOptimization` via `withAiCredits`. Don't double-charge.
       const { generateResourceOptimization } = await import('../services/resourceOptimizationAI');
-      const result = await generateResourceOptimization(orgId);
-
-      await recordResourceUsage(userId, METER_CODES.AI_RUNS, `ai_optimization_${orgId}_${Date.now()}`, 1, orgId);
+      let result;
+      try {
+        result = await generateResourceOptimization(orgId, userId);
+      } catch (limitErr) {
+        const { sendLimitExceeded } = await import("../services/aiCredits");
+        if (sendLimitExceeded(res, limitErr)) return;
+        throw limitErr;
+      }
 
       res.json(result);
     } catch (err: any) {

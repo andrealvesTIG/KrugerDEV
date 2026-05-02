@@ -974,12 +974,16 @@ export async function checkAndEnforceLimit(
   };
 }
 
-// Helper function to record credit usage after successful resource creation
+// Helper function to record credit usage after successful resource creation.
+// `requestId` is optional — when provided it is used verbatim so callers (e.g.
+// `recordAiCredits`) can supply a stable id and dedupe retries. When omitted
+// we generate a per-call id (legacy behavior).
 export async function recordCreditUsage(
   userId: string,
   resourceType: ResourceType,
   resourceId: string | number,
-  orgId?: number | null
+  orgId?: number | null,
+  requestId?: string,
 ): Promise<void> {
   try {
     let subscription = null;
@@ -996,13 +1000,13 @@ export async function recordCreditUsage(
     }
 
     const creditCost = await getResourceCreditCost(resourceType);
-    
+
     await billingProvider.recordUsage({
       subscriptionId: subscription.id,
       meterCode: "credits",
       units: creditCost,
       actorUserId: userId,
-      requestId: `${resourceType}_${resourceId}_${Date.now()}`,
+      requestId: requestId ?? `${resourceType}_${resourceId}_${Date.now()}`,
     });
   } catch (error) {
     console.error("[CREDITS] Error recording credit usage:", error);

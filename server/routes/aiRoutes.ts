@@ -11,6 +11,12 @@ import {
   openai,
 } from "./helpers";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
+import {
+  withAiCredits,
+  enforceAiCredits,
+  recordAiCredits,
+  sendLimitExceeded,
+} from "../services/aiCredits";
 
 export function registerAiRoutes(app: Express) {
   // =========== AI PROJECT GENERATION ===========
@@ -37,18 +43,7 @@ export function registerAiRoutes(app: Express) {
       }
       
       const { prompt, organizationId, portfolioId } = req.body;
-      
-      // Check AI runs limit before making the API call (using org subscription)
-      const { checkAndEnforceLimit, METER_CODES } = await import("../services/billing");
-      const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.AI_RUNS, 1, organizationId);
-      if (!limitCheck.allowed) {
-        return res.status(403).json({ 
-          message: limitCheck.error || "AI credits limit reached. Please upgrade your plan.",
-          limitExceeded: true,
-          resourceType: "ai_runs"
-        });
-      }
-      
+
       if (!prompt || !organizationId) {
         return res.status(400).json({ message: "Prompt and organizationId are required" });
       }
@@ -112,20 +107,19 @@ Guidelines:
 
 Return ONLY valid JSON, no markdown or explanations.`;
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Create a project plan for: ${prompt}` }
-        ],
-        response_format: { type: "json_object" },
-        max_tokens: 4000,
-      });
-      
-      // Track AI usage and deduct credits after successful API call
-      const { recordCreditUsage, RESOURCE_TYPES } = await import("../services/billing");
-      await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_project_${Date.now()}`);
-      
+      const response = await withAiCredits(
+        { userId, orgId: Number(organizationId), action: "ai_project_generate" },
+        () => openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Create a project plan for: ${prompt}` }
+          ],
+          response_format: { type: "json_object" },
+          max_tokens: 4000,
+        }),
+      );
+
       const content = response.choices[0]?.message?.content;
       if (!content) {
         return res.status(500).json({ message: "AI did not return a response" });
@@ -249,6 +243,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
         }
       });
     } catch (err) {
+      if (sendLimitExceeded(res, err)) return;
       console.error("Error generating AI project:", err);
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? "Failed to generate project with AI" : classified.message });
@@ -275,18 +270,7 @@ Return ONLY valid JSON, no markdown or explanations.`;
       }
       
       const { prompt, organizationId, projectId, portfolioId } = req.body;
-      
-      // Check AI runs limit (using org subscription)
-      const { checkAndEnforceLimit, METER_CODES } = await import("../services/billing");
-      const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.AI_RUNS, 1, organizationId);
-      if (!limitCheck.allowed) {
-        return res.status(403).json({ 
-          message: limitCheck.error || "AI credits limit reached. Please upgrade your plan.",
-          limitExceeded: true,
-          resourceType: "ai_runs"
-        });
-      }
-      
+
       if (!prompt || !organizationId) {
         return res.status(400).json({ message: "Prompt and organizationId are required" });
       }
@@ -398,19 +382,19 @@ For MULTIPLE PROJECTS, use this items structure:
 
 Return ONLY valid JSON.`;
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Request: ${prompt}\n\nContext: organizationId=${organizationId}${projectId ? `, projectId=${projectId}` : ''}` }
-        ],
-        response_format: { type: "json_object" },
-        max_tokens: 4000,
-      });
-      
-      const { recordCreditUsage, RESOURCE_TYPES } = await import("../services/billing");
-      await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_smart_create_${Date.now()}`);
-      
+      const response = await withAiCredits(
+        { userId, orgId: Number(organizationId), action: "ai_smart_create" },
+        () => openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Request: ${prompt}\n\nContext: organizationId=${organizationId}${projectId ? `, projectId=${projectId}` : ''}` }
+          ],
+          response_format: { type: "json_object" },
+          max_tokens: 4000,
+        }),
+      );
+
       const content = response.choices[0]?.message?.content;
       if (!content) {
         return res.status(500).json({ message: "AI did not return a response" });
@@ -691,6 +675,7 @@ Return ONLY valid JSON.`;
         message: results.summary.join(", ")
       });
     } catch (err) {
+      if (sendLimitExceeded(res, err)) return;
       console.error("Error with AI smart create:", err);
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? "Failed to create with AI" : classified.message });
@@ -720,20 +705,14 @@ Return ONLY valid JSON.`;
         return res.status(403).json({ message: "You don't have access to this organization" });
       }
 
-      const { checkAndEnforceLimit, METER_CODES, recordResourceUsage } = await import("../services/billing");
-      const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.AI_RUNS, 1, Number(organizationId));
-      if (!limitCheck.allowed) {
-        return res.status(403).json({
-          message: limitCheck.error || "AI usage limit reached. Please upgrade your plan.",
-          limitExceeded: true,
-          resourceType: "ai_runs"
-        });
-      }
-
-      await recordResourceUsage(userId, METER_CODES.AI_RUNS, `voice_input_${organizationId}_${Date.now()}`, 1, Number(organizationId));
+      await withAiCredits(
+        { userId, orgId: Number(organizationId), action: "ai_voice_input" },
+        async () => {},
+      );
 
       return res.json({ success: true });
     } catch (error: any) {
+      if (sendLimitExceeded(res, error)) return;
       console.error("Error recording voice usage:", error);
       const classified = classifyError(error);
       return res.status(classified.status).json({ message: classified.status === 500 ? "Failed to record voice usage" : classified.message });
@@ -767,16 +746,6 @@ Return ONLY valid JSON.`;
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(Number(organizationId))) {
         return res.status(403).json({ message: "You don't have access to this organization" });
-      }
-
-      const { checkAndEnforceLimit, METER_CODES } = await import("../services/billing");
-      const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.AI_RUNS, 1, Number(organizationId));
-      if (!limitCheck.allowed) {
-        return res.status(403).json({
-          message: limitCheck.error || "AI credits limit reached. Please upgrade your plan.",
-          limitExceeded: true,
-          resourceType: "ai_runs"
-        });
       }
 
       const existingProjects = await storage.getProjects(Number(organizationId));
@@ -861,15 +830,18 @@ Return ONLY valid JSON.`;
         ? `\n\nExisting projects in this organization:\n${projectSummariesForAI.join('\n')}`
         : '\n\nNo existing projects in this organization.';
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Request: ${prompt}\n\nContext: organizationId=${organizationId}${projectId ? `, projectId=${projectId}` : ''}${targetProjectDetails}${existingProjectsContext}` }
-        ],
-        response_format: { type: "json_object" },
-        max_tokens: 2000,
-      });
+      const response = await withAiCredits(
+        { userId, orgId: Number(organizationId), action: "ai_smart_create_preview" },
+        () => openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: `Request: ${prompt}\n\nContext: organizationId=${organizationId}${projectId ? `, projectId=${projectId}` : ''}${targetProjectDetails}${existingProjectsContext}` }
+          ],
+          response_format: { type: "json_object" },
+          max_tokens: 2000,
+        }),
+      );
 
       const content = response.choices[0]?.message?.content;
       if (!content) {
@@ -977,6 +949,7 @@ Return ONLY valid JSON.`;
         summary: `AI identified ${finalActions.length} action(s) to perform${matchedProject ? ` for project "${matchedProject.name}"` : ''}`,
       });
     } catch (err) {
+      if (sendLimitExceeded(res, err)) return;
       console.error("Error with AI smart create preview:", err);
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? "Failed to preview AI actions" : classified.message });
@@ -1007,15 +980,11 @@ Return ONLY valid JSON.`;
         return res.status(400).json({ message: "organizationId and actions array are required" });
       }
 
-      const { checkAndEnforceLimit, METER_CODES, recordCreditUsage, RESOURCE_TYPES } = await import("../services/billing");
-      const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.AI_RUNS, 1, organizationId);
-      if (!limitCheck.allowed) {
-        return res.status(403).json({
-          message: limitCheck.error || "AI credits limit reached. Please upgrade your plan.",
-          limitExceeded: true,
-          resourceType: "ai_runs"
-        });
-      }
+      const { chargeUserId: smartCreateChargeUserId } = await enforceAiCredits({
+        userId,
+        orgId: Number(organizationId),
+        action: "ai_smart_create_execute",
+      });
 
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(Number(organizationId))) {
@@ -1235,7 +1204,11 @@ Return ONLY valid JSON.`;
         results.summary.push(`Created ${createdResources.length} resource(s)`);
       }
 
-      await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_smart_create_confirmed_${Date.now()}`, organizationId ? Number(organizationId) : undefined);
+      await recordAiCredits(smartCreateChargeUserId, {
+        userId,
+        orgId: Number(organizationId),
+        action: "ai_smart_create_execute",
+      });
 
       const aiUser = userId ? await storage.getUser(userId) : null;
       const aiCreatorName = aiUser ? `${aiUser.firstName || ''} ${aiUser.lastName || ''}`.trim() || aiUser.email || 'Unknown' : 'System';
@@ -1293,6 +1266,7 @@ Return ONLY valid JSON.`;
         message: results.summary.join(", ")
       });
     } catch (err) {
+      if (sendLimitExceeded(res, err)) return;
       console.error("Error with AI smart create execute:", err);
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? "Failed to create items" : classified.message });

@@ -674,6 +674,8 @@ async function ensureAttachmentAnalysis(
   conversationDbId: number | null,
   messages: PowerBIAgentMessage[],
   modelTier: PbiModelTier,
+  orgId: number,
+  userId: string,
   onPhase?: (phase: { phase: "analyzing" | "analyzed"; fileCount?: number }) => void,
 ): Promise<PbiAttachmentAnalysis | null> {
   if (!conversationDbId) return null;
@@ -710,7 +712,9 @@ async function ensureAttachmentAnalysis(
     try { await setMessageExtractions(messageId, extractions); } catch {}
   }
 
-  const fresh = await analyzeAttachments(extractions, modelTier);
+  // Don't meter the inner analysis call — the parent chat turn is charged
+  // exactly once at the route layer (powerbiAgentRoutes.ts).
+  const fresh = await analyzeAttachments(extractions, modelTier, orgId, userId, { meter: false });
   const merged = mergeAnalyses(existing, fresh);
   try { await setAttachmentAnalysis(conversationDbId, merged); } catch {}
   onPhase?.({ phase: "analyzed", fileCount: newAttachments.length });
@@ -735,7 +739,7 @@ export async function streamPowerBIAgentResponse(
     }
 
     // Run extraction + analysis BEFORE the chat call so the model can use it.
-    const analysis = await ensureAttachmentAnalysis(conversationDbId, messages, modelTier, onPhase);
+    const analysis = await ensureAttachmentAnalysis(conversationDbId, messages, modelTier, orgId, userId, onPhase);
     if (analysis) {
       // Splice the analysis into the system prompt for THIS turn by prepending
       // a synthetic system message. We do it here so the active system prompt

@@ -873,6 +873,7 @@ export function registerUserInsightsRoutes(app: Express) {
       const fullName = [target.firstName, target.lastName].filter(Boolean).join(' ').trim() || null;
       const draft = await generateFollowupDraft({
         tone,
+        adminUserId: adminId,
         context: {
           user: {
             id: target.id,

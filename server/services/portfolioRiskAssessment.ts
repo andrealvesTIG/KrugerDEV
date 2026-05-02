@@ -3,6 +3,7 @@ import PDFDocument from "pdfkit";
 import { storage } from "../storage";
 import { DEFAULT_RISK_ASSESSMENT_CONFIG, type RiskAssessmentConfig } from "@shared/schema";
 import { decryptApiKey } from "../routes/helpers";
+import { withAiCredits } from "./aiCredits";
 
 const defaultOpenai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -113,7 +114,8 @@ IMPORTANT: Pay close attention to each risk's current status. Risks with status 
 
 export async function generatePortfolioRiskAssessment(
   portfolioId: number,
-  organizationId: number
+  organizationId: number,
+  userId: string,
 ): Promise<RiskAssessmentReport> {
   const portfolio = await storage.getPortfolio(portfolioId);
   if (!portfolio) throw new Error("Portfolio not found");
@@ -204,15 +206,18 @@ export async function generatePortfolioRiskAssessment(
   };
 
   const { client, model } = getOpenAIClient(config);
-  const response = await client.chat.completions.create({
-    model,
-    messages: [
-      { role: "system", content: buildPortfolioSystemPrompt(config) },
-      { role: "user", content: JSON.stringify(dataPayload) },
-    ],
-    temperature: config.temperature,
-    max_tokens: config.maxTokens,
-  });
+  const response = await withAiCredits(
+    { userId, orgId: organizationId, action: "portfolio_risk_assessment", entityId: portfolioId },
+    () => client.chat.completions.create({
+      model,
+      messages: [
+        { role: "system", content: buildPortfolioSystemPrompt(config) },
+        { role: "user", content: JSON.stringify(dataPayload) },
+      ],
+      temperature: config.temperature,
+      max_tokens: config.maxTokens,
+    }),
+  );
 
   const content = response.choices[0]?.message?.content || "{}";
   const cleanedContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();

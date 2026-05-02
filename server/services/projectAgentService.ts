@@ -3,11 +3,30 @@ import { projectAgents, projectAgentLogs, projects, tasks, issues, users, resour
 import { eq, and, sql, lte, isNotNull, not, inArray } from "drizzle-orm";
 import { sendEmail } from "./email";
 import OpenAI from "openai";
+import { withAiCredits, resolveSystemUserId } from "./aiCredits";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
+
+/**
+ * Resolve who to charge for a scheduled/on-demand agent action. If a
+ * `triggerUserId` is supplied (on-demand button), charge them. Otherwise
+ * (scheduled cron) walk the org membership to find an owner/admin/member.
+ * Returns null when the org has no eligible user, in which case the caller
+ * should warn-skip the AI call rather than silently bypass billing.
+ */
+async function resolveAgentChargeUser(projectId: number, triggerUserId: string | null): Promise<{ userId: string; orgId: number | null } | null> {
+  const [proj] = await db.select({ organizationId: projects.organizationId })
+    .from(projects).where(eq(projects.id, projectId));
+  const orgId = proj?.organizationId ?? null;
+  if (triggerUserId) return { userId: triggerUserId, orgId };
+  if (!orgId) return null;
+  const userId = await resolveSystemUserId(orgId);
+  if (!userId) return null;
+  return { userId, orgId };
+}
 
 interface StakeholderEmails {
   managerEmail: string | null;
@@ -102,7 +121,7 @@ async function getProjectContext(projectId: number) {
   };
 }
 
-export async function runMeetingAgenda(agentId: number, projectId: number): Promise<void> {
+export async function runMeetingAgenda(agentId: number, projectId: number, triggerUserId: string | null = null): Promise<void> {
   const ctx = await getProjectContext(projectId);
   if (!ctx) throw new Error("Project not found");
 
@@ -111,6 +130,13 @@ export async function runMeetingAgenda(agentId: number, projectId: number): Prom
 
   if (recipients.length === 0) {
     await logAgentAction(agentId, projectId, "meeting_agenda", "Meeting Agenda", [], "skipped", "No stakeholder emails configured");
+    return;
+  }
+
+  const charge = await resolveAgentChargeUser(projectId, triggerUserId);
+  if (!charge) {
+    console.warn(`[agent] Skipping meeting agenda for project ${projectId}: no eligible user to bill credits to.`);
+    await logAgentAction(agentId, projectId, "meeting_agenda", "Meeting Agenda", recipients, "skipped", "No org owner/admin to bill AI credits");
     return;
   }
 
@@ -124,17 +150,20 @@ Overdue: ${ctx.overdueTasks.map(t => `- ${t.name} (was due ${t.endDate})`).join(
 Open issues: ${ctx.openIssues.map(i => `- [${i.priority || 'medium'}] ${i.title}`).join('\n') || 'None'}`;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: "You are a project management assistant. Generate a structured meeting agenda in HTML format with these sections: Wins & Accomplishments, Current Focus, Upcoming Deadlines, Blockers & Risks, Discussion Points, and Action Items. Use clean HTML with <h3> for sections, <ul>/<li> for items. Be concise and actionable."
-        },
-        { role: "user", content: `Generate a meeting agenda for this project:\n${contextSummary}` }
-      ],
-      max_tokens: 1500,
-    });
+    const completion = await withAiCredits(
+      { userId: charge.userId, orgId: charge.orgId, action: "agent_meeting_agenda", entityId: projectId },
+      () => openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are a project management assistant. Generate a structured meeting agenda in HTML format with these sections: Wins & Accomplishments, Current Focus, Upcoming Deadlines, Blockers & Risks, Discussion Points, and Action Items. Use clean HTML with <h3> for sections, <ul>/<li> for items. Be concise and actionable."
+          },
+          { role: "user", content: `Generate a meeting agenda for this project:\n${contextSummary}` }
+        ],
+        max_tokens: 1500,
+      }),
+    );
 
     const agendaHtml = completion.choices[0]?.message?.content || "<p>Unable to generate agenda</p>";
     const subject = `Meeting Agenda: ${ctx.project.name}`;
@@ -153,7 +182,7 @@ Open issues: ${ctx.openIssues.map(i => `- [${i.priority || 'medium'}] ${i.title}
   }
 }
 
-export async function runTaskFollowUp(agentId: number, projectId: number): Promise<void> {
+export async function runTaskFollowUp(agentId: number, projectId: number, _triggerUserId: string | null = null): Promise<void> {
   const ctx = await getProjectContext(projectId);
   if (!ctx) throw new Error("Project not found");
 
@@ -205,7 +234,7 @@ export async function runTaskFollowUp(agentId: number, projectId: number): Promi
     `Overdue: ${overdueTasks.length}, Approaching: ${approachingTasks.length}`);
 }
 
-export async function runStatusReport(agentId: number, projectId: number): Promise<void> {
+export async function runStatusReport(agentId: number, projectId: number, _triggerUserId: string | null = null): Promise<void> {
   const ctx = await getProjectContext(projectId);
   if (!ctx) throw new Error("Project not found");
 

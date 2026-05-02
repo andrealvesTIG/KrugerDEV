@@ -39,6 +39,12 @@ import {
   logUserActivity,
 } from "./helpers";
 import { apiRoute, body, r200, inputRes, authRes, stdRes } from "../route-registry";
+import {
+  enforceAiCredits,
+  recordAiCredits,
+  sendLimitExceeded,
+  AiCreditsLimitError,
+} from "../services/aiCredits";
 
 const MAX_MESSAGES = 50;
 const MAX_MESSAGE_LENGTH = 50000;
@@ -385,6 +391,22 @@ export function registerPowerBIAgentRoutes(app: Express) {
         await addMessage(convId, "user", last.content, last.attachments ?? null);
       }
 
+      // Enforce AI credit limit BEFORE opening the SSE stream so an
+      // over-limit response is a normal 403 JSON the frontend can handle.
+      const creditCtx = {
+        userId,
+        orgId: organizationId,
+        action: "powerbi_agent_chat",
+        entityId: convId ?? undefined,
+      };
+      let chargeUserId: string;
+      try {
+        ({ chargeUserId } = await enforceAiCredits(creditCtx));
+      } catch (err) {
+        if (sendLimitExceeded(res, err)) return;
+        throw err;
+      }
+
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache, no-transform");
       res.setHeader("Connection", "keep-alive");
@@ -415,6 +437,10 @@ export function registerPowerBIAgentRoutes(app: Express) {
         convId,
         (content) => { assistantBuffer += content; sendSSE({ content }); },
         async (_full) => {
+          // Charge exactly one AI credit on successful completion of the chat turn.
+          recordAiCredits(chargeUserId, creditCtx).catch((err) => {
+            console.error("[PBI Agent] Failed to record AI credit usage:", err);
+          });
           // Re-extract intake state now that the assistant turn is complete.
           // Done before sending `done` so the client's follow-up fetch sees fresh data.
           try {
@@ -423,7 +449,8 @@ export function registerPowerBIAgentRoutes(app: Express) {
               const fullTranscript = [...transcript, { role: "assistant" as const, content: assistantBuffer, attachments: null }];
               const conv = await getConversation(finalConvId, organizationId, userId);
               const analysis = (conv?.attachmentAnalysis as any) ?? null;
-              const newState = await extractIntakeState(fullTranscript, previous, analysis);
+              // Same chat turn was already charged above; don't double-charge.
+              const newState = await extractIntakeState(fullTranscript, previous, analysis, organizationId, userId, { meter: false });
               if (conv?.submittedIntakeId) {
                 newState.submittedRequestNumber = previous?.submittedRequestNumber ?? null;
                 newState.submittedIntakeNumber = previous?.submittedIntakeNumber ?? null;
@@ -448,6 +475,9 @@ export function registerPowerBIAgentRoutes(app: Express) {
 
       logUserActivity(userId, "powerbi_agent_chat", "powerbi_agent_conversation", convId ?? undefined, { organizationId });
     } catch (err: any) {
+      if (err instanceof AiCreditsLimitError) {
+        if (sendLimitExceeded(res, err)) return;
+      }
       console.error("[PowerBI Agent] Route error:", err.message);
       if (!res.headersSent) res.status(500).json({ message: "Internal server error" });
     }

@@ -21,6 +21,7 @@ import {
   getUserOrgRole,
 } from "./helpers";
 import { createTaskAssignmentNotification, createRiskAssignmentNotification, createTaskFieldChangeNotification } from "../services/notificationEngine";
+import { sendLimitExceeded } from "../services/aiCredits";
 import { addWorkingDays, ensureWorkingDay, calculateEndDate, calculateDuration, nextWorkingDay, formatDateStr, workingDaysBetweenExclusive } from "../lib/workingDays";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404, p } from "../route-registry";
 
@@ -294,15 +295,7 @@ export function registerProjectItemRoutes(app: Express) {
         return res.status(400).json({ message: "Risk title is required" });
       }
 
-      const { checkAndEnforceLimit, METER_CODES, recordCreditUsage, RESOURCE_TYPES } = await import("../services/billing");
-      const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.AI_RUNS, 1, organizationId ? Number(organizationId) : undefined);
-      if (!limitCheck.allowed) {
-        return res.status(403).json({
-          message: limitCheck.error || "AI credits limit reached. Please upgrade your plan.",
-          limitExceeded: true,
-          resourceType: "ai_runs"
-        });
-      }
+      const { withAiCredits, sendLimitExceeded } = await import("../services/aiCredits");
 
       const prompt = `You are a project risk management expert. Analyze the following risk and provide practical mitigation strategies.
 
@@ -319,28 +312,34 @@ Provide 3-5 specific, actionable mitigation strategies for this risk. Each strat
 
 Format your response as a numbered list with clear, concise strategies. Do not include any preamble or conclusion - just provide the numbered list of mitigation strategies.`;
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You are a project risk management expert providing concise, actionable mitigation strategies."
-          },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        max_tokens: 1000,
-        temperature: 0.7,
-      });
+      const completion = await withAiCredits(
+        {
+          userId,
+          orgId: organizationId ? Number(organizationId) : null,
+          action: "ai_risk_mitigation",
+        },
+        () => openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "You are a project risk management expert providing concise, actionable mitigation strategies."
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          max_tokens: 1000,
+          temperature: 0.7,
+        }),
+      );
 
       const suggestion = completion.choices[0]?.message?.content || "Unable to generate suggestions at this time.";
 
-      await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_mitigation_${Date.now()}`, organizationId ? Number(organizationId) : undefined);
-      
       res.json({ suggestion });
     } catch (err: any) {
+      if (sendLimitExceeded(res, err)) return;
       console.error('Error generating AI mitigation suggestions:', err);
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? "Error generating mitigation suggestions" : classified.message });

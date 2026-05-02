@@ -576,19 +576,18 @@ export function registerPortfolioRoutes(app: Express) {
         }
       }
 
-      const { checkAndEnforceLimit, METER_CODES, recordCreditUsage, RESOURCE_TYPES } = await import("../services/billing");
-      const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.AI_RUNS, 1, portfolio.organizationId);
-      if (!limitCheck.allowed) {
-        return res.status(403).json({
-          message: limitCheck.error || "AI credits limit reached. Please upgrade your plan.",
-          limitExceeded: true,
-          resourceType: "ai_runs"
-        });
-      }
-
+      // AI credit enforcement + recording happens inside
+      // `generatePortfolioRiskAssessment` via `withAiCredits`. Don't
+      // double-charge here.
       const { generatePortfolioRiskAssessment } = await import("../services/portfolioRiskAssessment");
-
-      const report = await generatePortfolioRiskAssessment(portfolioId, portfolio.organizationId);
+      let report;
+      try {
+        report = await generatePortfolioRiskAssessment(portfolioId, portfolio.organizationId, userId);
+      } catch (limitErr) {
+        const { sendLimitExceeded } = await import("../services/aiCredits");
+        if (sendLimitExceeded(res, limitErr)) return;
+        throw limitErr;
+      }
 
       const crypto = await import("crypto");
       const shareToken = crypto.randomBytes(32).toString('hex');
@@ -603,8 +602,6 @@ export function registerPortfolioRoutes(app: Express) {
         generatedBy: userId,
         generatedAt: new Date(),
       });
-
-      await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_risk_assessment_${Date.now()}`, portfolio.organizationId);
 
       res.status(201).json({
         success: true,
@@ -895,18 +892,18 @@ export function registerPortfolioRoutes(app: Express) {
         }
       }
 
-      const { checkAndEnforceLimit, METER_CODES, recordCreditUsage, RESOURCE_TYPES } = await import("../services/billing");
-      const limitCheck = await checkAndEnforceLimit(userId, METER_CODES.AI_RUNS, 1, orgId);
-      if (!limitCheck.allowed) {
-        return res.status(403).json({
-          message: limitCheck.error || "AI credits limit reached. Please upgrade your plan.",
-          limitExceeded: true,
-          resourceType: "ai_runs"
-        });
-      }
-
+      // AI credit enforcement + recording happens inside
+      // `generateProjectRiskAssessment` via `withAiCredits`. Don't
+      // double-charge here.
       const { generateProjectRiskAssessment } = await import("../services/projectRiskAssessment");
-      const report = await generateProjectRiskAssessment(projectId, orgId);
+      let report;
+      try {
+        report = await generateProjectRiskAssessment(projectId, orgId, userId);
+      } catch (limitErr) {
+        const { sendLimitExceeded } = await import("../services/aiCredits");
+        if (sendLimitExceeded(res, limitErr)) return;
+        throw limitErr;
+      }
 
       const crypto = await import("crypto");
       const shareToken = crypto.randomBytes(32).toString('hex');
@@ -921,8 +918,6 @@ export function registerPortfolioRoutes(app: Express) {
         generatedBy: userId,
         generatedAt: new Date(),
       });
-
-      await recordCreditUsage(userId, RESOURCE_TYPES.AI_RUN, `ai_project_risk_assessment_${Date.now()}`, orgId);
 
       res.status(201).json({
         success: true,

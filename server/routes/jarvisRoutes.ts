@@ -9,6 +9,12 @@ import {
 } from "./helpers";
 import { apiRoute, body, r200, inputRes, authRes, stdRes } from "../route-registry";
 import {
+  enforceAiCredits,
+  recordAiCredits,
+  sendLimitExceeded,
+  AiCreditsLimitError,
+} from "../services/aiCredits";
+import {
   createConversation as fcCreate,
   listConversations as fcList,
   getConversation as fcGet,
@@ -149,6 +155,22 @@ export function registerJarvisRoutes(app: Express) {
         );
       }
 
+      // Enforce AI credit limit BEFORE opening the SSE stream so an
+      // over-limit response is a normal 403 JSON the frontend can handle.
+      const creditCtx = {
+        userId,
+        orgId: organizationId,
+        action: "friday_chat",
+        entityId: conversationId ?? undefined,
+      };
+      let chargeUserId: string;
+      try {
+        ({ chargeUserId } = await enforceAiCredits(creditCtx));
+      } catch (err) {
+        if (sendLimitExceeded(res, err)) return;
+        throw err;
+      }
+
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
@@ -158,12 +180,17 @@ export function registerJarvisRoutes(app: Express) {
 
       await streamJarvisResponse(
         Number(organizationId),
+        userId,
         messages,
         concise ?? false,
         (content) => {
           res.write(`data: ${JSON.stringify({ content })}\n\n`);
         },
         (fullResponse) => {
+          // Charge exactly one AI credit on successful completion.
+          recordAiCredits(chargeUserId, creditCtx).catch((err) => {
+            console.error("[JARVIS] Failed to record AI credit usage:", err);
+          });
           res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
           res.end();
           // Persist the assistant message
@@ -193,6 +220,9 @@ export function registerJarvisRoutes(app: Express) {
         attachments,
       );
     } catch (error) {
+      if (error instanceof AiCreditsLimitError) {
+        if (sendLimitExceeded(res, error)) return;
+      }
       console.error("[JARVIS] Route error:", error);
       if (!res.headersSent) {
         res.status(500).json({ message: "Internal server error" });

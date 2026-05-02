@@ -1377,6 +1377,7 @@ async function callOpenAIWithRetry(
 
 export async function streamJarvisResponse(
   orgId: number,
+  userId: string,
   messages: JarvisMessage[],
   concise: boolean,
   onChunk: (content: string) => void,
@@ -1385,6 +1386,7 @@ export async function streamJarvisResponse(
   pageContext?: PageContext,
   attachments?: FileAttachment[],
 ) {
+  void userId;
   try {
     const context = await gatherOrganizationContext(orgId);
     const dataContext = buildDataContext(context);

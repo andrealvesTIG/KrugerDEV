@@ -291,6 +291,19 @@ export function useJarvis() {
 
         if (!response.ok) {
           const err = await response.json().catch(() => ({ message: "Request failed" }));
+          if (response.status === 403 && err?.limitExceeded && err?.resourceType === "ai_runs") {
+            const friendly =
+              "You've used all your AI credits for this billing cycle. " +
+              "Upgrade your plan in [Billing settings](/settings/billing) to continue using Friday.";
+            setPendingMessages((prev) => {
+              if (prev.length === 0) return prev;
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              if (last.role === "assistant") last.content = friendly;
+              return updated;
+            });
+            return;
+          }
           throw new Error(err.message || "Request failed");
         }
 
@@ -313,11 +326,17 @@ export function useJarvis() {
             try {
               const data = JSON.parse(line.slice(6));
               if (data.error) {
+                const isAiLimit =
+                  data.limitExceeded === true && data.resourceType === "ai_runs";
+                const errText = isAiLimit
+                  ? "You've used all your AI credits for this billing cycle. " +
+                    "Upgrade your plan in [Billing settings](/settings/billing) to continue using Friday."
+                  : `Error: ${data.error}`;
                 setPendingMessages((prev) => {
                   if (prev.length === 0) return prev;
                   const updated = [...prev];
                   const last = updated[updated.length - 1];
-                  if (last.role === "assistant") last.content = `Error: ${data.error}`;
+                  if (last.role === "assistant") last.content = errText;
                   return updated;
                 });
                 continue;

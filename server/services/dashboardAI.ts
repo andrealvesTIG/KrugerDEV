@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import type { CustomDashboardConfig, DashboardWidget } from "@shared/schema";
+import { withAiCredits } from "./aiCredits";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -101,20 +102,27 @@ function sanitizeUserInput(input: string): string {
   return sanitized;
 }
 
-export async function generateDashboardConfig(userDescription: string): Promise<{ name: string; config: CustomDashboardConfig }> {
+export async function generateDashboardConfig(
+  userDescription: string,
+  userId: string,
+  orgId: number,
+): Promise<{ name: string; config: CustomDashboardConfig }> {
   try {
     // Sanitize user input to prevent prompt injection
     const sanitizedDescription = sanitizeUserInput(userDescription);
-    
-    const response = await openai.chat.completions.create({
-      model: "gpt-5.1",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: `Create a dashboard for: ${sanitizedDescription}` }
-      ],
-      response_format: { type: "json_object" },
-      max_completion_tokens: 2000,
-    });
+
+    const response = await withAiCredits(
+      { userId, orgId, action: "dashboard_generate" },
+      () => openai.chat.completions.create({
+        model: "gpt-5.1",
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: `Create a dashboard for: ${sanitizedDescription}` }
+        ],
+        response_format: { type: "json_object" },
+        max_completion_tokens: 2000,
+      }),
+    );
 
     const content = response.choices[0]?.message?.content;
     if (!content) {

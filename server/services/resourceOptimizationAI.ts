@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { storage } from "../storage";
+import { withAiCredits } from "./aiCredits";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -42,7 +43,10 @@ If data is insufficient for meaningful analysis, still provide general best-prac
 
 Return ONLY valid JSON. No markdown formatting.`;
 
-export async function generateResourceOptimization(organizationId: number): Promise<ResourceOptimizationResult> {
+export async function generateResourceOptimization(
+  organizationId: number,
+  userId: string,
+): Promise<ResourceOptimizationResult> {
   const [resources, projects, allAssignments, availability] = await Promise.all([
     storage.getResources(organizationId),
     storage.getProjects(organizationId),
@@ -129,15 +133,18 @@ export async function generateResourceOptimization(organizationId: number): Prom
     projects: projectSummaries,
   };
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: `Analyze the following resource allocation data and provide optimization suggestions:\n\n${JSON.stringify(dataPayload, null, 2)}` },
-    ],
-    response_format: { type: "json_object" },
-    max_completion_tokens: 3000,
-  });
+  const response = await withAiCredits(
+    { userId, orgId: organizationId, action: "resource_optimization" },
+    () => openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: `Analyze the following resource allocation data and provide optimization suggestions:\n\n${JSON.stringify(dataPayload, null, 2)}` },
+      ],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 3000,
+    }),
+  );
 
   const content = response.choices[0]?.message?.content;
   if (!content) {

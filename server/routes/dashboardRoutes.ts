@@ -539,15 +539,7 @@ export function registerDashboardRoutes(app: Express) {
       let template = industry ? industryTemplates[industry as IndustryType] : null;
       
       if (customIndustry && !template) {
-        const { checkAndEnforceLimit, METER_CODES } = await import("../services/billing");
-        const limitCheck = await checkAndEnforceLimit(userId!, METER_CODES.AI_RUNS, 1, organizationId);
-        if (!limitCheck.allowed) {
-          return res.status(403).json({
-            message: limitCheck.error || "AI credits limit reached. Please upgrade your plan.",
-            limitExceeded: true,
-            resourceType: "ai_runs"
-          });
-        }
+        const { withAiCredits, sendLimitExceeded } = await import("../services/aiCredits");
 
         const OpenAI = (await import('openai')).default;
         const openai = new OpenAI({
@@ -599,23 +591,23 @@ Create a JSON object with this exact structure:
 Create 2 portfolios with 2-3 projects each. Each portfolio should include 2-4 keyDates. Make project names, tasks, risks, milestones, issues, and key dates realistic for the ${customIndustry} industry. Include realistic budget amounts and varied project statuses.`;
 
         try {
-          const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-              { role: "system", content: "You are a project portfolio management expert. Generate realistic demo data for project management systems. Return only valid JSON." },
-              { role: "user", content: prompt }
-            ],
-            response_format: { type: "json_object" },
-            max_completion_tokens: 4000,
-          });
-          
-          // Always track AI credit usage after successful API call, even for free accounts
-          const { recordCreditUsage, RESOURCE_TYPES } = await import("../services/billing");
-          await recordCreditUsage(userId!, RESOURCE_TYPES.AI_RUN, `ai_demo_${Date.now()}`, organizationId);
-          
+          const response = await withAiCredits(
+            { userId: userId!, orgId: organizationId, action: "ai_demo_data" },
+            () => openai.chat.completions.create({
+              model: "gpt-4o-mini",
+              messages: [
+                { role: "system", content: "You are a project portfolio management expert. Generate realistic demo data for project management systems. Return only valid JSON." },
+                { role: "user", content: prompt }
+              ],
+              response_format: { type: "json_object" },
+              max_completion_tokens: 4000,
+            }),
+          );
+
           const content = response.choices[0]?.message?.content || '{}';
           template = JSON.parse(content);
         } catch (aiError) {
+          if (sendLimitExceeded(res, aiError)) return;
           console.error('AI demo data generation error:', aiError);
           template = industryTemplates['it_software'];
         }

@@ -3,6 +3,7 @@ import { db } from "../db";
 import { sql, eq, desc } from "drizzle-orm";
 import { userFollowupDrafts, type UserFollowupDraft } from "@shared/schema";
 import type { UserEnrichment } from "@shared/schema";
+import { withAiCredits } from "./aiCredits";
 
 export type DraftTone = 'friendly' | 'formal' | 'brief';
 
@@ -59,6 +60,7 @@ export interface DraftOutput {
 export async function generateFollowupDraft(opts: {
   context: DraftContext;
   tone: DraftTone;
+  adminUserId: string;
 }): Promise<DraftOutput> {
   const apiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
   if (!apiKey) {
@@ -77,15 +79,18 @@ export async function generateFollowupDraft(opts: {
 - Never invent product features, pricing, or facts not present in the context. If a field is missing, omit gracefully.
 - Subject line must be under 70 chars and reference something concrete.`;
 
-  const completion = await client.chat.completions.create({
-    model: 'gpt-4o-mini',
-    temperature: 0.5,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: sys },
-      { role: 'user', content: JSON.stringify(compact) },
-    ],
-  });
+  const completion = await withAiCredits(
+    { userId: opts.adminUserId, orgId: null, action: "followup_draft" },
+    () => client.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.5,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: sys },
+        { role: 'user', content: JSON.stringify(compact) },
+      ],
+    }),
+  );
   const text = completion.choices[0]?.message?.content || '{}';
   try {
     const parsed = JSON.parse(text) as { subject?: string; body?: string };

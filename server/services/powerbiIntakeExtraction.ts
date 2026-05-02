@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import type { PbiIntakeState, PbiAttachmentAnalysis } from "@shared/schema";
 import type { PbiAttachment } from "../storage/powerbiAgentStorage";
+import { withAiCredits } from "./aiCredits";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -101,8 +102,11 @@ function formatTranscript(messages: ExtractionMessage[]): string {
 
 export async function extractIntakeState(
   messages: ExtractionMessage[],
-  previous?: PbiIntakeState | null,
-  analysis?: PbiAttachmentAnalysis | null,
+  previous: PbiIntakeState | null | undefined,
+  analysis: PbiAttachmentAnalysis | null | undefined,
+  orgId: number,
+  userId: string,
+  options?: { meter?: boolean },
 ): Promise<PbiIntakeState> {
   const base = previous && typeof previous === "object" ? { ...emptyIntakeState(), ...previous } : emptyIntakeState();
   const editedFields = Array.isArray(base.editedFields) ? base.editedFields : [];
@@ -113,21 +117,26 @@ export async function extractIntakeState(
 
   const transcript = formatTranscript(messages.slice(-30));
 
+  const meter = options?.meter !== false;
+  const runOpenAI = () => openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    temperature: 0,
+    max_tokens: 800,
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: "powerbi_intake_state", strict: true, schema: EXTRACTION_SCHEMA },
+    },
+    messages: [
+      { role: "system", content: EXTRACTION_PROMPT },
+      { role: "user", content: `Conversation transcript:\n\n${transcript}\n\nReturn the current intake state.` },
+    ],
+  });
+
   let extracted: Partial<PbiIntakeState> = {};
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      temperature: 0,
-      max_tokens: 800,
-      response_format: {
-        type: "json_schema",
-        json_schema: { name: "powerbi_intake_state", strict: true, schema: EXTRACTION_SCHEMA },
-      },
-      messages: [
-        { role: "system", content: EXTRACTION_PROMPT },
-        { role: "user", content: `Conversation transcript:\n\n${transcript}\n\nReturn the current intake state.` },
-      ],
-    });
+    const completion = meter
+      ? await withAiCredits({ userId, orgId, action: "powerbi_intake_extract" }, runOpenAI)
+      : await runOpenAI();
     const raw = completion.choices[0]?.message?.content;
     if (raw) extracted = JSON.parse(raw) as Partial<PbiIntakeState>;
   } catch (e: any) {

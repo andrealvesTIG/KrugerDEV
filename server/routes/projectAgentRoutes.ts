@@ -244,13 +244,13 @@ export function registerProjectAgentRoutes(app: Express) {
     try {
       switch (action) {
         case "meeting_agenda":
-          await runMeetingAgenda(agent.id, projectId);
+          await runMeetingAgenda(agent.id, projectId, userId);
           break;
         case "task_follow_up":
-          await runTaskFollowUp(agent.id, projectId);
+          await runTaskFollowUp(agent.id, projectId, userId);
           break;
         case "status_report":
-          await runStatusReport(agent.id, projectId);
+          await runStatusReport(agent.id, projectId, userId);
           break;
         default:
           return res.status(400).json({ message: `Unknown action: ${action}` });

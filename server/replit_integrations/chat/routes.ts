@@ -1,6 +1,13 @@
 import type { Express, Request, Response } from "express";
 import OpenAI from "openai";
 import { chatStorage } from "./storage";
+import { getUserIdFromRequest } from "../../routes/helpers";
+import {
+  enforceAiCredits,
+  recordAiCredits,
+  sendLimitExceeded,
+  writeSseLimitExceeded,
+} from "../../services/aiCredits";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -63,7 +70,27 @@ export function registerChatRoutes(app: Express): void {
   app.post("/api/conversations/:id/messages", async (req: Request, res: Response) => {
     try {
       const conversationId = parseInt(req.params.id);
-      const { content } = req.body;
+      const { content, organizationId } = req.body;
+
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Enforce AI credits BEFORE opening SSE stream so over-limit users
+      // get a normal 403 they can render as an upgrade prompt.
+      let chargeUserId: string;
+      try {
+        ({ chargeUserId } = await enforceAiCredits({
+          userId,
+          orgId: organizationId ? Number(organizationId) : null,
+          action: "integrations_chat",
+          entityId: conversationId,
+        }));
+      } catch (limitErr) {
+        if (sendLimitExceeded(res, limitErr)) return;
+        throw limitErr;
+      }
 
       // Save user message
       await chatStorage.createMessage(conversationId, "user", content);
@@ -101,9 +128,19 @@ export function registerChatRoutes(app: Express): void {
       // Save assistant message
       await chatStorage.createMessage(conversationId, "assistant", fullResponse);
 
+      // Record credits only after a successful generation
+      await recordAiCredits(chargeUserId, {
+        userId,
+        orgId: organizationId ? Number(organizationId) : null,
+        action: "integrations_chat",
+        entityId: conversationId,
+      });
+
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.end();
     } catch (error) {
+      if (writeSseLimitExceeded(res, error)) return;
+      if (sendLimitExceeded(res, error)) return;
       console.error("Error sending message:", error);
       // Check if headers already sent (SSE streaming started)
       if (res.headersSent) {

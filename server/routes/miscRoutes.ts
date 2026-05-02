@@ -448,7 +448,7 @@ export async function registerMiscRoutes(app: Express) {
       }
 
       const { generateDashboardConfig } = await import('../services/dashboardAI');
-      const { name, config } = await generateDashboardConfig(description);
+      const { name, config } = await generateDashboardConfig(description, userId, orgId);
 
       // Save the generated dashboard
       const [newDashboard] = await db

@@ -1,6 +1,13 @@
 import express, { type Express, type Request, type Response } from "express";
 import { chatStorage } from "../chat/storage";
 import { openai, speechToText, ensureCompatibleFormat } from "./client";
+import { getUserIdFromRequest } from "../../routes/helpers";
+import {
+  enforceAiCredits,
+  recordAiCredits,
+  sendLimitExceeded,
+  writeSseLimitExceeded,
+} from "../../services/aiCredits";
 
 // Body parser with 50MB limit for audio payloads
 const audioBodyParser = express.json({ limit: "50mb" });
@@ -63,10 +70,29 @@ export function registerAudioRoutes(app: Express): void {
   app.post("/api/conversations/:id/messages", audioBodyParser, async (req: Request, res: Response) => {
     try {
       const conversationId = parseInt(req.params.id);
-      const { audio, voice = "alloy" } = req.body;
+      const { audio, voice = "alloy", organizationId } = req.body;
 
       if (!audio) {
         return res.status(400).json({ error: "Audio data (base64) is required" });
+      }
+
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      // Enforce AI credits BEFORE opening SSE stream
+      let chargeUserId: string;
+      try {
+        ({ chargeUserId } = await enforceAiCredits({
+          userId,
+          orgId: organizationId ? Number(organizationId) : null,
+          action: "integrations_audio",
+          entityId: conversationId,
+        }));
+      } catch (limitErr) {
+        if (sendLimitExceeded(res, limitErr)) return;
+        throw limitErr;
       }
 
       // 1. Auto-detect format and convert to OpenAI-compatible format
@@ -121,9 +147,19 @@ export function registerAudioRoutes(app: Express): void {
       // 7. Save assistant message
       await chatStorage.createMessage(conversationId, "assistant", assistantTranscript);
 
+      // Record credits after successful generation
+      await recordAiCredits(chargeUserId, {
+        userId,
+        orgId: organizationId ? Number(organizationId) : null,
+        action: "integrations_audio",
+        entityId: conversationId,
+      });
+
       res.write(`data: ${JSON.stringify({ type: "done", transcript: assistantTranscript })}\n\n`);
       res.end();
     } catch (error) {
+      if (writeSseLimitExceeded(res, error)) return;
+      if (sendLimitExceeded(res, error)) return;
       console.error("Error processing voice message:", error);
       if (res.headersSent) {
         res.write(`data: ${JSON.stringify({ type: "error", error: "Failed to process voice message" })}\n\n`);
