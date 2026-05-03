@@ -305,23 +305,63 @@ async function logAgentAction(
   });
 }
 
-export function calculateNextWeeklyRun(dayOfWeek: number, timeStr: string, timezone: string): Date {
-  const now = new Date();
-  const [hours, minutes] = timeStr.split(':').map(Number);
-
-  const currentDay = now.getUTCDay();
-  let daysUntil = dayOfWeek - currentDay;
-  if (daysUntil < 0) daysUntil += 7;
-  if (daysUntil === 0) {
-    const todayTarget = new Date(now);
-    todayTarget.setUTCHours(hours, minutes, 0, 0);
-    if (now >= todayTarget) daysUntil = 7;
+// Resolve the UTC instant that corresponds to a given local wall-clock time
+// (y/mo/d at h:m) in the named IANA timezone. Two passes cover DST/offset
+// shifts. Used by calculateNextWeeklyRun so that a user picking "Sunday
+// 16:42 America/New_York" actually fires at 16:42 ET (not 16:42 UTC).
+function utcInstantForLocalTz(
+  y: number, mo: number, d: number, h: number, m: number, timezone: string,
+): Date {
+  let guess = new Date(Date.UTC(y, mo - 1, d, h, m, 0));
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone, hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+  });
+  for (let i = 0; i < 2; i++) {
+    const parts: Record<string, string> = {};
+    for (const p of fmt.formatToParts(guess)) parts[p.type] = p.value;
+    const hourNum = parts.hour === "24" ? 0 : parseInt(parts.hour, 10);
+    const shownUtc = Date.UTC(
+      parseInt(parts.year, 10), parseInt(parts.month, 10) - 1, parseInt(parts.day, 10),
+      hourNum, parseInt(parts.minute, 10),
+    );
+    const wantUtc = Date.UTC(y, mo - 1, d, h, m);
+    const diff = shownUtc - wantUtc;
+    if (diff === 0) return guess;
+    guess = new Date(guess.getTime() - diff);
   }
+  return guess;
+}
 
-  const nextRun = new Date(now);
-  nextRun.setUTCDate(nextRun.getUTCDate() + daysUntil);
-  nextRun.setUTCHours(hours, minutes, 0, 0);
-  return nextRun;
+function dayOfWeekInTz(y: number, mo: number, d: number, timezone: string): number {
+  const noonUtc = new Date(Date.UTC(y, mo - 1, d, 12, 0, 0));
+  const wk = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).format(noonUtc);
+  const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return map[wk] ?? 0;
+}
+
+export function calculateNextWeeklyRun(dayOfWeek: number, timeStr: string, timezone: string): Date {
+  const [hours, minutes] = timeStr.split(":").map(Number);
+  const now = new Date();
+  const tz = timezone || "UTC";
+  // Walk forward day-by-day in the target timezone (up to 14 days to cover
+  // DST + same-day-still-future cases) and pick the first instant that lands
+  // on the requested weekday at h:m and is strictly in the future.
+  for (let offset = 0; offset < 14; offset++) {
+    const probe = new Date(now.getTime() + offset * 86_400_000);
+    const ymd = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(probe);
+    const [y, mo, d] = ymd.split("-").map(Number);
+    if (dayOfWeekInTz(y, mo, d, tz) !== dayOfWeek) continue;
+    const candidate = utcInstantForLocalTz(y, mo, d, hours, minutes, tz);
+    if (candidate.getTime() > now.getTime()) return candidate;
+  }
+  // Defensive fallback: a week from now at the requested wall time, UTC.
+  const fallback = new Date(now.getTime() + 7 * 86_400_000);
+  fallback.setUTCHours(hours, minutes, 0, 0);
+  return fallback;
 }
 
 export async function checkAndRunDueAgentActions(): Promise<number> {

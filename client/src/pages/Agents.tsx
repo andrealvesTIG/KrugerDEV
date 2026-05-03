@@ -26,6 +26,49 @@ const ICON_MAP: Record<string, any> = {
   Calendar, Users, Mail, Wand2, Rocket, ShieldCheck, Lightbulb, Zap,
 };
 const ICON_OPTIONS = Object.keys(ICON_MAP);
+
+// Curated list of common IANA timezones for the schedule picker.
+const COMMON_TIMEZONES: { value: string; label: string }[] = [
+  { value: "America/New_York", label: "Eastern (America/New_York)" },
+  { value: "America/Chicago", label: "Central (America/Chicago)" },
+  { value: "America/Denver", label: "Mountain (America/Denver)" },
+  { value: "America/Phoenix", label: "Mountain — no DST (America/Phoenix)" },
+  { value: "America/Los_Angeles", label: "Pacific (America/Los_Angeles)" },
+  { value: "America/Anchorage", label: "Alaska (America/Anchorage)" },
+  { value: "Pacific/Honolulu", label: "Hawaii (Pacific/Honolulu)" },
+  { value: "America/Toronto", label: "Toronto (America/Toronto)" },
+  { value: "America/Vancouver", label: "Vancouver (America/Vancouver)" },
+  { value: "America/Mexico_City", label: "Mexico City (America/Mexico_City)" },
+  { value: "America/Sao_Paulo", label: "São Paulo (America/Sao_Paulo)" },
+  { value: "America/Buenos_Aires", label: "Buenos Aires (America/Buenos_Aires)" },
+  { value: "UTC", label: "UTC" },
+  { value: "Europe/London", label: "London (Europe/London)" },
+  { value: "Europe/Dublin", label: "Dublin (Europe/Dublin)" },
+  { value: "Europe/Paris", label: "Paris (Europe/Paris)" },
+  { value: "Europe/Berlin", label: "Berlin (Europe/Berlin)" },
+  { value: "Europe/Madrid", label: "Madrid (Europe/Madrid)" },
+  { value: "Europe/Amsterdam", label: "Amsterdam (Europe/Amsterdam)" },
+  { value: "Europe/Stockholm", label: "Stockholm (Europe/Stockholm)" },
+  { value: "Europe/Warsaw", label: "Warsaw (Europe/Warsaw)" },
+  { value: "Europe/Athens", label: "Athens (Europe/Athens)" },
+  { value: "Europe/Istanbul", label: "Istanbul (Europe/Istanbul)" },
+  { value: "Europe/Moscow", label: "Moscow (Europe/Moscow)" },
+  { value: "Africa/Johannesburg", label: "Johannesburg (Africa/Johannesburg)" },
+  { value: "Africa/Cairo", label: "Cairo (Africa/Cairo)" },
+  { value: "Asia/Dubai", label: "Dubai (Asia/Dubai)" },
+  { value: "Asia/Riyadh", label: "Riyadh (Asia/Riyadh)" },
+  { value: "Asia/Karachi", label: "Karachi (Asia/Karachi)" },
+  { value: "Asia/Kolkata", label: "India (Asia/Kolkata)" },
+  { value: "Asia/Bangkok", label: "Bangkok (Asia/Bangkok)" },
+  { value: "Asia/Singapore", label: "Singapore (Asia/Singapore)" },
+  { value: "Asia/Hong_Kong", label: "Hong Kong (Asia/Hong_Kong)" },
+  { value: "Asia/Shanghai", label: "Shanghai (Asia/Shanghai)" },
+  { value: "Asia/Tokyo", label: "Tokyo (Asia/Tokyo)" },
+  { value: "Asia/Seoul", label: "Seoul (Asia/Seoul)" },
+  { value: "Australia/Perth", label: "Perth (Australia/Perth)" },
+  { value: "Australia/Sydney", label: "Sydney (Australia/Sydney)" },
+  { value: "Pacific/Auckland", label: "Auckland (Pacific/Auckland)" },
+];
 const FALLBACK_MODELS = [
   { id: "gpt-4o-mini", label: "gpt-4o-mini" },
   { id: "gpt-4o", label: "gpt-4o" },
@@ -603,7 +646,19 @@ function AgentEditor({ draft, setDraft, portfolios, projects, orgMembers, modelO
               </div>
               <div>
                 <Label>Timezone</Label>
-                <Input value={draft.timezone ?? "America/New_York"} onChange={e => update({ timezone: e.target.value })} />
+                <Select
+                  value={draft.timezone ?? "America/New_York"}
+                  onValueChange={(v) => update({ timezone: v })}
+                >
+                  <SelectTrigger data-testid="select-agent-timezone">
+                    <SelectValue placeholder="Select timezone" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    {COMMON_TIMEZONES.map((tz) => (
+                      <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div>
