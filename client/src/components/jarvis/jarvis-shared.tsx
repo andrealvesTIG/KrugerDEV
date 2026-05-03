@@ -19,6 +19,7 @@ import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import type { JarvisMessage } from "@/hooks/use-jarvis";
 import { FridayCard, tryParseFridayCard } from "./FridayCard";
+import { FridayGanttChart, tryParseFridayGanttChart } from "./FridayGanttChart";
 
 export const GLOBAL_PROMPTS = [
   "Which projects are at risk?",
@@ -370,6 +371,42 @@ export function MarkdownContent({ content, onNavigate, variant = "panel" }: Mark
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+
+    // Detect fenced gantt-chart block
+    if (line.trim().startsWith("```gantt-chart")) {
+      const jsonLines: string[] = [];
+      let j = i + 1;
+      while (j < lines.length && !lines[j].trim().startsWith("```")) {
+        jsonLines.push(lines[j]);
+        j++;
+      }
+      const jsonText = jsonLines.join("\n").trim();
+      const hasClose = j < lines.length && lines[j].trim().startsWith("```");
+      if (hasClose && jsonText.length > 0) {
+        const chart = tryParseFridayGanttChart(jsonText);
+        if (chart) {
+          elements.push(
+            <FridayGanttChart key={`gc-${i}`} data={chart} onNavigate={onNavigate} variant={variant} />
+          );
+        } else {
+          elements.push(
+            <div
+              key={`gc-fallback-${i}`}
+              className="my-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
+            >
+              I couldn't render this Gantt chart. Open the project's Gantt view to see the full schedule.
+            </div>
+          );
+        }
+        i = j;
+        continue;
+      }
+      elements.push(
+        <div key={`gc-pending-${i}`} className="my-2 h-32 rounded-md border border-border bg-muted/40 animate-pulse" />
+      );
+      i = j - 1;
+      continue;
+    }
 
     // Detect fenced friday-card block
     if (line.trim().startsWith("```friday-card")) {
