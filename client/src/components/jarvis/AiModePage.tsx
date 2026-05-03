@@ -258,12 +258,6 @@ export default function AiModePage() {
       <header className="flex h-12 items-center justify-between border-b border-border dark:border-slate-700 bg-background/95 dark:bg-slate-900/95 px-3 md:px-4 backdrop-blur-sm flex-shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_6px_rgba(0,200,255,0.6)] flex-shrink-0" />
-          <span
-            className="text-sm font-semibold text-cyan-600 dark:text-cyan-300 tracking-wide"
-            style={{ fontFamily: "'Outfit', sans-serif" }}
-          >
-            Friday Agent
-          </span>
           <AgentPicker activeAgentId={activeAgentId} onSelect={switchAgent} variant="page" />
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
