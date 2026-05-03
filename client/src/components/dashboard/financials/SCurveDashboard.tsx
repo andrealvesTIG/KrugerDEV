@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearch } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -26,8 +27,21 @@ export function SCurveDashboard() {
 }
 
 function SCurveBody({ data }: { data: FinancialAnalyticsResponse }) {
+  const searchString = useSearch();
+  const initialProjectId = useMemo(() => {
+    const params = new URLSearchParams(searchString);
+    const raw = params.get("project");
+    if (!raw) return "ALL";
+    if (data.projects.some((p) => String(p.projectId) === raw)) return raw;
+    return "ALL";
+  }, [searchString, data.projects]);
   const [period, setPeriod] = useState<Period>("monthly");
-  const [scopeProjectId, setScopeProjectId] = useState<string>("ALL");
+  const [scopeProjectId, setScopeProjectId] = useState<string>(initialProjectId);
+  // Keep the project scope in sync if the URL changes while mounted (e.g.
+  // user clicks a different Friday `Open` button without unmounting).
+  useEffect(() => {
+    setScopeProjectId(initialProjectId);
+  }, [initialProjectId]);
   const [enabled, setEnabled] = useState<Record<SeriesKey, boolean>>({
     Planned: true, Earned: true, Actual: true, EAC: true,
   });

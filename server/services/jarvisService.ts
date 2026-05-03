@@ -117,13 +117,13 @@ You CAN render inline burndown (or velocity remaining-work) charts directly in c
 When the user asks for a "burndown", "burn-down", "remaining work", "velocity", or "sprint progress" view, respond with a short one-line lead-in followed by a fenced \`burndown-chart\` block containing a single JSON object. Example:
 
 \`\`\`burndown-chart
-{"title":"Website Redesign — Sprint 7 Burndown","subtitle":"PRJ-042 • Story points","href":"/projects/42","unit":"pts","asOfIndex":4,"points":[{"label":"D1","ideal":40,"actual":40},{"label":"D2","ideal":36,"actual":38},{"label":"D3","ideal":32,"actual":34},{"label":"D4","ideal":28,"actual":31},{"label":"D5","ideal":24,"actual":27,"projected":27},{"label":"D6","ideal":20,"projected":22},{"label":"D7","ideal":16,"projected":18},{"label":"D8","ideal":12,"projected":13},{"label":"D9","ideal":8,"projected":9},{"label":"D10","ideal":0,"projected":4}]}
+{"title":"Website Redesign — Sprint 7 Burndown","subtitle":"PRJ-042 • Story points","href":"/projects/42/burndown","unit":"pts","asOfIndex":4,"points":[{"label":"D1","ideal":40,"actual":40},{"label":"D2","ideal":36,"actual":38},{"label":"D3","ideal":32,"actual":34},{"label":"D4","ideal":28,"actual":31},{"label":"D5","ideal":24,"actual":27,"projected":27},{"label":"D6","ideal":20,"projected":22},{"label":"D7","ideal":16,"projected":18},{"label":"D8","ideal":12,"projected":13},{"label":"D9","ideal":8,"projected":9},{"label":"D10","ideal":0,"projected":4}]}
 \`\`\`
 
 Burndown block schema:
 - title: short headline (project / sprint / scope name).
 - subtitle: optional sub-line (project code, sprint window, units description).
-- href: optional internal app path linking to the full view (e.g. "/projects/42").
+- href: optional internal app path linking to the full burndown view. PREFER the dedicated project burndown report at "/projects/{projectId}/burndown" so the user lands on a full-size, project-scoped chart instead of the project overview.
 - unit: optional short unit label rendered next to numbers ("pts", "hrs", "tasks"). Omit for unitless counts.
 - asOfIndex: optional zero-based index into \`points\` marking the current "today" line.
 - points: REQUIRED array of period objects, each with:
@@ -149,11 +149,12 @@ You CAN render inline EVM S-curve charts directly in chat (Planned Value vs Earn
 When the user asks for an "S-curve", "S curve", "PV vs EV", "earned value", "EVM chart", or "cost performance over time", respond with a short one-line lead-in followed by a fenced \`s-curve\` block containing a single JSON object. Example:
 
 \`\`\`s-curve
-{"title":"Website Redesign — EVM S-Curve","subtitle":"PRJ-042 • Cumulative","href":"/projects/42","currency":"USD","asOfIndex":3,"points":[{"label":"Jan","plannedValue":50000,"earnedValue":48000,"actualCost":52000},{"label":"Feb","plannedValue":110000,"earnedValue":102000,"actualCost":115000},{"label":"Mar","plannedValue":180000,"earnedValue":168000,"actualCost":190000},{"label":"Apr","plannedValue":260000,"earnedValue":240000,"actualCost":275000,"eac":420000},{"label":"May","plannedValue":340000,"eac":425000},{"label":"Jun","plannedValue":420000,"eac":430000}]}
+{"title":"Website Redesign — EVM S-Curve","subtitle":"PRJ-042 • Cumulative","href":"/dashboards?view=financials-scurves&project=42","currency":"USD","asOfIndex":3,"points":[{"label":"Jan","plannedValue":50000,"earnedValue":48000,"actualCost":52000},{"label":"Feb","plannedValue":110000,"earnedValue":102000,"actualCost":115000},{"label":"Mar","plannedValue":180000,"earnedValue":168000,"actualCost":190000},{"label":"Apr","plannedValue":260000,"earnedValue":240000,"actualCost":275000,"eac":420000},{"label":"May","plannedValue":340000,"eac":425000},{"label":"Jun","plannedValue":420000,"eac":430000}]}
 \`\`\`
 
 S-curve block schema:
-- title / subtitle / href: same meaning as the other chart blocks.
+- title / subtitle: same meaning as the other chart blocks.
+- href: optional internal app path linking to the full S-curve view. PREFER the financials S-Curve dashboard scoped to the project: "/dashboards?view=financials-scurves&project={projectId}" (omit the project param for portfolio/org-wide curves) so the user lands on the full-size analysis instead of the project overview.
 - currency: optional ISO currency code that drives the y-axis symbol ("USD", "EUR", "GBP"). Defaults to USD.
 - asOfIndex: optional zero-based index into \`points\` marking the current "today" line (typically the last period with actuals).
 - points: REQUIRED array of period objects, each with:

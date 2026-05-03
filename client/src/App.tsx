@@ -26,6 +26,7 @@ const Portfolios = lazy(() => import("@/pages/Portfolios"));
 const PortfolioDetails = lazy(() => import("@/pages/PortfolioDetails"));
 const Projects = lazy(() => import("@/pages/Projects"));
 const ProjectDetails = lazy(() => import("@/pages/ProjectDetails"));
+const ProjectBurndown = lazy(() => import("@/pages/ProjectBurndown"));
 const Calendar = lazy(() => import("@/pages/Calendar"));
 const Issues = lazy(() => import("@/pages/Issues"));
 const LessonsLearned = lazy(() => import("@/pages/LessonsLearned"));
@@ -222,6 +223,9 @@ function Router() {
             <ModuleGuard moduleKey="portfolios"><PortfolioDetails /></ModuleGuard>
           </Route>
           <GuardedRoute path="/portfolios" component={Portfolios} moduleKey="portfolios" />
+          <Route path="/projects/:id/burndown">
+            <ModuleGuard moduleKey="projects"><ProjectBurndown /></ModuleGuard>
+          </Route>
           <Route path="/projects/:id">
             <ModuleGuard moduleKey="projects"><ProjectDetails /></ModuleGuard>
           </Route>
