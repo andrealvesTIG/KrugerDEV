@@ -73,6 +73,30 @@ interface BulkProgress {
   finished: boolean;
 }
 
+interface AgentUsageStat {
+  agentId: number;
+  conversationCount30d: number;
+  runCount30d: number;
+  usageCount30d: number;
+  lastUsedAt: string | null;
+}
+
+type SortMode = "recent" | "most-used" | "least-used" | "never-used";
+
+function formatRelative(iso: string | null): string {
+  if (!iso) return "Never";
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "Never";
+  const diff = Date.now() - then;
+  if (diff < 0) return new Date(iso).toLocaleDateString();
+  const min = 60 * 1000, hr = 60 * min, day = 24 * hr;
+  if (diff < min) return "Just now";
+  if (diff < hr) return `${Math.floor(diff / min)}m ago`;
+  if (diff < day) return `${Math.floor(diff / hr)}h ago`;
+  if (diff < 30 * day) return `${Math.floor(diff / day)}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
 const visibilityLabel = (v: AdminAgent["visibility"]) =>
   v === "org" ? "Shared with org" : v === "members" ? "Shared with members" : "Private";
 
@@ -84,6 +108,7 @@ export function OrgAgentsSection({ organizationId }: { organizationId: number })
   const [typeFilter, setTypeFilter] = useState<"all" | "chat" | "scheduled">("all");
   const [visibilityFilter, setVisibilityFilter] = useState<"all" | "private" | "org" | "members">("all");
   const [enabledFilter, setEnabledFilter] = useState<"all" | "enabled" | "disabled">("all");
+  const [sortMode, setSortMode] = useState<SortMode>("recent");
   const [reassignTarget, setReassignTarget] = useState<AdminAgent | null>(null);
   const [memberPickerTarget, setMemberPickerTarget] = useState<AdminAgent | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -101,6 +126,20 @@ export function OrgAgentsSection({ organizationId }: { organizationId: number })
     },
   });
 
+  const { data: usageStats = [] } = useQuery<AgentUsageStat[]>({
+    queryKey: ["/api/agents/admin/usage-stats", organizationId],
+    queryFn: async () => {
+      const res = await fetch(`/api/agents/admin/usage-stats?organizationId=${organizationId}`, { credentials: "include" });
+      return res.ok ? res.json() : [];
+    },
+  });
+
+  const usageById = useMemo(() => {
+    const m = new Map<number, AgentUsageStat>();
+    for (const s of usageStats) m.set(s.agentId, s);
+    return m;
+  }, [usageStats]);
+
   const { data: orgMembers = [] } = useQuery<OrgMember[]>({
     queryKey: ["/api/agents/_helpers/org-members", organizationId],
     queryFn: async () => {
@@ -117,6 +156,7 @@ export function OrgAgentsSection({ organizationId }: { organizationId: number })
 
   const invalidateAll = () => {
     qc.invalidateQueries({ queryKey: ["/api/agents/admin/list", organizationId] });
+    qc.invalidateQueries({ queryKey: ["/api/agents/admin/usage-stats", organizationId] });
     qc.invalidateQueries({ queryKey: ["/api/agents", organizationId, "picker"] });
   };
 
@@ -269,16 +309,38 @@ export function OrgAgentsSection({ organizationId }: { organizationId: number })
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return agents.filter(a => {
+    const matched = agents.filter(a => {
       if (typeFilter !== "all" && a.type !== typeFilter) return false;
       if (visibilityFilter !== "all" && a.visibility !== visibilityFilter) return false;
       if (enabledFilter === "enabled" && !a.enabled) return false;
       if (enabledFilter === "disabled" && a.enabled) return false;
+      if (sortMode === "never-used") {
+        const u = usageById.get(a.id);
+        if (u && (u.usageCount30d > 0 || u.lastUsedAt)) return false;
+      }
       if (!q) return true;
       const owner = (a.createdByName || a.createdByEmail || "").toLowerCase();
       return a.name.toLowerCase().includes(q) || owner.includes(q) || (a.description || "").toLowerCase().includes(q);
     });
-  }, [agents, search, typeFilter, visibilityFilter, enabledFilter]);
+    const usageOf = (id: number) => usageById.get(id);
+    const lastTs = (id: number) => {
+      const ts = usageOf(id)?.lastUsedAt;
+      return ts ? new Date(ts).getTime() : 0;
+    };
+    const sorted = [...matched];
+    if (sortMode === "most-used") {
+      sorted.sort((a, b) => (usageOf(b.id)?.usageCount30d ?? 0) - (usageOf(a.id)?.usageCount30d ?? 0) || lastTs(b.id) - lastTs(a.id));
+    } else if (sortMode === "least-used" || sortMode === "never-used") {
+      sorted.sort((a, b) => (usageOf(a.id)?.usageCount30d ?? 0) - (usageOf(b.id)?.usageCount30d ?? 0) || lastTs(a.id) - lastTs(b.id));
+    } else {
+      sorted.sort((a, b) => {
+        const at = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const bt = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return bt - at;
+      });
+    }
+    return sorted;
+  }, [agents, search, typeFilter, visibilityFilter, enabledFilter, sortMode, usageById]);
 
   const counts = useMemo(() => {
     const total = agents.length;
@@ -357,6 +419,15 @@ export function OrgAgentsSection({ organizationId }: { organizationId: number })
                 <SelectItem value="all">All status</SelectItem>
                 <SelectItem value="enabled">Enabled</SelectItem>
                 <SelectItem value="disabled">Disabled</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortMode} onValueChange={(v) => setSortMode(v as SortMode)}>
+              <SelectTrigger className="w-[170px]" data-testid="select-org-agents-sort"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recent">Recently updated</SelectItem>
+                <SelectItem value="most-used">Most used (30d)</SelectItem>
+                <SelectItem value="least-used">Least used (30d)</SelectItem>
+                <SelectItem value="never-used">Never used</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -472,6 +543,8 @@ export function OrgAgentsSection({ organizationId }: { organizationId: number })
                     <TableHead>Owner</TableHead>
                     <TableHead className="w-[180px]">Visibility</TableHead>
                     <TableHead className="w-[110px] text-center">Enabled</TableHead>
+                    <TableHead className="w-[110px] text-right">Used (30d)</TableHead>
+                    <TableHead className="w-[140px]">Last used</TableHead>
                     <TableHead className="w-[160px]">Last updated</TableHead>
                     <TableHead className="w-[60px]" />
                   </TableRow>
@@ -479,6 +552,14 @@ export function OrgAgentsSection({ organizationId }: { organizationId: number })
                 <TableBody>
                   {filtered.map(a => {
                     const Icon = ICON_MAP[a.icon || "Bot"] ?? Bot;
+                    const stat = usageById.get(a.id);
+                    const used = stat?.usageCount30d ?? 0;
+                    const convs = stat?.conversationCount30d ?? 0;
+                    const runs = stat?.runCount30d ?? 0;
+                    const lastUsed = stat?.lastUsedAt ?? null;
+                    const breakdown = a.type === "scheduled"
+                      ? `${runs} run${runs === 1 ? "" : "s"}, ${convs} chat${convs === 1 ? "" : "s"}`
+                      : `${convs} chat${convs === 1 ? "" : "s"}`;
                     return (
                       <TableRow key={a.id} data-testid={`row-org-agent-${a.id}`} data-state={selectedIds.has(a.id) ? "selected" : undefined}>
                         <TableCell>
@@ -540,6 +621,17 @@ export function OrgAgentsSection({ organizationId }: { organizationId: number })
                             onCheckedChange={(v) => patchAgent.mutate({ id: a.id, patch: { enabled: v } })}
                             data-testid={`switch-enabled-${a.id}`}
                           />
+                        </TableCell>
+                        <TableCell className="text-right" data-testid={`cell-usage-${a.id}`}>
+                          <div className="text-sm font-medium tabular-nums">{used}</div>
+                          <div className="text-[11px] text-muted-foreground">{breakdown}</div>
+                        </TableCell>
+                        <TableCell
+                          className="text-xs text-muted-foreground"
+                          title={lastUsed ? new Date(lastUsed).toLocaleString() : "Never used"}
+                          data-testid={`cell-last-used-${a.id}`}
+                        >
+                          {formatRelative(lastUsed)}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {a.updatedAt ? new Date(a.updatedAt).toLocaleString() : "—"}

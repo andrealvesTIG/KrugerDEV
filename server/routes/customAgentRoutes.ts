@@ -7,7 +7,7 @@ import {
   listVisibleAgents, getAgentForUser, canEditAgent, createAgent, updateAgent, archiveAgent, deleteAgent,
   listAgentMembers, listAgentLogs, listAgentConversations, getAgentConversation, getAgentMessages,
   createAgentConversation, addAgentMessage, updateAgentConversationTitle, archiveAgentConversation, deleteAgentConversation,
-  userIsOrgAdmin, listAllOrgAgentsForAdmin, reassignAgentOwner,
+  userIsOrgAdmin, listAllOrgAgentsForAdmin, reassignAgentOwner, getOrgAgentUsageStats,
 } from "../storage/customAgentStorage";
 import { runScheduledAgent, computeNextRun } from "../services/customAgentService";
 import { streamJarvisResponse, getOrgOpenAIClient, type CustomAgentRuntimeConfig } from "../services/jarvisService";
@@ -587,6 +587,18 @@ export function registerCustomAgentRoutes(app: Express) {
     if (!userId) return;
     const rows = await listAllOrgAgentsForAdmin(orgId);
     res.json(rows.map(r => ({ ...r, kind: "custom" as const, category: "shared" as const, href: null })));
+  });
+
+  // ----- Admin: per-agent usage stats (last 30 days) -----
+  apiRoute(app, 'get', '/api/agents/admin/usage-stats', {
+    tag: 'Agents', summary: 'Admin-only: per-agent conversation + run counts and last-used timestamp',
+    responses: { ...r200('Usage stats', { type: 'array' }), ...stdRes },
+  }, async (req: Request, res: Response) => {
+    const orgId = Number(req.query.organizationId);
+    if (!orgId) return res.status(400).json({ message: "organizationId required" });
+    const userId = await ensureOrgAdmin(req, res, orgId);
+    if (!userId) return;
+    res.json(await getOrgAgentUsageStats(orgId));
   });
 
   // ----- Admin: reassign agent owner -----

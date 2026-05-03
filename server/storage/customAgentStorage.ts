@@ -47,6 +47,73 @@ export async function listAllOrgAgentsForAdmin(orgId: number): Promise<AgentVisi
   }));
 }
 
+export interface OrgAgentUsageStat {
+  agentId: number;
+  conversationCount30d: number;
+  runCount30d: number;
+  usageCount30d: number;
+  lastUsedAt: string | null;
+}
+
+// Per-agent usage roll-up for an org's admin view: conversations started in
+// the last 30 days, scheduled runs logged in the last 30 days, and the most
+// recent activity timestamp across either source.
+interface UsageStatRow {
+  agent_id: number;
+  conversation_count_30d: number | string;
+  run_count_30d: number | string;
+  last_used_at: string | Date | null;
+  [key: string]: unknown;
+}
+
+export async function getOrgAgentUsageStats(orgId: number): Promise<OrgAgentUsageStat[]> {
+  const result = await db.execute<UsageStatRow>(sql`
+    WITH agent_ids AS (
+      SELECT id FROM ${customAgents}
+      WHERE ${customAgents.organizationId} = ${orgId} AND ${customAgents.archivedAt} IS NULL
+    ),
+    conv AS (
+      SELECT ${customAgentConversations.agentId} AS agent_id,
+             COUNT(*) FILTER (WHERE ${customAgentConversations.createdAt} >= NOW() - INTERVAL '30 days') AS cnt,
+             MAX(${customAgentConversations.lastMessageAt}) AS last_at
+      FROM ${customAgentConversations}
+      WHERE ${customAgentConversations.organizationId} = ${orgId}
+      GROUP BY ${customAgentConversations.agentId}
+    ),
+    runs AS (
+      SELECT ${customAgentLogs.agentId} AS agent_id,
+             COUNT(*) FILTER (WHERE ${customAgentLogs.createdAt} >= NOW() - INTERVAL '30 days') AS cnt,
+             MAX(${customAgentLogs.createdAt}) AS last_at
+      FROM ${customAgentLogs}
+      WHERE ${customAgentLogs.agentId} IN (SELECT id FROM agent_ids)
+      GROUP BY ${customAgentLogs.agentId}
+    )
+    SELECT a.id AS agent_id,
+           COALESCE(conv.cnt, 0) AS conversation_count_30d,
+           COALESCE(runs.cnt, 0) AS run_count_30d,
+           CASE
+             WHEN conv.last_at IS NULL AND runs.last_at IS NULL THEN NULL
+             ELSE GREATEST(COALESCE(conv.last_at, runs.last_at), COALESCE(runs.last_at, conv.last_at))
+           END AS last_used_at
+    FROM agent_ids a
+    LEFT JOIN conv ON conv.agent_id = a.id
+    LEFT JOIN runs ON runs.agent_id = a.id
+  `);
+
+  return result.rows.map((r) => {
+    const conv = Number(r.conversation_count_30d ?? 0);
+    const runs = Number(r.run_count_30d ?? 0);
+    const last = r.last_used_at ? new Date(r.last_used_at).toISOString() : null;
+    return {
+      agentId: Number(r.agent_id),
+      conversationCount30d: conv,
+      runCount30d: runs,
+      usageCount30d: conv + runs,
+      lastUsedAt: last,
+    };
+  });
+}
+
 export async function reassignAgentOwner(agentId: number, newOwnerId: string): Promise<CustomAgent | null> {
   const [a] = await db.update(customAgents)
     .set({ createdBy: newOwnerId, updatedAt: new Date() })
