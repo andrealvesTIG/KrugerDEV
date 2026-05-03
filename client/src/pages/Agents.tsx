@@ -212,6 +212,25 @@ export default function AgentsPage() {
     } catch {}
     const params = new URLSearchParams(window.location.search);
     const fromUrl = params.get("new") === "1";
+    const editId = Number(params.get("edit") || "");
+    if (Number.isFinite(editId) && editId > 0 && !editing) {
+      // Org Settings → Agents tab links here with ?edit=<id> to open the
+      // existing edit form. Fetch the full agent (admins can edit any agent
+      // in their org) and seed the editor.
+      fetch(`/api/agents/${editId}?organizationId=${orgId}`, { credentials: "include" })
+        .then(r => r.ok ? r.json() : null)
+        .then(full => {
+          if (!full) return;
+          setEditing({ ...full, memberIds: full.memberIds ?? [] });
+        })
+        .finally(() => {
+          params.delete("edit");
+          const qs = params.toString();
+          const newUrl = `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`;
+          window.history.replaceState(window.history.state, "", newUrl);
+        });
+      return;
+    }
     if ((flagged || fromUrl) && !editing) {
       setEditing(DEFAULT_DRAFT(orgId));
       if (fromUrl) {

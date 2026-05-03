@@ -23,6 +23,7 @@ import { DemoDataSection } from "@/components/settings/DemoDataSection";
 import { ReminderSettingsSection } from "@/components/settings/ReminderSettingsSection";
 import { RiskAssessmentConfigSection } from "@/components/settings/RiskAssessmentConfigSection";
 import { FridayAgentConfigSection } from "@/components/settings/FridayAgentConfigSection";
+import { OrgAgentsSection } from "@/components/settings/OrgAgentsSection";
 import { FinancialTypesSection } from "@/components/settings/FinancialTypesSection";
 import { FiscalYearStartSection } from "@/components/settings/FiscalYearStartSection";
 import { CostItemCategoriesSection } from "@/components/settings/CostItemCategoriesSection";
@@ -108,6 +109,7 @@ const settingsTabs = [
   { value: "reminders", label: "Reminders & Escalation", icon: Bell },
   { value: "integrations", label: "Integrations", icon: Plug },
   { value: "friday-agent", label: "Friday Agent", icon: Bot },
+  { value: "agents", label: "Agents", icon: Bot },
   { value: "risk-assessment", label: "Risk Assessment", icon: ShieldAlert },
   { value: "scoring", label: "Portfolio Scoring", icon: Target },
   { value: "developer", label: "Developer", icon: Code2 },
@@ -129,6 +131,9 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
       return false;
     }
     if (tab.value === 'act-as' && !isAdminOrOwner) {
+      return false;
+    }
+    if (tab.value === 'agents' && !isAdminOrOwner) {
       return false;
     }
     return true;
@@ -273,6 +278,11 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         <TabsContent value="friday-agent" className="mt-0">
           <FridayAgentConfigSection organizationId={currentOrganization.id} />
         </TabsContent>
+        {isAdminOrOwner && (
+          <TabsContent value="agents" className="mt-0">
+            <OrgAgentsSection organizationId={currentOrganization.id} />
+          </TabsContent>
+        )}
         <TabsContent value="risk-assessment" className="mt-0">
           <RiskAssessmentConfigSection organizationId={currentOrganization.id} />
         </TabsContent>

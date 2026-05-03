@@ -7,6 +7,7 @@ import {
   listVisibleAgents, getAgentForUser, canEditAgent, createAgent, updateAgent, archiveAgent, deleteAgent,
   listAgentMembers, listAgentLogs, listAgentConversations, getAgentConversation, getAgentMessages,
   createAgentConversation, addAgentMessage, updateAgentConversationTitle, archiveAgentConversation, deleteAgentConversation,
+  userIsOrgAdmin, listAllOrgAgentsForAdmin, reassignAgentOwner,
 } from "../storage/customAgentStorage";
 import { runScheduledAgent, computeNextRun } from "../services/customAgentService";
 import { streamJarvisResponse, getOrgOpenAIClient, type CustomAgentRuntimeConfig } from "../services/jarvisService";
@@ -151,6 +152,22 @@ async function ensureOrgAccess(req: Request, res: Response, orgId: number): Prom
   if (!userId) { res.status(401).json({ message: "Authentication required" }); return null; }
   const orgs = await getUserOrgIds(userId);
   if (!orgs.includes(orgId)) { res.status(403).json({ message: "Access denied" }); return null; }
+  return userId;
+}
+
+// Org admin / owner / super_admin gate. Returns the userId on success and
+// writes a 401/403 response (returning null) otherwise.
+async function ensureOrgAdmin(req: Request, res: Response, orgId: number): Promise<string | null> {
+  const userId = getUserIdFromRequest(req);
+  if (!userId) { res.status(401).json({ message: "Authentication required" }); return null; }
+  const [u] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId));
+  if (u?.role === "super_admin") return userId;
+  const orgs = await getUserOrgIds(userId);
+  if (!orgs.includes(orgId)) { res.status(403).json({ message: "Access denied" }); return null; }
+  if (!(await userIsOrgAdmin(userId, orgId))) {
+    res.status(403).json({ message: "Org admin permission required" });
+    return null;
+  }
   return userId;
 }
 
@@ -557,6 +574,49 @@ export function registerCustomAgentRoutes(app: Express) {
       console.error("[customAgent] chat route error:", err);
       if (!res.headersSent) res.status(500).json({ message: err?.message || "Internal server error" });
     }
+  });
+
+  // ----- Admin: list every custom agent in the org -----
+  apiRoute(app, 'get', '/api/agents/admin/list', {
+    tag: 'Agents', summary: 'Admin-only: list every custom agent in the org',
+    responses: { ...r200('Agents', { type: 'array' }), ...stdRes },
+  }, async (req: Request, res: Response) => {
+    const orgId = Number(req.query.organizationId);
+    if (!orgId) return res.status(400).json({ message: "organizationId required" });
+    const userId = await ensureOrgAdmin(req, res, orgId);
+    if (!userId) return;
+    const rows = await listAllOrgAgentsForAdmin(orgId);
+    res.json(rows.map(r => ({ ...r, kind: "custom" as const, category: "shared" as const, href: null })));
+  });
+
+  // ----- Admin: reassign agent owner -----
+  const reassignSchema = z.object({
+    organizationId: z.number().int().positive(),
+    newOwnerId: z.string().min(1),
+  });
+  apiRoute(app, 'post', '/api/agents/:id/reassign-owner', {
+    tag: 'Agents', summary: 'Admin-only: change a custom agent owner',
+    requestBody: body({ type: 'object' }),
+    responses: { ...r200('Reassigned', { type: 'object' }), ...stdRes },
+  }, async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    const parsed = reassignSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.issues.map(i => i.message).join(", ") });
+    const { organizationId, newOwnerId } = parsed.data;
+    const userId = await ensureOrgAdmin(req, res, organizationId);
+    if (!userId) return;
+    // The target user must belong to the same organization.
+    const [m] = await db.select({ userId: organizationMembers.userId })
+      .from(organizationMembers)
+      .where(and(eq(organizationMembers.organizationId, organizationId), eq(organizationMembers.userId, newOwnerId)));
+    if (!m) return res.status(400).json({ message: "Selected user is not a member of this organization" });
+    // Confirm the agent belongs to this org before updating.
+    const [a] = await db.select({ id: customAgents.id }).from(customAgents)
+      .where(and(eq(customAgents.id, id), eq(customAgents.organizationId, organizationId)));
+    if (!a) return res.status(404).json({ message: "Agent not found" });
+    const updated = await reassignAgentOwner(id, newOwnerId);
+    if (!updated) return res.status(404).json({ message: "Agent not found" });
+    res.json(updated);
   });
 
   // ----- Helper: list models available to custom agents in this org -----

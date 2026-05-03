@@ -14,11 +14,45 @@ import { and, desc, eq, isNull, inArray, or, sql } from "drizzle-orm";
 
 export type AgentVisibilityRow = CustomAgent & { isOwner: boolean; isAdmin: boolean; createdByName?: string | null };
 
-async function userIsOrgAdmin(userId: string, orgId: number): Promise<boolean> {
+export async function userIsOrgAdmin(userId: string, orgId: number): Promise<boolean> {
   const [m] = await db.select({ role: organizationMembers.role })
     .from(organizationMembers)
     .where(and(eq(organizationMembers.userId, userId), eq(organizationMembers.organizationId, orgId)));
-  return !!m && (m.role === "owner" || m.role === "admin");
+  if (!m) return false;
+  // Org-level roles vary across the codebase: 'owner', 'org_admin', or
+  // legacy 'admin'. Accept any of them (super_admin is granted at the
+  // platform level and is checked separately by callers when needed).
+  return m.role === "owner" || m.role === "admin" || m.role === "org_admin";
+}
+
+// Admin-only listing: every custom (non-archived) agent in the org with
+// the owner's display info, regardless of visibility or member allowlist.
+export async function listAllOrgAgentsForAdmin(orgId: number): Promise<AgentVisibilityRow[]> {
+  const rows = await db.select({
+    agent: customAgents,
+    creatorFirst: users.firstName,
+    creatorLast: users.lastName,
+    creatorEmail: users.email,
+  }).from(customAgents)
+    .leftJoin(users, eq(users.id, customAgents.createdBy))
+    .where(and(eq(customAgents.organizationId, orgId), isNull(customAgents.archivedAt)))
+    .orderBy(desc(customAgents.updatedAt));
+
+  return rows.map(({ agent: a, creatorFirst, creatorLast, creatorEmail }) => ({
+    ...a,
+    isOwner: false,
+    isAdmin: true,
+    createdByName: `${creatorFirst ?? ""} ${creatorLast ?? ""}`.trim() || creatorEmail || null,
+    createdByEmail: creatorEmail ?? null,
+  }));
+}
+
+export async function reassignAgentOwner(agentId: number, newOwnerId: string): Promise<CustomAgent | null> {
+  const [a] = await db.update(customAgents)
+    .set({ createdBy: newOwnerId, updatedAt: new Date() })
+    .where(eq(customAgents.id, agentId))
+    .returning();
+  return a ?? null;
 }
 
 export async function listVisibleAgents(orgId: number, userId: string): Promise<AgentVisibilityRow[]> {
