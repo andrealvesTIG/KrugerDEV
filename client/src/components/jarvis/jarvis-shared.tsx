@@ -20,6 +20,12 @@ import { cn } from "@/lib/utils";
 import type { JarvisMessage } from "@/hooks/use-jarvis";
 import { FridayCard, tryParseFridayCard } from "./FridayCard";
 import { FridayGanttChart, tryParseFridayGanttChart } from "./FridayGanttChart";
+import {
+  FridayBurndownChart,
+  FridaySCurveChart,
+  tryParseFridayBurndownChart,
+  tryParseFridaySCurveChart,
+} from "./FridayProgressCharts";
 
 export const GLOBAL_PROMPTS = [
   "Which projects are at risk?",
@@ -403,6 +409,78 @@ export function MarkdownContent({ content, onNavigate, variant = "panel" }: Mark
       }
       elements.push(
         <div key={`gc-pending-${i}`} className="my-2 h-32 rounded-md border border-border bg-muted/40 animate-pulse" />
+      );
+      i = j - 1;
+      continue;
+    }
+
+    // Detect fenced burndown-chart block
+    if (line.trim().startsWith("```burndown-chart")) {
+      const jsonLines: string[] = [];
+      let j = i + 1;
+      while (j < lines.length && !lines[j].trim().startsWith("```")) {
+        jsonLines.push(lines[j]);
+        j++;
+      }
+      const jsonText = jsonLines.join("\n").trim();
+      const hasClose = j < lines.length && lines[j].trim().startsWith("```");
+      if (hasClose && jsonText.length > 0) {
+        const chart = tryParseFridayBurndownChart(jsonText);
+        if (chart) {
+          elements.push(
+            <FridayBurndownChart key={`bd-${i}`} data={chart} onNavigate={onNavigate} variant={variant} />
+          );
+        } else {
+          elements.push(
+            <div
+              key={`bd-fallback-${i}`}
+              className="my-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
+            >
+              I couldn't render this burndown chart.
+            </div>
+          );
+        }
+        i = j;
+        continue;
+      }
+      elements.push(
+        <div key={`bd-pending-${i}`} className="my-2 h-32 rounded-md border border-border bg-muted/40 animate-pulse" />
+      );
+      i = j - 1;
+      continue;
+    }
+
+    // Detect fenced s-curve block
+    if (line.trim().startsWith("```s-curve")) {
+      const jsonLines: string[] = [];
+      let j = i + 1;
+      while (j < lines.length && !lines[j].trim().startsWith("```")) {
+        jsonLines.push(lines[j]);
+        j++;
+      }
+      const jsonText = jsonLines.join("\n").trim();
+      const hasClose = j < lines.length && lines[j].trim().startsWith("```");
+      if (hasClose && jsonText.length > 0) {
+        const chart = tryParseFridaySCurveChart(jsonText);
+        if (chart) {
+          elements.push(
+            <FridaySCurveChart key={`sc-${i}`} data={chart} onNavigate={onNavigate} variant={variant} />
+          );
+        } else {
+          elements.push(
+            <div
+              key={`sc-fallback-${i}`}
+              className="my-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
+            >
+              I couldn't render this S-curve chart.
+            </div>
+          );
+        }
+        i = j;
+        continue;
+      }
+      elements.push(
+        <div key={`sc-pending-${i}`} className="my-2 h-32 rounded-md border border-border bg-muted/40 animate-pulse" />
       );
       i = j - 1;
       continue;
