@@ -63,8 +63,8 @@ const ALLOWED_ICONS = ["Bot","Sparkles","BrainCircuit","Bookmark","ClipboardList
 
 const dataScopeSchema = z.object({
   type: z.enum(["org","portfolios","projects"]),
-  portfolioIds: z.array(z.number().int().positive()).max(200).optional(),
-  projectIds: z.array(z.number().int().positive()).max(500).optional(),
+  portfolioIds: z.array(z.number().int().positive()).max(200).nullable().optional(),
+  projectIds: z.array(z.number().int().positive()).max(500).nullable().optional(),
 });
 
 const baseSchema = z.object({
@@ -175,7 +175,7 @@ export function registerCustomAgentRoutes(app: Express) {
   }, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const parsed = baseSchema.partial({ type: true, systemPrompt: true, name: true }).safeParse({ ...req.body, organizationId: req.body.organizationId });
-    if (!parsed.success) return res.status(400).json({ message: parsed.error.issues.map(i => i.message).join(", ") });
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.issues.map(i => `${i.path.join('.') || '(root)'}: ${i.message}`).join(", ") });
     const orgId = parsed.data.organizationId!;
     const userId = await ensureOrgAccess(req, res, orgId);
     if (!userId) return;
