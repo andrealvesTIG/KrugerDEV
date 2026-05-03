@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from "react";
-import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
@@ -204,17 +203,25 @@ export default function AgentsPage() {
 
   const startCreate = () => orgId && setEditing(DEFAULT_DRAFT(orgId));
 
-  const [location, setLocation] = useLocation();
   useEffect(() => {
     if (!orgId) return;
+    let flagged = false;
+    try {
+      flagged = sessionStorage.getItem("agents:openNew") === "1";
+      if (flagged) sessionStorage.removeItem("agents:openNew");
+    } catch {}
     const params = new URLSearchParams(window.location.search);
-    if (params.get("new") === "1" && !editing) {
+    const fromUrl = params.get("new") === "1";
+    if ((flagged || fromUrl) && !editing) {
       setEditing(DEFAULT_DRAFT(orgId));
-      params.delete("new");
-      const qs = params.toString();
-      setLocation(`/agents${qs ? `?${qs}` : ""}`, { replace: true });
+      if (fromUrl) {
+        params.delete("new");
+        const qs = params.toString();
+        const newUrl = `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`;
+        window.history.replaceState(window.history.state, "", newUrl);
+      }
     }
-  }, [orgId, location, editing, setLocation]);
+  }, [orgId, editing]);
   const startEdit = (a: Agent) => {
     if (!a.isOwner && !a.isAdmin) return;
     setEditing({ ...a, memberIds: [] });

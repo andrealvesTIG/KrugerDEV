@@ -96,7 +96,14 @@ export default function AgentPicker({ activeAgentId, onSelect, variant = "panel"
           </>
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => setLocation("/agents?new=1")} className="gap-2" data-testid="picker-create-agent">
+        <DropdownMenuItem
+          onSelect={() => {
+            try { sessionStorage.setItem("agents:openNew", "1"); } catch {}
+            setLocation("/agents");
+          }}
+          className="gap-2"
+          data-testid="picker-create-agent"
+        >
           <Plus className="h-4 w-4" /> Create new agent…
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => setLocation("/agents")} className="gap-2">
