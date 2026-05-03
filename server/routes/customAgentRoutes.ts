@@ -179,7 +179,10 @@ export function registerCustomAgentRoutes(app: Express) {
   }, async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     const parsed = baseSchema.partial({ type: true, systemPrompt: true, name: true }).safeParse({ ...req.body, organizationId: req.body.organizationId });
-    if (!parsed.success) return res.status(400).json({ message: parsed.error.issues.map(i => `${i.path.join('.') || '(root)'}: ${i.message}`).join(", ") });
+    if (!parsed.success) {
+      console.error("[customAgent] PATCH validation failed:", JSON.stringify(parsed.error.issues, null, 2), "body keys:", Object.keys(req.body));
+      return res.status(400).json({ message: parsed.error.issues.map(i => `${i.path.join('.') || '(root)'}: ${i.message}`).join(", ") });
+    }
     const orgId = parsed.data.organizationId!;
     const userId = await ensureOrgAccess(req, res, orgId);
     if (!userId) return;
