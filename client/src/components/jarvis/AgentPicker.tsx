@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useOrganization } from "@/hooks/use-organization";
+import { setAiMode } from "@/hooks/use-ai-mode";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -27,6 +28,10 @@ export default function AgentPicker({ activeAgentId, onSelect, variant = "panel"
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
   const [, setLocation] = useLocation();
+  const navigate = (to: string) => {
+    setAiMode(false);
+    setLocation(to);
+  };
 
   const { data: agents = [] } = useQuery<AgentRow[]>({
     queryKey: ["/api/agents", orgId, "picker"],
@@ -65,10 +70,10 @@ export default function AgentPicker({ activeAgentId, onSelect, variant = "panel"
         <DropdownMenuItem onSelect={() => onSelect(null)} className="gap-2" data-testid="picker-friday">
           <Sparkles className="h-4 w-4" /> Friday {activeAgentId === null && <span className="ml-auto text-xs opacity-60">active</span>}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setLocation("/powerbi-agent")} className="gap-2">
+        <DropdownMenuItem onSelect={() => navigate("/powerbi-agent")} className="gap-2">
           <BarChart3 className="h-4 w-4" /> Power BI Request
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setLocation("/projects")} className="gap-2">
+        <DropdownMenuItem onSelect={() => navigate("/projects")} className="gap-2">
           <ClipboardList className="h-4 w-4" /> Project Agent
         </DropdownMenuItem>
         {chatAgents.length > 0 && (
@@ -89,7 +94,7 @@ export default function AgentPicker({ activeAgentId, onSelect, variant = "panel"
             <DropdownMenuSeparator />
             <DropdownMenuLabel>Scheduled agents</DropdownMenuLabel>
             {scheduled.map(a => (
-              <DropdownMenuItem key={a.id} onSelect={() => setLocation("/agents")} className="gap-2 opacity-80">
+              <DropdownMenuItem key={a.id} onSelect={() => navigate("/agents")} className="gap-2 opacity-80">
                 <Bot className="h-4 w-4" /> <span className="truncate">{a.name}</span>
               </DropdownMenuItem>
             ))}
@@ -99,14 +104,14 @@ export default function AgentPicker({ activeAgentId, onSelect, variant = "panel"
         <DropdownMenuItem
           onSelect={() => {
             try { sessionStorage.setItem("agents:openNew", "1"); } catch {}
-            setLocation("/agents");
+            navigate("/agents");
           }}
           className="gap-2"
           data-testid="picker-create-agent"
         >
           <Plus className="h-4 w-4" /> Create new agent…
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setLocation("/agents")} className="gap-2">
+        <DropdownMenuItem onSelect={() => navigate("/agents")} className="gap-2">
           <SettingsIcon className="h-4 w-4" /> Manage agents…
         </DropdownMenuItem>
       </DropdownMenuContent>
