@@ -83,7 +83,7 @@ const baseSchema = z.object({
   scheduleDay: z.number().int().min(0).max(6).nullable().optional(),
   scheduleTime: z.string().regex(/^\d{2}:\d{2}$/).nullable().optional(),
   timezone: z.string().max(80).nullable().optional(),
-  recipientEmails: z.array(z.string().email()).max(50).optional(),
+  recipientEmails: z.array(z.string().email()).max(50).nullable().optional(),
   emailSubject: z.string().max(200).nullable().optional(),
 });
 
