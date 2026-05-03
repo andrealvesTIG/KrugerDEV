@@ -11,7 +11,9 @@ import {
   Bot, Sparkles, BrainCircuit, Bookmark, ClipboardList, FileText, BarChart3,
   Calendar, Users, Mail, Wand2, Rocket, ShieldCheck, Lightbulb, Zap,
   Pencil, Copy, Trash2, Archive as ArchiveIcon, Loader2, MoreVertical, UserCog, Eye, EyeOff,
+  CheckCircle2, XCircle, ChevronDown,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import {
@@ -47,6 +49,30 @@ interface OrgMember {
   firstName: string | null; lastName: string | null; email: string | null;
 }
 
+type BulkActionKind = "enable" | "disable" | "visibility-private" | "visibility-org" | "archive" | "delete";
+
+interface BulkConfirm {
+  kind: BulkActionKind;
+  title: string;
+  description: string;
+  destructive?: boolean;
+}
+
+interface BulkResultRow {
+  id: number;
+  name: string;
+  ok: boolean;
+  error?: string;
+}
+
+interface BulkProgress {
+  label: string;
+  total: number;
+  done: number;
+  results: BulkResultRow[];
+  finished: boolean;
+}
+
 const visibilityLabel = (v: AdminAgent["visibility"]) =>
   v === "org" ? "Shared with org" : v === "members" ? "Shared with members" : "Private";
 
@@ -60,6 +86,11 @@ export function OrgAgentsSection({ organizationId }: { organizationId: number })
   const [enabledFilter, setEnabledFilter] = useState<"all" | "enabled" | "disabled">("all");
   const [reassignTarget, setReassignTarget] = useState<AdminAgent | null>(null);
   const [memberPickerTarget, setMemberPickerTarget] = useState<AdminAgent | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkConfirm, setBulkConfirm] = useState<BulkConfirm | null>(null);
+  const [bulkReassignOpen, setBulkReassignOpen] = useState(false);
+  const [bulkMembersOpen, setBulkMembersOpen] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null);
 
   const { data: agents = [], isLoading } = useQuery<AdminAgent[]>({
     queryKey: ["/api/agents/admin/list", organizationId],
@@ -157,6 +188,85 @@ export function OrgAgentsSection({ organizationId }: { organizationId: number })
     onError: () => toast({ title: "Delete failed", variant: "destructive" }),
   });
 
+  const runBulk = async (
+    label: string,
+    ids: number[],
+    runOne: (a: AdminAgent) => Promise<void>,
+  ) => {
+    const targets = agents.filter(a => ids.includes(a.id));
+    setBulkProgress({ label, total: targets.length, done: 0, results: [], finished: false });
+    const results: BulkResultRow[] = [];
+    for (const a of targets) {
+      try {
+        await runOne(a);
+        results.push({ id: a.id, name: a.name, ok: true });
+      } catch (e) {
+        results.push({ id: a.id, name: a.name, ok: false, error: e instanceof Error ? e.message : String(e) });
+      }
+      setBulkProgress({ label, total: targets.length, done: results.length, results: [...results], finished: false });
+    }
+    setBulkProgress({ label, total: targets.length, done: results.length, results, finished: true });
+    invalidateAll();
+    const okCount = results.filter(r => r.ok).length;
+    const failCount = results.length - okCount;
+    toast({
+      title: `${label} complete`,
+      description: `${okCount} succeeded${failCount ? `, ${failCount} failed` : ""}.`,
+      variant: failCount ? "destructive" : undefined,
+    });
+    setSelectedIds(new Set(failCount ? results.filter(r => !r.ok).map(r => r.id) : []));
+  };
+
+  const patchOne = async (id: number, body: Record<string, unknown>) => {
+    const res = await fetch(`/api/agents/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ organizationId, ...body }),
+    });
+    if (!res.ok) throw new Error((await res.text()) || "Update failed");
+  };
+  const archiveOne = async (id: number) => {
+    const res = await fetch(`/api/agents/${id}/archive`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify({ organizationId }),
+    });
+    if (!res.ok) throw new Error((await res.text()) || "Archive failed");
+  };
+  const deleteOne = async (id: number) => {
+    const res = await fetch(`/api/agents/${id}?organizationId=${organizationId}`, {
+      method: "DELETE", credentials: "include",
+    });
+    if (!res.ok) throw new Error((await res.text()) || "Delete failed");
+  };
+  const reassignOne = async (id: number, newOwnerId: string) => {
+    const res = await fetch(`/api/agents/${id}/reassign-owner`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+      body: JSON.stringify({ organizationId, newOwnerId }),
+    });
+    if (!res.ok) throw new Error((await res.text()) || "Reassign failed");
+  };
+
+  const executeBulkConfirm = async () => {
+    if (!bulkConfirm) return;
+    const ids = Array.from(selectedIds);
+    const kind = bulkConfirm.kind;
+    setBulkConfirm(null);
+    if (kind === "enable") {
+      await runBulk("Enable", ids, (a) => patchOne(a.id, { enabled: true }));
+    } else if (kind === "disable") {
+      await runBulk("Disable", ids, (a) => patchOne(a.id, { enabled: false }));
+    } else if (kind === "visibility-private") {
+      await runBulk("Set visibility to Private", ids, (a) => patchOne(a.id, { visibility: "private", memberIds: [] }));
+    } else if (kind === "visibility-org") {
+      await runBulk("Set visibility to Shared with org", ids, (a) => patchOne(a.id, { visibility: "org", memberIds: [] }));
+    } else if (kind === "archive") {
+      await runBulk("Archive", ids, (a) => archiveOne(a.id));
+    } else if (kind === "delete") {
+      await runBulk("Delete", ids, (a) => deleteOne(a.id));
+    }
+  };
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return agents.filter(a => {
@@ -251,6 +361,76 @@ export function OrgAgentsSection({ organizationId }: { organizationId: number })
             </Select>
           </div>
 
+          {selectedIds.size > 0 && (
+            <div
+              className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/50 px-3 py-2"
+              data-testid="bulk-actions-bar"
+            >
+              <span className="text-sm font-medium" data-testid="text-bulk-selected-count">
+                {selectedIds.size} selected
+              </span>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())} data-testid="button-bulk-clear">
+                Clear
+              </Button>
+              <div className="flex-1" />
+              <Button
+                variant="outline" size="sm"
+                onClick={() => setBulkConfirm({ kind: "enable", title: "Enable agents", description: `Enable ${selectedIds.size} selected agent${selectedIds.size === 1 ? "" : "s"}?` })}
+                data-testid="button-bulk-enable"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-1" /> Enable
+              </Button>
+              <Button
+                variant="outline" size="sm"
+                onClick={() => setBulkConfirm({ kind: "disable", title: "Disable agents", description: `Disable ${selectedIds.size} selected agent${selectedIds.size === 1 ? "" : "s"}? Members won't be able to use them until re-enabled.` })}
+                data-testid="button-bulk-disable"
+              >
+                <XCircle className="h-4 w-4 mr-1" /> Disable
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" data-testid="button-bulk-visibility">
+                    <Eye className="h-4 w-4 mr-1" /> Change visibility <ChevronDown className="h-4 w-4 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  <DropdownMenuItem
+                    onSelect={() => setBulkConfirm({ kind: "visibility-private", title: "Make private", description: `Make ${selectedIds.size} agent${selectedIds.size === 1 ? "" : "s"} private? Other members will lose access.` })}
+                    data-testid="menu-bulk-visibility-private"
+                  >
+                    <EyeOff className="h-4 w-4 mr-2" /> Private
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => setBulkConfirm({ kind: "visibility-org", title: "Share with org", description: `Share ${selectedIds.size} agent${selectedIds.size === 1 ? "" : "s"} with everyone in the organization?` })}
+                    data-testid="menu-bulk-visibility-org"
+                  >
+                    <Eye className="h-4 w-4 mr-2" /> Shared with org
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setBulkMembersOpen(true)} data-testid="menu-bulk-visibility-members">
+                    <Users className="h-4 w-4 mr-2" /> Shared with members…
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button variant="outline" size="sm" onClick={() => setBulkReassignOpen(true)} data-testid="button-bulk-reassign">
+                <UserCog className="h-4 w-4 mr-1" /> Reassign owner…
+              </Button>
+              <Button
+                variant="outline" size="sm"
+                onClick={() => setBulkConfirm({ kind: "archive", title: "Archive agents", description: `Archive ${selectedIds.size} agent${selectedIds.size === 1 ? "" : "s"}? They'll be hidden from members but can be restored later.` })}
+                data-testid="button-bulk-archive"
+              >
+                <ArchiveIcon className="h-4 w-4 mr-1" /> Archive
+              </Button>
+              <Button
+                variant="destructive" size="sm"
+                onClick={() => setBulkConfirm({ kind: "delete", title: "Delete agents", description: `Permanently delete ${selectedIds.size} agent${selectedIds.size === 1 ? "" : "s"}? This cannot be undone.`, destructive: true })}
+                data-testid="button-bulk-delete"
+              >
+                <Trash2 className="h-4 w-4 mr-1" /> Delete
+              </Button>
+            </div>
+          )}
+
           {agents.length === 0 ? (
             <div className="border rounded-lg p-10 text-center space-y-3">
               <Bot className="h-10 w-10 text-muted-foreground mx-auto" />
@@ -268,6 +448,25 @@ export function OrgAgentsSection({ organizationId }: { organizationId: number })
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[40px]">
+                      <Checkbox
+                        checked={
+                          filtered.length > 0 && filtered.every(a => selectedIds.has(a.id))
+                            ? true
+                            : filtered.some(a => selectedIds.has(a.id))
+                              ? "indeterminate"
+                              : false
+                        }
+                        onCheckedChange={(v) => {
+                          const next = new Set(selectedIds);
+                          if (v) filtered.forEach(a => next.add(a.id));
+                          else filtered.forEach(a => next.delete(a.id));
+                          setSelectedIds(next);
+                        }}
+                        aria-label="Select all on page"
+                        data-testid="checkbox-select-all"
+                      />
+                    </TableHead>
                     <TableHead>Agent</TableHead>
                     <TableHead className="w-[110px]">Type</TableHead>
                     <TableHead>Owner</TableHead>
@@ -281,7 +480,19 @@ export function OrgAgentsSection({ organizationId }: { organizationId: number })
                   {filtered.map(a => {
                     const Icon = ICON_MAP[a.icon || "Bot"] ?? Bot;
                     return (
-                      <TableRow key={a.id} data-testid={`row-org-agent-${a.id}`}>
+                      <TableRow key={a.id} data-testid={`row-org-agent-${a.id}`} data-state={selectedIds.has(a.id) ? "selected" : undefined}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.has(a.id)}
+                            onCheckedChange={(v) => {
+                              const next = new Set(selectedIds);
+                              if (v) next.add(a.id); else next.delete(a.id);
+                              setSelectedIds(next);
+                            }}
+                            aria-label={`Select ${a.name}`}
+                            data-testid={`checkbox-row-${a.id}`}
+                          />
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-start gap-2 min-w-0">
                             <Icon className="h-5 w-5 text-primary shrink-0 mt-0.5" />
@@ -399,7 +610,201 @@ export function OrgAgentsSection({ organizationId }: { organizationId: number })
           submitting={patchAgent.isPending}
         />
       )}
+
+      {bulkConfirm && (
+        <Dialog open onOpenChange={(o) => { if (!o) setBulkConfirm(null); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{bulkConfirm.title}</DialogTitle>
+              <DialogDescription>{bulkConfirm.description}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setBulkConfirm(null)}>Cancel</Button>
+              <Button
+                variant={bulkConfirm.destructive ? "destructive" : "default"}
+                onClick={() => { void executeBulkConfirm(); }}
+                data-testid="button-bulk-confirm"
+              >
+                Confirm
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {bulkReassignOpen && (
+        <BulkReassignDialog
+          count={selectedIds.size}
+          members={orgMembers}
+          memberLabel={memberLabel}
+          onClose={() => setBulkReassignOpen(false)}
+          onSubmit={async (newOwnerId) => {
+            setBulkReassignOpen(false);
+            await runBulk("Reassign owner", Array.from(selectedIds), (a) => reassignOne(a.id, newOwnerId));
+          }}
+        />
+      )}
+
+      {bulkMembersOpen && (
+        <BulkMembersDialog
+          count={selectedIds.size}
+          members={orgMembers}
+          onClose={() => setBulkMembersOpen(false)}
+          onSubmit={async (memberIds) => {
+            setBulkMembersOpen(false);
+            await runBulk(
+              "Share with members",
+              Array.from(selectedIds),
+              (a) => patchOne(a.id, { visibility: "members", memberIds }),
+            );
+          }}
+        />
+      )}
+
+      {bulkProgress && (
+        <Dialog open onOpenChange={(o) => { if (!o && bulkProgress.finished) setBulkProgress(null); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{bulkProgress.label}</DialogTitle>
+              <DialogDescription>
+                {bulkProgress.finished
+                  ? `Finished. ${bulkProgress.results.filter(r => r.ok).length} succeeded, ${bulkProgress.results.filter(r => !r.ok).length} failed.`
+                  : `Processing ${bulkProgress.done} of ${bulkProgress.total}…`}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="border rounded max-h-72 overflow-y-auto divide-y" data-testid="bulk-results-list">
+              {bulkProgress.results.length === 0 ? (
+                <div className="p-3 text-sm text-muted-foreground flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Working…
+                </div>
+              ) : bulkProgress.results.map(r => (
+                <div key={r.id} className="flex items-start gap-2 p-2 text-sm" data-testid={`bulk-result-${r.id}`}>
+                  {r.ok ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">{r.name}</div>
+                    {!r.ok && r.error && (
+                      <div className="text-xs text-destructive truncate">{r.error}</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button
+                onClick={() => setBulkProgress(null)}
+                disabled={!bulkProgress.finished}
+                data-testid="button-bulk-progress-close"
+              >
+                {bulkProgress.finished ? "Close" : <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Working…</>}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
+  );
+}
+
+function BulkReassignDialog({
+  count, members, memberLabel, onClose, onSubmit,
+}: {
+  count: number;
+  members: OrgMember[];
+  memberLabel: (uid: string) => string;
+  onClose: () => void;
+  onSubmit: (newOwnerId: string) => void;
+}) {
+  const [pick, setPick] = useState<string>("");
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Reassign owner</DialogTitle>
+          <DialogDescription>
+            Choose a new owner for {count} selected agent{count === 1 ? "" : "s"}. The previous owners
+            will lose owner-only edit rights, but each agent's configuration is preserved.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="py-2">
+          <Label>New owner</Label>
+          <Select value={pick} onValueChange={setPick}>
+            <SelectTrigger className="mt-1.5" data-testid="select-bulk-new-owner"><SelectValue placeholder="Choose a member…" /></SelectTrigger>
+            <SelectContent>
+              {members.map(m => (
+                <SelectItem key={m.userId} value={m.userId} data-testid={`option-bulk-owner-${m.userId}`}>
+                  {memberLabel(m.userId)} <span className="text-xs text-muted-foreground ml-1">({m.role})</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => pick && onSubmit(pick)} disabled={!pick} data-testid="button-confirm-bulk-reassign">
+            Reassign
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function BulkMembersDialog({
+  count, members, onClose, onSubmit,
+}: {
+  count: number;
+  members: OrgMember[];
+  onClose: () => void;
+  onSubmit: (memberIds: string[]) => void;
+}) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const toggle = (uid: string) => {
+    const cur = new Set(selected);
+    if (cur.has(uid)) cur.delete(uid); else cur.add(uid);
+    setSelected(Array.from(cur));
+  };
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Share with members</DialogTitle>
+          <DialogDescription>
+            Select which members can use the {count} selected agent{count === 1 ? "" : "s"}.
+            Existing per-agent member lists will be replaced.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="border rounded p-2 max-h-72 overflow-y-auto space-y-1">
+          {members.length === 0 ? (
+            <div className="text-xs text-muted-foreground p-2">No org members found.</div>
+          ) : members.map(m => {
+            const label = `${m.firstName ?? ""} ${m.lastName ?? ""}`.trim() || m.email || m.userId;
+            const checked = selected.includes(m.userId);
+            return (
+              <label key={m.userId} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggle(m.userId)}
+                  data-testid={`checkbox-bulk-share-${m.userId}`}
+                />
+                <span className="truncate">{label}</span>
+                <span className="text-xs text-muted-foreground">({m.role})</span>
+              </label>
+            );
+          })}
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => onSubmit(selected)} data-testid="button-confirm-bulk-share">
+            Apply to {count}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
