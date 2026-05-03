@@ -337,8 +337,15 @@ function CustomAgentCard({ a, onEdit, onDuplicate, onRun, onLogs, onArchive, onD
   const Icon = ICON_MAP[a.icon || "Bot"] ?? Bot;
   const canManage = a.isOwner || a.isAdmin;
   return (
-    <div className="border rounded-lg p-3 flex flex-col gap-2 bg-card" data-testid={`card-agent-${a.id}`}>
-      <div className="flex items-start justify-between">
+    <div
+      className={`border rounded-lg p-3 flex flex-col gap-2 bg-card transition ${canManage ? "cursor-pointer hover:bg-accent/50 hover:border-primary/40" : ""}`}
+      data-testid={`card-agent-${a.id}`}
+      role={canManage ? "button" : undefined}
+      tabIndex={canManage ? 0 : undefined}
+      onClick={canManage ? onEdit : undefined}
+      onKeyDown={canManage ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEdit(); } } : undefined}
+    >
+      <div className="flex items-start justify-between" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2 min-w-0">
           <Icon className="h-5 w-5 text-primary shrink-0" />
           <div className="min-w-0">

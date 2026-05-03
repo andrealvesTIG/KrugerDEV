@@ -138,7 +138,11 @@ export function registerCustomAgentRoutes(app: Express) {
       icon: rest.icon ?? "Bot",
       systemPrompt: rest.systemPrompt,
       model: rest.model,
-      dataScope: rest.dataScope,
+      dataScope: {
+        type: rest.dataScope.type,
+        portfolioIds: rest.dataScope.portfolioIds ?? undefined,
+        projectIds: rest.dataScope.projectIds ?? undefined,
+      },
       allowedTools: rest.allowedTools,
       visibility: rest.visibility,
       enabled: rest.enabled ?? true,
@@ -180,8 +184,15 @@ export function registerCustomAgentRoutes(app: Express) {
     const userId = await ensureOrgAccess(req, res, orgId);
     if (!userId) return;
     if (!(await canEditAgent(id, orgId, userId))) return res.status(403).json({ message: "You can't edit this agent" });
-    const { organizationId: _ignore, memberIds, ...patchData } = parsed.data;
+    const { organizationId: _ignore, memberIds, dataScope, ...patchData } = parsed.data;
     const patch: Partial<InsertCustomAgent> = { ...patchData };
+    if (dataScope) {
+      patch.dataScope = {
+        type: dataScope.type,
+        portfolioIds: dataScope.portfolioIds ?? undefined,
+        projectIds: dataScope.projectIds ?? undefined,
+      };
+    }
     if (patch.type === "scheduled" || patchData.scheduleDay !== undefined || patchData.scheduleTime !== undefined) {
       patch.nextRun = computeNextRun(patch.scheduleDay ?? null, patch.scheduleTime ?? null, patch.timezone ?? null);
     }
