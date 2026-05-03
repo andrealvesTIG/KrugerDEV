@@ -14,6 +14,12 @@ import {
   DEFAULT_FISCAL_YEAR_START_MONTH,
   normalizeFiscalYearStartMonth,
 } from "@shared/lib/fiscalCalendar";
+import {
+  gatherProjectEvmSeries,
+  gatherProjectBurndowns,
+  type ProjectEvmSeries,
+  type ProjectBurndown,
+} from "./projectAnalytics";
 
 function createOpenAIClient(): OpenAI {
   if (process.env.AZURE_OPENAI_API_KEY && process.env.AZURE_OPENAI_ENDPOINT) {
@@ -138,6 +144,9 @@ Rules:
 - Cap to ~30 points; prefer aggregating to weeks if a daily series would exceed that.
 - If there's nothing meaningful to plot, do NOT emit a burndown block — explain briefly instead.
 
+DATA SOURCE FOR BURNDOWNS:
+The data context contains a "Project Burndown Series" section with ready-to-plot \`{ projectId, unit, asOfIndex, points: [{ label, ideal, actual }] }\` rows for each active project. When the user asks for a burndown, find the matching project and drop those points straight into the block — map \`unit\` → block \`unit\`, \`asOfIndex\` → \`asOfIndex\`, and pass \`ideal\`/\`actual\` through unchanged. Do NOT recompute these values from raw tasks and do NOT invent burndowns for projects that aren't listed there.
+
 The \`burndown-chart\` block is a top-level fenced block — never nest it in lists or quotes, and don't combine multiple in the same fence.`;
 
 // EVM S-curve rendering capability directive. Same rationale as
@@ -168,7 +177,9 @@ Rules:
 - Use cumulative figures, not period totals — the curves should be monotonic.
 - Always include \`plannedValue\` for every period; omit \`earnedValue\`/\`actualCost\` for periods beyond the as-of date so the line stops at "today".
 - Provide at least 3 periods; cap to ~24. Prefer monthly granularity.
-- Pull values from the financialsRollup / EVM context already in your data. If real EVM numbers aren't available, do NOT invent them — explain there's no EVM data and offer the project link instead.
+
+DATA SOURCE FOR S-CURVES:
+The data context contains a "Time-Phased EVM (S-Curve ready)" section with ready-to-plot \`{ projectId, fiscalYear, asOfIndex, points: [{ label, pvCum, evCum, acCum, eacCum }] }\` rows for each active project. When the user asks for an S-curve / EVM chart for a project, find the matching row and map directly: \`points[].label\` → block \`label\`, \`pvCum\` → \`plannedValue\`, \`evCum\` → \`earnedValue\` (only for indices <= \`asOfIndex\`), \`acCum\` → \`actualCost\` (only for indices <= \`asOfIndex\`), \`eacCum\` → \`eac\`, and pass \`asOfIndex\` through unchanged. For an org-wide S-curve, sum the per-project arrays element-wise. Do NOT recompute EVM from the coarse \`financialsRollup\` totals when this section is present, and do NOT invent S-curves for projects that aren't listed here.
 
 The \`s-curve\` block is a top-level fenced block — never nest it in lists or quotes, and don't combine multiple in the same fence.`;
 
@@ -307,6 +318,15 @@ export interface JarvisContext {
     status: string | null;
     endDate: string | null;
   }>;
+  // Time-phased EVM (PV/EV/AC/EAC cumulative per fiscal month) per project
+  // for the current fiscal year, ready to drop straight into an `s-curve`
+  // chart block. Computed by `gatherProjectEvmSeries` using the same math
+  // as the Financials → S-Curve dashboard route.
+  evmTimePhased: ProjectEvmSeries[];
+  // Ideal-vs-actual remaining-work series per project, ready to drop into
+  // a `burndown-chart` block. Computed by `gatherProjectBurndowns` from
+  // task progress + dates over the project window.
+  burndowns: ProjectBurndown[];
 }
 
 // Short-lived in-memory cache so back-to-back chat turns from the same user
@@ -330,6 +350,38 @@ export async function gatherOrganizationContext(orgId: number): Promise<JarvisCo
   const value = await gatherOrganizationContextUncached(orgId);
   orgContextCache.set(orgId, { value, expiresAt: now + ORG_CONTEXT_TTL_MS });
   return value;
+}
+
+// Project lifecycle states that are explicitly terminal — projects in any of
+// these are not in flight, so Friday excludes them from time-phased EVM and
+// burndown payloads. Anything else (including the canonical
+// Initiation/Planning/Execution/Monitoring/Closing/Billing states from
+// `PROJECT_STATUSES_EXTENDED`, the legacy "Active"/"On Hold" values still
+// present on a few older rows, and unknown/null statuses) is treated as
+// chartable so dashboards stay populated.
+const TERMINAL_PROJECT_STATUSES = new Set([
+  "Closed",
+  "Cancelled",
+  "Completed",
+  "Archived",
+]);
+
+// Cap is intentionally generous so orgs with dozens of in-flight projects
+// don't get partial chart coverage. The bigger payload is still bounded by
+// the per-project series size (12 EVM points + ~16 burndown points).
+const PROJECT_CHART_CAP = 200;
+
+export function selectChartableProjectIds<T extends { id: number; status?: string | null }>(
+  projects: T[],
+): number[] {
+  const ids: number[] = [];
+  for (const p of projects) {
+    const s = p.status == null ? null : String(p.status);
+    if (s && TERMINAL_PROJECT_STATUSES.has(s)) continue;
+    ids.push(p.id);
+    if (ids.length >= PROJECT_CHART_CAP) break;
+  }
+  return ids;
 }
 
 async function gatherOrganizationContextUncached(orgId: number): Promise<JarvisContext> {
@@ -373,6 +425,8 @@ async function gatherOrganizationContextUncached(orgId: number): Promise<JarvisC
       financialsRollup: [],
       timesheetsRollup: [],
       deliverables: [],
+      evmTimePhased: [],
+      burndowns: [],
     };
   }
 
@@ -540,6 +594,24 @@ async function gatherOrganizationContextUncached(orgId: number): Promise<JarvisC
     endDate: row.endDate ?? null,
   }));
 
+  // Time-phased EVM + burndown for non-terminal projects only. We catch and
+  // log here (rather than swallowing silently) so an analytics failure
+  // degrades to "no chart data" without taking down the rest of the Friday
+  // context, but the failure is still visible in server logs for diagnosis.
+  const activeProjectIds = selectChartableProjectIds(orgProjects);
+  const [evmTimePhased, burndowns] = await Promise.all([
+    gatherProjectEvmSeries(fiscalYearStartMonth, activeProjectIds)
+      .then(r => r.projects)
+      .catch((err) => {
+        console.error(`[jarvis] gatherProjectEvmSeries failed for org ${orgId}:`, err);
+        return [] as ProjectEvmSeries[];
+      }),
+    gatherProjectBurndowns(activeProjectIds).catch((err) => {
+      console.error(`[jarvis] gatherProjectBurndowns failed for org ${orgId}:`, err);
+      return [] as ProjectBurndown[];
+    }),
+  ]);
+
   return {
     projects: orgProjects.map(summarizeProject),
     portfolios: orgPortfolios.map(summarizePortfolio),
@@ -555,6 +627,8 @@ async function gatherOrganizationContextUncached(orgId: number): Promise<JarvisC
     financialsRollup,
     timesheetsRollup,
     deliverables: deliverablesData,
+    evmTimePhased,
+    burndowns,
   };
 }
 
@@ -743,6 +817,18 @@ function buildDataContext(ctx: JarvisContext): string {
     summary += `### Project Deliverables\n`;
     summary += `Tasks that explicitly enumerate deliverables (artifacts, outputs, signed contracts, releases, etc.). Use when the user asks "what deliverables do we owe on Project X" or "what was promised this quarter".\n\n`;
     summary += `${JSON.stringify(ctx.deliverables.slice(0, 100), null, 1)}\n\n`;
+  }
+
+  if (ctx.evmTimePhased.length > 0) {
+    summary += `### Time-Phased EVM (S-Curve ready) — current FY\n`;
+    summary += `Per-project cumulative Planned Value (pvCum), Earned Value (evCum), Actual Cost (acCum), and Estimate at Completion (eacCum) for each fiscal month of the current FY. These are the EXACT numbers the Financials → S-Curve dashboard renders. When the user asks for an S-curve, EVM chart, or PV-vs-EV view, drop these straight into an \`s-curve\` block (use \`points[].label\` for x-axis, \`pvCum\`/\`evCum\`/\`acCum\`/\`eacCum\` for the four series, and \`asOfIndex\` for the today line). Only include earned/actual on points up to \`asOfIndex\`; future points should keep PV/EAC only. Do NOT invent values for projects not present here.\n\n`;
+    summary += `${JSON.stringify(ctx.evmTimePhased, null, 1)}\n\n`;
+  }
+
+  if (ctx.burndowns.length > 0) {
+    summary += `### Project Burndown Series (ideal vs actual remaining work)\n`;
+    summary += `Per-project ideal-vs-actual remaining work over the project window, weighted by estimated hours when available (\`unit\`: hrs/days/tasks). Drop straight into a \`burndown-chart\` block: \`points[].label\` → x-axis, \`ideal\`/\`actual\` → series, \`asOfIndex\` → today marker, \`unit\` → chart \`unit\`. \`actual\` is null for buckets after today (don't emit those into the actual line). Only emit charts for projects listed here.\n\n`;
+    summary += `${JSON.stringify(ctx.burndowns, null, 1)}\n\n`;
   }
 
   // Always emphasize that milestones are first-class
@@ -1940,7 +2026,7 @@ const CUSTOM_AGENT_SAFE_TOOLS = new Set([
   "assign_resources_to_task",
 ]);
 
-function filterContextByScope(ctx: JarvisContext, scope: CustomAgentRuntimeConfig["dataScope"]): JarvisContext {
+export function filterContextByScope(ctx: JarvisContext, scope: CustomAgentRuntimeConfig["dataScope"]): JarvisContext {
   if (scope.type === "org") return ctx;
   let allowedProjectIds: Set<number>;
   if (scope.type === "projects") {
@@ -1968,6 +2054,8 @@ function filterContextByScope(ctx: JarvisContext, scope: CustomAgentRuntimeConfi
     financialsRollup: ctx.financialsRollup.filter(r => allowedProjectIds.has(r.projectId)),
     timesheetsRollup: ctx.timesheetsRollup.filter(r => allowedProjectIds.has(r.projectId)),
     deliverables: ctx.deliverables.filter(d => allowedProjectIds.has(d.projectId)),
+    evmTimePhased: ctx.evmTimePhased.filter(s => allowedProjectIds.has(s.projectId)),
+    burndowns: ctx.burndowns.filter(b => allowedProjectIds.has(b.projectId)),
   };
 }
 
