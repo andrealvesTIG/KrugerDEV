@@ -420,6 +420,7 @@ export default function AiModePage() {
                 index={i}
                 onNavigate={handleNavigate}
                 variant="page"
+                onQuickReply={(text) => sendMessage(text)}
               />
             ))}
             {isLoading && (() => {

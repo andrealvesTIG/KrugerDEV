@@ -627,7 +627,13 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
               <div ref={scrollRef} className="flex-1 overflow-y-auto px-4">
                 <div className="py-2">
                   {messages.map((msg, i) => (
-                    <MessageBubble key={msg.id} message={msg} index={i} onNavigate={handleNavigate} />
+                    <MessageBubble
+                      key={msg.id}
+                      message={msg}
+                      index={i}
+                      onNavigate={handleNavigate}
+                      onQuickReply={(text) => sendMessage(text)}
+                    />
                   ))}
                   {isLoading && (() => {
                     const last = messages[messages.length - 1];

@@ -250,6 +250,25 @@ interface MarkdownContentProps {
   content: string;
   onNavigate?: (path: string) => void;
   variant?: Variant;
+  onQuickReply?: (text: string) => void;
+}
+
+function tryParseQuickReplies(jsonText: string): string[] | null {
+  try {
+    const parsed = JSON.parse(jsonText);
+    let opts: unknown;
+    if (Array.isArray(parsed)) opts = parsed;
+    else if (parsed && typeof parsed === "object") opts = (parsed as any).options;
+    if (!Array.isArray(opts)) return null;
+    const cleaned = opts
+      .map((o) => (typeof o === "string" ? o : typeof o === "object" && o && typeof (o as any).label === "string" ? (o as any).label : null))
+      .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+      .map((s) => s.trim())
+      .slice(0, 8);
+    return cleaned.length > 0 ? cleaned : null;
+  } catch {
+    return null;
+  }
 }
 
 let inlineKeyCounter = 0;
@@ -361,7 +380,7 @@ function renderInline(
   return parts.length > 0 ? parts : [text];
 }
 
-export function MarkdownContent({ content, onNavigate, variant = "panel" }: MarkdownContentProps) {
+export function MarkdownContent({ content, onNavigate, variant = "panel", onQuickReply }: MarkdownContentProps) {
   const lines = content.split("\n");
   const elements: JSX.Element[] = [];
 
@@ -486,6 +505,63 @@ export function MarkdownContent({ content, onNavigate, variant = "panel" }: Mark
       continue;
     }
 
+    // Detect fenced quick-replies block
+    if (line.trim().startsWith("```quick-replies")) {
+      const jsonLines: string[] = [];
+      let j = i + 1;
+      while (j < lines.length && !lines[j].trim().startsWith("```")) {
+        jsonLines.push(lines[j]);
+        j++;
+      }
+      const jsonText = jsonLines.join("\n").trim();
+      const hasClose = j < lines.length && lines[j].trim().startsWith("```");
+      if (hasClose) {
+        // Closed block: render chips on success, raw code-block fallback on
+        // parse failure, and nothing for an empty payload (so we never leave
+        // a permanent shimmer behind once streaming is complete).
+        if (jsonText.length > 0) {
+          const options = tryParseQuickReplies(jsonText);
+          if (options && options.length > 0) {
+            const chipClass = variant === "page"
+              ? "inline-flex items-center px-3 py-1.5 rounded-full text-xs border border-border bg-card hover:bg-accent hover:border-primary/40 text-foreground transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              : "inline-flex items-center px-3 py-1.5 rounded-full text-xs border border-cyan-700/40 bg-cyan-900/20 text-cyan-100 hover:bg-cyan-800/40 hover:border-cyan-500/60 hover:text-cyan-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed";
+            elements.push(
+              <div key={`qr-${i}`} className="my-2 flex flex-wrap gap-1.5" data-testid="quick-replies">
+                {options.map((opt, idx) => (
+                  <button
+                    key={`qr-${i}-${idx}`}
+                    type="button"
+                    onClick={() => onQuickReply?.(opt)}
+                    disabled={!onQuickReply}
+                    className={chipClass}
+                    data-testid={`quick-reply-${idx}`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            );
+          } else {
+            // Malformed JSON: fall back to raw code block so the user can see
+            // the model's output instead of a silent disappearance.
+            elements.push(
+              <pre key={`qr-raw-${i}`} className="my-2 rounded-md border border-border bg-muted/40 p-2 text-xs overflow-x-auto">
+                <code>{jsonText}</code>
+              </pre>
+            );
+          }
+        }
+        i = j;
+        continue;
+      }
+      // Streaming-incomplete (no closing fence yet): show shimmer placeholder
+      elements.push(
+        <div key={`qr-pending-${i}`} className="my-2 h-8 w-40 rounded-full border border-border bg-muted/40 animate-pulse" />
+      );
+      i = j - 1;
+      continue;
+    }
+
     // Detect fenced friday-card block
     if (line.trim().startsWith("```friday-card")) {
       const jsonLines: string[] = [];
@@ -573,9 +649,10 @@ interface MessageBubbleProps {
   index: number;
   onNavigate?: (path: string) => void;
   variant?: Variant;
+  onQuickReply?: (text: string) => void;
 }
 
-export function MessageBubble({ message, index, onNavigate, variant = "panel" }: MessageBubbleProps) {
+export function MessageBubble({ message, index, onNavigate, variant = "panel", onQuickReply }: MessageBubbleProps) {
   const isUser = message.role === "user";
 
   const userBubbleClass = variant === "page"
@@ -620,7 +697,7 @@ export function MessageBubble({ message, index, onNavigate, variant = "panel" }:
             )}
           </div>
         ) : (
-          <MarkdownContent content={message.content} onNavigate={onNavigate} variant={variant} />
+          <MarkdownContent content={message.content} onNavigate={onNavigate} variant={variant} onQuickReply={onQuickReply} />
         )}
       </div>
     </motion.div>

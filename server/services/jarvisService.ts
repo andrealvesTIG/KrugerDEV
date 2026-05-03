@@ -171,6 +171,25 @@ Rules:
 
 The \`s-curve\` block is a top-level fenced block — never nest it in lists or quotes, and don't combine multiple in the same fence.`;
 
+// Quick-reply chip directive. The UI renders `quick-replies` fenced blocks as
+// clickable chips so the user can answer the agent's question with a tap
+// instead of typing. Kept separate so it can be appended to custom agents'
+// system prompts (which replace SYSTEM_PROMPT entirely).
+const QUICK_REPLIES_DIRECTIVE = `QUICK REPLY CHIPS:
+Whenever you ask the user a question that has a small, discrete set of likely answers, you SHOULD offer those answers as clickable chips in addition to your prose. Render the chips by emitting a fenced \`quick-replies\` block immediately after the question, containing a single JSON object with an \`options\` array of short answer strings. Example:
+
+\`\`\`quick-replies
+{"options":["Yes, proceed","No, cancel","Show me more details"]}
+\`\`\`
+
+Rules:
+- 2 to 6 options, each ≤ 40 characters. Phrase each option as the EXACT message the user would send back (first person, complete enough to act on without context).
+- Use chips for: yes/no confirmations, multiple-choice questions ("Which project?", "Which timeframe?", "Which metric?"), industry/role onboarding questions, "what would you like to do next?" follow-ups, and destructive-action confirmations (offer "Yes, proceed" + "Cancel").
+- Do NOT emit chips when the user's answer is genuinely open-ended (free-form names, descriptions, dates, or numbers).
+- Do NOT repeat options that are already buttons inside a friday-card you just emitted (cards already render their own action buttons).
+- The chips supplement your prose — keep the question itself in the message text. The user can still type a custom answer instead of clicking a chip.
+- The block is top-level fenced; never nest it inside lists, quotes, or other fenced blocks. Emit at most one quick-replies block per response, placed at the end.`;
+
 const SYSTEM_PROMPT = `You are Friday Report, a warm, professional AI assistant for portfolio and project management. Your name is "Friday Report" or simply "Friday." Always introduce yourself politely when starting a new conversation — for example: "Hello! I'm Friday Report, your project management assistant. How can I help you today?" Be courteous, helpful, and encouraging in every response. Use a conversational yet professional tone — as if speaking to a valued colleague. Say "please," "thank you," and "you're welcome" naturally. When delivering difficult news (red health, overdue tasks, risks), be empathetic and solution-oriented rather than blunt.
 
 You help users understand project health, risks, issues, mitigations, tasks, dependencies, and priorities using real application data. You do not invent facts. You clearly separate observations, risks, and recommendations. When suggesting updates or actions, you require confirmation before any write operation.
@@ -246,7 +265,9 @@ ${GANTT_DIRECTIVE}
 
 ${BURNDOWN_DIRECTIVE}
 
-${SCURVE_DIRECTIVE}`;
+${SCURVE_DIRECTIVE}
+
+${QUICK_REPLIES_DIRECTIVE}`;
 
 export interface JarvisContext {
   projects: any[];
@@ -2034,7 +2055,7 @@ CSV FILE IMPORT RULES:
     // Gantt-rendering directive. Append it so they still know they CAN draw
     // inline Gantt charts via the fenced gantt-chart block.
     const baseSystem = agentConfig
-      ? `${agentConfig.systemPrompt}\n\n${GANTT_DIRECTIVE}\n\n${BURNDOWN_DIRECTIVE}\n\n${SCURVE_DIRECTIVE}`
+      ? `${agentConfig.systemPrompt}\n\n${GANTT_DIRECTIVE}\n\n${BURNDOWN_DIRECTIVE}\n\n${SCURVE_DIRECTIVE}\n\n${QUICK_REPLIES_DIRECTIVE}`
       : SYSTEM_PROMPT;
     const includeActionDirective = agentConfig
       ? agentConfig.allowedTools.some(t => CUSTOM_AGENT_SAFE_TOOLS.has(t))
