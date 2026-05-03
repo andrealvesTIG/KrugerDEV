@@ -73,7 +73,7 @@ const baseSchema = z.object({
   name: z.string().min(1).max(120),
   description: z.string().max(500).optional().nullable(),
   icon: z.enum(ALLOWED_ICONS).optional(),
-  systemPrompt: z.string().min(1).max(10000),
+  systemPrompt: z.string().min(1).max(50000),
   model: z.enum(ALLOWED_MODELS).default("gpt-4o-mini"),
   dataScope: dataScopeSchema.default({ type: "org" }),
   allowedTools: z.array(z.enum(ALLOWED_AGENT_ACTIONS)).max(20).default([]),
