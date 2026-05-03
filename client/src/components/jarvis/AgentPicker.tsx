@@ -7,7 +7,7 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { Bot, ChevronDown, Sparkles, BarChart3, ClipboardList, Settings as SettingsIcon, Plus } from "lucide-react";
+import { Bot, ChevronDown, Sparkles, BarChart3, ClipboardList, Settings as SettingsIcon, Plus, Compass } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type AgentRow = {
@@ -22,9 +22,14 @@ interface Props {
   activeAgentId: number | null;
   onSelect: (agentId: number | null) => void;
   variant?: "panel" | "page";
+  // Optional: surfaces the built-in Onboarding agent inside the picker so it
+  // sits alongside Friday and other built-ins instead of needing its own
+  // header button. When provided, an "Onboarding" item is rendered.
+  onStartOnboarding?: () => void;
+  onboardingActive?: boolean;
 }
 
-export default function AgentPicker({ activeAgentId, onSelect, variant = "panel" }: Props) {
+export default function AgentPicker({ activeAgentId, onSelect, variant = "panel", onStartOnboarding, onboardingActive }: Props) {
   const { currentOrganization } = useOrganization();
   const orgId = currentOrganization?.id;
   const [, setLocation] = useLocation();
@@ -50,7 +55,7 @@ export default function AgentPicker({ activeAgentId, onSelect, variant = "panel"
   const scheduled = customOnly.filter(a => a.type === "scheduled");
 
   const selected = chatAgents.find(a => a.id === activeAgentId);
-  const label = selected?.name ?? "Friday";
+  const label = onboardingActive ? "Onboarding" : (selected?.name ?? "Friday");
 
   const triggerCls = variant === "panel"
     ? "h-7 px-2 gap-1 text-xs text-cyan-100 bg-cyan-900/20 hover:bg-cyan-900/40 border border-cyan-800/40"
@@ -68,8 +73,13 @@ export default function AgentPicker({ activeAgentId, onSelect, variant = "panel"
       <DropdownMenuContent align="end" className="w-72 z-[300]">
         <DropdownMenuLabel>Built-in agents</DropdownMenuLabel>
         <DropdownMenuItem onSelect={() => onSelect(null)} className="gap-2" data-testid="picker-friday">
-          <Sparkles className="h-4 w-4" /> Friday {activeAgentId === null && <span className="ml-auto text-xs opacity-60">active</span>}
+          <Sparkles className="h-4 w-4" /> Friday {activeAgentId === null && !onboardingActive && <span className="ml-auto text-xs opacity-60">active</span>}
         </DropdownMenuItem>
+        {onStartOnboarding && (
+          <DropdownMenuItem onSelect={() => onStartOnboarding()} className="gap-2" data-testid="picker-onboarding">
+            <Compass className="h-4 w-4" /> Onboarding {onboardingActive && <span className="ml-auto text-xs opacity-60">active</span>}
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onSelect={() => navigate("/powerbi-agent")} className="gap-2">
           <BarChart3 className="h-4 w-4" /> Power BI Request
         </DropdownMenuItem>

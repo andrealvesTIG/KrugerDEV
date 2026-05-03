@@ -8,7 +8,7 @@ import { useSpeechRecognition, useSpeechSynthesis } from "@/hooks/use-speech";
 import {
   Mic, MicOff, Send, Square,
   ChevronRight, X, MessageSquare, Minimize2, Zap, FileText,
-  Paperclip, Plus, Compass,
+  Paperclip, Plus,
   MessageCircle, AudioLines, PenLine,
 } from "lucide-react";
 import {
@@ -367,7 +367,17 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-cyan-900/20">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_6px_rgba(0,200,255,0.6)]" />
-              <AgentPicker activeAgentId={activeAgentId} onSelect={switchAgent} />
+              <AgentPicker
+                activeAgentId={activeAgentId}
+                onSelect={switchAgent}
+                onStartOnboarding={() => {
+                  startOnboardingAgent();
+                  setShowChat(false);
+                  lastSpokenRef.current = "";
+                  stopSpeaking();
+                }}
+                onboardingActive={forceOnboarding}
+              />
               
               {pageContext.entityType && (() => {
                 const CtxIcon = getContextIcon(pageContext.entityType);
@@ -419,31 +429,6 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
                   <p className="text-xs">Start a new conversation</p>
-                </TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      startOnboardingAgent();
-                      setShowChat(false);
-                      lastSpokenRef.current = "";
-                      stopSpeaking();
-                    }}
-                    className={cn(
-                      "h-7 px-2 gap-1 text-cyan-300 hover:text-cyan-100 hover:bg-cyan-900/20 border border-transparent",
-                      forceOnboarding && "border-cyan-500/50 text-cyan-100 bg-cyan-900/30",
-                    )}
-                    data-testid="button-friday-onboarding-agent"
-                  >
-                    <Compass className="h-3 w-3" />
-                    <span className="text-xs">Onboarding</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p className="text-xs">Launch the onboarding agent to set up your workspace</p>
                 </TooltipContent>
               </Tooltip>
               <RecentChatsMenu

@@ -7,7 +7,7 @@ import { useSpeechRecognition } from "@/hooks/use-speech";
 import { setAiMode, useAiModeEscapeHandler } from "@/hooks/use-ai-mode";
 import {
   Send, Square, X, Paperclip, Mic, MicOff,
-  Sparkles, Zap, Feather, ArrowRight, Plus, Compass,
+  Sparkles, Zap, Feather, ArrowRight, Plus,
 } from "lucide-react";
 import { ModeToggle } from "@/components/layout/ModeToggle";
 import {
@@ -258,7 +258,13 @@ export default function AiModePage() {
       <header className="flex h-12 items-center justify-between border-b border-border dark:border-slate-700 bg-background/95 dark:bg-slate-900/95 px-3 md:px-4 backdrop-blur-sm flex-shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_6px_rgba(0,200,255,0.6)] flex-shrink-0" />
-          <AgentPicker activeAgentId={activeAgentId} onSelect={switchAgent} variant="page" />
+          <AgentPicker
+            activeAgentId={activeAgentId}
+            onSelect={switchAgent}
+            variant="page"
+            onStartOnboarding={handleStartOnboardingAgent}
+            onboardingActive={forceOnboarding}
+          />
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
           <Tooltip>
@@ -321,26 +327,6 @@ export default function AiModePage() {
             </TooltipTrigger>
             <TooltipContent side="bottom">
               <p className="text-xs">Start a new conversation</p>
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleStartOnboardingAgent}
-                className={cn(
-                  "h-8 px-2 gap-1 border-primary/30 hover:bg-primary/10",
-                  forceOnboarding && "bg-primary/10 border-primary/50 text-primary",
-                )}
-                data-testid="button-ai-onboarding-agent"
-              >
-                <Compass className="h-3.5 w-3.5" />
-                <span className="text-xs hidden sm:inline">Onboarding agent</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p className="text-xs">Launch the onboarding agent to set up your workspace</p>
             </TooltipContent>
           </Tooltip>
           <RecentChatsMenu
