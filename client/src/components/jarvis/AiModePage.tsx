@@ -266,7 +266,7 @@ export default function AiModePage() {
                 type="button"
                 role="switch"
                 aria-checked={!conciseMode}
-                aria-label="Toggle response mode between Light and Power"
+                aria-label="Toggle response mode between Lite and Power"
                 onClick={() => setConciseMode(!conciseMode)}
                 className="inline-flex items-center h-8 p-0.5 rounded-full bg-muted border border-border cursor-pointer"
                 data-testid="button-ai-concise-toggle"
@@ -281,7 +281,7 @@ export default function AiModePage() {
                   data-testid="button-ai-mode-light"
                 >
                   <Feather className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Light</span>
+                  <span className="hidden sm:inline">Lite</span>
                 </span>
                 <span
                   className={cn(
@@ -300,7 +300,7 @@ export default function AiModePage() {
             <TooltipContent side="bottom">
               <p className="text-xs">
                 {conciseMode
-                  ? "Light Mode — short, fast replies"
+                  ? "Lite Mode — short, fast replies"
                   : "Power Mode — detailed, thorough replies"}
               </p>
             </TooltipContent>
