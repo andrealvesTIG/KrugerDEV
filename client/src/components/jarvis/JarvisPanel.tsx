@@ -31,6 +31,7 @@ import {
 import { useOrgSetupStatus } from "@/hooks/use-needs-org-setup";
 import { RecentChatsMenu } from "./RecentChatsMenu";
 import AgentPicker from "./AgentPicker";
+import { useActiveAgentName } from "@/hooks/use-active-agent-name";
 import ThemedGif from "@/components/ui/themed-gif";
 import running_man from "@assets/runcycle18_1772300373437.gif";
 
@@ -57,6 +58,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
     startOnboardingAgent, forceOnboarding,
     activeAgentId, switchAgent,
   } = useJarvis();
+  const activeAgentName = useActiveAgentName(activeAgentId);
   const { needsSetup: needsOrgSetup } = useOrgSetupStatus();
   const showOnboarding =
     forceOnboarding || (needsOrgSetup && pageContext.entityType === null);
@@ -642,7 +644,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                     return (
                       <div className="flex items-center gap-2 py-2 px-1" data-testid="friday-thinking-panel">
                         <ThemedGif src={running_man} alt="Running" className="h-8 w-8 object-contain" />
-                        <span className="text-[11px] text-cyan-300/70">Friday Agent is thinking like there is no tomorow...</span>
+                        <span className="text-[11px] text-cyan-300/70">{activeAgentName} is working on it like there is no tomorrow...</span>
                       </div>
                     );
                   })()}
