@@ -60,7 +60,7 @@ export default function AgentPicker({ activeAgentId, onSelect, variant = "panel"
           <ChevronDown className="h-3 w-3 opacity-70" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72">
+      <DropdownMenuContent align="end" className="w-72 z-[300]">
         <DropdownMenuLabel>Built-in agents</DropdownMenuLabel>
         <DropdownMenuItem onSelect={() => onSelect(null)} className="gap-2" data-testid="picker-friday">
           <Sparkles className="h-4 w-4" /> Friday {activeAgentId === null && <span className="ml-auto text-xs opacity-60">active</span>}
