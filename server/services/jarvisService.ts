@@ -36,7 +36,7 @@ const defaultOpenai = createOpenAIClient();
 const DEFAULT_AZURE_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4.1";
 const defaultIsAzure = !!(process.env.AZURE_OPENAI_API_KEY && process.env.AZURE_OPENAI_ENDPOINT);
 
-async function getOrgOpenAIClient(orgId: number): Promise<{ client: OpenAI; deployment: string; isAzure: boolean }> {
+export async function getOrgOpenAIClient(orgId: number): Promise<{ client: OpenAI; deployment: string; isAzure: boolean }> {
   try {
     const [org] = await db.select({ fridayAgentConfig: organizations.fridayAgentConfig })
       .from(organizations).where(eq(organizations.id, orgId));

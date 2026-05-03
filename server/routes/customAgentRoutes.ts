@@ -9,7 +9,7 @@ import {
   createAgentConversation, addAgentMessage, updateAgentConversationTitle, archiveAgentConversation, deleteAgentConversation,
 } from "../storage/customAgentStorage";
 import { runScheduledAgent, computeNextRun } from "../services/customAgentService";
-import { streamJarvisResponse, type CustomAgentRuntimeConfig } from "../services/jarvisService";
+import { streamJarvisResponse, getOrgOpenAIClient, type CustomAgentRuntimeConfig } from "../services/jarvisService";
 import {
   enforceAiCredits, recordAiCredits, sendLimitExceeded, writeSseLimitExceeded,
   AiCreditsLimitError, newAiRequestId, type MeterPerCall,
@@ -87,6 +87,65 @@ const baseSchema = z.object({
   emailSubject: z.string().max(200).nullable().optional(),
 });
 
+// Generate 4 short, ready-to-send template questions for a custom agent based
+// on its system prompt + name + description. Returns null on any failure so
+// the caller can ignore it without blocking agent create/update.
+async function generateSuggestedPromptsForAgent(
+  orgId: number,
+  agent: { name: string; description?: string | null; systemPrompt: string; type: string },
+): Promise<string[] | null> {
+  try {
+    const { client, deployment, isAzure } = await getOrgOpenAIClient(orgId);
+    const sys = `You write short starter prompts that a user might click to begin a conversation with a custom AI agent. Respond with STRICT JSON in this exact shape: {"prompts":["...","...","...","..."]}. Rules: exactly 4 prompts; each is a complete first-person question or request the user would send (e.g. "Show me my at-risk projects", not "Risk overview"); 4–10 words; no numbering, quotes, emojis, or trailing punctuation other than "?"; cover distinct angles of what this agent does best (do not paraphrase the same question 4 times); never invent specific entity names — keep them generic (e.g. "Which projects are slipping this month?").`;
+    const user = `Agent name: ${agent.name}
+Type: ${agent.type}
+Description: ${agent.description ?? "(none)"}
+System prompt:
+"""
+${agent.systemPrompt.slice(0, 6000)}
+"""
+
+Return the JSON now.`;
+    const completion = await client.chat.completions.create({
+      model: isAzure ? deployment : "gpt-4o-mini",
+      messages: [
+        { role: "system", content: sys },
+        { role: "user", content: user },
+      ],
+      temperature: 0.4,
+      max_completion_tokens: 400,
+      response_format: { type: "json_object" },
+    });
+    const raw = completion.choices?.[0]?.message?.content?.trim();
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const arr = Array.isArray(parsed) ? parsed : parsed?.prompts;
+    if (!Array.isArray(arr)) return null;
+    const cleaned = arr
+      .map((s) => (typeof s === "string" ? s.trim() : ""))
+      .filter((s) => s.length > 0 && s.length <= 140)
+      .slice(0, 4);
+    return cleaned.length > 0 ? cleaned : null;
+  } catch (err) {
+    console.error(`[customAgent] Suggested-prompt generation failed for org ${orgId}:`, err);
+    return null;
+  }
+}
+
+async function refreshAgentPromptsAsync(
+  agentId: number,
+  orgId: number,
+  agent: { name: string; description?: string | null; systemPrompt: string; type: string },
+): Promise<void> {
+  const prompts = await generateSuggestedPromptsForAgent(orgId, agent);
+  if (!prompts) return;
+  try {
+    await updateAgent(agentId, { suggestedPrompts: prompts });
+  } catch (err) {
+    console.error(`[customAgent] Failed to persist suggested prompts for agent ${agentId}:`, err);
+  }
+}
+
 async function ensureOrgAccess(req: Request, res: Response, orgId: number): Promise<string | null> {
   const userId = getUserIdFromRequest(req);
   if (!userId) { res.status(401).json({ message: "Authentication required" }); return null; }
@@ -154,7 +213,33 @@ export function registerCustomAgentRoutes(app: Express) {
       nextRun: rest.type === "scheduled" ? computeNextRun(rest.scheduleDay ?? null, rest.scheduleTime ?? null, rest.timezone ?? null) : null,
     };
     const agent = await createAgent(insert, memberIds ?? []);
+    // Fire-and-forget: generate starter prompts from the systemPrompt so the
+    // agent's empty-state landing page shows tailored cards. Don't block the
+    // create response on the LLM call.
+    void refreshAgentPromptsAsync(agent.id, organizationId, {
+      name: agent.name, description: agent.description, systemPrompt: agent.systemPrompt, type: agent.type,
+    });
     res.status(201).json(agent);
+  });
+
+  apiRoute(app, 'post', '/api/agents/:id/regenerate-prompts', {
+    tag: 'Agents', summary: 'Regenerate the agent\'s starter prompts from its system prompt',
+    responses: { ...r200('Regenerated', { type: 'object' }), ...stdRes },
+  }, async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    const orgId = Number(req.body.organizationId);
+    if (!orgId) return res.status(400).json({ message: "organizationId required" });
+    const userId = await ensureOrgAccess(req, res, orgId);
+    if (!userId) return;
+    if (!(await canEditAgent(id, orgId, userId))) return res.status(403).json({ message: "You can't edit this agent" });
+    const a = await getAgentForUser(id, orgId, userId);
+    if (!a) return res.status(404).json({ message: "Not found" });
+    const prompts = await generateSuggestedPromptsForAgent(orgId, {
+      name: a.name, description: a.description, systemPrompt: a.systemPrompt, type: a.type,
+    });
+    if (!prompts) return res.status(502).json({ message: "Could not generate starter prompts. Please try again." });
+    const updated = await updateAgent(id, { suggestedPrompts: prompts });
+    res.json(updated);
   });
 
   apiRoute(app, 'get', '/api/agents/:id', {
@@ -201,6 +286,13 @@ export function registerCustomAgentRoutes(app: Express) {
     }
     const updated = await updateAgent(id, patch, memberIds);
     if (!updated) return res.status(404).json({ message: "Not found" });
+    // Regenerate starter prompts when the systemPrompt, name, or description
+    // changes — those are the inputs to the prompt generator. Fire-and-forget.
+    if (patchData.systemPrompt !== undefined || patchData.name !== undefined || patchData.description !== undefined) {
+      void refreshAgentPromptsAsync(id, orgId, {
+        name: updated.name, description: updated.description, systemPrompt: updated.systemPrompt, type: updated.type,
+      });
+    }
     res.json(updated);
   });
 

@@ -5394,6 +5394,11 @@ export const customAgents = pgTable("custom_agents", {
     projectIds?: number[];
   }>().notNull().default({ type: "org" }),
   allowedTools: text("allowed_tools").array().notNull().default(sql`'{}'::text[]`),
+  // 4 short, ready-to-send template questions auto-generated from the
+  // systemPrompt at create/update time. Rendered as starter cards on the
+  // agent's empty-state landing page so users can launch a conversation
+  // with one click. Nullable until the first generation completes.
+  suggestedPrompts: text("suggested_prompts").array(),
   visibility: text("visibility").notNull().default("private"), // 'private' | 'org' | 'members'
   // Scheduled-only:
   enabled: boolean("enabled").notNull().default(true),

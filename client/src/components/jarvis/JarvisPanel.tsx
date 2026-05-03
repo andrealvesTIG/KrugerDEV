@@ -32,6 +32,7 @@ import { useOrgSetupStatus } from "@/hooks/use-needs-org-setup";
 import { RecentChatsMenu } from "./RecentChatsMenu";
 import AgentPicker from "./AgentPicker";
 import { useActiveAgentName } from "@/hooks/use-active-agent-name";
+import { useAgentSuggestedPrompts } from "@/hooks/use-agent-prompts";
 import ThemedGif from "@/components/ui/themed-gif";
 import running_man from "@assets/runcycle18_1772300373437.gif";
 
@@ -59,6 +60,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
     activeAgentId, switchAgent,
   } = useJarvis();
   const activeAgentName = useActiveAgentName(activeAgentId);
+  const customAgentPrompts = useAgentSuggestedPrompts(activeAgentId);
   const { needsSetup: needsOrgSetup } = useOrgSetupStatus();
   const showOnboarding =
     forceOnboarding || (needsOrgSetup && pageContext.entityType === null);
@@ -595,7 +597,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                         Suggested
                       </p>
                       <div className="space-y-1.5">
-                        {getSuggestedPrompts(pageContext.entityType).map((prompt) => (
+                        {(customAgentPrompts ?? getSuggestedPrompts(pageContext.entityType)).map((prompt) => (
                           <button
                             key={prompt}
                             onClick={() => sendMessage(prompt)}

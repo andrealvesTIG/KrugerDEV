@@ -31,6 +31,7 @@ import { useOrgSetupStatus } from "@/hooks/use-needs-org-setup";
 import { RecentChatsMenu } from "./RecentChatsMenu";
 import AgentPicker from "./AgentPicker";
 import { useActiveAgentName } from "@/hooks/use-active-agent-name";
+import { useAgentSuggestedPrompts } from "@/hooks/use-agent-prompts";
 import logoIcon from "@assets/image_1777744172216.png";
 import ThemedGif from "@/components/ui/themed-gif";
 import running_man from "@assets/runcycle18_1772300373437.gif";
@@ -236,7 +237,11 @@ export default function AiModePage() {
     setTimeout(() => textareaRef.current?.focus(), 50);
   }, [switchConversation]);
 
-  const suggestedPrompts = getSuggestedPrompts(pageContext.entityType);
+  // For custom agents we prefer their LLM-generated starter prompts (derived
+  // from the agent's systemPrompt). Fall back to Friday's page-context prompts
+  // for built-in Friday or while a new custom agent is still generating.
+  const customAgentPrompts = useAgentSuggestedPrompts(activeAgentId);
+  const suggestedPrompts = customAgentPrompts ?? getSuggestedPrompts(pageContext.entityType);
   const hasMessages = messages.length > 0;
   const { needsSetup: needsOrgSetup } = useOrgSetupStatus();
   const showOnboarding =
