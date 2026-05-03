@@ -1,0 +1,44 @@
+Do NOT wrap cards inside other markdown containers (no nested fences). It is fine to mix a short paragraph of prose followed by several card blocks. Always emit cards as standalone top-level fenced blocks.`;
+
+export interface JarvisContext {
+  projects: any[];
+  portfolios: any[];
+  risks: any[];
+  issues: any[];
+  tasks: any[];
+  milestones: any[];
+  dependencies: any[];
+  resources: any[];
+  statusReports: any[];
+  healthHistory: any[];
+  // Org's fiscal calendar setting (1..12 calendar month that is FY M1).
+  // Drives every fiscal-period label/order so AI summaries stay consistent
+  // with what users see in financial grids and exports.
+  fiscalYearStartMonth: number;
+  // Org-wide signals (rolled up to keep token budget reasonable)
+  financialsRollup: Array<{
+    projectId: number;
+    fiscalYear: number;
+    scenario: string;
+    financialView: string | null;
+    total: number;
+  }>;
+  timesheetsRollup: Array<{
+    projectId: number;
+    userId: string;
+    totalHours: number;
+    days: number;
+  }>;
+  deliverables: Array<{
+    taskId: number;
+    projectId: number;
+    name: string;
+    deliverables: string;
+    status: string | null;
+    endDate: string | null;
+  }>;
+}
+
+// Short-lived in-memory cache so back-to-back chat turns from the same user
+// don't re-issue ~10 parallel queries. TTL is small enough that data feels
+// fresh; users rarely send a new message and immediately expect to see a

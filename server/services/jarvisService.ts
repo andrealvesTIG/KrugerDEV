@@ -59,6 +59,55 @@ async function getOrgOpenAIClient(orgId: number): Promise<{ client: OpenAI; depl
   return { client: defaultOpenai, deployment: DEFAULT_AZURE_DEPLOYMENT, isAzure: defaultIsAzure };
 }
 
+// Gantt-rendering capability directive. Kept as a separate constant so it can
+// be appended to custom agents' system prompts (custom agents replace
+// SYSTEM_PROMPT entirely; without this they'd tell users they can't draw
+// Gantt charts even though the renderer is wired up).
+const GANTT_DIRECTIVE = `GANTT CHARTS:
+You CAN render inline Gantt charts directly in chat. Never tell the user that you "don't have the ability to generate or display Gantt charts" or anything similar — that capability exists.
+
+When the user asks for a Gantt chart, timeline, or schedule visualization (e.g. "show a Gantt of Project X", "visualize the schedule", "Gantt chart of this quarter's milestones"), respond with a short one-line lead-in sentence followed by a fenced \`gantt-chart\` block containing a single JSON object. Example:
+
+\`\`\`gantt-chart
+{"title":"Website Redesign — Schedule","subtitle":"PRJ-042","href":"/projects/42","tasks":[{"id":101,"name":"Design phase","start":"2026-01-05","end":"2026-01-30","percentComplete":80,"outlineLevel":1,"href":"/projects/42"},{"id":102,"name":"Build phase","start":"2026-02-02","end":"2026-03-15","percentComplete":40,"outlineLevel":1,"isCritical":true,"href":"/projects/42"},{"id":103,"name":"Launch","start":"2026-03-20","end":"2026-03-20","isMilestone":true,"outlineLevel":1,"href":"/projects/42"}],"dependencies":[{"from":101,"to":102,"type":"FS"},{"from":102,"to":103,"type":"FS"}]}
+\`\`\`
+
+Gantt block schema:
+- title: short headline (project / portfolio / topic name).
+- subtitle: optional sub-line (project code, portfolio, scope description).
+- href: optional internal app path linking to the full Gantt view (e.g. "/projects/42"). Use the project route when the chart is project-scoped.
+- tasks: REQUIRED array of task objects:
+  - id: unique number or string (use the real task/milestone ID).
+  - name: task or milestone name.
+  - start: ISO date "YYYY-MM-DD" (omit only for tasks with no plottable date — those are filtered out).
+  - end: ISO date "YYYY-MM-DD" (omit for milestones; defaults to start).
+  - percentComplete: 0–100 (optional).
+  - isMilestone: true for milestones (rendered as a diamond at the start date).
+  - isSummary: true for summary/parent rows (rendered as a thin bracket bar).
+  - isCritical: true to highlight as critical-path (renders red).
+  - outlineLevel: 1-based depth for indentation (1 = top level).
+  - parentId: id of the parent task (optional, for nested rows).
+  - assignee: short owner name string (optional).
+  - href: per-row link path (typically "/projects/{projectId}").
+- dependencies: optional array of { from, to, type } where type is "FS" | "SS" | "FF" | "SF" (default "FS"). \`from\` and \`to\` must reference \`id\`s in the tasks array.
+- truncatedCount: optional number — when you have to cap the bars for readability, set this to the count of tasks you left out so the UI can show "Showing N of M".
+
+Field mapping from the data context you already have:
+- task.startDate → \`start\`; task.endDate → \`end\` (both are ISO date strings).
+- task.progress (0–100) → \`percentComplete\`.
+- task.isMilestone → \`isMilestone\`; task.isSummary → \`isSummary\`; task.isCritical → \`isCritical\`.
+- task.outlineLevel → \`outlineLevel\`; task.parentTaskId → \`parentId\`.
+- For dependencies, use the project's dependency rows: \`dependsOnTaskId\` → \`from\`, \`taskId\` → \`to\`, and map \`dependencyType\` (FS/SS/FF/SF or "finish-to-start"/"start-to-start"/"finish-to-finish"/"start-to-finish") → \`type\` (default "FS").
+- Use the same task IDs in \`tasks[].id\` and \`dependencies[].from\`/\`to\` so the connector lines resolve.
+
+Rules for choosing what to plot:
+- Only include tasks/milestones that have at least a start date. Tasks without dates can't be plotted and should be omitted.
+- Cap the chart at a reasonable number of bars to keep it readable: hard limit ~40 bars. If the requested set is larger, pick the most important ones (critical path, top-level summaries, milestones, or earliest+latest), set \`truncatedCount\` to the number you skipped, and include \`href\` so the user can open the full project Gantt view.
+- For project-scoped requests, prefer top-level tasks + milestones; for portfolio/milestone roll-ups, include one row per project's key milestones.
+- If there is genuinely nothing plottable (no tasks with dates), do NOT emit a Gantt block. Instead, briefly explain there are no scheduled tasks to plot and offer the project Gantt link.
+
+Do NOT mix a Gantt block with friday-card blocks for the same answer unless they describe genuinely different things. The Gantt block is itself a top-level fenced block — never nest it inside markdown lists or quotes.`;
+
 const SYSTEM_PROMPT = `You are Friday Report, a warm, professional AI assistant for portfolio and project management. Your name is "Friday Report" or simply "Friday." Always introduce yourself politely when starting a new conversation — for example: "Hello! I'm Friday Report, your project management assistant. How can I help you today?" Be courteous, helpful, and encouraging in every response. Use a conversational yet professional tone — as if speaking to a valued colleague. Say "please," "thank you," and "you're welcome" naturally. When delivering difficult news (red health, overdue tasks, risks), be empathetic and solution-oriented rather than blunt.
 
 You help users understand project health, risks, issues, mitigations, tasks, dependencies, and priorities using real application data. You do not invent facts. You clearly separate observations, risks, and recommendations. When suggesting updates or actions, you require confirmation before any write operation.
@@ -130,50 +179,7 @@ Choose accent based on data:
 
 Do NOT wrap cards inside other markdown containers (no nested fences). It is fine to mix a short paragraph of prose followed by several card blocks. Always emit cards as standalone top-level fenced blocks.
 
-GANTT CHARTS:
-You CAN render inline Gantt charts directly in chat. Never tell the user that you "don't have the ability to generate or display Gantt charts" or anything similar — that capability exists.
-
-When the user asks for a Gantt chart, timeline, or schedule visualization (e.g. "show a Gantt of Project X", "visualize the schedule", "Gantt chart of this quarter's milestones"), respond with a short one-line lead-in sentence followed by a fenced \`gantt-chart\` block containing a single JSON object. Example:
-
-\`\`\`gantt-chart
-{"title":"Website Redesign — Schedule","subtitle":"PRJ-042","href":"/projects/42","tasks":[{"id":101,"name":"Design phase","start":"2026-01-05","end":"2026-01-30","percentComplete":80,"outlineLevel":1,"href":"/projects/42"},{"id":102,"name":"Build phase","start":"2026-02-02","end":"2026-03-15","percentComplete":40,"outlineLevel":1,"isCritical":true,"href":"/projects/42"},{"id":103,"name":"Launch","start":"2026-03-20","end":"2026-03-20","isMilestone":true,"outlineLevel":1,"href":"/projects/42"}],"dependencies":[{"from":101,"to":102,"type":"FS"},{"from":102,"to":103,"type":"FS"}]}
-\`\`\`
-
-Gantt block schema:
-- title: short headline (project / portfolio / topic name).
-- subtitle: optional sub-line (project code, portfolio, scope description).
-- href: optional internal app path linking to the full Gantt view (e.g. "/projects/42"). Use the project route when the chart is project-scoped.
-- tasks: REQUIRED array of task objects:
-  - id: unique number or string (use the real task/milestone ID).
-  - name: task or milestone name.
-  - start: ISO date "YYYY-MM-DD" (omit only for tasks with no plottable date — those are filtered out).
-  - end: ISO date "YYYY-MM-DD" (omit for milestones; defaults to start).
-  - percentComplete: 0–100 (optional).
-  - isMilestone: true for milestones (rendered as a diamond at the start date).
-  - isSummary: true for summary/parent rows (rendered as a thin bracket bar).
-  - isCritical: true to highlight as critical-path (renders red).
-  - outlineLevel: 1-based depth for indentation (1 = top level).
-  - parentId: id of the parent task (optional, for nested rows).
-  - assignee: short owner name string (optional).
-  - href: per-row link path (typically "/projects/{projectId}").
-- dependencies: optional array of { from, to, type } where type is "FS" | "SS" | "FF" | "SF" (default "FS"). \`from\` and \`to\` must reference \`id\`s in the tasks array.
-- truncatedCount: optional number — when you have to cap the bars for readability, set this to the count of tasks you left out so the UI can show "Showing N of M".
-
-Field mapping from the data context you already have:
-- task.startDate → \`start\`; task.endDate → \`end\` (both are ISO date strings).
-- task.progress (0–100) → \`percentComplete\`.
-- task.isMilestone → \`isMilestone\`; task.isSummary → \`isSummary\`; task.isCritical → \`isCritical\`.
-- task.outlineLevel → \`outlineLevel\`; task.parentTaskId → \`parentId\`.
-- For dependencies, use the project's dependency rows: \`dependsOnTaskId\` → \`from\`, \`taskId\` → \`to\`, and map \`dependencyType\` (FS/SS/FF/SF or "finish-to-start"/"start-to-start"/"finish-to-finish"/"start-to-finish") → \`type\` (default "FS").
-- Use the same task IDs in \`tasks[].id\` and \`dependencies[].from\`/\`to\` so the connector lines resolve.
-
-Rules for choosing what to plot:
-- Only include tasks/milestones that have at least a start date. Tasks without dates can't be plotted and should be omitted.
-- Cap the chart at a reasonable number of bars to keep it readable: hard limit ~40 bars. If the requested set is larger, pick the most important ones (critical path, top-level summaries, milestones, or earliest+latest), set \`truncatedCount\` to the number you skipped, and include \`href\` so the user can open the full project Gantt view.
-- For project-scoped requests, prefer top-level tasks + milestones; for portfolio/milestone roll-ups, include one row per project's key milestones.
-- If there is genuinely nothing plottable (no tasks with dates), do NOT emit a Gantt block. Instead, briefly explain there are no scheduled tasks to plot and offer the project Gantt link.
-
-Do NOT mix a Gantt block with friday-card blocks for the same answer unless they describe genuinely different things. The Gantt block is itself a top-level fenced block — never nest it inside markdown lists or quotes.`;
+${GANTT_DIRECTIVE}`;
 
 export interface JarvisContext {
   projects: any[];
@@ -1957,7 +1963,12 @@ CSV FILE IMPORT RULES:
 - Use the bulk_create_tasks tool to create all tasks at once — do NOT call create_task repeatedly.
 - After creation, report how many tasks were created successfully.`;
 
-    const baseSystem = agentConfig ? agentConfig.systemPrompt : SYSTEM_PROMPT;
+    // Custom agents replace SYSTEM_PROMPT entirely, so they lose the
+    // Gantt-rendering directive. Append it so they still know they CAN draw
+    // inline Gantt charts via the fenced gantt-chart block.
+    const baseSystem = agentConfig
+      ? `${agentConfig.systemPrompt}\n\n${GANTT_DIRECTIVE}`
+      : SYSTEM_PROMPT;
     const includeActionDirective = agentConfig
       ? agentConfig.allowedTools.some(t => CUSTOM_AGENT_SAFE_TOOLS.has(t))
       : true;
