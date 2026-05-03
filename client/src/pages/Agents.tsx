@@ -345,7 +345,7 @@ function CustomAgentCard({ a, onEdit, onDuplicate, onRun, onLogs, onArchive, onD
       onClick={canManage ? onEdit : undefined}
       onKeyDown={canManage ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onEdit(); } } : undefined}
     >
-      <div className="flex items-start justify-between" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-start justify-between">
         <div className="flex items-center gap-2 min-w-0">
           <Icon className="h-5 w-5 text-primary shrink-0" />
           <div className="min-w-0">
@@ -363,6 +363,7 @@ function CustomAgentCard({ a, onEdit, onDuplicate, onRun, onLogs, onArchive, onD
             </div>
           </div>
         </div>
+        <div onClick={(e) => e.stopPropagation()}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -388,6 +389,7 @@ function CustomAgentCard({ a, onEdit, onDuplicate, onRun, onLogs, onArchive, onD
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
       {a.description && <p className="text-xs text-muted-foreground line-clamp-2">{a.description}</p>}
       {a.type === "scheduled" && (
