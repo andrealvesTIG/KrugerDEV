@@ -283,7 +283,7 @@ function CustomAgentEditSheet({
           <div className="space-y-5 py-4">
             <div className="grid grid-cols-2 gap-3 rounded-md border p-3 text-xs">
               <div><span className="text-muted-foreground">Type:</span> <Badge variant="outline" className="ml-1 capitalize">{detail.type}</Badge></div>
-              <div><span className="text-muted-foreground">Status:</span> <Badge variant={STATUS_BADGE[detail.status].variant} className="ml-1">{STATUS_BADGE[detail.status].label}</Badge></div>
+              <div><span className="text-muted-foreground">Status:</span> <Badge variant={(STATUS_BADGE[detail.status] ?? STATUS_BADGE.active).variant} className="ml-1">{(STATUS_BADGE[detail.status] ?? STATUS_BADGE.active).label}</Badge></div>
               <div><span className="text-muted-foreground">Last run:</span> {fmtDate(detail.lastRunAt)}</div>
               <div><span className="text-muted-foreground">Next run:</span> {fmtDate(detail.nextRun ?? null)}</div>
               <div className="col-span-2"><span className="text-muted-foreground">Conversations:</span> {detail.conversationCount}</div>

@@ -231,14 +231,6 @@ export function registerSuperAdminAgentRoutes(app: Express) {
 
     const latestByAgent = await loadLatestLogByAgent(rows.map(r => r.agent.id));
 
-    console.log('[admin/agents/custom] DEBUG', {
-      query: req.query,
-      conditionsCount: conditions.length,
-      rowsLen: rows.length,
-      count,
-      ids: rows.map(r => r.agent.id),
-    });
-
     res.json({
       total: count,
       limit,
@@ -303,6 +295,20 @@ export function registerSuperAdminAgentRoutes(app: Express) {
       convCount: sql<number>`count(*)::int`,
     }).from(customAgentConversations).where(eq(customAgentConversations.agentId, id));
 
+    // Derive the same status badge fields the list endpoint exposes so the
+    // edit drawer can render Status / Last run without crashing on undefined.
+    const latestMap = await loadLatestLogByAgent([id]);
+    const last = latestMap.get(id) ?? null;
+    const erroredLast7d = last?.status === "error" && last.createdAt
+      ? Date.now() - last.createdAt.getTime() < 7 * 24 * 60 * 60 * 1000
+      : false;
+    let status: "archived" | "disabled" | "errored" | "scheduled" | "active";
+    if (row.agent.archivedAt) status = "archived";
+    else if (!row.agent.enabled) status = "disabled";
+    else if (erroredLast7d) status = "errored";
+    else if (row.agent.type === "scheduled" && row.agent.nextRun) status = "scheduled";
+    else status = "active";
+
     res.json({
       ...row.agent,
       organizationName: row.orgName,
@@ -311,6 +317,11 @@ export function registerSuperAdminAgentRoutes(app: Express) {
       memberIds,
       recentLogs,
       conversationCount: convCount,
+      lastRunAt: last?.createdAt ?? null,
+      lastRunStatus: last?.status ?? null,
+      lastRunError: last?.errorMessage ?? null,
+      erroredLast7d,
+      status,
     });
   });
 
