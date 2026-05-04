@@ -144,6 +144,92 @@ ${scope} figcaption {
    UTILITY COMPONENTS — referenced by the AI in generated reports.
    ================================================================ */
 
+/* Hero header — the dramatic, premium opening block for every report.
+   Gradient background, accent stripe, glow, optional inline at-a-glance
+   stats. Always render this first inside the report body. */
+${scope} .hero {
+  position: relative; overflow: hidden;
+  margin: 0 0 1rem; padding: 1.25rem 1.4rem 1.1rem;
+  border-radius: 14px;
+  background:
+    radial-gradient(800px 200px at 110% -20%, rgb(var(--fr-info) / 0.18), transparent 60%),
+    radial-gradient(500px 180px at -10% 120%, rgb(var(--fr-accent) / 0.16), transparent 60%),
+    linear-gradient(135deg, rgb(var(--fr-accent) / 0.10), rgb(var(--fr-info) / 0.05));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 1px 2px rgba(15,23,42,0.04), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+${scope} .hero::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  background: linear-gradient(180deg, rgb(var(--fr-accent)), rgb(var(--fr-info)), rgb(var(--fr-info) / 0.6));
+}
+${scope} .hero__eyebrow {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-size: 0.62rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.12em; color: rgb(var(--fr-accent));
+  margin: 0 0 0.45rem; line-height: 1;
+}
+${scope} .hero__eyebrow::before {
+  content: ""; width: 6px; height: 6px; border-radius: 999px;
+  background: rgb(var(--fr-accent)); box-shadow: 0 0 0 3px rgb(var(--fr-accent) / 0.18);
+}
+${scope} .hero__title {
+  font-size: 1.55rem; font-weight: 800; letter-spacing: -0.02em;
+  line-height: 1.15; margin: 0 0 0.4rem;
+  color: hsl(var(--foreground));
+  background: linear-gradient(95deg, hsl(var(--foreground)) 35%, rgb(var(--fr-accent)));
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+${scope} .hero__lede {
+  font-size: 0.92rem; line-height: 1.5; max-width: 64ch;
+  color: hsl(var(--foreground)); margin: 0;
+}
+${scope} .hero__stats {
+  display: flex; flex-wrap: wrap; gap: 0.85rem 1.75rem;
+  margin-top: 0.9rem; padding-top: 0.85rem;
+  border-top: 1px solid hsl(var(--border));
+}
+${scope} .hero__stat { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+${scope} .hero__stat-label {
+  font-size: 0.6rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.08em; color: hsl(var(--muted-foreground));
+}
+${scope} .hero__stat-value {
+  font-size: 1.05rem; font-weight: 700; line-height: 1.2;
+  color: hsl(var(--foreground)); font-variant-numeric: tabular-nums;
+}
+${scope} .hero--good   { background: radial-gradient(800px 200px at 110% -20%, rgb(var(--fr-good) / 0.22), transparent 60%), linear-gradient(135deg, rgb(var(--fr-good) / 0.10), rgb(var(--fr-good) / 0.04)); }
+${scope} .hero--good::before   { background: linear-gradient(180deg, rgb(var(--fr-good)), rgb(var(--fr-good) / 0.6)); }
+${scope} .hero--good .hero__eyebrow,
+${scope} .hero--good .hero__title { color: rgb(var(--fr-good)); -webkit-text-fill-color: rgb(var(--fr-good)); background: none; }
+${scope} .hero--warn   { background: radial-gradient(800px 200px at 110% -20%, rgb(var(--fr-warn) / 0.22), transparent 60%), linear-gradient(135deg, rgb(var(--fr-warn) / 0.10), rgb(var(--fr-warn) / 0.04)); }
+${scope} .hero--warn::before   { background: linear-gradient(180deg, rgb(var(--fr-warn)), rgb(var(--fr-warn) / 0.6)); }
+${scope} .hero--warn .hero__eyebrow { color: rgb(var(--fr-warn)); }
+${scope} .hero--danger { background: radial-gradient(800px 200px at 110% -20%, rgb(var(--fr-danger) / 0.22), transparent 60%), linear-gradient(135deg, rgb(var(--fr-danger) / 0.10), rgb(var(--fr-danger) / 0.04)); }
+${scope} .hero--danger::before { background: linear-gradient(180deg, rgb(var(--fr-danger)), rgb(var(--fr-danger) / 0.6)); }
+${scope} .hero--danger .hero__eyebrow { color: rgb(var(--fr-danger)); }
+@media (max-width: 640px) {
+  ${scope} .hero { padding: 1rem 1.1rem 1rem; }
+  ${scope} .hero__title { font-size: 1.3rem; }
+  ${scope} .hero__stats { gap: 0.65rem 1rem; }
+}
+@media print {
+  ${scope} .hero {
+    background: none !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: none !important;
+  }
+  ${scope} .hero::before,
+  ${scope} .hero::after { display: none !important; }
+  ${scope} .hero__title {
+    background: none !important;
+    -webkit-text-fill-color: currentColor !important;
+    color: #0f172a !important;
+  }
+  ${scope} .hero__eyebrow { color: #475569 !important; }
+}
+
+
 /* KPI grid: compact tiles with a colored accent bar */
 ${scope} .kpi-grid {
   display: grid; gap: 0.55rem; margin: 0.75rem 0;

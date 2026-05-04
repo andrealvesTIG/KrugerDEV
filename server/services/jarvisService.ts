@@ -212,14 +212,23 @@ A report block is a fenced code block tagged "report". Its body is a small JSON 
 \`\`\`report
 {"title":"Q3 Portfolio Status — Marketing","subtitle":"Week of Oct 14, 2025","generatedAt":"2025-10-14T09:00:00Z"}
 ---
-<h1>Executive Summary</h1>
-<p>Marketing portfolio is <strong>on track</strong> overall, with 2 projects amber and 1 red.</p>
+<header class="hero hero--warn">
+  <p class="hero__eyebrow">Weekly portfolio review · Oct 14, 2025</p>
+  <h1 class="hero__title">Marketing portfolio is on track, with 2 amber and 1 red</h1>
+  <p class="hero__lede">Most projects are healthy; one vendor delay is putting Website Redesign at risk.</p>
+  <div class="hero__stats">
+    <div class="hero__stat"><span class="hero__stat-label">Projects</span><span class="hero__stat-value">12</span></div>
+    <div class="hero__stat"><span class="hero__stat-label">On track</span><span class="hero__stat-value">9</span></div>
+    <div class="hero__stat"><span class="hero__stat-label">At risk</span><span class="hero__stat-value">2</span></div>
+    <div class="hero__stat"><span class="hero__stat-label">Critical</span><span class="hero__stat-value">1</span></div>
+  </div>
+</header>
 <h2>Project Health</h2>
 <table>
-  <thead><tr><th>Project</th><th>Health</th><th>% Complete</th><th>Owner</th></tr></thead>
+  <thead><tr><th>Project</th><th>Health</th><th class="num">% Complete</th><th>Owner</th></tr></thead>
   <tbody>
-    <tr><td>Website Redesign</td><td style="color:#b45309">Amber</td><td>62%</td><td>Jane Doe</td></tr>
-    <tr><td>Brand Refresh</td><td style="color:#15803d">Green</td><td>88%</td><td>Mark Lee</td></tr>
+    <tr><td>Website Redesign</td><td><span class="badge badge--warn">Amber</span></td><td class="num">62%</td><td>Jane Doe</td></tr>
+    <tr><td>Brand Refresh</td><td><span class="badge badge--good">Green</span></td><td class="num">88%</td><td>Mark Lee</td></tr>
   </tbody>
 </table>
 <h2>Top Risks</h2>
@@ -240,9 +249,26 @@ HTML rules:
 - For internal app links use the same routes as cards (\`/projects/{id}\`, \`/portfolios/{id}\`, \`/resources/{id}\`).
 - Keep the body self-contained: no external CSS, no external scripts.
 
-Design system — the report container ships with a polished, compact theme. Use these utility classes (via \`class="…"\`) to make reports graphical and scannable. Use them generously; a great report mixes prose with KPIs, badges, callouts, and tight tables.
+Design system — the report container ships with a polished, compact theme. Use these utility classes (via \`class="…"\`) to make every report look like a premium, hero-style document. Use them generously; a great report mixes prose with a hero header, KPIs, badges, callouts, and tight tables.
 
-KPI tiles — use at the top of any data-heavy report:
+ALWAYS open every report with a hero header — this is non-negotiable. The hero is a gradient block with an eyebrow tag, a large gradient title, a 1–2 sentence lede summarizing the headline finding, and an inline strip of 3–5 at-a-glance stats. The hero variant should mirror the overall report sentiment: \`hero--good\` for healthy news, \`hero--warn\` for caution, \`hero--danger\` for critical, default for neutral. Example:
+\`\`\`html
+<header class="hero hero--warn">
+  <p class="hero__eyebrow">Weekly portfolio review · Oct 14, 2025</p>
+  <h1 class="hero__title">Marketing portfolio is mostly green, with two amber risks</h1>
+  <p class="hero__lede">14 of 18 projects are on track. Two campaigns are slipping due to vendor delays — see the Risks section for mitigations.</p>
+  <div class="hero__stats">
+    <div class="hero__stat"><span class="hero__stat-label">Projects</span><span class="hero__stat-value">18</span></div>
+    <div class="hero__stat"><span class="hero__stat-label">Budget used</span><span class="hero__stat-value">$2.4M</span></div>
+    <div class="hero__stat"><span class="hero__stat-label">On track</span><span class="hero__stat-value">14</span></div>
+    <div class="hero__stat"><span class="hero__stat-label">At risk</span><span class="hero__stat-value">2</span></div>
+    <div class="hero__stat"><span class="hero__stat-label">Critical</span><span class="hero__stat-value">2</span></div>
+  </div>
+</header>
+\`\`\`
+Do NOT emit a separate \`<h1>\` outside the hero — the hero __title replaces it.
+
+Immediately after the hero, follow with a KPI tile grid:
 \`\`\`html
 <div class="kpi-grid">
   <div class="kpi kpi--good"><p class="kpi__label">On-track projects</p><p class="kpi__value">14</p><p class="kpi__delta kpi__delta--up">+2 vs last week</p></div>
@@ -293,13 +319,20 @@ Section card — wrap a logical group of related content in a soft-bordered card
 
 Tables — keep them tight and useful. The container styles them automatically (rounded, soft borders, hover). Add \`class="num"\` on numeric \`<th>\`/\`<td>\` for right-aligned tabular numerals. Use badges/status-dots inside cells instead of colored text whenever possible.
 
-Composition guidance for a great report:
-- Open with 3–6 KPI tiles summarizing the headline numbers.
-- Use h2 for top-level sections; the renderer adds a gradient marker automatically.
-- Prefer badges + status dots over raw colored text for health/status.
-- Use callouts for the 1–3 things the reader must act on.
-- Keep tables ≤ 8 columns; trim filler columns; right-align numbers.
-- End with a "Next steps" list of crisp action items.
+Composition guidance for a hero-quality report (this is the required structure):
+1. \`<header class="hero …">\` — gradient title block with eyebrow, lede, and 3–5 stats.
+2. KPI grid — 3–6 \`.kpi\` tiles for the headline numbers.
+3. Top-priority callout(s) — the 1–3 things the reader must act on this week.
+4. Body sections introduced by \`<h2>\` (the renderer auto-adds a gradient marker).
+   - Inside sections, prefer compact, graphical components: tables with badges/status-dots in cells, progress bars, .meta lists, .split columns. Avoid long unbroken paragraphs.
+5. Close with a "Next steps" \`<section class="section">\` containing a numbered \`<ol>\` of crisp, owner-tagged action items.
+
+Hard rules:
+- Every report has a \`.hero\` opener. No exceptions.
+- Use badges + status dots inside table cells instead of raw colored text for health/status.
+- Right-align numeric table columns with \`class="num"\`.
+- Keep tables ≤ 8 columns and trim filler columns.
+- Be visually dense but not cluttered: KPIs and callouts replace plain prose where possible.
 
 When to use report blocks:
 - Status reports, executive summaries, portfolio reviews, weekly digests.
