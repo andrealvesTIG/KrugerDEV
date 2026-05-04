@@ -22,6 +22,7 @@ import {
 } from "./helpers";
 import { createTaskAssignmentNotification, createRiskAssignmentNotification, createTaskFieldChangeNotification } from "../services/notificationEngine";
 import { sendLimitExceeded } from "../services/aiCredits";
+import { invalidateOrganizationContextCache } from "../services/jarvisService";
 import { addWorkingDays, ensureWorkingDay, calculateEndDate, calculateDuration, nextWorkingDay, formatDateStr, workingDaysBetweenExclusive } from "../lib/workingDays";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404, p } from "../route-registry";
 
@@ -105,6 +106,7 @@ export function registerProjectItemRoutes(app: Express) {
         newValues: JSON.stringify(risk),
       });
       
+      invalidateOrganizationContextCache(riskProject.organizationId);
       res.status(201).json(risk);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -172,6 +174,7 @@ export function registerProjectItemRoutes(app: Express) {
         });
       }
       
+      invalidateOrganizationContextCache(riskProject.organizationId);
       res.json(updated);
     } catch (err) {
        if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
@@ -197,6 +200,7 @@ export function registerProjectItemRoutes(app: Express) {
         return res.status(403).json({ message: 'Access denied' });
       }
       await storage.softDeleteItem('risk', riskId, userId);
+      if (project) invalidateOrganizationContextCache(project.organizationId);
       res.status(204).send();
     } catch (err) {
       const classified = classifyError(err);
@@ -427,6 +431,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         return res.status(403).json({ message: 'Access denied' });
       }
       const milestone = await storage.createMilestone(input);
+      if (project) invalidateOrganizationContextCache(project.organizationId);
       res.status(201).json(milestone);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
@@ -453,6 +458,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
       const input = api.milestones.update.input.parse(req.body);
       const updated = await storage.updateMilestone(milestoneId, input);
+      if (project) invalidateOrganizationContextCache(project.organizationId);
       res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
@@ -478,6 +484,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         return res.status(403).json({ message: 'Access denied' });
       }
       await storage.softDeleteItem('milestone', milestoneId, userId);
+      if (project) invalidateOrganizationContextCache(project.organizationId);
       res.status(204).send();
     } catch (err) {
       const classified = classifyError(err);
@@ -630,6 +637,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         newValues: JSON.stringify(issue),
       });
       
+      invalidateOrganizationContextCache(issueProject.organizationId);
       res.status(201).json(issue);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
@@ -695,6 +703,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         });
       }
       
+      invalidateOrganizationContextCache(issueProject.organizationId);
       res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
@@ -726,6 +735,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         return res.status(403).json({ message: 'Insufficient permissions to delete issue' });
       }
       await storage.softDeleteItem('issue', issueId, userId);
+      invalidateOrganizationContextCache(issueProject.organizationId);
       res.status(204).send();
     } catch (err) {
       const classified = classifyError(err);
@@ -1491,6 +1501,10 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       
       // Re-fetch the task to return the fully updated version (with WBS, outlineLevel, etc.)
       const updatedTask = await storage.getTask(task.id);
+      const taskProjectForCache = await storage.getProject(task.projectId);
+      if (taskProjectForCache?.organizationId) {
+        invalidateOrganizationContextCache(taskProjectForCache.organizationId);
+      }
       res.status(201).json(updatedTask || task);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
@@ -1634,6 +1648,16 @@ Format your response as a numbered list with clear, concise strategies. Do not i
           await rollUpParentTasks(pid);
           await recalculateProjectProgress(pid);
         }
+
+        const projectsForCache = await Promise.all(
+          Array.from(projectIds).map(pid => storage.getProject(pid))
+        );
+        const orgIdsForCache = new Set(
+          projectsForCache.map(p => p?.organizationId).filter((o): o is number => o != null)
+        );
+        for (const orgId of orgIdsForCache) {
+          invalidateOrganizationContextCache(orgId);
+        }
       }
 
       if (taskUpdates?.length) {
@@ -1702,6 +1726,16 @@ Format your response as a numbered list with clear, concise strategies. Do not i
           await rollUpParentTasks(pid);
           await recalculateProjectProgress(pid);
         }
+
+        const projectsForCache = await Promise.all(
+          Array.from(projectIds).map(pid => storage.getProject(pid))
+        );
+        const orgIdsForCache = new Set(
+          projectsForCache.map(p => p?.organizationId).filter((o): o is number => o != null)
+        );
+        for (const orgId of orgIdsForCache) {
+          invalidateOrganizationContextCache(orgId);
+        }
       }
 
       return res.json({ updatedCount });
@@ -1743,6 +1777,16 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         await rollUpParentTasks(pid);
         await recalculateProjectWBS(pid);
         await recalculateProjectProgress(pid);
+      }
+
+      const projectsForCache = await Promise.all(
+        Array.from(projectIds).map(pid => storage.getProject(pid))
+      );
+      const orgIdsForCache = new Set(
+        projectsForCache.map(p => p?.organizationId).filter((o): o is number => o != null)
+      );
+      for (const orgId of orgIdsForCache) {
+        invalidateOrganizationContextCache(orgId);
       }
 
       return res.json({ deletedCount });
@@ -2041,6 +2085,11 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         }
       }
       
+      const taskProjectForCache = updated.projectId ? await storage.getProject(updated.projectId) : null;
+      if (taskProjectForCache?.organizationId) {
+        invalidateOrganizationContextCache(taskProjectForCache.organizationId);
+      }
+
       res.json({ ...finalTask, propagatedTasks, datesCorrectedByDependency });
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
@@ -2072,7 +2121,11 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         await recalculateProjectWBS(task.projectId);
         await recalculateProjectProgress(task.projectId);
       }
-      
+
+      if (project?.organizationId) {
+        invalidateOrganizationContextCache(project.organizationId);
+      }
+
       res.status(204).send();
     } catch (err) {
       const classified = classifyError(err);
@@ -2286,6 +2339,10 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (dependentTaskForDates) {
         propagatedTasks = await propagateScheduleForProject(dependentTaskForDates.projectId);
         await rollUpParentTasks(dependentTaskForDates.projectId);
+        const depProject = await storage.getProject(dependentTaskForDates.projectId);
+        if (depProject?.organizationId) {
+          invalidateOrganizationContextCache(depProject.organizationId);
+        }
       }
 
       res.status(201).json({ 
@@ -2332,6 +2389,10 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (dependentTask) {
         propagatedTasks = await propagateScheduleForProject(dependentTask.projectId);
         await rollUpParentTasks(dependentTask.projectId);
+        const depProject = await storage.getProject(dependentTask.projectId);
+        if (depProject?.organizationId) {
+          invalidateOrganizationContextCache(depProject.organizationId);
+        }
       }
 
       const updatedTask = await storage.getTask(taskId);
@@ -2366,6 +2427,10 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     if (dependentTask) {
       await propagateScheduleForProject(dependentTask.projectId);
       await rollUpParentTasks(dependentTask.projectId);
+      const depProject = await storage.getProject(dependentTask.projectId);
+      if (depProject?.organizationId) {
+        invalidateOrganizationContextCache(depProject.organizationId);
+      }
     }
     res.status(204).send();
   });
@@ -2795,6 +2860,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       
       const input = api.projectFinancials.create.input.parse(req.body);
       const financial = await storage.createProjectFinancial({ ...input, projectId });
+      if (project.organizationId) {
+        invalidateOrganizationContextCache(project.organizationId);
+      }
       res.status(201).json(financial);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
@@ -2819,6 +2887,10 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       
       const updates = api.projectFinancials.update.input.parse(req.body);
       const updated = await storage.updateProjectFinancial(id, updates);
+      const finProject = existing.projectId ? await storage.getProject(existing.projectId) : null;
+      if (finProject?.organizationId) {
+        invalidateOrganizationContextCache(finProject.organizationId);
+      }
       res.json(updated);
     } catch (err) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
@@ -2839,6 +2911,10 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     const existing = await storage.getProjectFinancial(id);
     if (!existing) return res.status(404).json({ message: "Financial record not found" });
     await storage.deleteProjectFinancial(id);
+    const finProject = existing.projectId ? await storage.getProject(existing.projectId) : null;
+    if (finProject?.organizationId) {
+      invalidateOrganizationContextCache(finProject.organizationId);
+    }
     res.status(204).send();
   });
 
@@ -3113,6 +3189,10 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         } catch (parentErr: any) {
           console.error('Error setting parent task link:', parentErr);
         }
+      }
+
+      if (project.organizationId) {
+        invalidateOrganizationContextCache(project.organizationId);
       }
 
       res.json({

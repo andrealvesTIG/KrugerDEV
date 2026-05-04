@@ -19,6 +19,7 @@ import {
   getTeamMemberProjectIds,
 } from "./helpers";
 import { gatherProjectEvmSeries } from "../services/projectAnalytics";
+import { invalidateOrganizationContextCache } from "../services/jarvisService";
 
 async function teamMemberCanAccessProject(userId: string, projectId: number, organizationId: number): Promise<boolean> {
   if (!await isTeamMemberInOrg(userId, organizationId)) return true;
@@ -186,6 +187,10 @@ export function registerFinancialsRoutes(app: Express) {
         console.error("Error creating change log:", logErr);
       }
 
+      if (guard.project.organizationId) {
+        invalidateOrganizationContextCache(guard.project.organizationId);
+      }
+
       res.status(201).json({ itemKey, fiscalYear: Number(fiscalYear), ...dimensions });
     } catch (err) {
       console.error("Error creating financial item:", err);
@@ -276,6 +281,10 @@ export function registerFinancialsRoutes(app: Express) {
         } catch (logErr) {
           console.error("Error creating change log:", logErr);
         }
+      }
+
+      if (guard.project.organizationId) {
+        invalidateOrganizationContextCache(guard.project.organizationId);
       }
 
       res.json(result.entry);
@@ -406,6 +415,10 @@ export function registerFinancialsRoutes(app: Express) {
         });
       });
 
+      if (guard.project.organizationId) {
+        invalidateOrganizationContextCache(guard.project.organizationId);
+      }
+
       res.json({ cleared: toClear.length });
     } catch (err: any) {
       console.error("Error bulk-clearing financial cells:", err);
@@ -446,6 +459,10 @@ export function registerFinancialsRoutes(app: Express) {
         });
       } catch (logErr) {
         console.error("Error creating change log:", logErr);
+      }
+
+      if (guard.project.organizationId) {
+        invalidateOrganizationContextCache(guard.project.organizationId);
       }
 
       res.json({ itemKey, updated: result.updated });
@@ -512,6 +529,10 @@ export function registerFinancialsRoutes(app: Express) {
         });
       } catch (logErr) {
         console.error("Error creating change log:", logErr);
+      }
+
+      if (guard.project.organizationId) {
+        invalidateOrganizationContextCache(guard.project.organizationId);
       }
 
       res.status(204).send();
@@ -797,6 +818,9 @@ export function registerFinancialsRoutes(app: Express) {
           createdBy: userId,
         } as any)
         .returning();
+      if (project.organizationId) {
+        invalidateOrganizationContextCache(project.organizationId);
+      }
       res.status(201).json(entry);
     } catch (err) {
       console.error("Error creating WBS entry:", err);
@@ -817,6 +841,9 @@ export function registerFinancialsRoutes(app: Express) {
         .set({ ...pickWbsUpdate(req.body), updatedAt: new Date() } as any)
         .where(eq(multiYearWbs.id, id))
         .returning();
+      if (guard.project.organizationId) {
+        invalidateOrganizationContextCache(guard.project.organizationId);
+      }
       res.json(updated);
     } catch (err) {
       console.error("Error updating WBS entry:", err);
@@ -1085,6 +1112,9 @@ export function registerFinancialsRoutes(app: Express) {
       if (!guard.ok) return res.status(guard.status).json({ message: guard.message });
 
       await db.delete(multiYearWbs).where(eq(multiYearWbs.id, id));
+      if (guard.project.organizationId) {
+        invalidateOrganizationContextCache(guard.project.organizationId);
+      }
       res.json({ success: true });
     } catch (err) {
       console.error("Error deleting WBS entry:", err);

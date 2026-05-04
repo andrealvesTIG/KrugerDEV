@@ -15,6 +15,7 @@ import {
   formatZodErrors,
 } from "./helpers";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
+import { invalidateOrganizationContextCache } from "../services/jarvisService";
 
 export function registerPortfolioRoutes(app: Express) {
   // --- Portfolios ---
@@ -154,6 +155,7 @@ export function registerPortfolioRoutes(app: Express) {
         await recordResourceUsage(userId, METER_CODES.PORTFOLIOS, portfolio.id, 1, portfolio.organizationId);
       }
       
+      invalidateOrganizationContextCache(portfolio.organizationId);
       res.status(201).json(portfolio);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -195,6 +197,7 @@ export function registerPortfolioRoutes(app: Express) {
       }
       
       const updated = await storage.updatePortfolio(portfolioId, input);
+      invalidateOrganizationContextCache(currentPortfolio.organizationId);
       res.json(updated);
     } catch (err) {
        if (err instanceof z.ZodError) {
@@ -221,6 +224,7 @@ export function registerPortfolioRoutes(app: Express) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
       await storage.softDeleteItem('portfolio', portfolioId, userId);
+      invalidateOrganizationContextCache(portfolio.organizationId);
       res.status(204).send();
     } catch (err) {
       const classified = classifyError(err);
@@ -454,6 +458,7 @@ export function registerPortfolioRoutes(app: Express) {
       }
       const keyDate = await storage.createPortfolioKeyDate(parsed.data);
       logUserActivity(userId, 'portfolio_key_date_created', 'portfolio_key_date', keyDate.id, { portfolioId });
+      invalidateOrganizationContextCache(portfolio.organizationId);
       res.status(201).json(keyDate);
     } catch (err) {
       const classified = classifyError(err);
@@ -492,6 +497,7 @@ export function registerPortfolioRoutes(app: Express) {
       }
       const updated = await storage.updatePortfolioKeyDate(keyDateId, parsed.data);
       logUserActivity(userId, 'portfolio_key_date_updated', 'portfolio_key_date', keyDateId, { portfolioId });
+      invalidateOrganizationContextCache(portfolio.organizationId);
       res.json(updated);
     } catch (err) {
       const classified = classifyError(err);
@@ -525,6 +531,7 @@ export function registerPortfolioRoutes(app: Express) {
       }
       await storage.deletePortfolioKeyDate(keyDateId, userId);
       logUserActivity(userId, 'portfolio_key_date_deleted', 'portfolio_key_date', keyDateId, { portfolioId });
+      invalidateOrganizationContextCache(portfolio.organizationId);
       res.status(204).send();
     } catch (err) {
       const classified = classifyError(err);
@@ -1333,6 +1340,7 @@ export function registerPortfolioRoutes(app: Express) {
       }
 
       const result = await storage.upsertPortfolioScoringConfig(portfolioId, criteriaId, aggregationMethod);
+      invalidateOrganizationContextCache(portfolio.organizationId);
       res.json(result);
     } catch (err) {
       const classified = classifyError(err);

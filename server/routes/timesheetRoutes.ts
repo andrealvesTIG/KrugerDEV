@@ -10,6 +10,7 @@ import {
   userHasOrgAccess,
 } from "./helpers";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
+import { invalidateOrganizationContextCache } from "../services/jarvisService";
 
 export function registerTimesheetRoutes(app: Express) {
   // ==================== TIMESHEETS ====================
@@ -486,6 +487,8 @@ export function registerTimesheetRoutes(app: Express) {
         after: { hours: Number(hours), notes, taskId, projectId, entryDate },
       });
 
+      invalidateOrganizationContextCache(organizationId);
+
       res.status(201).json(entry);
     } catch (error) {
       console.error('Error creating timesheet entry:', error);
@@ -733,6 +736,10 @@ export function registerTimesheetRoutes(app: Express) {
         return res.status(400).json({ message: 'All entries failed validation', errors, entries: [] });
       }
 
+      if (results.length > 0) {
+        invalidateOrganizationContextCache(organizationId);
+      }
+
       res.status(201).json({ entries: results, errors });
     } catch (error) {
       console.error('Error bulk upserting timesheet entries:', error);
@@ -823,6 +830,8 @@ export function registerTimesheetRoutes(app: Express) {
         after: { hours: hours !== undefined ? String(parseFloat(hours)) : entry.hours, notes: notes ?? entry.notes },
       });
 
+      invalidateOrganizationContextCache(entry.organizationId);
+
       res.json(updated);
     } catch (error) {
       console.error('Error updating timesheet entry:', error);
@@ -873,6 +882,8 @@ export function registerTimesheetRoutes(app: Express) {
         actorId: userId,
         before: { hours: entry.hours, notes: entry.notes, taskId: entry.taskId, entryDate: entry.entryDate },
       });
+
+      invalidateOrganizationContextCache(entry.organizationId);
 
       res.json({ success: true });
     } catch (error) {
@@ -969,6 +980,8 @@ export function registerTimesheetRoutes(app: Express) {
         });
       }
 
+      invalidateOrganizationContextCache(organizationId);
+
       res.json({ success: true });
     } catch (error) {
       console.error('Error submitting timesheet week:', error);
@@ -1029,6 +1042,10 @@ export function registerTimesheetRoutes(app: Express) {
           before: { status: 'Submitted' },
           after: { status: 'Approved' },
         });
+      }
+
+      if (approved.length > 0) {
+        invalidateOrganizationContextCache(organizationId);
       }
 
       res.json({ approved: approved.length, entries: approved });
@@ -1095,6 +1112,8 @@ export function registerTimesheetRoutes(app: Express) {
         before: { status: 'Submitted' },
         after: { status: 'Approved' },
       });
+
+      invalidateOrganizationContextCache(entry.organizationId);
 
       res.json(updated);
     } catch (error) {
@@ -1164,6 +1183,8 @@ export function registerTimesheetRoutes(app: Express) {
         before: { status: 'Submitted' },
         after: { status: 'Rejected', rejectionReason: rejectionReason || '' },
       });
+
+      invalidateOrganizationContextCache(entry.organizationId);
 
       res.json(updated);
     } catch (error) {
