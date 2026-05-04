@@ -99,6 +99,12 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
     }
   }, [mode, sendMessage, stopGeneration]);
 
+  // Stable callback identity so MessageBubble's memo comparator skips
+  // completed bubbles while a new response streams in.
+  const handleQuickReply = useCallback((text: string) => {
+    sendMessage(text);
+  }, [sendMessage]);
+
   const handleInterimResult = useCallback((transcript: string) => {
     setInterimText(transcript);
     if (mode === "voice" && transcript.trim() && window.speechSynthesis.speaking) {
@@ -623,7 +629,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                       message={msg}
                       index={i}
                       onNavigate={handleNavigate}
-                      onQuickReply={(text) => sendMessage(text)}
+                      onQuickReply={handleQuickReply}
                     />
                   ))}
                   {isLoading && (() => {

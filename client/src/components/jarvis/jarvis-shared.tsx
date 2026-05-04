@@ -1,4 +1,4 @@
-import { JSX } from "react";
+import { JSX, memo } from "react";
 import {
   Paperclip,
   FolderOpen,
@@ -698,7 +698,7 @@ interface MessageBubbleProps {
   onQuickReply?: (text: string) => void;
 }
 
-export function MessageBubble({ message, index, onNavigate, variant = "panel", onQuickReply }: MessageBubbleProps) {
+function MessageBubbleImpl({ message, index, onNavigate, variant = "panel", onQuickReply }: MessageBubbleProps) {
   const isUser = message.role === "user";
 
   const userBubbleClass = variant === "page"
@@ -749,3 +749,18 @@ export function MessageBubble({ message, index, onNavigate, variant = "panel", o
     </motion.div>
   );
 }
+
+// Memoize MessageBubble so completed messages don't re-render every time
+// the streaming bubble's content grows. The streaming bubble is the last
+// in the list; its content prop changes per rAF flush. Every other bubble
+// has stable props, so React skips the entire markdown re-parse.
+export const MessageBubble = memo(MessageBubbleImpl, (prev, next) => {
+  return (
+    prev.message === next.message &&
+    prev.message.content === next.message.content &&
+    prev.index === next.index &&
+    prev.variant === next.variant &&
+    prev.onNavigate === next.onNavigate &&
+    prev.onQuickReply === next.onQuickReply
+  );
+});

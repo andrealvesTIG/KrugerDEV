@@ -178,34 +178,24 @@ export function registerJarvisRoutes(app: Express) {
         throw err;
       }
 
-      // Resolve or create persistent conversation for this user+org
+      // Resolve or create persistent conversation for this user+org. Only the
+      // create path blocks the stream open — title refresh and user-message
+      // persistence are fire-and-forget after we flush the SSE headers so
+      // they don't add latency to TTFB.
       let conversationId: number | null = null;
+      let needsCreate = true;
       if (incomingConversationId) {
         const existing = await fcGet(incomingConversationId, organizationId, userId);
-        if (existing) conversationId = existing.id;
+        if (existing) {
+          conversationId = existing.id;
+          needsCreate = false;
+        }
       }
       const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
-      if (!conversationId) {
+      if (needsCreate) {
         const titleSeed = lastUserMessage?.content?.slice(0, 60).trim() || "New conversation";
         const created = await fcCreate(organizationId, userId, titleSeed);
         conversationId = created.id;
-      } else if (lastUserMessage) {
-        // Refresh title if it's still placeholder-ish
-        const conv = await fcGet(conversationId, organizationId, userId);
-        if (conv && (!conv.title || conv.title === "New conversation")) {
-          await fcUpdateTitle(conversationId, organizationId, userId, lastUserMessage.content.slice(0, 60));
-        }
-      }
-
-      // Persist the new user message (the last in the list, if it's role:user)
-      if (lastUserMessage) {
-        await fcAddMessage(
-          conversationId,
-          "user",
-          lastUserMessage.content,
-          attachments ? attachments.map((a) => ({ name: a.name, type: a.type, size: a.size })) : null,
-          pageContext ? { path: pageContext.path, entityType: pageContext.entityType ?? undefined, entityId: pageContext.entityId ?? undefined } : null,
-        );
       }
       // Per-call: enforce before opening the stream, return a recordSuccess
       // callback the service must invoke after the stream completes.
@@ -216,12 +206,48 @@ export function registerJarvisRoutes(app: Express) {
         return { result, recordSuccess: () => recordAiCredits(chargeUserId, ctx) };
       };
 
+      // Open the SSE stream BEFORE doing any further DB writes so the
+      // client gets bytes ASAP. Disable proxy buffering / transforms so
+      // chunks are flushed end-to-end on every write.
       res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
       res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+      (res as any).flushHeaders?.();
 
       // Send conversationId immediately so the client can pin to it
       res.write(`data: ${JSON.stringify({ conversationId })}\n\n`);
+      (res as any).flush?.();
+
+      // Fire-and-forget: persist the user message + title refresh in
+      // parallel with the model call. The user's bubble already exists in
+      // the optimistic overlay client-side, and history rendering only
+      // needs these rows by the time the response refetches.
+      if (lastUserMessage && conversationId != null) {
+        const cid = conversationId;
+        fcAddMessage(
+          cid,
+          "user",
+          lastUserMessage.content,
+          attachments ? attachments.map((a) => ({ name: a.name, type: a.type, size: a.size })) : null,
+          pageContext ? { path: pageContext.path, entityType: pageContext.entityType ?? undefined, entityId: pageContext.entityId ?? undefined } : null,
+        ).catch((err) => {
+          console.error("[JARVIS] Failed to persist user message:", err);
+        });
+        if (!needsCreate) {
+          // Refresh title if it's still placeholder-ish — defer so it
+          // doesn't block TTFB.
+          fcGet(cid, organizationId, userId)
+            .then((conv) => {
+              if (conv && (!conv.title || conv.title === "New conversation")) {
+                return fcUpdateTitle(cid, organizationId, userId, lastUserMessage.content.slice(0, 60));
+              }
+            })
+            .catch((err) => {
+              console.error("[JARVIS] Failed to refresh conversation title:", err);
+            });
+        }
+      }
 
       await streamJarvisResponse(
         Number(organizationId),
@@ -230,9 +256,11 @@ export function registerJarvisRoutes(app: Express) {
         concise ?? false,
         (content) => {
           res.write(`data: ${JSON.stringify({ content })}\n\n`);
+          (res as any).flush?.();
         },
         (fullResponse) => {
           res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+          (res as any).flush?.();
           res.end();
           // Persist the assistant message
           if (conversationId && fullResponse) {

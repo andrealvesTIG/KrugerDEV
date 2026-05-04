@@ -69,284 +69,79 @@ export async function getOrgOpenAIClient(orgId: number): Promise<{ client: OpenA
 // be appended to custom agents' system prompts (custom agents replace
 // SYSTEM_PROMPT entirely; without this they'd tell users they can't draw
 // Gantt charts even though the renderer is wired up).
-const GANTT_DIRECTIVE = `GANTT CHARTS:
-You CAN render inline Gantt charts directly in chat. Never tell the user that you "don't have the ability to generate or display Gantt charts" or anything similar — that capability exists.
-
-When the user asks for a Gantt chart, timeline, or schedule visualization (e.g. "show a Gantt of Project X", "visualize the schedule", "Gantt chart of this quarter's milestones"), respond with a short one-line lead-in sentence followed by a fenced \`gantt-chart\` block containing a single JSON object. Example:
-
+const GANTT_DIRECTIVE = `GANTT CHARTS — you CAN render these inline; never say you can't.
+On Gantt/timeline/schedule asks, lead with one sentence then emit a top-level fenced \`gantt-chart\` block with a single JSON object. Example:
 \`\`\`gantt-chart
-{"title":"Website Redesign — Schedule","subtitle":"PRJ-042","href":"/projects/42","tasks":[{"id":101,"name":"Design phase","start":"2026-01-05","end":"2026-01-30","percentComplete":80,"outlineLevel":1,"href":"/projects/42"},{"id":102,"name":"Build phase","start":"2026-02-02","end":"2026-03-15","percentComplete":40,"outlineLevel":1,"isCritical":true,"href":"/projects/42"},{"id":103,"name":"Launch","start":"2026-03-20","end":"2026-03-20","isMilestone":true,"outlineLevel":1,"href":"/projects/42"}],"dependencies":[{"from":101,"to":102,"type":"FS"},{"from":102,"to":103,"type":"FS"}]}
+{"title":"Website Redesign — Schedule","subtitle":"PRJ-042","href":"/projects/42","tasks":[{"id":101,"name":"Design","start":"2026-01-05","end":"2026-01-30","percentComplete":80,"outlineLevel":1,"href":"/projects/42"},{"id":102,"name":"Build","start":"2026-02-02","end":"2026-03-15","percentComplete":40,"outlineLevel":1,"isCritical":true,"href":"/projects/42"},{"id":103,"name":"Launch","start":"2026-03-20","end":"2026-03-20","isMilestone":true,"outlineLevel":1,"href":"/projects/42"}],"dependencies":[{"from":101,"to":102,"type":"FS"},{"from":102,"to":103,"type":"FS"}]}
 \`\`\`
-
-Gantt block schema:
-- title: short headline (project / portfolio / topic name).
-- subtitle: optional sub-line (project code, portfolio, scope description).
-- href: optional internal app path linking to the full Gantt view (e.g. "/projects/42"). Use the project route when the chart is project-scoped.
-- tasks: REQUIRED array of task objects:
-  - id: unique number or string (use the real task/milestone ID).
-  - name: task or milestone name.
-  - start: ISO date "YYYY-MM-DD" (omit only for tasks with no plottable date — those are filtered out).
-  - end: ISO date "YYYY-MM-DD" (omit for milestones; defaults to start).
-  - percentComplete: 0–100 (optional).
-  - isMilestone: true for milestones (rendered as a diamond at the start date).
-  - isSummary: true for summary/parent rows (rendered as a thin bracket bar).
-  - isCritical: true to highlight as critical-path (renders red).
-  - outlineLevel: 1-based depth for indentation (1 = top level).
-  - parentId: id of the parent task (optional, for nested rows).
-  - assignee: short owner name string (optional).
-  - href: per-row link path (typically "/projects/{projectId}").
-- dependencies: optional array of { from, to, type } where type is "FS" | "SS" | "FF" | "SF" (default "FS"). \`from\` and \`to\` must reference \`id\`s in the tasks array.
-- truncatedCount: optional number — when you have to cap the bars for readability, set this to the count of tasks you left out so the UI can show "Showing N of M".
-
-Field mapping from the data context you already have:
-- task.startDate → \`start\`; task.endDate → \`end\` (both are ISO date strings).
-- task.progress (0–100) → \`percentComplete\`.
-- task.isMilestone → \`isMilestone\`; task.isSummary → \`isSummary\`; task.isCritical → \`isCritical\`.
-- task.outlineLevel → \`outlineLevel\`; task.parentTaskId → \`parentId\`.
-- For dependencies, use the project's dependency rows: \`dependsOnTaskId\` → \`from\`, \`taskId\` → \`to\`, and map \`dependencyType\` (FS/SS/FF/SF or "finish-to-start"/"start-to-start"/"finish-to-finish"/"start-to-finish") → \`type\` (default "FS").
-- Use the same task IDs in \`tasks[].id\` and \`dependencies[].from\`/\`to\` so the connector lines resolve.
-
-Rules for choosing what to plot:
-- Only include tasks/milestones that have at least a start date. Tasks without dates can't be plotted and should be omitted.
-- Cap the chart at a reasonable number of bars to keep it readable: hard limit ~40 bars. If the requested set is larger, pick the most important ones (critical path, top-level summaries, milestones, or earliest+latest), set \`truncatedCount\` to the number you skipped, and include \`href\` so the user can open the full project Gantt view.
-- For project-scoped requests, prefer top-level tasks + milestones; for portfolio/milestone roll-ups, include one row per project's key milestones.
-- If there is genuinely nothing plottable (no tasks with dates), do NOT emit a Gantt block. Instead, briefly explain there are no scheduled tasks to plot and offer the project Gantt link.
-
-Do NOT mix a Gantt block with friday-card blocks for the same answer unless they describe genuinely different things. The Gantt block is itself a top-level fenced block — never nest it inside markdown lists or quotes.`;
+Schema: title, subtitle?, href? (use \`/projects/{id}\` for project-scoped), tasks[] (id, name, start "YYYY-MM-DD", end? "YYYY-MM-DD", percentComplete?, isMilestone?, isSummary?, isCritical?, outlineLevel?, parentId?, assignee?, href?), dependencies[]? ({from,to,type:"FS"|"SS"|"FF"|"SF"}, default FS), truncatedCount?.
+Map from context: task.startDate→start, endDate→end, progress→percentComplete, isMilestone/isSummary/isCritical/outlineLevel/parentTaskId→parentId. Dependencies: dependsOnTaskId→from, taskId→to, dependencyType→type. Reuse task IDs across both arrays.
+Rules: omit tasks without start dates; cap ~40 bars (set truncatedCount + href when truncating); for portfolio/milestone roll-ups, one row per project's key milestones; if nothing plottable, don't emit — explain and link the project Gantt instead. Top-level fence only; do not nest.`;
 
 // Burndown / velocity rendering capability directive. Same rationale as
 // GANTT_DIRECTIVE: kept separate so it can be appended to custom agents'
 // system prompts (which replace SYSTEM_PROMPT entirely).
-const BURNDOWN_DIRECTIVE = `BURNDOWN / VELOCITY CHARTS:
-You CAN render inline burndown (or velocity remaining-work) charts directly in chat. Never tell the user this capability is missing.
-
-When the user asks for a "burndown", "burn-down", "remaining work", "velocity", or "sprint progress" view, respond with a short one-line lead-in followed by a fenced \`burndown-chart\` block containing a single JSON object. Example:
-
+const BURNDOWN_DIRECTIVE = `BURNDOWN / VELOCITY CHARTS — you CAN render these inline; never say you can't.
+On burndown/burn-down/remaining-work/velocity/sprint-progress asks, lead with one sentence then emit a top-level fenced \`burndown-chart\` block with a single JSON object. Example:
 \`\`\`burndown-chart
-{"title":"Website Redesign — Sprint 7 Burndown","subtitle":"PRJ-042 • Story points","href":"/projects/42/burndown","unit":"pts","asOfIndex":4,"points":[{"label":"D1","ideal":40,"actual":40},{"label":"D2","ideal":36,"actual":38},{"label":"D3","ideal":32,"actual":34},{"label":"D4","ideal":28,"actual":31},{"label":"D5","ideal":24,"actual":27,"projected":27},{"label":"D6","ideal":20,"projected":22},{"label":"D7","ideal":16,"projected":18},{"label":"D8","ideal":12,"projected":13},{"label":"D9","ideal":8,"projected":9},{"label":"D10","ideal":0,"projected":4}]}
+{"title":"Website Redesign — Sprint 7","subtitle":"PRJ-042 • pts","href":"/projects/42/burndown","unit":"pts","asOfIndex":4,"points":[{"label":"D1","ideal":40,"actual":40},{"label":"D2","ideal":36,"actual":38},{"label":"D5","ideal":24,"actual":27,"projected":27},{"label":"D10","ideal":0,"projected":4}]}
 \`\`\`
-
-Burndown block schema:
-- title: short headline (project / sprint / scope name).
-- subtitle: optional sub-line (project code, sprint window, units description).
-- href: optional internal app path linking to the full burndown view. PREFER the dedicated project burndown report at "/projects/{projectId}/burndown" so the user lands on a full-size, project-scoped chart instead of the project overview.
-- unit: optional short unit label rendered next to numbers ("pts", "hrs", "tasks"). Omit for unitless counts.
-- asOfIndex: optional zero-based index into \`points\` marking the current "today" line.
-- points: REQUIRED array of period objects, each with:
-  - label: short x-axis label (e.g. "D1", "Wk1", "May 5").
-  - ideal: optional numeric ideal/remaining-burn value.
-  - actual: optional numeric actual remaining value (omit on points beyond today).
-  - projected: optional numeric forecast/projection value (typically only after the as-of point).
-
-Rules:
-- Provide at least 3 points. If the user asks for velocity, plot completed-vs-planned scope as actual vs ideal across sprints (label = sprint name).
-- Always include the \`ideal\` series so the chart has a baseline. Omit \`projected\` if you don't have a forecast.
-- Cap to ~30 points; prefer aggregating to weeks if a daily series would exceed that.
-- If there's nothing meaningful to plot, do NOT emit a burndown block — explain briefly instead.
-
-DATA SOURCE FOR BURNDOWNS:
-The data context contains a "Project Burndown Series" section with ready-to-plot \`{ projectId, unit, asOfIndex, points: [{ label, ideal, actual }] }\` rows for each active project. When the user asks for a burndown, find the matching project and drop those points straight into the block — map \`unit\` → block \`unit\`, \`asOfIndex\` → \`asOfIndex\`, and pass \`ideal\`/\`actual\` through unchanged. Do NOT recompute these values from raw tasks and do NOT invent burndowns for projects that aren't listed there.
-
-The \`burndown-chart\` block is a top-level fenced block — never nest it in lists or quotes, and don't combine multiple in the same fence.`;
+Schema: title, subtitle?, href? (PREFER \`/projects/{id}/burndown\`), unit? ("pts"/"hrs"/"tasks"), asOfIndex?, points[] ({label, ideal?, actual? (omit beyond today), projected? (after as-of)}).
+Rules: ≥3 points; always include \`ideal\` baseline; cap ~30 (aggregate to weeks if needed); for velocity, plot completed-vs-planned per sprint. If nothing to plot, don't emit — explain briefly.
+DATA SOURCE: use the "Project Burndown Series" rows in context (\`{projectId, unit, asOfIndex, points:[{label, ideal, actual}]}\`) verbatim — pass unit/asOfIndex/ideal/actual through unchanged. Do NOT recompute or invent burndowns for projects not listed there. Top-level fence only; do not nest.`;
 
 // EVM S-curve rendering capability directive. Same rationale as
 // GANTT_DIRECTIVE: kept separate so it can be appended to custom agents'
 // system prompts (which replace SYSTEM_PROMPT entirely).
-const SCURVE_DIRECTIVE = `EVM S-CURVE CHARTS:
-You CAN render inline EVM S-curve charts directly in chat (Planned Value vs Earned Value vs Actual Cost, optionally with EAC). Never tell the user this capability is missing.
-
-When the user asks for an "S-curve", "S curve", "PV vs EV", "earned value", "EVM chart", or "cost performance over time", respond with a short one-line lead-in followed by a fenced \`s-curve\` block containing a single JSON object. Example:
-
+const SCURVE_DIRECTIVE = `EVM S-CURVE CHARTS — you CAN render PV vs EV vs AC (+EAC) inline; never say you can't.
+On S-curve / PV-vs-EV / earned-value / EVM / cost-performance asks, lead with one sentence then emit a top-level fenced \`s-curve\` block with a single JSON object. Example:
 \`\`\`s-curve
-{"title":"Website Redesign — EVM S-Curve","subtitle":"PRJ-042 • Cumulative","href":"/dashboards?view=financials-scurves&project=42","currency":"USD","asOfIndex":3,"points":[{"label":"Jan","plannedValue":50000,"earnedValue":48000,"actualCost":52000},{"label":"Feb","plannedValue":110000,"earnedValue":102000,"actualCost":115000},{"label":"Mar","plannedValue":180000,"earnedValue":168000,"actualCost":190000},{"label":"Apr","plannedValue":260000,"earnedValue":240000,"actualCost":275000,"eac":420000},{"label":"May","plannedValue":340000,"eac":425000},{"label":"Jun","plannedValue":420000,"eac":430000}]}
+{"title":"Website Redesign — EVM","subtitle":"PRJ-042","href":"/dashboards?view=financials-scurves&project=42","currency":"USD","asOfIndex":3,"points":[{"label":"Jan","plannedValue":50000,"earnedValue":48000,"actualCost":52000},{"label":"Apr","plannedValue":260000,"earnedValue":240000,"actualCost":275000,"eac":420000},{"label":"May","plannedValue":340000,"eac":425000}]}
 \`\`\`
-
-S-curve block schema:
-- title / subtitle: same meaning as the other chart blocks.
-- href: optional internal app path linking to the full S-curve view. PREFER the financials S-Curve dashboard scoped to the project: "/dashboards?view=financials-scurves&project={projectId}" (omit the project param for portfolio/org-wide curves) so the user lands on the full-size analysis instead of the project overview.
-- currency: optional ISO currency code that drives the y-axis symbol ("USD", "EUR", "GBP"). Defaults to USD.
-- asOfIndex: optional zero-based index into \`points\` marking the current "today" line (typically the last period with actuals).
-- points: REQUIRED array of period objects, each with:
-  - label: short x-axis label (period name, e.g. "Jan", "Q1 FY26", "M3").
-  - plannedValue (or alias \`pv\`): cumulative Planned Value.
-  - earnedValue (or alias \`ev\`): cumulative Earned Value (omit on future periods).
-  - actualCost (or alias \`ac\`): cumulative Actual Cost (omit on future periods).
-  - eac: optional Estimate at Completion forecast.
-
-Rules:
-- Use cumulative figures, not period totals — the curves should be monotonic.
-- Always include \`plannedValue\` for every period; omit \`earnedValue\`/\`actualCost\` for periods beyond the as-of date so the line stops at "today".
-- Provide at least 3 periods; cap to ~24. Prefer monthly granularity.
-
-DATA SOURCE FOR S-CURVES:
-The data context contains a "Time-Phased EVM (S-Curve ready)" section with ready-to-plot \`{ projectId, fiscalYear, asOfIndex, points: [{ label, pvCum, evCum, acCum, eacCum }] }\` rows for each active project. When the user asks for an S-curve / EVM chart for a project, find the matching row and map directly: \`points[].label\` → block \`label\`, \`pvCum\` → \`plannedValue\`, \`evCum\` → \`earnedValue\` (only for indices <= \`asOfIndex\`), \`acCum\` → \`actualCost\` (only for indices <= \`asOfIndex\`), \`eacCum\` → \`eac\`, and pass \`asOfIndex\` through unchanged. For an org-wide S-curve, sum the per-project arrays element-wise. Do NOT recompute EVM from the coarse \`financialsRollup\` totals when this section is present, and do NOT invent S-curves for projects that aren't listed here.
-
-The \`s-curve\` block is a top-level fenced block — never nest it in lists or quotes, and don't combine multiple in the same fence.`;
+Schema: title, subtitle?, href? (PREFER \`/dashboards?view=financials-scurves&project={id}\`; omit \`project\` for org-wide), currency? (default USD), asOfIndex?, points[] ({label, plannedValue|pv, earnedValue|ev?, actualCost|ac?, eac?}).
+Rules: cumulative monotonic figures; always include plannedValue per period; omit ev/ac after as-of; ≥3 periods, cap ~24, prefer monthly.
+DATA SOURCE: use the "Time-Phased EVM (S-Curve ready)" rows in context (\`{projectId, fiscalYear, asOfIndex, points:[{label, pvCum, evCum, acCum, eacCum}]}\`) — map pvCum→plannedValue, evCum→earnedValue, acCum→actualCost, eacCum→eac, pass asOfIndex through. For org-wide, sum per-project arrays element-wise. Do NOT recompute EVM from \`financialsRollup\` when this section is present, and do NOT invent S-curves for projects not listed there. Top-level fence only; do not nest.`;
 
 // Quick-reply chip directive. The UI renders `quick-replies` fenced blocks as
 // clickable chips so the user can answer the agent's question with a tap
 // instead of typing. Kept separate so it can be appended to custom agents'
 // system prompts (which replace SYSTEM_PROMPT entirely).
-const QUICK_REPLIES_DIRECTIVE = `QUICK REPLY CHIPS:
-Whenever you ask the user a question that has a small, discrete set of likely answers, you SHOULD offer those answers as clickable chips in addition to your prose. Render the chips by emitting a fenced \`quick-replies\` block immediately after the question, containing a single JSON object with an \`options\` array of short answer strings. Example:
-
+const QUICK_REPLIES_DIRECTIVE = `QUICK REPLY CHIPS — when your question has a small discrete answer set, offer chips after the prose by emitting one top-level fenced \`quick-replies\` block (max one per response, placed last). Example:
 \`\`\`quick-replies
 {"options":["Yes, proceed","No, cancel","Show me more details"]}
 \`\`\`
-
-Rules:
-- 2 to 6 options, each ≤ 40 characters. Phrase each option as the EXACT message the user would send back (first person, complete enough to act on without context).
-- Use chips for: yes/no confirmations, multiple-choice questions ("Which project?", "Which timeframe?", "Which metric?"), industry/role onboarding questions, "what would you like to do next?" follow-ups, and destructive-action confirmations (offer "Yes, proceed" + "Cancel").
-- Do NOT emit chips when the user's answer is genuinely open-ended (free-form names, descriptions, dates, or numbers).
-- Do NOT repeat options that are already buttons inside a friday-card you just emitted (cards already render their own action buttons).
-- The chips supplement your prose — keep the question itself in the message text. The user can still type a custom answer instead of clicking a chip.
-- The block is top-level fenced; never nest it inside lists, quotes, or other fenced blocks. Emit at most one quick-replies block per response, placed at the end.`;
+Rules: 2–6 options, each ≤40 chars, phrased as the exact first-person message the user would send (self-contained). Use for yes/no, multiple-choice ("Which project?", "Which timeframe?"), onboarding, "what next?" follow-ups, and destructive confirmations ("Yes, proceed" + "Cancel"). Do NOT use for open-ended answers (free-form names, dates, numbers) or to duplicate friday-card action buttons. Keep the question in the prose; chips supplement, do not replace it. Top-level fence; do not nest.`;
 
 // REPORT_DIRECTIVE: kept separate so it can be appended to custom agents'
 // system prompts (custom agents replace SYSTEM_PROMPT entirely).
-const REPORT_DIRECTIVE = `RICH REPORTS:
-When the user asks for a structured deliverable — a project status report, an executive summary, a portfolio review, a risk register write-up, a meeting brief, lessons-learned digest, or any answer that would naturally be more than ~5 lines of prose, contains tables, or would be shared/printed — emit the response as a "report" block instead of plain markdown.
-
-A report block is a fenced code block tagged "report". Its body is a small JSON header on the first lines, then a line containing only \`---\`, then the report body as raw HTML. Example:
-
+const REPORT_DIRECTIVE = `RICH REPORTS — for structured deliverables (status reports, exec summaries, portfolio reviews, risk write-ups, meeting briefs, lessons-learned, anything >~5 lines of prose, with tables, or shareable/printable), emit a top-level fenced \`report\` block: a JSON header line, then a line with only \`---\`, then HTML body. Example:
 \`\`\`report
 {"title":"Q3 Portfolio Status — Marketing","subtitle":"Week of Oct 14, 2025","generatedAt":"2025-10-14T09:00:00Z"}
 ---
 <header class="hero hero--warn">
   <p class="hero__eyebrow">Weekly portfolio review · Oct 14, 2025</p>
-  <h1 class="hero__title">Marketing portfolio is on track, with 2 amber and 1 red</h1>
-  <p class="hero__lede">Most projects are healthy; one vendor delay is putting Website Redesign at risk.</p>
-  <div class="hero__stats">
-    <div class="hero__stat"><span class="hero__stat-label">Projects</span><span class="hero__stat-value">12</span></div>
-    <div class="hero__stat"><span class="hero__stat-label">On track</span><span class="hero__stat-value">9</span></div>
-    <div class="hero__stat"><span class="hero__stat-label">At risk</span><span class="hero__stat-value">2</span></div>
-    <div class="hero__stat"><span class="hero__stat-label">Critical</span><span class="hero__stat-value">1</span></div>
-  </div>
-</header>
-<h2>Project Health</h2>
-<table>
-  <thead><tr><th>Project</th><th>Health</th><th class="num">% Complete</th><th>Owner</th></tr></thead>
-  <tbody>
-    <tr><td>Website Redesign</td><td><span class="badge badge--warn">Amber</span></td><td class="num">62%</td><td>Jane Doe</td></tr>
-    <tr><td>Brand Refresh</td><td><span class="badge badge--good">Green</span></td><td class="num">88%</td><td>Mark Lee</td></tr>
-  </tbody>
-</table>
-<h2>Top Risks</h2>
-<ul>
-  <li><strong>Vendor delay</strong> — see <a href="/projects/42">Website Redesign</a>.</li>
-</ul>
-\`\`\`
-
-Header schema:
-- title (required): short report title.
-- subtitle (optional): scope, time window, audience.
-- generatedAt (optional): ISO 8601 timestamp.
-
-HTML rules:
-- Use only semantic HTML: h1–h4, p, ul/ol/li, table/thead/tbody/tr/th/td, blockquote, strong/em, code/pre, hr, a, img, figure/figcaption, span/div, dl/dt/dd.
-- NO <script>, <iframe>, <style>, <link>, <form>, <input>, <button>, event handlers, or javascript: URLs — they will be stripped.
-- Prefer the design-system utility classes below over inline styles. Inline styles are allowed but reserve them for one-off color emphasis only.
-- For internal app links use the same routes as cards (\`/projects/{id}\`, \`/portfolios/{id}\`, \`/resources/{id}\`).
-- Keep the body self-contained: no external CSS, no external scripts.
-
-Design system — the report container ships with a polished, compact theme. Use these utility classes (via \`class="…"\`) to make every report look like a premium, hero-style document. Use them generously; a great report mixes prose with a hero header, KPIs, badges, callouts, and tight tables.
-
-ALWAYS open every report with a hero header — this is non-negotiable. The hero is a gradient block with an eyebrow tag, a large gradient title, a 1–2 sentence lede summarizing the headline finding, and an inline strip of 3–5 at-a-glance stats. The hero variant should mirror the overall report sentiment: \`hero--good\` for healthy news, \`hero--warn\` for caution, \`hero--danger\` for critical, default for neutral. Example:
-\`\`\`html
-<header class="hero hero--warn">
-  <p class="hero__eyebrow">Weekly portfolio review · Oct 14, 2025</p>
-  <h1 class="hero__title">Marketing portfolio is mostly green, with two amber risks</h1>
-  <p class="hero__lede">14 of 18 projects are on track. Two campaigns are slipping due to vendor delays — see the Risks section for mitigations.</p>
+  <h1 class="hero__title">Marketing portfolio mostly green, with two amber risks</h1>
+  <p class="hero__lede">14 of 18 projects on track. Two campaigns slipping on vendor delays — see Risks for mitigations.</p>
   <div class="hero__stats">
     <div class="hero__stat"><span class="hero__stat-label">Projects</span><span class="hero__stat-value">18</span></div>
-    <div class="hero__stat"><span class="hero__stat-label">Budget used</span><span class="hero__stat-value">$2.4M</span></div>
     <div class="hero__stat"><span class="hero__stat-label">On track</span><span class="hero__stat-value">14</span></div>
     <div class="hero__stat"><span class="hero__stat-label">At risk</span><span class="hero__stat-value">2</span></div>
-    <div class="hero__stat"><span class="hero__stat-label">Critical</span><span class="hero__stat-value">2</span></div>
   </div>
 </header>
-\`\`\`
-Do NOT emit a separate \`<h1>\` outside the hero — the hero __title replaces it.
-
-Immediately after the hero, follow with a KPI tile grid:
-\`\`\`html
 <div class="kpi-grid">
-  <div class="kpi kpi--good"><p class="kpi__label">On-track projects</p><p class="kpi__value">14</p><p class="kpi__delta kpi__delta--up">+2 vs last week</p></div>
-  <div class="kpi kpi--warn"><p class="kpi__label">At risk</p><p class="kpi__value">3</p></div>
-  <div class="kpi kpi--danger"><p class="kpi__label">Red</p><p class="kpi__value">1</p></div>
-  <div class="kpi"><p class="kpi__label">Budget used</p><p class="kpi__value">$2.4M</p><p class="kpi__delta">68% of plan</p></div>
+  <div class="kpi kpi--good"><p class="kpi__label">On-track</p><p class="kpi__value">14</p><p class="kpi__delta kpi__delta--up">+2 wk/wk</p></div>
+  <div class="kpi kpi--warn"><p class="kpi__label">At risk</p><p class="kpi__value">2</p></div>
 </div>
+<h2>Project Health</h2>
+<table><thead><tr><th>Project</th><th>Health</th><th class="num">%</th><th>Owner</th></tr></thead>
+<tbody><tr><td><a href="/projects/42">Website Redesign</a></td><td><span class="badge badge--warn">Amber</span></td><td class="num">62%</td><td>Jane Doe</td></tr></tbody></table>
+<section class="section"><p class="section__title">Next steps</p><ol><li>Mitigate vendor delay (Jane, Fri).</li></ol></section>
 \`\`\`
-Variants: \`kpi--good | kpi--warn | kpi--danger | kpi--info\` (default = neutral). Optional \`kpi__delta--up | kpi__delta--down\` for trend color.
-
-Badges (pills) for status / labels in tables, headings, or inline:
-\`<span class="badge badge--good">On track</span>\` — variants: \`good | warn | danger | info | muted\`.
-
-Status dot — small inline indicator (great inside table cells before a status word):
-\`<span class="status-dot status-dot--warn"></span> Amber\`
-
-Callouts — for key takeaways, risks, blockers, or recommendations:
-\`\`\`html
-<div class="callout callout--warn">
-  <p class="callout__title">Vendor delay risks Q4 launch</p>
-  <p>Mitigation: shift creative review to next sprint; add 1 week buffer.</p>
-</div>
-\`\`\`
-Variants: default (info), \`callout--success | callout--warn | callout--danger\`.
-
-Progress bars for % complete:
-\`<div class="progress progress--warn"><span class="progress__fill" style="width:62%"></span></div>\`
-Variants: default | \`progress--good | progress--warn | progress--danger\`.
-
-Multi-column splits for compact side-by-side blocks (auto-stacks on mobile):
-\`<div class="split"><div>…</div><div>…</div></div>\` — use \`split--3\` for three columns.
-
-Compact metadata list:
-\`\`\`html
-<dl class="meta">
-  <dt>Owner</dt><dd>Jane Doe</dd>
-  <dt>Due</dt><dd>Oct 30, 2025</dd>
-</dl>
-\`\`\`
-
-Section card — wrap a logical group of related content in a soft-bordered card with a small uppercase title:
-\`\`\`html
-<section class="section">
-  <p class="section__title">This week's focus</p>
-  <ul><li>…</li></ul>
-</section>
-\`\`\`
-
-Tables — keep them tight and useful. The container styles them automatically (rounded, soft borders, hover). Add \`class="num"\` on numeric \`<th>\`/\`<td>\` for right-aligned tabular numerals. Use badges/status-dots inside cells instead of colored text whenever possible.
-
-Composition guidance for a hero-quality report (this is the required structure):
-1. \`<header class="hero …">\` — gradient title block with eyebrow, lede, and 3–5 stats.
-2. KPI grid — 3–6 \`.kpi\` tiles for the headline numbers.
-3. Top-priority callout(s) — the 1–3 things the reader must act on this week.
-4. Body sections introduced by \`<h2>\` (the renderer auto-adds a gradient marker).
-   - Inside sections, prefer compact, graphical components: tables with badges/status-dots in cells, progress bars, .meta lists, .split columns. Avoid long unbroken paragraphs.
-5. Close with a "Next steps" \`<section class="section">\` containing a numbered \`<ol>\` of crisp, owner-tagged action items.
-
-Hard rules:
-- Every report has a \`.hero\` opener. No exceptions.
-- Use badges + status dots inside table cells instead of raw colored text for health/status.
-- Right-align numeric table columns with \`class="num"\`.
-- Keep tables ≤ 8 columns and trim filler columns.
-- Be visually dense but not cluttered: KPIs and callouts replace plain prose where possible.
-
-When to use report blocks:
-- Status reports, executive summaries, portfolio reviews, weekly digests.
-- Anything with a table of more than 3 rows or columns.
-- Anything the user is likely to copy, print, download, or share.
-- Long-form analyses (>5 lines of prose) where structure (headings, tables, lists) materially helps readability.
-
-When NOT to use report blocks:
-- Short conversational answers.
-- Single-entity lookups (use a friday-card instead).
-- Lists of entities (use friday-cards instead — they're clickable).
-- Follow-up questions or confirmations.
-
-Do NOT mix a report block with friday-cards in the same response — pick one. Do NOT nest a report block inside any other fenced block. Emit at most one report block per response.`;
+Header: title (req), subtitle?, generatedAt? (ISO 8601).
+HTML rules: only semantic tags (h1–h4, p, ul/ol/li, table/thead/tbody/tr/th/td, blockquote, strong/em, code/pre, hr, a, img, figure/figcaption, span/div, dl/dt/dd). NO script/iframe/style/link/form/input/button/event handlers/javascript: URLs (stripped). Use design-system classes over inline styles. Internal links use the same routes as cards (\`/projects/{id}\`, \`/portfolios/{id}\`, \`/resources/{id}\`). Body self-contained — no external CSS/JS.
+Required structure (hero is non-negotiable): (1) \`<header class="hero hero--good|warn|danger">\` with eyebrow + h1 hero__title + 1–2 sentence lede + 3–5 hero__stats; do NOT emit a separate <h1> outside the hero. (2) KPI grid: \`<div class="kpi-grid">\` of 3–6 \`<div class="kpi kpi--good|warn|danger|info">\` (label, value, optional kpi__delta with kpi__delta--up|down). (3) 1–3 priority callouts: \`<div class="callout callout--success|warn|danger">\`. (4) Body sections introduced by \`<h2>\`; inside, prefer compact tables with badges/status-dots, progress bars (\`<div class="progress progress--good|warn|danger"><span class="progress__fill" style="width:62%"></span></div>\`), \`<dl class="meta"><dt>…</dt><dd>…</dd></dl>\`, \`<div class="split">…</div>\` (or split--3) — avoid long unbroken paragraphs. (5) Close with \`<section class="section"><p class="section__title">Next steps</p><ol>…owner-tagged actions…</ol></section>\`.
+Inline components: badges \`<span class="badge badge--good|warn|danger|info|muted">\`; status dots \`<span class="status-dot status-dot--warn"></span>\`. Tables ≤ 8 cols, right-align numeric cols with \`class="num"\`, prefer badges/status-dots over colored text.
+Use reports for status/exec/portfolio/digest output, tables >3 rows or cols, anything copy/print/share-worthy, long-form analysis with structure. Do NOT use for short answers, single-entity lookups (use friday-card), entity lists (use friday-cards — clickable), or follow-up questions. Do NOT mix report blocks with friday-cards in the same response. Top-level fence only; one report per response.`;
 
 const SYSTEM_PROMPT = `You are Friday Report, a warm, professional AI assistant for portfolio and project management. Your name is "Friday Report" or simply "Friday." Always introduce yourself politely when starting a new conversation — for example: "Hello! I'm Friday Report, your project management assistant. How can I help you today?" Be courteous, helpful, and encouraging in every response. Use a conversational yet professional tone — as if speaking to a valued colleague. Say "please," "thank you," and "you're welcome" naturally. When delivering difficult news (red health, overdue tasks, risks), be empathetic and solution-oriented rather than blunt.
 
@@ -477,27 +272,90 @@ export interface JarvisContext {
   burndowns: ProjectBurndown[];
 }
 
-// Short-lived in-memory cache so back-to-back chat turns from the same user
-// don't re-issue ~10 parallel queries. TTL is small enough that data feels
-// fresh; users rarely send a new message and immediately expect to see a
-// project they created < 20s ago reflected in Friday's context.
-const ORG_CONTEXT_TTL_MS = 20_000;
-const orgContextCache = new Map<number, { value: JarvisContext; expiresAt: number }>();
+// In-memory cache so back-to-back chat turns from the same user don't
+// re-issue ~10 parallel queries. We use a stale-while-revalidate strategy:
+// fresh entries are served directly; stale (but not expired) entries are
+// served immediately and a single background refresh is kicked off. An
+// in-flight promise map dedupes concurrent refreshes for the same org so
+// two simultaneous chats don't fan out queries twice.
+//
+// Each org has a monotonic version counter that is bumped on every
+// invalidation. A refresh captures the version at start; if the version
+// changes before the refresh resolves (e.g. a write happened mid-flight),
+// the stale result is discarded so the next call triggers a fresh
+// uncached fetch. This closes the SWR-vs-invalidate race.
+const ORG_CONTEXT_FRESH_MS = 60_000;        // 1 min: serve without revalidating
+const ORG_CONTEXT_STALE_MS = 5 * 60_000;    // 5 min: serve stale, refresh in bg
+const orgContextCache = new Map<number, { value: JarvisContext; expiresAt: number; freshUntil: number; version: number }>();
+const orgContextInflight = new Map<number, Promise<JarvisContext>>();
+const orgContextVersion = new Map<number, number>();
+
+function bumpOrgContextVersion(orgId: number): number {
+  const next = (orgContextVersion.get(orgId) ?? 0) + 1;
+  orgContextVersion.set(orgId, next);
+  return next;
+}
 
 export function invalidateOrganizationContextCache(orgId?: number) {
-  if (orgId == null) orgContextCache.clear();
-  else orgContextCache.delete(orgId);
+  if (orgId == null) {
+    // Bump every known org's version so any in-flight refresh notices
+    // its result is now stale and refuses to repopulate the cache.
+    for (const id of orgContextCache.keys()) bumpOrgContextVersion(id);
+    for (const id of orgContextInflight.keys()) bumpOrgContextVersion(id);
+    orgContextCache.clear();
+    // Also drop in-flight entries so the next caller fans out a fresh
+    // uncached fetch instead of awaiting a soon-to-be-discarded result.
+    orgContextInflight.clear();
+  } else {
+    bumpOrgContextVersion(orgId);
+    orgContextCache.delete(orgId);
+    orgContextInflight.delete(orgId);
+  }
+}
+
+function refreshOrgContext(orgId: number): Promise<JarvisContext> {
+  const existing = orgContextInflight.get(orgId);
+  if (existing) return existing;
+  const versionAtStart = orgContextVersion.get(orgId) ?? 0;
+  const p = gatherOrganizationContextUncached(orgId)
+    .then((value) => {
+      const currentVersion = orgContextVersion.get(orgId) ?? 0;
+      if (currentVersion !== versionAtStart) {
+        // An invalidation happened while we were fetching — the value we
+        // just gathered may already reflect a partial mid-write state.
+        // Don't repopulate the cache; let the next call go uncached.
+        return value;
+      }
+      const now = Date.now();
+      orgContextCache.set(orgId, {
+        value,
+        freshUntil: now + ORG_CONTEXT_FRESH_MS,
+        expiresAt: now + ORG_CONTEXT_STALE_MS,
+        version: versionAtStart,
+      });
+      return value;
+    })
+    .finally(() => {
+      orgContextInflight.delete(orgId);
+    });
+  orgContextInflight.set(orgId, p);
+  return p;
 }
 
 export async function gatherOrganizationContext(orgId: number): Promise<JarvisContext> {
   const now = Date.now();
   const cached = orgContextCache.get(orgId);
   if (cached && cached.expiresAt > now) {
+    if (cached.freshUntil <= now) {
+      // Stale but still serveable — kick off a background refresh and
+      // return the cached value immediately so the user doesn't wait.
+      refreshOrgContext(orgId).catch((err) => {
+        console.error(`[jarvis] background org context refresh failed for org ${orgId}:`, err);
+      });
+    }
     return cached.value;
   }
-  const value = await gatherOrganizationContextUncached(orgId);
-  orgContextCache.set(orgId, { value, expiresAt: now + ORG_CONTEXT_TTL_MS });
-  return value;
+  return refreshOrgContext(orgId);
 }
 
 // Project lifecycle states that are explicitly terminal — projects in any of
@@ -823,9 +681,41 @@ function summarizePortfolio(p: any) {
   };
 }
 
-function buildDataContext(ctx: JarvisContext): string {
+interface BuildDataContextOptions {
+  // Project IDs to drop from the top-level `projects` org array because
+  // they are already enumerated under the page-context directive
+  // (current project on a project page, or projects-of-portfolio on a
+  // portfolio page).
+  excludeProjectIdsFromList?: Set<number>;
+  // Project IDs whose CHILD data (risks/issues/tasks/milestones/status
+  // reports/financials/timesheets/deliverables) is already enumerated in
+  // the page-context directive and should be dropped from the org-wide
+  // arrays. This is set ONLY for the project page — the portfolio page
+  // directive doesn't include child arrays, so excluding them there
+  // would silently strip the detail the model needs.
+  excludeChildDataForProjectIds?: Set<number>;
+  // When false, drop the heavy time-phased EVM + burndown payloads from
+  // the prompt. They're only useful when the user is asking for a chart.
+  includeChartData?: boolean;
+}
+
+function buildDataContext(ctx: JarvisContext, opts: BuildDataContextOptions = {}): string {
   const now = new Date();
   const todayStr = now.toISOString().split("T")[0];
+
+  const excludeFromList: Set<number> | null =
+    opts.excludeProjectIdsFromList && opts.excludeProjectIdsFromList.size > 0
+      ? opts.excludeProjectIdsFromList
+      : null;
+  const excludeChildren: Set<number> | null =
+    opts.excludeChildDataForProjectIds && opts.excludeChildDataForProjectIds.size > 0
+      ? opts.excludeChildDataForProjectIds
+      : null;
+  const includeChartData = opts.includeChartData !== false;
+  const keep = <T extends { projectId?: number }>(arr: T[]) =>
+    excludeChildren == null ? arr : arr.filter((x) => x.projectId == null || !excludeChildren.has(x.projectId));
+  const keepProj = <T extends { id?: number }>(arr: T[]) =>
+    excludeFromList == null ? arr : arr.filter((x) => x.id == null || !excludeFromList.has(x.id as number));
 
   const projectCount = ctx.projects.length;
   const atRisk = ctx.projects.filter(p => p.health === "Red");
@@ -875,52 +765,60 @@ function buildDataContext(ctx: JarvisContext): string {
   summary += `**Risks without mitigation plan:** ${risksWithoutMitigation.length}\n`;
   summary += `**Projects without manager:** ${projectsWithoutManager.length}\n\n`;
 
-  summary += `### Projects\n${JSON.stringify(ctx.projects, null, 1)}\n\n`;
+  const projectsForCtx = keepProj(ctx.projects);
+  summary += `### Projects\n${JSON.stringify(projectsForCtx)}\n\n`;
 
   if (ctx.portfolios.length > 0) {
-    summary += `### Portfolios\n${JSON.stringify(ctx.portfolios, null, 1)}\n\n`;
+    summary += `### Portfolios\n${JSON.stringify(ctx.portfolios)}\n\n`;
   }
 
-  if (openRisks.length > 0) {
-    summary += `### Open Risks (${openRisks.length})\n${JSON.stringify(openRisks, null, 1)}\n\n`;
+  const openRisksForCtx = keep(openRisks);
+  if (openRisksForCtx.length > 0) {
+    summary += `### Open Risks (${openRisksForCtx.length})\n${JSON.stringify(openRisksForCtx)}\n\n`;
   }
 
-  if (openIssues.length > 0) {
-    summary += `### Open Issues (${openIssues.length})\n${JSON.stringify(openIssues, null, 1)}\n\n`;
+  const openIssuesForCtx = keep(openIssues);
+  if (openIssuesForCtx.length > 0) {
+    summary += `### Open Issues (${openIssuesForCtx.length})\n${JSON.stringify(openIssuesForCtx)}\n\n`;
   }
 
-  if (overdueTasks.length > 0) {
-    summary += `### Overdue Tasks (${overdueTasks.length})\n${JSON.stringify(overdueTasks, null, 1)}\n\n`;
+  const overdueTasksForCtx = keep(overdueTasks);
+  if (overdueTasksForCtx.length > 0) {
+    summary += `### Overdue Tasks (${overdueTasksForCtx.length})\n${JSON.stringify(overdueTasksForCtx)}\n\n`;
   }
 
-  const activeTasks = ctx.tasks.filter(t => t.status === "In Progress").slice(0, 30);
+  const activeTasks = keep(ctx.tasks.filter(t => t.status === "In Progress")).slice(0, 30);
   if (activeTasks.length > 0) {
-    summary += `### In-Progress Tasks (${activeTasks.length})\n${JSON.stringify(activeTasks, null, 1)}\n\n`;
+    summary += `### In-Progress Tasks (${activeTasks.length})\n${JSON.stringify(activeTasks)}\n\n`;
   }
 
-  if (upcomingMilestones.length > 0) {
-    summary += `### Upcoming Milestones\n${JSON.stringify(upcomingMilestones, null, 1)}\n\n`;
+  const upcomingMilestonesForCtx = keep(upcomingMilestones);
+  if (upcomingMilestonesForCtx.length > 0) {
+    summary += `### Upcoming Milestones\n${JSON.stringify(upcomingMilestonesForCtx)}\n\n`;
   }
 
   if (ctx.dependencies.length > 0) {
-    summary += `### Task Dependencies (${ctx.dependencies.length})\n${JSON.stringify(ctx.dependencies.slice(0, 30), null, 1)}\n\n`;
+    summary += `### Task Dependencies (${ctx.dependencies.length})\n${JSON.stringify(ctx.dependencies.slice(0, 30))}\n\n`;
   }
 
-  if (ctx.statusReports.length > 0) {
-    summary += `### Recent Status Reports\n${JSON.stringify(ctx.statusReports.slice(0, 10), null, 1)}\n\n`;
+  const statusReportsForCtx = keep(ctx.statusReports);
+  if (statusReportsForCtx.length > 0) {
+    summary += `### Recent Status Reports\n${JSON.stringify(statusReportsForCtx.slice(0, 10))}\n\n`;
   }
 
-  if (ctx.healthHistory.length > 0) {
-    summary += `### Recent Health Changes\n${JSON.stringify(ctx.healthHistory.slice(0, 10), null, 1)}\n\n`;
+  const healthHistoryForCtx = keep(ctx.healthHistory);
+  if (healthHistoryForCtx.length > 0) {
+    summary += `### Recent Health Changes\n${JSON.stringify(healthHistoryForCtx.slice(0, 10))}\n\n`;
   }
 
   // ----- Org-wide signals: financials, timesheets, deliverables -----
 
-  if (ctx.financialsRollup.length > 0) {
+  const financialsForCtx = keep(ctx.financialsRollup);
+  if (financialsForCtx.length > 0) {
     // Compute totals per project (across all FY/scenario/view) and a
     // budget-vs-actual snapshot for the current FY for quick reasoning.
     const byProject = new Map<number, { budget: number; forecast: number; actual: number }>();
-    for (const r of ctx.financialsRollup) {
+    for (const r of financialsForCtx) {
       const cur = byProject.get(r.projectId) ?? { budget: 0, forecast: 0, actual: 0 };
       const s = (r.scenario || "").toLowerCase();
       if (s === "aop") cur.budget += r.total;
@@ -938,16 +836,17 @@ function buildDataContext(ctx: JarvisContext): string {
 
     summary += `### Org-wide Financial Signals\n`;
     summary += `Rolled up from \`financial_entries\` for the current and previous fiscal year, by project / fiscal year / scenario (aop=Plan, fcst=Forecast, act=Actual) / financial view (Capital, Direct Expense, Labor). Use these totals when the user asks "how much have we spent / planned / forecasted on Project X".\n\n`;
-    summary += `**Budget vs Actual (FY current + previous combined, per project):**\n${JSON.stringify(budgetVsActual.slice(0, 50), null, 1)}\n\n`;
-    summary += `**Detailed rollup (by FY/scenario/view):**\n${JSON.stringify(ctx.financialsRollup.slice(0, 200), null, 1)}\n\n`;
+    summary += `**Budget vs Actual (FY current + previous combined, per project):**\n${JSON.stringify(budgetVsActual.slice(0, 50))}\n\n`;
+    summary += `**Detailed rollup (by FY/scenario/view):**\n${JSON.stringify(financialsForCtx.slice(0, 200))}\n\n`;
   }
 
-  if (ctx.timesheetsRollup.length > 0) {
+  const timesheetsForCtx = keep(ctx.timesheetsRollup);
+  if (timesheetsForCtx.length > 0) {
     // Aggregate to a "hours per project" view so common questions like
     // "who is logging the most time on Project X" or "total hours on Project Y last quarter"
     // can be answered directly.
     const hoursByProject = new Map<number, number>();
-    for (const r of ctx.timesheetsRollup) {
+    for (const r of timesheetsForCtx) {
       hoursByProject.set(r.projectId, (hoursByProject.get(r.projectId) ?? 0) + r.totalHours);
     }
     const hoursPerProject = Array.from(hoursByProject.entries())
@@ -957,26 +856,31 @@ function buildDataContext(ctx: JarvisContext): string {
 
     summary += `### Org-wide Time Tracking (last 90 days)\n`;
     summary += `Rolled up from \`timesheet_entries\`. Use when the user asks about effort spent, who is working on what, or capacity utilization.\n\n`;
-    summary += `**Hours per project (last 90d):**\n${JSON.stringify(hoursPerProject, null, 1)}\n\n`;
-    summary += `**Hours per (project, user) (last 90d):**\n${JSON.stringify(ctx.timesheetsRollup.slice(0, 200), null, 1)}\n\n`;
+    summary += `**Hours per project (last 90d):**\n${JSON.stringify(hoursPerProject)}\n\n`;
+    summary += `**Hours per (project, user) (last 90d):**\n${JSON.stringify(timesheetsForCtx.slice(0, 200))}\n\n`;
   }
 
-  if (ctx.deliverables.length > 0) {
+  const deliverablesForCtx = keep(ctx.deliverables);
+  if (deliverablesForCtx.length > 0) {
     summary += `### Project Deliverables\n`;
     summary += `Tasks that explicitly enumerate deliverables (artifacts, outputs, signed contracts, releases, etc.). Use when the user asks "what deliverables do we owe on Project X" or "what was promised this quarter".\n\n`;
-    summary += `${JSON.stringify(ctx.deliverables.slice(0, 100), null, 1)}\n\n`;
+    summary += `${JSON.stringify(deliverablesForCtx.slice(0, 100))}\n\n`;
   }
 
-  if (ctx.evmTimePhased.length > 0) {
+  if (includeChartData && ctx.evmTimePhased.length > 0) {
     summary += `### Time-Phased EVM (S-Curve ready) — current FY\n`;
     summary += `Per-project cumulative Planned Value (pvCum), Earned Value (evCum), Actual Cost (acCum), and Estimate at Completion (eacCum) for each fiscal month of the current FY. These are the EXACT numbers the Financials → S-Curve dashboard renders. When the user asks for an S-curve, EVM chart, or PV-vs-EV view, drop these straight into an \`s-curve\` block (use \`points[].label\` for x-axis, \`pvCum\`/\`evCum\`/\`acCum\`/\`eacCum\` for the four series, and \`asOfIndex\` for the today line). Only include earned/actual on points up to \`asOfIndex\`; future points should keep PV/EAC only. Do NOT invent values for projects not present here.\n\n`;
-    summary += `${JSON.stringify(ctx.evmTimePhased, null, 1)}\n\n`;
+    summary += `${JSON.stringify(ctx.evmTimePhased)}\n\n`;
+  } else if (ctx.evmTimePhased.length > 0) {
+    summary += `### Time-Phased EVM (S-Curve ready)\nAvailable on request — ${ctx.evmTimePhased.length} project series omitted to keep this prompt compact. Ask for an "S-curve" or "EVM chart" to load the full series.\n\n`;
   }
 
-  if (ctx.burndowns.length > 0) {
+  if (includeChartData && ctx.burndowns.length > 0) {
     summary += `### Project Burndown Series (ideal vs actual remaining work)\n`;
     summary += `Per-project ideal-vs-actual remaining work over the project window, weighted by estimated hours when available (\`unit\`: hrs/days/tasks). Drop straight into a \`burndown-chart\` block: \`points[].label\` → x-axis, \`ideal\`/\`actual\` → series, \`asOfIndex\` → today marker, \`unit\` → chart \`unit\`. \`actual\` is null for buckets after today (don't emit those into the actual line). Only emit charts for projects listed here.\n\n`;
-    summary += `${JSON.stringify(ctx.burndowns, null, 1)}\n\n`;
+    summary += `${JSON.stringify(ctx.burndowns)}\n\n`;
+  } else if (ctx.burndowns.length > 0) {
+    summary += `### Project Burndown Series\nAvailable on request — ${ctx.burndowns.length} project series omitted to keep this prompt compact. Ask for a "burndown" or "velocity" chart to load the full series.\n\n`;
   }
 
   // Always emphasize that milestones are first-class
@@ -1956,12 +1860,32 @@ export interface FileAttachment {
   content: string;
 }
 
-function buildPageContextDirective(pageContext: PageContext | undefined, ctx: JarvisContext): string {
-  if (!pageContext?.entityType || !pageContext.entityId) return "";
+interface PageDirectiveResult {
+  directive: string;
+  // Project IDs already enumerated under the page directive's
+  // `projects` listing, so buildDataContext should drop them from the
+  // top-level Projects org array.
+  excludeProjectIdsFromList: Set<number>;
+  // Project IDs whose CHILD data (risks/issues/tasks/milestones/status
+  // reports/financials/timesheets/deliverables) is also enumerated in
+  // the page directive — only set for the project page, where the
+  // directive actually inlines those child arrays. Portfolio pages list
+  // projects only, so we MUST NOT exclude their child data from the
+  // org-wide arrays or the model loses risk/task/etc. detail.
+  excludeChildDataForProjectIds: Set<number>;
+}
+
+function buildPageContextDirective(pageContext: PageContext | undefined, ctx: JarvisContext): PageDirectiveResult {
+  const empty: PageDirectiveResult = {
+    directive: "",
+    excludeProjectIdsFromList: new Set(),
+    excludeChildDataForProjectIds: new Set(),
+  };
+  if (!pageContext?.entityType || !pageContext.entityId) return empty;
 
   if (pageContext.entityType === "project") {
     const project = ctx.projects.find((p: any) => p.id === pageContext.entityId);
-    if (!project) return "";
+    if (!project) return empty;
 
     const projectTasks = ctx.tasks.filter((t: any) => t.projectId === pageContext.entityId);
     const projectMilestones = ctx.milestones.filter((m: any) => m.projectId === pageContext.entityId);
@@ -1969,46 +1893,76 @@ function buildPageContextDirective(pageContext: PageContext | undefined, ctx: Ja
     const projectIssues = ctx.issues.filter((i: any) => i.projectId === pageContext.entityId);
     const projectReports = ctx.statusReports.filter((r: any) => r.projectId === pageContext.entityId);
 
-    return `\n\nCURRENT PAGE CONTEXT: The user is currently viewing project [${project.name}](/projects/${project.id}) (ID: ${project.id}).
+    const directive = `\n\nCURRENT PAGE CONTEXT: The user is currently viewing project [${project.name}](/projects/${project.id}) (ID: ${project.id}).
 Prioritize answering questions about THIS project. When the user says "this project" or asks about tasks, risks, issues without specifying a project, assume they mean this one.
 
 **Focused Project Detail:**
-- Project: ${JSON.stringify(project, null, 1)}
-- Tasks (${projectTasks.length}): ${JSON.stringify(projectTasks.slice(0, 50), null, 1)}
-- Milestones (${projectMilestones.length}): ${JSON.stringify(projectMilestones.slice(0, 20), null, 1)}
-- Risks (${projectRisks.length}): ${JSON.stringify(projectRisks, null, 1)}
-- Issues (${projectIssues.length}): ${JSON.stringify(projectIssues, null, 1)}
-- Recent Status Reports: ${JSON.stringify(projectReports.slice(0, 5), null, 1)}
+- Project: ${JSON.stringify(project)}
+- Tasks (${projectTasks.length}): ${JSON.stringify(projectTasks.slice(0, 50))}
+- Milestones (${projectMilestones.length}): ${JSON.stringify(projectMilestones.slice(0, 20))}
+- Risks (${projectRisks.length}): ${JSON.stringify(projectRisks)}
+- Issues (${projectIssues.length}): ${JSON.stringify(projectIssues)}
+- Recent Status Reports: ${JSON.stringify(projectReports.slice(0, 5))}
 `;
+    // Project page: directive inlines both the project itself AND its
+    // child arrays — safe to exclude both from the org-wide dump.
+    return {
+      directive,
+      excludeProjectIdsFromList: new Set([project.id]),
+      excludeChildDataForProjectIds: new Set([project.id]),
+    };
   }
 
   if (pageContext.entityType === "portfolio") {
     const portfolio = ctx.portfolios.find((p: any) => p.id === pageContext.entityId);
-    if (!portfolio) return "";
+    if (!portfolio) return empty;
 
     const portfolioProjects = ctx.projects.filter((p: any) => p.portfolioId === pageContext.entityId);
-    return `\n\nCURRENT PAGE CONTEXT: The user is currently viewing portfolio [${portfolio.name}](/portfolios/${portfolio.id}) (ID: ${portfolio.id}).
+    const directive = `\n\nCURRENT PAGE CONTEXT: The user is currently viewing portfolio [${portfolio.name}](/portfolios/${portfolio.id}) (ID: ${portfolio.id}).
 Prioritize answering questions about THIS portfolio and its projects. When the user says "this portfolio" or asks general questions, assume they mean this one.
 
 **Focused Portfolio Detail:**
-- Portfolio: ${JSON.stringify(portfolio, null, 1)}
-- Projects in Portfolio (${portfolioProjects.length}): ${JSON.stringify(portfolioProjects, null, 1)}
+- Portfolio: ${JSON.stringify(portfolio)}
+- Projects in Portfolio (${portfolioProjects.length}): ${JSON.stringify(portfolioProjects)}
 `;
+    // Portfolio page: directive only re-enumerates the project rows
+    // (their summaries), NOT their child risks/issues/tasks/etc. So we
+    // dedupe just the projects list and leave the child arrays intact.
+    return {
+      directive,
+      excludeProjectIdsFromList: new Set(portfolioProjects.map((p: any) => p.id)),
+      excludeChildDataForProjectIds: new Set(),
+    };
   }
 
   if (pageContext.entityType === "resource") {
     const resource = ctx.resources.find((r: any) => r.id === pageContext.entityId);
-    if (!resource) return "";
+    if (!resource) return empty;
 
-    return `\n\nCURRENT PAGE CONTEXT: The user is currently viewing resource [${resource.displayName}](/resources/${resource.id}) (ID: ${resource.id}).
+    return {
+      directive: `\n\nCURRENT PAGE CONTEXT: The user is currently viewing resource [${resource.displayName}](/resources/${resource.id}) (ID: ${resource.id}).
 Prioritize answering questions about THIS resource. When the user says "this person" or "this resource", assume they mean this one.
 
 **Focused Resource Detail:**
-- Resource: ${JSON.stringify(resource, null, 1)}
-`;
+- Resource: ${JSON.stringify(resource)}
+`,
+      excludeProjectIdsFromList: new Set(),
+      excludeChildDataForProjectIds: new Set(),
+    };
   }
 
-  return "";
+  return empty;
+}
+
+// Heuristic: does the latest user turn ask for a chart-shaped artifact that
+// requires the heavy time-phased EVM / burndown payloads in the prompt?
+const CHART_INTENT_REGEX = /\b(s.?curve|burn.?down|burn.?up|velocity|earned\s*value|evm|pv\s*vs\s*ev|ev\s*vs\s*pv|gantt|timeline|schedule\s*chart|progress\s*chart)\b/i;
+function detectChartIntent(messages: JarvisMessage[]): boolean {
+  for (let i = messages.length - 1; i >= 0 && i >= messages.length - 3; i--) {
+    const m = messages[i];
+    if (m.role === "user" && CHART_INTENT_REGEX.test(m.content)) return true;
+  }
+  return false;
 }
 
 function buildAttachmentContext(attachments?: FileAttachment[]): string {
@@ -2234,8 +2188,25 @@ export async function streamJarvisResponse(
       agentConfig ? Promise.resolve(false) : detectOrgNeedsSetup(orgId, userId),
     ]);
     if (agentConfig) context = filterContextByScope(context, agentConfig.dataScope);
-    const dataContext = buildDataContext(context);
-    const pageDirective = buildPageContextDirective(pageContext, context);
+    const {
+      directive: pageDirective,
+      excludeProjectIdsFromList,
+      excludeChildDataForProjectIds,
+    } = buildPageContextDirective(pageContext, context);
+    // Heavy time-phased EVM + burndown payloads are only useful when the
+    // user is asking for a chart, or when they're on a project/portfolio
+    // page where they're likely to want one mid-conversation. For ordinary
+    // org-wide chit-chat we omit them and tell the model they're available
+    // on request — that alone shaves thousands of tokens off the prompt.
+    const includeChartData =
+      detectChartIntent(messages) ||
+      pageContext?.entityType === "project" ||
+      pageContext?.entityType === "portfolio";
+    const dataContext = buildDataContext(context, {
+      excludeProjectIdsFromList,
+      excludeChildDataForProjectIds,
+      includeChartData,
+    });
     const attachmentContext = buildAttachmentContext(attachments);
     const onboardingDirective = (needsSetup || options?.forceOnboarding) ? ONBOARDING_DIRECTIVE : "";
 

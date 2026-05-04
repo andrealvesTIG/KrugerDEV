@@ -196,6 +196,12 @@ export default function AiModePage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, [sendMessage]);
 
+  // Stable callback identity so MessageBubble's memo comparator skips
+  // completed bubbles while a new response streams in.
+  const handleQuickReply = useCallback((text: string) => {
+    sendMessage(text);
+  }, [sendMessage]);
+
   const removeFile = useCallback((name: string) => {
     setPendingFiles(prev => prev.filter(f => f.name !== name));
   }, []);
@@ -409,7 +415,7 @@ export default function AiModePage() {
                 index={i}
                 onNavigate={handleNavigate}
                 variant="page"
-                onQuickReply={(text) => sendMessage(text)}
+                onQuickReply={handleQuickReply}
               />
             ))}
             {isLoading && (() => {

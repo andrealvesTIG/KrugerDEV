@@ -5,6 +5,19 @@ import { and, desc, eq, isNull, sql } from "drizzle-orm";
 export type FridayAttachment = { name: string; type: string; size: number };
 export type FridayPageContext = { path?: string; entityType?: string; entityId?: number | string };
 
+// Row shape returned by the addMessage CTE — matches the friday_messages
+// schema with snake_case columns aliased back to camelCase so callers see
+// the same shape Drizzle would normally produce from a select.
+interface AddMessageRow {
+  id: number;
+  conversationId: number;
+  role: string;
+  content: string;
+  attachments: FridayAttachment[] | null;
+  pageContext: FridayPageContext | null;
+  createdAt: Date | string;
+}
+
 export async function createConversation(
   orgId: number,
   userId: string,
@@ -82,21 +95,49 @@ export async function addMessage(
   attachments: FridayAttachment[] | null = null,
   pageContext: FridayPageContext | null = null,
 ) {
-  const [row] = await db
-    .insert(fridayMessages)
-    .values({
-      conversationId,
-      role,
-      content,
-      attachments: attachments ?? null,
-      pageContext: pageContext ?? null,
-    })
-    .returning();
-  await db
-    .update(fridayConversations)
-    .set({ lastMessageAt: new Date(), updatedAt: new Date() })
-    .where(eq(fridayConversations.id, conversationId));
-  return row;
+  // Single-statement CTE so the message INSERT and the conversation
+  // lastMessageAt/updatedAt UPDATE are atomic — either both happen or
+  // neither does. This is one DB round trip (faster than two sequential
+  // queries) AND avoids the failure mode where the timestamp bump could
+  // succeed without a corresponding message row.
+  const attachmentsJson = attachments ? JSON.stringify(attachments) : null;
+  const pageContextJson = pageContext ? JSON.stringify(pageContext) : null;
+  const result = await db.execute(sql`
+    WITH inserted AS (
+      INSERT INTO friday_messages (conversation_id, role, content, attachments, page_context)
+      VALUES (
+        ${conversationId},
+        ${role},
+        ${content},
+        ${attachmentsJson}::jsonb,
+        ${pageContextJson}::jsonb
+      )
+      RETURNING id, conversation_id, role, content, attachments, page_context, created_at
+    ), updated AS (
+      UPDATE friday_conversations
+      SET last_message_at = NOW(), updated_at = NOW()
+      WHERE id = ${conversationId} AND EXISTS (SELECT 1 FROM inserted)
+      RETURNING id
+    )
+    SELECT
+      inserted.id,
+      inserted.conversation_id      AS "conversationId",
+      inserted.role,
+      inserted.content,
+      inserted.attachments,
+      inserted.page_context         AS "pageContext",
+      inserted.created_at           AS "createdAt"
+    FROM inserted
+  `);
+  // Drizzle's neon-http and pg drivers both expose rows on `.rows`; on
+  // older variants the result IS the row array. Narrow against an
+  // explicit row interface so the caller gets a typed value, not any.
+  // The CTE's RETURNING ... AS "camelCase" guarantees the row shape.
+  const raw: unknown = result;
+  const rows: AddMessageRow[] = Array.isArray(raw)
+    ? (raw as unknown as AddMessageRow[])
+    : ((raw as { rows?: unknown[] }).rows as AddMessageRow[] | undefined) ?? [];
+  return rows[0];
 }
 
 export async function updateConversationTitle(

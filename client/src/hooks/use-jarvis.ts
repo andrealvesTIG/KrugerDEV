@@ -369,7 +369,9 @@ export function useJarvis() {
               if (prev.length === 0) return prev;
               const updated = [...prev];
               const last = updated[updated.length - 1];
-              if (last.role === "assistant") last.content = friendly;
+              if (last.role === "assistant") {
+                updated[updated.length - 1] = { ...last, content: friendly };
+              }
               return updated;
             });
             preservePendingOnFinish = true;
@@ -384,53 +386,99 @@ export function useJarvis() {
         const decoder = new TextDecoder();
         let buffer = "";
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        // Batch streamed content chunks into a single state update per
+        // animation frame. Without this, every ~50-byte token triggers a
+        // setPendingMessages call and a full markdown re-render — at 60+
+        // tokens/sec that pegs the main thread and makes the UI feel
+        // sluggish even though bytes are arriving fast.
+        let pendingContent = "";
+        let rafHandle: number | null = null;
+        const supportsRaf = typeof window !== "undefined" && typeof window.requestAnimationFrame === "function";
+        const flushPendingContent = () => {
+          rafHandle = null;
+          if (!pendingContent) return;
+          const chunk = pendingContent;
+          pendingContent = "";
+          setPendingMessages((prev) => {
+            if (prev.length === 0) return prev;
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last.role === "assistant") {
+              updated[updated.length - 1] = { ...last, content: last.content + chunk };
+            }
+            return updated;
+          });
+        };
+        const scheduleFlush = () => {
+          if (rafHandle != null) return;
+          if (supportsRaf) {
+            rafHandle = window.requestAnimationFrame(flushPendingContent);
+          } else {
+            rafHandle = setTimeout(flushPendingContent, 16) as unknown as number;
+          }
+        };
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.error) {
-                const isAiLimit =
-                  data.limitExceeded === true && data.resourceType === "ai_runs";
-                const errText = isAiLimit
-                  ? "You've used all your AI credits for this billing cycle. " +
-                    "Upgrade your plan in [Billing settings](/settings/billing) to continue using Friday."
-                  : `Error: ${data.error}`;
-                setPendingMessages((prev) => {
-                  if (prev.length === 0) return prev;
-                  const updated = [...prev];
-                  const last = updated[updated.length - 1];
-                  if (last.role === "assistant") last.content = errText;
-                  return updated;
-                });
-                if (isAiLimit) preservePendingOnFinish = true;
-                continue;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.error) {
+                  // Drain any buffered content first so the error
+                  // overwrites a clean slate, not a half-written reply.
+                  if (pendingContent) flushPendingContent();
+                  const isAiLimit =
+                    data.limitExceeded === true && data.resourceType === "ai_runs";
+                  const errText = isAiLimit
+                    ? "You've used all your AI credits for this billing cycle. " +
+                      "Upgrade your plan in [Billing settings](/settings/billing) to continue using Friday."
+                    : `Error: ${data.error}`;
+                  setPendingMessages((prev) => {
+                    if (prev.length === 0) return prev;
+                    const updated = [...prev];
+                    const last = updated[updated.length - 1];
+                    if (last.role === "assistant") {
+                      updated[updated.length - 1] = { ...last, content: errText };
+                    }
+                    return updated;
+                  });
+                  if (isAiLimit) preservePendingOnFinish = true;
+                  continue;
+                }
+                if (data.conversationId && !resolvedConversationId) {
+                  resolvedConversationId = data.conversationId;
+                  setActiveConversationIdGlobal(orgId, data.conversationId);
+                }
+                if (data.done) {
+                  if (pendingContent) flushPendingContent();
+                  continue;
+                }
+                if (data.content) {
+                  pendingContent += data.content;
+                  scheduleFlush();
+                }
+              } catch {
+                // ignore parse errors on heartbeat lines
               }
-              if (data.conversationId && !resolvedConversationId) {
-                resolvedConversationId = data.conversationId;
-                setActiveConversationIdGlobal(orgId, data.conversationId);
-              }
-              if (data.done) continue;
-              if (data.content) {
-                setPendingMessages((prev) => {
-                  if (prev.length === 0) return prev;
-                  const updated = [...prev];
-                  const last = updated[updated.length - 1];
-                  if (last.role === "assistant") last.content += data.content;
-                  return updated;
-                });
-              }
-            } catch {
-              // ignore parse errors on heartbeat lines
             }
           }
+        } finally {
+          // Make sure no buffered tokens are lost on a normal end-of-stream
+          // or abort/error mid-loop.
+          if (rafHandle != null) {
+            if (supportsRaf) window.cancelAnimationFrame(rafHandle);
+            else clearTimeout(rafHandle as unknown as ReturnType<typeof setTimeout>);
+            rafHandle = null;
+          }
+          if (pendingContent) flushPendingContent();
         }
       } catch (err: any) {
         if (err.name === "AbortError") {
@@ -439,9 +487,9 @@ export function useJarvis() {
             const updated = [...prev];
             const last = updated[updated.length - 1];
             if (last?.role === "assistant" && !last.content) {
-              last.content = "*(Response stopped)*";
+              updated[updated.length - 1] = { ...last, content: "*(Response stopped)*" };
             } else if (last?.role === "assistant" && last.content) {
-              last.content += "\n\n*(Stopped)*";
+              updated[updated.length - 1] = { ...last, content: last.content + "\n\n*(Stopped)*" };
             }
             return updated;
           });
@@ -453,9 +501,10 @@ export function useJarvis() {
             if (last?.role === "assistant" && !last.content) {
               const msg = err.message || "";
               const isOversize = /character|too large|size/i.test(msg);
-              last.content = isOversize
+              const content = isOversize
                 ? `Sorry, the content is too large to process in one go. If you're uploading a large CSV file, try splitting it into smaller files and uploading each one separately. I can process up to 500KB per file.`
                 : `Sorry, I encountered an error: ${msg.replace(/\.+$/, "")}. Please try again.`;
+              updated[updated.length - 1] = { ...last, content };
             }
             return updated;
           });
