@@ -25,236 +25,177 @@ interface IndustryTemplateData {
 }
 
 const industryTemplates: Record<string, IndustryTemplateData> = {
-  Technology: {
-    portfolioName: "Digital Transformation Initiative",
-    portfolioDescription: "Strategic technology initiatives to modernize our infrastructure and capabilities",
+  "Capital Projects": {
+    portfolioName: "Capital Project Portfolio",
+    portfolioDescription: "Owner-side capital projects from front-end loading through execution and turnover",
     projects: [
       {
-        name: "Cloud Migration Project",
-        description: "Migrate legacy on-premises infrastructure to cloud platform",
-        status: "Execution",
+        name: "FEL 3 — Front-End Loading (Process Plant)",
+        description: "Mature project definition through FEED, Class 3 estimate, integrated L3 schedule, and external benchmarking ahead of FID.",
+        status: "Planning",
         priority: "High",
         health: "Green",
         milestones: [
-          { title: "Infrastructure Assessment Complete", description: "Complete inventory and assessment of current infrastructure" },
-          { title: "Migration Plan Approved", description: "Detailed migration plan reviewed and approved by stakeholders" },
-          { title: "Pilot Migration Complete", description: "First workload successfully migrated to cloud" },
+          { title: "FEED 30% Review Complete", description: "30% engineering deliverables reviewed and accepted" },
+          { title: "Class 3 Estimate Issued", description: "AACE Class 3 estimate (±15%) issued to sponsors" },
+          { title: "FID / Sanction Approved", description: "Final investment decision approved at stage gate" },
         ],
         risks: [
-          { title: "Data Migration Complexity", description: "Complex data dependencies may extend timeline", probability: "Medium", impact: "High" },
-          { title: "Service Disruption", description: "Potential downtime during cutover", probability: "Low", impact: "High" },
+          { title: "Long-Lead Equipment Slippage", description: "Vendor lead times for compressors / vessels could push the integrated schedule", probability: "Medium", impact: "High" },
+          { title: "Permit Delays", description: "Air / water permit approvals may extend the FEED-to-FID window", probability: "Medium", impact: "High" },
+          { title: "Estimate Accuracy", description: "Scope gaps could break the ±15% Class 3 accuracy band", probability: "Medium", impact: "High" },
         ],
         issues: [
-          { title: "Legacy API Compatibility", description: "Some legacy APIs not compatible with cloud environment", priority: "High", type: "Bug" },
+          { title: "PFD vs P&ID Mismatch", description: "Process flow updates not yet reflected in P&IDs — blocking 60% IDR", priority: "High", type: "Bug" },
         ],
       },
       {
-        name: "Mobile App Redesign",
-        description: "Redesign and modernize the customer-facing mobile application",
-        status: "Planning",
-        priority: "Medium",
-        health: "Yellow",
-        milestones: [
-          { title: "UX Research Complete", description: "User research and persona development finished" },
-          { title: "Design System Finalized", description: "New design system approved" },
-        ],
-        risks: [
-          { title: "User Adoption", description: "Users may resist significant UI changes", probability: "Medium", impact: "Medium" },
-        ],
-        issues: [],
-      },
-    ],
-  },
-  Healthcare: {
-    portfolioName: "Patient Care Excellence Program",
-    portfolioDescription: "Initiatives to improve patient outcomes and operational efficiency",
-    projects: [
-      {
-        name: "Electronic Health Records Upgrade",
-        description: "Upgrade EHR system to latest version with enhanced interoperability",
+        name: "EPC Execution — Process Plant",
+        description: "Detailed engineering, procurement, fabrication, construction, mechanical completion, and commissioning of a process plant.",
         status: "Execution",
         priority: "Critical",
         health: "Yellow",
         milestones: [
-          { title: "Vendor Selection Complete", description: "EHR vendor selected and contract signed" },
-          { title: "Staff Training Scheduled", description: "Training program developed and scheduled" },
-          { title: "Go-Live Preparation", description: "All systems ready for go-live" },
+          { title: "IFC Drawings Released", description: "Issued-for-construction package released to site" },
+          { title: "Major Equipment On-Site", description: "Rotating equipment, vessels, and switchgear delivered" },
+          { title: "Mechanical Completion", description: "Construction complete and ready for commissioning" },
+          { title: "Care, Custody & Control", description: "CCC transferred from EPC contractor to owner operations" },
         ],
         risks: [
-          { title: "HIPAA Compliance", description: "Data migration must maintain full HIPAA compliance", probability: "Low", impact: "Critical" },
-          { title: "Workflow Disruption", description: "New system may disrupt established clinical workflows", probability: "High", impact: "Medium" },
+          { title: "Productivity Below Plan", description: "Field labor productivity tracking below estimate baseline", probability: "High", impact: "High" },
+          { title: "Subcontractor Default", description: "Mechanical sub financial distress could force replacement mid-execution", probability: "Low", impact: "Critical" },
+          { title: "Commissioning Punch List Growth", description: "Late discovery items could extend RFSU window", probability: "Medium", impact: "Medium" },
         ],
         issues: [
-          { title: "Data Format Incompatibility", description: "Legacy data format needs conversion", priority: "High", type: "Task" },
-        ],
-      },
-      {
-        name: "Telehealth Expansion",
-        description: "Expand virtual care capabilities across all departments",
-        status: "Planning",
-        priority: "High",
-        health: "Green",
-        milestones: [
-          { title: "Platform Selection", description: "Telehealth platform evaluated and selected" },
-          { title: "Pilot Department Launch", description: "First department goes live with telehealth" },
-        ],
-        risks: [
-          { title: "Patient Digital Literacy", description: "Some patients may struggle with technology", probability: "Medium", impact: "Low" },
-        ],
-        issues: [],
-      },
-    ],
-  },
-  Finance: {
-    portfolioName: "Digital Banking Transformation",
-    portfolioDescription: "Strategic initiatives to modernize banking services and customer experience",
-    projects: [
-      {
-        name: "Core Banking System Modernization",
-        description: "Replace legacy core banking system with modern platform",
-        status: "Initiation",
-        priority: "Critical",
-        health: "Green",
-        milestones: [
-          { title: "Requirements Gathering Complete", description: "Business requirements documented and approved" },
-          { title: "Vendor Evaluation", description: "Core banking vendors evaluated" },
-          { title: "Architecture Design Approved", description: "Technical architecture finalized" },
-        ],
-        risks: [
-          { title: "Regulatory Compliance", description: "Must maintain compliance during transition", probability: "Medium", impact: "Critical" },
-          { title: "Data Integrity", description: "Transaction history must be preserved accurately", probability: "Low", impact: "Critical" },
-        ],
-        issues: [],
-      },
-      {
-        name: "Fraud Detection Enhancement",
-        description: "Implement AI-powered fraud detection system",
-        status: "Execution",
-        priority: "High",
-        health: "Green",
-        milestones: [
-          { title: "ML Model Training Complete", description: "Fraud detection models trained on historical data" },
-          { title: "Integration Testing", description: "System integrated with transaction processing" },
-        ],
-        risks: [
-          { title: "False Positives", description: "AI may flag legitimate transactions", probability: "High", impact: "Medium" },
-        ],
-        issues: [
-          { title: "Model Accuracy Below Target", description: "Current model accuracy at 94%, target is 97%", priority: "Medium", type: "Enhancement" },
+          { title: "RFI Backlog > 14 Days", description: "Engineering RFI response time exceeding contract SLA", priority: "High", type: "Task" },
         ],
       },
     ],
   },
-  Manufacturing: {
-    portfolioName: "Smart Factory Initiative",
-    portfolioDescription: "Industry 4.0 transformation for improved efficiency and quality",
+  "Project Controls": {
+    portfolioName: "Project Controls Excellence",
+    portfolioDescription: "Cost, schedule, change, and earned-value standards across the capital portfolio",
     projects: [
       {
-        name: "IoT Sensor Deployment",
-        description: "Deploy IoT sensors across production lines for real-time monitoring",
+        name: "Earned Value Management Rollout",
+        description: "Stand up EVM (PV / EV / AC, CPI, SPI, EAC, VAC) across the capital portfolio with monthly performance reporting.",
         status: "Execution",
         priority: "High",
         health: "Green",
         milestones: [
-          { title: "Sensor Selection Complete", description: "IoT sensor vendors evaluated and selected" },
-          { title: "Pilot Line Deployment", description: "First production line equipped with sensors" },
-          { title: "Data Platform Integration", description: "Sensor data flowing to analytics platform" },
+          { title: "Cost & Schedule Baselines Locked", description: "Performance measurement baselines (PMB) frozen for pilot projects" },
+          { title: "Monthly EVM Cycle Live", description: "First monthly CPI / SPI / EAC report issued to sponsors" },
+          { title: "Forecast (EAC) Reconciliation", description: "Bottom-up EAC reconciled to top-down EAC for all pilot projects" },
         ],
         risks: [
-          { title: "Network Bandwidth", description: "High data volume may strain network", probability: "Medium", impact: "Medium" },
+          { title: "% Complete Subjectivity", description: "Inconsistent earning rules across PMs distorts CPI / SPI", probability: "High", impact: "Medium" },
+          { title: "Source-System Data Gaps", description: "Actual cost feed from ERP missing commitments and accruals", probability: "Medium", impact: "High" },
         ],
-        issues: [],
+        issues: [
+          { title: "WBS Misaligned to Cost Codes", description: "Schedule WBS doesn't roll up cleanly to ERP cost codes", priority: "High", type: "Task" },
+        ],
       },
       {
-        name: "Predictive Maintenance System",
-        description: "Implement AI-driven predictive maintenance for critical equipment",
+        name: "Integrated Cost & Schedule Reporting",
+        description: "Build a single pane of glass: integrated L3 schedule, cost-loaded resources, change log, and risk-adjusted forecast.",
         status: "Planning",
         priority: "Medium",
         health: "Green",
         milestones: [
-          { title: "Historical Data Analysis", description: "Analyze equipment failure patterns" },
-          { title: "Prediction Model Development", description: "ML models developed for failure prediction" },
+          { title: "Reporting Standards Approved", description: "Owner reporting standards for cost / schedule / change documented" },
+          { title: "Pilot Dashboard Live", description: "Pilot project displaying integrated CPI / SPI / change / forecast" },
         ],
         risks: [
-          { title: "Data Quality", description: "Historical maintenance data may be incomplete", probability: "High", impact: "Medium" },
+          { title: "Schedule Quality (DCMA-14)", description: "Contractor schedules failing DCMA-14 metrics (logic, float, lags)", probability: "High", impact: "Medium" },
         ],
-        issues: [
-          { title: "Legacy Equipment Compatibility", description: "Some older machines lack monitoring capability", priority: "Low", type: "Task" },
-        ],
+        issues: [],
       },
     ],
   },
-  Retail: {
-    portfolioName: "Omnichannel Commerce Program",
-    portfolioDescription: "Unified customer experience across all shopping channels",
+  "Industrial Automation": {
+    portfolioName: "Industrial Automation Program",
+    portfolioDescription: "PLC / SCADA, robotics, IIoT, and OT cybersecurity projects across the plant",
     projects: [
       {
-        name: "E-commerce Platform Upgrade",
-        description: "Upgrade online shopping platform with modern features",
+        name: "PLC & SCADA Migration",
+        description: "Replace end-of-life PLCs and SCADA: code conversion, I/O rewire, HMI redevelopment, FAT, SAT, and phased cutover with minimal downtime.",
         status: "Execution",
         priority: "High",
         health: "Yellow",
         milestones: [
-          { title: "Platform Selection", description: "New e-commerce platform selected" },
-          { title: "Data Migration Complete", description: "Product catalog and customer data migrated" },
-          { title: "Soft Launch", description: "Platform launched to limited audience" },
+          { title: "Logic Redesign Complete", description: "PLC logic ported to target platform and peer-reviewed" },
+          { title: "Factory Acceptance Test Pass", description: "Simulated FAT signed off by ops and engineering" },
+          { title: "Site Acceptance Test Pass", description: "On-site loop checks and SAT complete" },
+          { title: "Hot Cutover Complete", description: "Production cut over within planned outage window" },
         ],
         risks: [
-          { title: "Peak Season Timing", description: "Launch must avoid holiday shopping season", probability: "Low", impact: "High" },
+          { title: "Cutover Window Overrun", description: "Hot cutover could exceed planned shutdown and impact production", probability: "Medium", impact: "High" },
+          { title: "I/O Mapping Errors", description: "Legacy as-built drawings out of date — wiring errors likely", probability: "High", impact: "Medium" },
+          { title: "Operator Familiarity", description: "New HMI screens require operator retraining before stable run", probability: "Medium", impact: "Medium" },
         ],
         issues: [
-          { title: "Payment Gateway Integration", description: "Legacy payment gateway needs custom integration", priority: "High", type: "Bug" },
+          { title: "Spare Parts Strategy Undefined", description: "Spares for new platform not yet stocked at site stores", priority: "Medium", type: "Task" },
         ],
       },
       {
-        name: "Inventory Visibility System",
-        description: "Real-time inventory visibility across all stores and warehouses",
+        name: "OT Cybersecurity Program (IEC 62443)",
+        description: "Stand up an OT cybersecurity program: passive asset inventory, zones & conduits, secure remote access, OT detection / SIEM, and IR playbooks.",
         status: "Planning",
-        priority: "Medium",
+        priority: "Critical",
         health: "Green",
         milestones: [
-          { title: "System Requirements Defined", description: "Requirements gathered from all stakeholders" },
-          { title: "RFID Pilot Complete", description: "RFID tracking tested in pilot store" },
+          { title: "OT Asset Inventory Baseline", description: "Passive discovery completed across plant networks" },
+          { title: "Zones & Conduits Designed", description: "ISA/IEC 62443 zones and conduits designed and reviewed" },
+          { title: "Secure Remote Access Live", description: "Vendor remote access routed through hardened jump host with MFA" },
         ],
         risks: [
-          { title: "Store Compliance", description: "Store staff adoption of new processes", probability: "Medium", impact: "Medium" },
+          { title: "Patch Window Constraints", description: "Patching OT endpoints requires coordinated production windows", probability: "High", impact: "Medium" },
+          { title: "Vendor Remote Access Sprawl", description: "Multiple OEM remote-access tools bypass corporate controls", probability: "High", impact: "High" },
         ],
         issues: [],
       },
     ],
   },
-  Consulting: {
-    portfolioName: "Client Delivery Excellence",
-    portfolioDescription: "Improve project delivery methodology and client satisfaction",
+  Construction: {
+    portfolioName: "Construction Delivery Program",
+    portfolioDescription: "Owner / GC delivery of vertical and horizontal construction across CSI MasterFormat divisions",
     projects: [
       {
-        name: "Project Management Standardization",
-        description: "Implement standardized PM methodology across all practices",
+        name: "Commercial Construction (CSI MasterFormat)",
+        description: "Owner / general contractor delivery of a commercial building: pre-construction, sitework, structure, envelope, MEP rough-in & trim, finishes, and turnover.",
         status: "Execution",
         priority: "High",
-        health: "Green",
+        health: "Yellow",
         milestones: [
-          { title: "Methodology Documentation", description: "PM methodology fully documented" },
-          { title: "Training Program Launched", description: "All PMs trained on new methodology" },
-          { title: "Tools Implementation", description: "PM tools deployed and configured" },
+          { title: "Notice to Proceed", description: "GMP signed and NTP issued to GC" },
+          { title: "Building Dried In", description: "Envelope complete — interior trades can mobilize" },
+          { title: "MEP Trim Out Complete", description: "MEP systems trimmed out and ready for T&B" },
+          { title: "Substantial Completion", description: "Certificate of occupancy issued and turnover to owner" },
         ],
         risks: [
-          { title: "Consultant Resistance", description: "Senior consultants may prefer existing methods", probability: "Medium", impact: "Medium" },
+          { title: "Submittal Backlog", description: "Long-lead submittal approvals slipping behind procurement plan", probability: "High", impact: "High" },
+          { title: "Weather Days", description: "Site is outdoor through structure / envelope phases — weather contingency at risk", probability: "High", impact: "Medium" },
+          { title: "Skilled Labor Availability", description: "Local market shortage of MEP skilled labor", probability: "Medium", impact: "High" },
         ],
-        issues: [],
+        issues: [
+          { title: "RFI #142 Open > 21 Days", description: "Structural connection RFI awaiting EOR response — holding steel detailer", priority: "High", type: "Task" },
+        ],
       },
       {
-        name: "Knowledge Management Platform",
-        description: "Centralized platform for sharing expertise and best practices",
+        name: "Highway Bridge Construction",
+        description: "DOT-led highway bridge: traffic management, foundations, substructure, superstructure erection, deck pour, and approach works.",
         status: "Planning",
         priority: "Medium",
         health: "Green",
         milestones: [
-          { title: "Platform Requirements Defined", description: "Knowledge management needs documented" },
-          { title: "Content Migration Plan", description: "Plan for migrating existing knowledge assets" },
+          { title: "Traffic Management Plan Approved", description: "DOT-approved TMP issued ahead of mobilization" },
+          { title: "Substructure Complete", description: "Piles, footings, abutments, and piers complete" },
+          { title: "Superstructure Erected", description: "Girders and diaphragms erected" },
+          { title: "Open to Traffic", description: "Punch list cleared and bridge opened to traffic" },
         ],
         risks: [
-          { title: "Content Quality", description: "Ensuring high-quality, current content", probability: "High", impact: "Low" },
+          { title: "Utility Relocation Delays", description: "Third-party utility relocations could delay foundation start", probability: "Medium", impact: "High" },
+          { title: "Concrete Pour Weather Window", description: "Deck pour requires temperature window — narrow seasonal window", probability: "Medium", impact: "Medium" },
         ],
         issues: [],
       },
@@ -552,12 +493,10 @@ export async function generateSampleDataForOrg(
 }
 
 export const SUPPORTED_ONBOARDING_INDUSTRIES = [
-  "Technology",
-  "Healthcare",
-  "Finance",
-  "Manufacturing",
-  "Retail",
-  "Consulting",
+  "Capital Projects",
+  "Project Controls",
+  "Industrial Automation",
+  "Construction",
 ] as const;
 
 export type SupportedOnboardingIndustry = typeof SUPPORTED_ONBOARDING_INDUSTRIES[number];

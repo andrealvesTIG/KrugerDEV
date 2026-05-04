@@ -4,16 +4,15 @@ import {
   FolderOpen,
   Briefcase,
   User2,
-  Cpu,
-  HeartPulse,
-  Landmark,
-  Factory,
-  ShoppingBag,
-  Users as UsersIcon,
+  Building2,
+  LineChart,
+  Bot,
+  HardHat,
   Sparkles,
   Compass,
   AlertTriangle,
   TrendingUp,
+  ClipboardList,
   Wallet,
 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -45,12 +44,10 @@ export const ONBOARDING_INDUSTRY_OPTIONS: Array<{
   message: string;
   icon: typeof Briefcase;
 }> = [
-  { key: "Technology", label: "Technology", message: "I work in Technology — I'd like to set up the workspace.", icon: Cpu },
-  { key: "Healthcare", label: "Healthcare", message: "I work in Healthcare — I'd like to set up the workspace.", icon: HeartPulse },
-  { key: "Finance", label: "Finance", message: "I work in Finance — I'd like to set up the workspace.", icon: Landmark },
-  { key: "Manufacturing", label: "Manufacturing", message: "I work in Manufacturing — I'd like to set up the workspace.", icon: Factory },
-  { key: "Retail", label: "Retail", message: "I work in Retail — I'd like to set up the workspace.", icon: ShoppingBag },
-  { key: "Consulting", label: "Consulting", message: "I work in Consulting — I'd like to set up the workspace.", icon: UsersIcon },
+  { key: "Capital Projects", label: "Capital Projects", message: "I work on Capital Projects (FEL / EPC / owner-side) — I'd like to set up the workspace.", icon: Building2 },
+  { key: "Project Controls", label: "Project Controls", message: "I work in Project Controls (cost, schedule, EVM) — I'd like to set up the workspace.", icon: LineChart },
+  { key: "Industrial Automation", label: "Industrial Automation", message: "I work in Industrial Automation (PLC / SCADA / OT) — I'd like to set up the workspace.", icon: Bot },
+  { key: "Construction", label: "Construction", message: "I work in Construction (GC / sub / owner) — I'd like to set up the workspace.", icon: HardHat },
   { key: "Other", label: "Something else", message: "My industry isn't listed — can you ask me a few questions to help set things up?", icon: Sparkles },
 ];
 
@@ -61,9 +58,10 @@ export const ONBOARDING_GOAL_OPTIONS: Array<{
   message: string;
   icon: typeof Briefcase;
 }> = [
-  { key: "portfolio", label: "Manage a portfolio of projects", message: "I want to manage a portfolio of projects across my team.", icon: Briefcase },
-  { key: "risks", label: "Track risks and issues", message: "I want to track risks and issues across my projects.", icon: AlertTriangle },
-  { key: "evm", label: "Run capital projects with EVM", message: "I want to run capital projects with earned value management.", icon: TrendingUp },
+  { key: "portfolio", label: "Manage a capital project portfolio", message: "I want to manage a portfolio of capital projects across my team.", icon: Briefcase },
+  { key: "controls", label: "Stand up project controls", message: "I want to stand up project controls — cost, schedule, change, and reporting.", icon: ClipboardList },
+  { key: "evm", label: "Run earned value (EVM / CPI / SPI)", message: "I want to run earned value management with CPI and SPI on my projects.", icon: TrendingUp },
+  { key: "risks", label: "Track risks, RFIs, and issues", message: "I want to track risks, RFIs, submittals, and issues across my projects.", icon: AlertTriangle },
   { key: "explore", label: "Just exploring", message: "I'm just exploring the app for now — show me what it can do.", icon: Compass },
 ];
 
@@ -104,7 +102,7 @@ export function OnboardingPrompts({ variant = "page", onPick }: OnboardingPrompt
       <div className={isPanel ? "text-center" : "text-center"}>
         <p className={greetingTitle}>Welcome — let's set up your workspace</p>
         <p className={greetingSubtitle}>
-          Tell me what industry you work in and what you're hoping to do, and I'll set up portfolios, projects, and starter content for you.
+          FridayReport.AI is built for capital projects, project controls, industrial automation, and construction. Pick the focus that fits best and I'll seed portfolios, projects, milestones, risks, and starter resources tuned to it.
         </p>
       </div>
 
