@@ -2079,6 +2079,10 @@ function isTransientOpenAIError(err: any): boolean {
 // into Anthropic's `tools` shape so the same JSON schemas drive both
 // providers. Cached once on first use — `jarvisTools` is a module-level
 // constant, so the conversion is purely deterministic.
+//
+// Exported (via `__testExports__` below) so unit tests can verify the
+// adapter preserves every tool definition without going through the
+// streaming code path.
 let cachedAnthropicJarvisTools: Anthropic.Tool[] | null = null;
 function getAnthropicJarvisTools(): Anthropic.Tool[] {
   if (cachedAnthropicJarvisTools) return cachedAnthropicJarvisTools;
@@ -3421,3 +3425,12 @@ export async function executeJarvisAction(
     return { success: false, message: err?.message || "Action failed unexpectedly." };
   }
 }
+
+// Test-only export surface. Exposed so unit tests can verify the
+// OpenAI→Anthropic tool-shape adapter and iterate the canonical tool
+// catalog without copy-pasting it. Not part of the public service API
+// — production callers continue to use `streamJarvisResponse`.
+export const __testExports__ = {
+  jarvisTools,
+  getAnthropicJarvisTools,
+};
