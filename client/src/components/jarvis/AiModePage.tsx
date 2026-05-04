@@ -29,6 +29,7 @@ import {
 } from "./jarvis-shared";
 import { useOrgSetupStatus } from "@/hooks/use-needs-org-setup";
 import { RecentChatsMenu } from "./RecentChatsMenu";
+import { SavedReportsMenu } from "./SavedReportsMenu";
 import AgentPicker from "./AgentPicker";
 import { useActiveAgentName } from "@/hooks/use-active-agent-name";
 import { useAgentSuggestedPrompts } from "@/hooks/use-agent-prompts";
@@ -337,6 +338,7 @@ export default function AiModePage() {
             align="end"
             alwaysVisibleLabel="Conversation History"
           />
+          <SavedReportsMenu align="end" alwaysVisibleLabel="Saved" />
           <ModeToggle />
           <ThemeToggle />
         </div>

@@ -10,6 +10,38 @@ import {
   type FridayReportData,
 } from "@/components/jarvis/FridayReportCard";
 
+interface ServerSavedReport {
+  id: number;
+  organizationId: number;
+  title: string;
+  subtitle: string | null;
+  generatedAt: string | null;
+  html: string;
+  createdAt: string;
+}
+
+async function fetchSavedReportFromServer(id: string): Promise<FridayReportData | null> {
+  // Server-persisted reports always have numeric ids; locally-stashed ones
+  // use a "r…" prefix. Skip the round-trip when the id obviously isn't a
+  // server id.
+  if (!/^\d+$/.test(id)) return null;
+  try {
+    const res = await fetch(`/api/jarvis/saved-reports/${id}`, {
+      credentials: "include",
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as ServerSavedReport;
+    return {
+      title: data.title,
+      subtitle: data.subtitle ?? undefined,
+      generatedAt: data.generatedAt ?? data.createdAt,
+      html: data.html,
+    };
+  } catch {
+    return null;
+  }
+}
+
 const PAGE_CSS = `
   .friday-report-fullview-body { color: hsl(var(--foreground)); font-size: 0.95rem; line-height: 1.6; }
   .friday-report-fullview-body h1 { font-size: 1.6rem; font-weight: 700; margin: 1.25rem 0 0.6rem; }
@@ -48,9 +80,24 @@ export default function FridayReportPage() {
       setNotFound(true);
       return;
     }
-    const r = readReportForFullView(id);
-    if (!r) setNotFound(true);
-    else setReport(r);
+    let cancelled = false;
+    // Try the local cache first — that path covers cards just opened from
+    // the chat panel and avoids a round-trip when the data is right there.
+    const local = readReportForFullView(id);
+    if (local) {
+      setReport(local);
+      return;
+    }
+    // Fall back to the server: links to saved reports must keep working
+    // after the browser session ends or in an entirely different browser.
+    fetchSavedReportFromServer(id).then((r) => {
+      if (cancelled) return;
+      if (r) setReport(r);
+      else setNotFound(true);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [params?.id]);
 
   const sanitized = useMemo(() => (report ? sanitizeReportHtml(report.html) : ""), [report]);

@@ -1,7 +1,10 @@
 import { useMemo, useState, useRef, useCallback } from "react";
 import DOMPurify from "dompurify";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useOrganization } from "@/hooks/use-organization";
+import { apiRequest } from "@/lib/queryClient";
 import {
   FileText,
   Copy,
@@ -11,6 +14,9 @@ import {
   ChevronDown,
   ChevronUp,
   AlertTriangle,
+  Bookmark,
+  BookmarkCheck,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -452,8 +458,12 @@ function FridayReportFallback({ report }: { report: FridayReportData }) {
 
 export function FridayReportCard({ report, variant = "panel" }: FridayReportCardProps) {
   const { toast } = useToast();
+  const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
+  const [savedReportId, setSavedReportId] = useState<number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
   const sanitized = useMemo(() => sanitizeReportHtml(report.html || ""), [report.html]);
@@ -512,8 +522,56 @@ export function FridayReportCard({ report, variant = "panel" }: FridayReportCard
   };
 
   const handleOpenFull = () => {
+    // If the report is already saved server-side, link directly to its
+    // permanent /friday-report/{numericId} URL — those resolve from the DB
+    // even after the local browser session ends or in another tab/device.
+    if (savedReportId) {
+      window.open(`/friday-report/${savedReportId}`, "_blank", "noopener");
+      return;
+    }
     const id = stashReportForFullView(report, sanitized);
     window.open(`/friday-report/${id}`, "_blank", "noopener");
+  };
+
+  const handleSave = async () => {
+    if (savedReportId || isSaving) return;
+    if (!currentOrganization?.id) {
+      toast({
+        title: "Couldn't save report",
+        description: "No active organization. Try refreshing the page.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const res = await apiRequest("POST", "/api/jarvis/saved-reports", {
+        organizationId: currentOrganization.id,
+        title: report.title || "Report",
+        subtitle: report.subtitle ?? null,
+        generatedAt: report.generatedAt ?? null,
+        // Persist the sanitized HTML so the saved copy is exactly what the
+        // user sees in the chat panel — no further rewriting on render.
+        html: sanitized || report.html,
+      });
+      const created = (await res.json()) as { id: number };
+      setSavedReportId(created.id);
+      queryClient.invalidateQueries({
+        queryKey: ["/api/jarvis/saved-reports", currentOrganization.id],
+      });
+      toast({
+        title: "Report saved",
+        description: "You can re-open it from the Saved Reports menu.",
+      });
+    } catch (err: unknown) {
+      toast({
+        title: "Save failed",
+        description: errorMessage(err),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handlePrint = () => {
@@ -625,6 +683,34 @@ export function FridayReportCard({ report, variant = "panel" }: FridayReportCard
           >
             <Download className="h-3 w-3 sm:mr-1" />
             <span className="hidden sm:inline">Download</span>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "h-7 px-2 text-xs",
+              savedReportId && "text-emerald-500 dark:text-emerald-400",
+            )}
+            onClick={handleSave}
+            disabled={isSaving || !!savedReportId || !currentOrganization?.id}
+            data-testid="friday-report-save"
+            title={
+              savedReportId
+                ? "Already saved — re-open from the Saved Reports menu"
+                : "Save this report to your organization"
+            }
+          >
+            {isSaving ? (
+              <Loader2 className="h-3 w-3 sm:mr-1 animate-spin" />
+            ) : savedReportId ? (
+              <BookmarkCheck className="h-3 w-3 sm:mr-1" />
+            ) : (
+              <Bookmark className="h-3 w-3 sm:mr-1" />
+            )}
+            <span className="hidden sm:inline">
+              {savedReportId ? "Saved" : isSaving ? "Saving…" : "Save"}
+            </span>
           </Button>
           <Button
             type="button"

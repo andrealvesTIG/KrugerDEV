@@ -30,6 +30,7 @@ import {
 } from "./jarvis-shared";
 import { useOrgSetupStatus } from "@/hooks/use-needs-org-setup";
 import { RecentChatsMenu } from "./RecentChatsMenu";
+import { SavedReportsMenu } from "./SavedReportsMenu";
 import AgentPicker from "./AgentPicker";
 import { useActiveAgentName } from "@/hooks/use-active-agent-name";
 import { useAgentSuggestedPrompts } from "@/hooks/use-agent-prompts";
@@ -449,6 +450,10 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                 size="sm"
                 alwaysVisibleLabel="Conversation History"
                 triggerClassName="text-cyan-300 hover:text-cyan-100 hover:bg-cyan-900/20"
+              />
+              <SavedReportsMenu
+                triggerClassName="text-cyan-300 hover:text-cyan-100 hover:bg-cyan-900/20"
+                alwaysVisibleLabel="Saved"
               />
               <Button
                 variant="ghost"

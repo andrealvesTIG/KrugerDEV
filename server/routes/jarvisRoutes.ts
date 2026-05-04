@@ -28,6 +28,12 @@ import {
   archiveConversation as fcArchive,
   deleteConversation as fcDelete,
 } from "../storage/fridayConversationStorage";
+import {
+  createSavedReport as srCreate,
+  listSavedReports as srList,
+  getSavedReport as srGet,
+  deleteSavedReport as srDelete,
+} from "../storage/fridaySavedReportStorage";
 
 const MAX_MESSAGES = 50;
 const MAX_MESSAGE_LENGTH = 200000;
@@ -518,6 +524,200 @@ export function registerJarvisRoutes(app: Express) {
     } catch (error: any) {
       console.error("[JARVIS] Delete conversation error:", error);
       res.status(500).json({ message: error.message || "Failed to delete conversation" });
+    }
+  });
+
+  // ----- Saved Reports (org-scoped, persistent rich HTML reports) -----
+
+  const MAX_SAVED_REPORT_HTML_BYTES = 1_000_000; // 1MB upper bound
+  const MAX_SAVED_REPORTS_PER_ORG = 200;
+  const saveReportSchema = z.object({
+    organizationId: z.number().int().positive(),
+    title: z.string().min(1).max(500),
+    subtitle: z.string().max(500).optional().nullable(),
+    generatedAt: z.string().datetime().optional().nullable(),
+    html: z.string().min(1).max(MAX_SAVED_REPORT_HTML_BYTES),
+  });
+
+  apiRoute(app, 'post', '/api/jarvis/saved-reports', {
+    tag: 'AI',
+    summary: 'Save a Friday report so it can be re-opened later',
+    requestBody: body({
+      type: 'object',
+      properties: {
+        organizationId: { type: 'integer' },
+        title: { type: 'string' },
+        subtitle: { type: 'string', nullable: true },
+        generatedAt: { type: 'string', format: 'date-time', nullable: true },
+        html: { type: 'string' },
+      },
+      required: ['organizationId', 'title', 'html'],
+    }),
+    responses: { ...r200('Created saved report', { type: 'object' }), ...inputRes, ...stdRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+
+      const parsed = saveReportSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
+      }
+      const { organizationId, title, subtitle, generatedAt, html } = parsed.data;
+
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      const role = await getUserOrgRole(userId, organizationId);
+      if (!role || role === "viewer") {
+        return res.status(403).json({ message: "You don't have permission to save reports in this organization" });
+      }
+
+      // Soft per-org cap to keep storage bounded.
+      const existing = await srList(organizationId, MAX_SAVED_REPORTS_PER_ORG + 1);
+      if (existing.length >= MAX_SAVED_REPORTS_PER_ORG) {
+        return res.status(409).json({
+          message: `This organization has reached the limit of ${MAX_SAVED_REPORTS_PER_ORG} saved reports. Delete some older reports before saving more.`,
+        });
+      }
+
+      const created = await srCreate({
+        organizationId,
+        savedByUserId: userId,
+        title,
+        subtitle: subtitle ?? null,
+        generatedAt: generatedAt ? new Date(generatedAt) : null,
+        html,
+      });
+
+      logUserActivity(userId, "friday_report_save", "friday_saved_report", created.id, {
+        title: created.title,
+      }, req).catch(() => {});
+
+      res.json({
+        id: created.id,
+        organizationId: created.organizationId,
+        title: created.title,
+        subtitle: created.subtitle,
+        generatedAt: created.generatedAt,
+        createdAt: created.createdAt,
+      });
+    } catch (error: any) {
+      console.error("[JARVIS] Save report error:", error);
+      res.status(500).json({ message: error.message || "Failed to save report" });
+    }
+  });
+
+  apiRoute(app, 'get', '/api/jarvis/saved-reports', {
+    tag: 'AI',
+    summary: 'List saved Friday reports for an organization',
+    responses: { ...r200('Saved reports', { type: 'array' }), ...stdRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const orgIdRaw = req.query.organizationId;
+      const organizationId = Number(Array.isArray(orgIdRaw) ? orgIdRaw[0] : orgIdRaw);
+      if (!Number.isFinite(organizationId) || organizationId <= 0) {
+        return res.status(400).json({ message: "organizationId is required" });
+      }
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      const reports = await srList(organizationId);
+      res.json(reports);
+    } catch (error: any) {
+      console.error("[JARVIS] List saved reports error:", error);
+      res.status(500).json({ message: error.message || "Failed to list saved reports" });
+    }
+  });
+
+  apiRoute(app, 'get', '/api/jarvis/saved-reports/:id', {
+    tag: 'AI',
+    summary: 'Fetch a saved Friday report (HTML payload included)',
+    responses: { ...r200('Saved report', { type: 'object' }), ...stdRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const id = Number(req.params.id);
+      const orgIdRaw = req.query.organizationId;
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ message: "Invalid id" });
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (accessibleOrgIds.length === 0) {
+        return res.status(403).json({ message: "You don't have access to this report" });
+      }
+
+      // The client may either pin to a specific org (via query param) or
+      // simply hit /saved-reports/:id and let the server resolve which of
+      // the user's orgs owns the report. Either way we reject reports the
+      // user has no membership in.
+      let report = null as Awaited<ReturnType<typeof srGet>> | null;
+      if (orgIdRaw !== undefined) {
+        const orgId = Number(Array.isArray(orgIdRaw) ? orgIdRaw[0] : orgIdRaw);
+        if (!Number.isFinite(orgId) || orgId <= 0) {
+          return res.status(400).json({ message: "Invalid organizationId" });
+        }
+        if (!accessibleOrgIds.includes(orgId)) {
+          return res.status(403).json({ message: "You don't have access to this organization" });
+        }
+        report = (await srGet(id, orgId)) ?? null;
+      } else {
+        for (const orgId of accessibleOrgIds) {
+          const found = await srGet(id, orgId);
+          if (found) {
+            report = found;
+            break;
+          }
+        }
+      }
+
+      if (!report) return res.status(404).json({ message: "Saved report not found" });
+      res.json(report);
+    } catch (error: any) {
+      console.error("[JARVIS] Get saved report error:", error);
+      res.status(500).json({ message: error.message || "Failed to load saved report" });
+    }
+  });
+
+  apiRoute(app, 'delete', '/api/jarvis/saved-reports/:id', {
+    tag: 'AI',
+    summary: 'Delete a saved Friday report',
+    responses: { ...r200('Deleted', { type: 'object' }), ...stdRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const id = Number(req.params.id);
+      const orgIdRaw = req.query.organizationId;
+      const organizationId = Number(Array.isArray(orgIdRaw) ? orgIdRaw[0] : orgIdRaw);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ message: "Invalid id" });
+      if (!Number.isFinite(organizationId) || organizationId <= 0) {
+        return res.status(400).json({ message: "organizationId is required" });
+      }
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      const role = await getUserOrgRole(userId, organizationId);
+      if (!role || role === "viewer") {
+        return res.status(403).json({ message: "You don't have permission to delete saved reports" });
+      }
+      const existing = await srGet(id, organizationId);
+      if (!existing) return res.status(404).json({ message: "Saved report not found" });
+      // Only the user who saved the report, or an org admin/owner, may delete.
+      const isAdmin = role === "owner" || role === "org_admin";
+      if (!isAdmin && existing.savedByUserId !== userId) {
+        return res.status(403).json({ message: "Only the user who saved this report (or an admin) can delete it" });
+      }
+      const deleted = await srDelete(id, organizationId);
+      if (!deleted) return res.status(404).json({ message: "Saved report not found" });
+      res.json({ ok: true, id: deleted.id });
+    } catch (error: any) {
+      console.error("[JARVIS] Delete saved report error:", error);
+      res.status(500).json({ message: error.message || "Failed to delete saved report" });
     }
   });
 

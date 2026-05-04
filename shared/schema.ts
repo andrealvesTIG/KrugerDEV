@@ -2097,6 +2097,26 @@ export const fridayMessages = pgTable("friday_messages", {
 export type FridayConversation = typeof fridayConversations.$inferSelect;
 export type FridayMessage = typeof fridayMessages.$inferSelect;
 
+// Friday Saved Reports - persisted rich HTML reports the user explicitly
+// saved from a Friday report card. Scoped to the organization so any member
+// can re-open a report shared with the team.
+export const fridaySavedReports = pgTable("friday_saved_reports", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id, { onDelete: "cascade" }).notNull(),
+  savedByUserId: varchar("saved_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  subtitle: text("subtitle"),
+  generatedAt: timestamp("generated_at"),
+  html: text("html").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  index("friday_saved_reports_org_idx").on(table.organizationId, table.createdAt),
+  index("friday_saved_reports_user_idx").on(table.savedByUserId),
+]);
+
+export type FridaySavedReport = typeof fridaySavedReports.$inferSelect;
+export type InsertFridaySavedReport = typeof fridaySavedReports.$inferInsert;
+
 // MPP Imports - Store imported Microsoft Project data
 export const mppImports = pgTable("mpp_imports", {
   id: serial("id").primaryKey(),
