@@ -309,8 +309,11 @@ export function useJarvis() {
   );
 
   const newConversation = useCallback(() => {
-    switchConversation(null);
-  }, [switchConversation]);
+    // Preserve the Onboarding pseudo-agent across "New chat" clicks. Custom
+    // agents survive automatically because activeAgentId is independent of
+    // the conversation, but onboarding lives only on `forceOnboarding`.
+    switchConversation(null, forceOnboarding ? { forceOnboarding: true } : undefined);
+  }, [switchConversation, forceOnboarding]);
 
   // Start a fresh conversation with the onboarding directive forced ON,
   // regardless of whether the org is auto-detected as empty. This powers the
