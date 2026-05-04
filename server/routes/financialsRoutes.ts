@@ -1,14 +1,13 @@
 import type { Express, Request } from "express";
-import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "../db";
-import { financialEntries, costItemChangeLogs, projects, portfolios, costItems, tasks } from "@shared/schema";
+import { financialEntries, costItemChangeLogs, projects, portfolios } from "@shared/schema";
 import { apiRoute, qInt, ref, r200, stdRes } from "../route-registry";
 import { storage } from "../storage";
 import { multiYearWbs } from "@shared/schema";
 import type { FinancialType } from "@shared/schema";
 import type { FinancialItemDimensions } from "../storage/financialStorage";
 import {
-  buildFiscalMonths,
   currentFiscalYear,
   fiscalSlotToCalendar,
   normalizeFiscalYearStartMonth,
@@ -19,6 +18,7 @@ import {
   isTeamMemberInOrg,
   getTeamMemberProjectIds,
 } from "./helpers";
+import { gatherProjectEvmSeries } from "../services/projectAnalytics";
 
 async function teamMemberCanAccessProject(userId: string, projectId: number, organizationId: number): Promise<boolean> {
   if (!await isTeamMemberInOrg(userId, organizationId)) return true;
@@ -901,131 +901,22 @@ export function registerFinancialsRoutes(app: Express) {
 
       const portfolioRows = await db.select().from(portfolios).where(eq(portfolios.organizationId, orgId));
 
-      const months = buildFiscalMonths(fiscalYear, fyStart);
+      // Time-phased EVM (BAC fallback, task-weighted % complete, EV
+      // distribution, EAC monthly synthesis, etc.) is delegated to
+      // `gatherProjectEvmSeries` so the dashboard and Friday's analytics
+      // helper share a single end-to-end pipeline. The route is responsible
+      // only for org-/portfolio-scoping, project metadata enrichment, and
+      // org-/portfolio-level rollups — not the EVM math itself.
+      const evmResult = await gatherProjectEvmSeries(
+        fyStart,
+        projectIds,
+        today,
+        { fiscalYear, includeEmpty: true },
+      );
+      const { months, asOfMonth } = evmResult;
+      const evmByProject = new Map<number, typeof evmResult.projects[number]>();
+      for (const e of evmResult.projects) evmByProject.set(e.projectId, e);
 
-      // Determine the "as-of" fiscal-month index (1..12). Months whose
-      // calendar end falls on/before today are considered actuals; future
-      // months become forecast projections.
-      const monthEnds = months.map(m => new Date(Date.UTC(m.year, m.month, 0)));
-      let asOfMonth = 0;
-      for (let i = 0; i < monthEnds.length; i++) {
-        if (today >= monthEnds[i]) asOfMonth = i + 1;
-        else break;
-      }
-      // If today is mid-month within the FY, also count the in-progress month.
-      const fyStartDate = new Date(Date.UTC(months[0].year, months[0].month - 1, 1));
-      const fyEndDate = monthEnds[11];
-      if (today >= fyStartDate && today < fyEndDate) {
-        const cur = today.getUTCMonth() + 1;
-        const curYear = today.getUTCFullYear();
-        const idx = months.findIndex(m => m.year === curYear && m.month === cur);
-        if (idx >= 0 && idx + 1 > asOfMonth) asOfMonth = idx + 1;
-      } else if (today >= fyEndDate) {
-        asOfMonth = 12;
-      }
-
-      // financial_entries is calendar-anchored: rows store (fiscal_year=calendar
-      // year, month=calendar month 1..12). To pull a fiscal year we have to
-      // match each of its 12 (year, month) calendar pairs and translate them
-      // back to a 1..12 fiscal-month index for charting.
-      const calPairs = months.map(m => ({ year: m.year, month: m.month }));
-      const calKey = (y: number, m: number) => `${y}-${m}`;
-      const calIndex = new Map<string, number>(); // calendar key → 0-based fiscal-month index
-      calPairs.forEach((p, i) => calIndex.set(calKey(p.year, p.month), i));
-
-      const allEntries = projectIds.length === 0 ? [] : await db
-        .select()
-        .from(financialEntries)
-        .where(and(
-          inArray(financialEntries.projectId, projectIds),
-          or(...calPairs.map(p => and(
-            eq(financialEntries.fiscalYear, p.year),
-            eq(financialEntries.month, p.month),
-          ))),
-        ));
-
-      // BAC per project from cost_items.aopTotal (authoritative budget when
-      // present), with a fallback to the AOP entries we already aggregate.
-      const costItemBac = projectIds.length === 0 ? [] : await db
-        .select({
-          projectId: costItems.projectId,
-          total: sql<string>`COALESCE(SUM(${costItems.aopTotal}::numeric), 0)`.as("total"),
-        })
-        .from(costItems)
-        .where(and(
-          inArray(costItems.projectId, projectIds),
-          eq(costItems.fiscalYear, fiscalYear),
-        ))
-        .groupBy(costItems.projectId);
-      // Use a Map to track *presence* of cost-item BAC, not just non-zero
-      // value. A project that has cost_items recorded for the FY (even if the
-      // sum is 0) is treated as having an authoritative budget; only projects
-      // with no cost_items at all fall back to summing AOP entries.
-      const bacFromCostItems = new Map<number, number>();
-      for (const r of costItemBac) bacFromCostItems.set(r.projectId, Number(r.total) || 0);
-
-      // Task-derived progress: weighted average of task.progress by
-      // estimatedHours, falling back to durationDays, then to a count weight.
-      // This becomes the project's effective % complete for EV when at least
-      // one of its tasks has a non-zero progress value (more accurate than the
-      // single project-level completionPercentage). Projects without any task
-      // progress fall back to the project-level value.
-      const taskProgressByProject = new Map<number, number>();
-      if (projectIds.length > 0) {
-        const taskRows = await db
-          .select({
-            projectId: tasks.projectId,
-            progress: tasks.progress,
-            estimatedHours: tasks.estimatedHours,
-            durationDays: tasks.durationDays,
-          })
-          .from(tasks)
-          .where(and(
-            inArray(tasks.projectId, projectIds),
-            isNull(tasks.deletedAt),
-          ));
-        const accum = new Map<number, { num: number; den: number; anyProgress: boolean }>();
-        for (const t of taskRows) {
-          if (t.progress == null) continue;
-          const w = Number(t.estimatedHours) || Number(t.durationDays) || 1;
-          if (!isFinite(w) || w <= 0) continue;
-          const cur = accum.get(t.projectId) ?? { num: 0, den: 0, anyProgress: false };
-          cur.num += w * Number(t.progress);
-          cur.den += w;
-          if (Number(t.progress) > 0) cur.anyProgress = true;
-          accum.set(t.projectId, cur);
-        }
-        for (const [pid, v] of accum.entries()) {
-          if (v.anyProgress && v.den > 0) {
-            taskProgressByProject.set(pid, v.num / v.den);
-          }
-        }
-      }
-
-      // Build per-project monthly buckets keyed by financial type, indexed by
-      // fiscal-month position 0..11.
-      type Buckets = Record<string, number[]>;
-      const perProject = new Map<number, Buckets>();
-      for (const pid of projectIds) perProject.set(pid, {});
-      for (const e of allEntries) {
-        const buckets = perProject.get(e.projectId);
-        if (!buckets) continue;
-        const idx = calIndex.get(calKey(e.fiscalYear, e.month));
-        if (idx === undefined) continue;
-        const arr = buckets[e.scenario] ?? (buckets[e.scenario] = Array(12).fill(0));
-        arr[idx] += Number(e.amount) || 0;
-      }
-
-      const sumArr = (a: number[] | undefined) => (a ? a.reduce((s, v) => s + v, 0) : 0);
-      const cumArr = (a: number[] | undefined) => {
-        const out = Array(12).fill(0);
-        if (!a) return out;
-        let acc = 0;
-        for (let i = 0; i < 12; i++) { acc += a[i] || 0; out[i] = acc; }
-        return out;
-      };
-
-      // EVM per project for the FY.
       type ProjectEvm = {
         projectId: number;
         name: string;
@@ -1037,183 +928,68 @@ export function registerFinancialsRoutes(app: Express) {
         endDate: string | null;
         actualStartDate: string | null;
         actualEndDate: string | null;
-        bac: number;       // total AOP for FY
-        ac: number;        // sum ACT to as-of
-        pv: number;        // cumulative AOP through as-of
-        ev: number;        // earned value to date
-        eacEntered: number;// sum of EAC entries for FY (informational only)
+        bac: number;
+        ac: number;
+        pv: number;
+        ev: number;
+        eacEntered: number;
         eacComputed: number;
-        vac: number;            // PMI VAC = bac - eacComputed (negative = over budget)
-        varianceVsBudget: number; // Grid-style variance = eacComputed - bac (positive = over budget)
+        vac: number;
+        varianceVsBudget: number;
         etc: number;
         cpi: number;
         spi: number;
-        // monthly cumulative arrays (length 12)
         pvCum: number[];
         acCum: number[];
         evCum: number[];
-        eacMonthly: number[]; // EAC values per month (not cumulative — useful for time-phased EAC)
+        eacMonthly: number[];
         eacCum: number[];
-        // monthly non-cumulative AC / AOP for cash-flow charts
         acMonthly: number[];
         pvMonthly: number[];
+        fcstMonthly: number[];
       };
 
+      const empty12 = () => Array<number>(12).fill(0);
       const projectEvm: ProjectEvm[] = visibleProjects.map(p => {
-        const b = perProject.get(p.id) ?? {};
-        const aopArr = b["aop"] ?? Array(12).fill(0);
-        const fcstArr = b["fcst"] ?? Array(12).fill(0);
-        const actArr = b["act"] ?? Array(12).fill(0);
-        const eacArr = b["eac"] ?? null;
-        const pvCum = cumArr(aopArr);
-        const acCum = cumArr(actArr);
-        // BAC: use summed monthly AOP entries (same source the project
-        // Financials grid uses), so the dashboard's BAC matches the AOP total
-        // shown on each project's own page by construction. Fall back to
-        // cost_items.aopTotal ONLY when no AOP entries exist for the FY at
-        // all — presence-based, NOT value-based. A project that legitimately
-        // has all its AOP buckets persisted as zero is still treated as
-        // having an authoritative monthly budget of zero (so BAC = 0), not
-        // as missing data. Only projects without any `aop` financial_entries
-        // row for the FY fall back to cost_items.aopTotal (e.g. legacy
-        // projects that captured budget via cost-item rows but never
-        // persisted monthly AOP). Previously we preferred cost_items first,
-        // which caused the dashboard to display values in a different
-        // scale/unit than the grid for MPP-imported projects (see task #46).
-        const hasAopEntries = b["aop"] !== undefined;
-        const bacEntries = sumArr(aopArr);
-        const bac = hasAopEntries
-          ? bacEntries
-          : (bacFromCostItems.get(p.id) ?? 0);
-        const acTotal = acCum[11];
-        // Prefer task-progress-derived %, fall back to project-level value.
-        const taskPc = taskProgressByProject.get(p.id);
-        const pcSource: 'task-weighted' | 'project-level' =
-          taskPc != null ? 'task-weighted' : 'project-level';
-        const pcRaw = taskPc != null ? taskPc : Number(p.completionPercentage ?? 0);
-        const pcFraction = Math.max(0, Math.min(1, pcRaw / 100));
-
-        // EV strategy:
-        //   PMI EVM defines EV as Σ(planned cost × % complete) per cost item
-        //   or work package. The current schema (`cost_items`) records
-        //   monthly AOP/FCST/ACT but does not carry a per-cost-item progress
-        //   percentage. We therefore use the documented PMI fallback:
-        //   project-level `completionPercentage` applied to BAC, distributed
-        //   across periods in proportion to that project's own planned (PV)
-        //   curve (a per-project — NOT global — distribution). This is
-        //   equivalent to Σ(cost_item.aopTotal × project_pc) when summed over
-        //   the project's cost items, and converges to the per-item formula
-        //   if/when item progress is added later.
-        const asOfIdx = Math.max(0, asOfMonth - 1);
-        const pvAtAsOf = asOfMonth > 0 ? pvCum[asOfIdx] : 0;
-        const evToDate = bac > 0 ? bac * pcFraction : 0;
-        const evCum = Array(12).fill(0);
-        for (let i = 0; i < 12; i++) {
-          if (asOfMonth === 0) { evCum[i] = 0; continue; }
-          if (i <= asOfIdx) {
-            evCum[i] = pvAtAsOf > 0
-              ? evToDate * (pvCum[i] / pvAtAsOf)
-              : evToDate * ((i + 1) / asOfMonth);
-          } else {
-            evCum[i] = evToDate;
-          }
-        }
-        const ev = asOfMonth > 0 ? evCum[asOfIdx] : 0;
-        const ac = asOfMonth > 0 ? acCum[asOfIdx] : 0;
-        const pv = pvAtAsOf;
-        const cpi = ac > 0 ? ev / ac : 1;
-        const spi = pv > 0 ? ev / pv : 1;
-        const eacEntered = eacArr ? sumArr(eacArr) : 0;
-        // EAC: always use the same bottoms-up "Actuals YTD + Forecast
-        // remaining" definition the project Financials grid uses, so the
-        // dashboard's EAC matches the EAC shown on each project's own page
-        // by construction. Previously the dashboard used `BAC / CPI` (a CPI
-        // projection that exploded when CPI was low) and would alternatively
-        // prefer summed `eac` entries when present — both paths could
-        // diverge from the grid. The grid's budget-mode variance never
-        // consults the optional `eac` type entries, so we don't either:
-        // `eacEntered` is still returned for backward compatibility but is
-        // NOT used to compute `eacComputed`. The CPI projection is still
-        // available as a separate metric in the Forecasting dashboard,
-        // where it is explicitly labeled "EAC (CPI)".
-        // Strict parity with the project grid's cutoff semantics:
-        //   asOfMonth === 0  → cutoff = -1 (FY hasn't started; no actuals,
-        //                       all 12 months are forecast)
-        //   asOfMonth === 12 → cutoff = 11 (FY is over; all 12 months are
-        //                       actuals, no forward forecast)
-        //   otherwise        → cutoff = asOfMonth - 1
-        const cutoffIdx = asOfMonth === 0 ? -1 : asOfIdx;
-        let actYTD = 0;
-        for (let i = 0; i <= cutoffIdx; i++) actYTD += actArr[i] || 0;
-        let fcstRemaining = 0;
-        for (let i = cutoffIdx + 1; i < 12; i++) fcstRemaining += fcstArr[i] || 0;
-        const eacComputed = actYTD + fcstRemaining;
-        // VAC follows PMI standard: positive = under budget (favorable),
-        // negative = over budget (unfavorable). The project Financials
-        // grid expresses the same relationship as `variance = eac - aop`
-        // (positive = over budget); the two values are exact negatives of
-        // each other, so a project that is "over budget" looks over budget
-        // in both views (red/destructive in both, magnitudes equal). The
-        // dashboard surfaces both signs explicitly via the `vac` field
-        // (PMI VAC) and the equal-magnitude `varianceVsBudget` field
-        // (matches the project grid's sign convention) so client UIs can
-        // pick whichever they want without a sign-flip translation.
-        const vac = bac - eacComputed;
-        const varianceVsBudget = eacComputed - bac;
-        const etc = Math.max(0, eacComputed - ac);
-
-        // EAC monthly curve for the "Forecast EAC" chart: prefer entered
-        // series when explicitly captured, otherwise synthesize a
-        // PMI-conformant curve = AC for past/current months + ETC distributed
-        // across future months in proportion to remaining AOP (PV). When no
-        // future AOP exists, spread ETC evenly across remaining months. This
-        // sums to the same `eacComputed` total used for VAC, so the chart's
-        // cumulative endpoint matches the EAC tile and per-project EAC value.
-        let eacMonthlyOut: number[];
-        if (eacArr && eacArr.some(v => Number(v) !== 0)) {
-          eacMonthlyOut = eacArr.slice();
-        } else {
-          eacMonthlyOut = Array(12).fill(0);
-          let futureAop = 0;
-          for (let i = 0; i < 12; i++) {
-            if (i < asOfMonth) eacMonthlyOut[i] = actArr[i] || 0;
-            else futureAop += aopArr[i] || 0;
-          }
-          const remainingMonths = Math.max(0, 12 - asOfMonth);
-          for (let i = asOfMonth; i < 12; i++) {
-            if (futureAop > 0) {
-              eacMonthlyOut[i] = etc * ((aopArr[i] || 0) / futureAop);
-            } else if (remainingMonths > 0) {
-              eacMonthlyOut[i] = etc / remainingMonths;
-            }
-          }
-        }
-        const eacCum = cumArr(eacMonthlyOut);
-
+        // Every project is in `evmByProject` because the route opts into
+        // `includeEmpty: true`; this fallback is purely defensive.
+        const e = evmByProject.get(p.id);
         return {
           projectId: p.id,
           name: p.name,
           portfolioId: p.portfolioId,
           status: p.status,
           health: p.health,
-          completionPercentage: pcRaw,
+          completionPercentage: e?.pcRaw ?? Number(p.completionPercentage ?? 0),
           startDate: p.startDate ? String(p.startDate) : null,
           endDate: p.endDate ? String(p.endDate) : null,
           actualStartDate: p.actualStartDate ? String(p.actualStartDate) : null,
           actualEndDate: p.actualEndDate ? String(p.actualEndDate) : null,
-          bac, ac, pv, ev, eacEntered, eacComputed, vac, varianceVsBudget, etc, cpi, spi,
-          pvCum, acCum, evCum,
-          eacMonthly: eacMonthlyOut,
-          eacCum,
-          acMonthly: actArr,
-          pvMonthly: aopArr,
+          bac: e?.bac ?? 0,
+          ac: e?.ac ?? 0,
+          pv: e?.pv ?? 0,
+          ev: e?.ev ?? 0,
+          eacEntered: e?.eacEntered ?? 0,
+          eacComputed: e?.eacComputed ?? 0,
+          vac: e?.vac ?? 0,
+          varianceVsBudget: e?.varianceVsBudget ?? 0,
+          etc: e?.etc ?? 0,
+          cpi: e?.cpi ?? 1,
+          spi: e?.spi ?? 1,
+          pvCum: e?.pvCum ?? empty12(),
+          acCum: e?.acCum ?? empty12(),
+          evCum: e?.evCum ?? empty12(),
+          eacMonthly: e?.eacMonthly ?? empty12(),
+          eacCum: e?.eacCum ?? empty12(),
+          acMonthly: e?.acMonthly ?? empty12(),
+          pvMonthly: e?.pvMonthly ?? empty12(),
+          fcstMonthly: e?.fcstMonthly ?? empty12(),
         };
       });
 
       // Org-wide series: sum monthly arrays across all visible projects.
       const series = months.map((m, i) => {
         let pvCum = 0, acCum = 0, evCum = 0, eacCum = 0;
-        let pv = 0, ac = 0, ev = 0;
         let pvMonthly = 0, acMonthly = 0, eacMonthly = 0, fcstMonthly = 0;
         for (const e of projectEvm) {
           pvCum += e.pvCum[i];
@@ -1223,10 +999,8 @@ export function registerFinancialsRoutes(app: Express) {
           pvMonthly += e.pvMonthly[i] || 0;
           acMonthly += e.acMonthly[i] || 0;
           eacMonthly += e.eacMonthly[i] || 0;
-          fcstMonthly += (perProject.get(e.projectId)?.["fcst"]?.[i] || 0);
+          fcstMonthly += e.fcstMonthly[i] || 0;
         }
-        // Past/current months: AC actuals are the spend curve. Future months:
-        // project remaining ETC across remaining months proportionally to AOP.
         const isFuture = (i + 1) > asOfMonth;
         return {
           monthNum: m.monthNum,

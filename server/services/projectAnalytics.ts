@@ -22,19 +22,37 @@ export interface ProjectEvmSeries {
   projectId: number;
   fiscalYear: number;
   asOfIndex: number; // -1 if FY hasn't started; otherwise 0..11
+  /** Effective % complete used for EV (0..100). Task-weighted when any task
+   *  reports progress, otherwise project-level completionPercentage. */
+  pcRaw: number;
   bac: number;
   ac: number;
   pv: number;
   ev: number;
+  eacEntered: number;
   eacComputed: number;
+  vac: number;
+  varianceVsBudget: number;
+  etc: number;
   cpi: number;
   spi: number;
+  // Monthly arrays (length 12) for chart series. NOT rounded — callers can
+  // round when serializing if compactness matters.
+  pvMonthly: number[];
+  acMonthly: number[];
+  fcstMonthly: number[];
+  eacMonthly: number[];
+  pvCum: number[];
+  acCum: number[];
+  evCum: number[];
+  eacCum: number[];
+  /** Rounded chart payload — convenient for compact JSON responses. */
   points: EvmMonthPoint[];
 }
 
-const sumArr = (a: number[] | undefined): number =>
+export const sumArr = (a: number[] | undefined): number =>
   a ? a.reduce((s, v) => s + v, 0) : 0;
-const cumArr = (a: number[] | undefined): number[] => {
+export const cumArr = (a: number[] | undefined): number[] => {
   const out = Array<number>(12).fill(0);
   if (!a) return out;
   let acc = 0;
@@ -44,6 +62,141 @@ const cumArr = (a: number[] | undefined): number[] => {
   }
   return out;
 };
+
+/**
+ * Inputs for the pure per-project EVM math. All monthly arrays are length 12,
+ * indexed 0..11 by fiscal-month position (i.e. position 0 is the first month
+ * of the fiscal year, regardless of calendar month).
+ */
+export interface ProjectEvmInputs {
+  aopMonthly: number[];
+  fcstMonthly: number[];
+  actMonthly: number[];
+  /** EAC entries from financial_entries, or null when no `eac` rows exist. */
+  eacMonthlyEntered: number[] | null;
+  /** Fallback BAC from cost_items.aopTotal, used only when `hasAopEntries` is false. */
+  bacFallback: number;
+  /** True iff there is at least one `aop` financial_entries row for the FY. */
+  hasAopEntries: boolean;
+  /** Effective % complete (0..100). Caller decides task-weighted vs project-level. */
+  pcRaw: number;
+  /** As-of fiscal-month index (0..12). 0 means the FY hasn't started. */
+  asOfMonth: number;
+}
+
+export interface ProjectEvmCompute {
+  bac: number;
+  ac: number;
+  pv: number;
+  ev: number;
+  cpi: number;
+  spi: number;
+  eacEntered: number;
+  eacComputed: number;
+  vac: number;
+  varianceVsBudget: number;
+  etc: number;
+  pvCum: number[];
+  acCum: number[];
+  evCum: number[];
+  eacMonthly: number[];
+  eacCum: number[];
+}
+
+/**
+ * Pure per-project EVM math. Single source of truth for both the per-org
+ * Financials → S-Curve dashboard route and the Friday analytics helper, so a
+ * future tweak (new EV strategy, new BAC source, etc.) only needs to be
+ * applied in one place. Keep this pure (no DB access, no I/O) — caller is
+ * responsible for assembling the per-project monthly buckets and scalars.
+ */
+export function computeProjectEvm(inp: ProjectEvmInputs): ProjectEvmCompute {
+  const { aopMonthly, fcstMonthly, actMonthly, eacMonthlyEntered, bacFallback,
+    hasAopEntries, pcRaw, asOfMonth } = inp;
+
+  const pvCum = cumArr(aopMonthly);
+  const acCum = cumArr(actMonthly);
+
+  // BAC: presence-based fallback. Use AOP-entry sum when any `aop` row exists
+  // (matches the project Financials grid by construction); otherwise fall back
+  // to cost_items.aopTotal. A project that legitimately has all AOP buckets
+  // persisted as zero is still treated as having a budget of zero.
+  const bacEntries = sumArr(aopMonthly);
+  const bac = hasAopEntries ? bacEntries : bacFallback;
+
+  const pcFraction = Math.max(0, Math.min(1, pcRaw / 100));
+
+  // EV strategy: PMI-conformant fallback — project-level % complete applied to
+  // BAC, distributed across periods in proportion to the project's own planned
+  // (PV) curve. Equivalent to Σ(cost_item.aopTotal × project_pc) when summed.
+  const asOfIdx = Math.max(0, asOfMonth - 1);
+  const pvAtAsOf = asOfMonth > 0 ? pvCum[asOfIdx] : 0;
+  const evToDate = bac > 0 ? bac * pcFraction : 0;
+  const evCum = Array<number>(12).fill(0);
+  for (let i = 0; i < 12; i++) {
+    if (asOfMonth === 0) { evCum[i] = 0; continue; }
+    if (i <= asOfIdx) {
+      evCum[i] = pvAtAsOf > 0
+        ? evToDate * (pvCum[i] / pvAtAsOf)
+        : evToDate * ((i + 1) / asOfMonth);
+    } else {
+      evCum[i] = evToDate;
+    }
+  }
+  const ev = asOfMonth > 0 ? evCum[asOfIdx] : 0;
+  const ac = asOfMonth > 0 ? acCum[asOfIdx] : 0;
+  const pv = pvAtAsOf;
+  const cpi = ac > 0 ? ev / ac : 1;
+  const spi = pv > 0 ? ev / pv : 1;
+
+  const eacEntered = eacMonthlyEntered ? sumArr(eacMonthlyEntered) : 0;
+
+  // EAC: bottoms-up "Actuals YTD + Forecast remaining" — same definition the
+  // project Financials grid uses, so dashboard and grid match by construction.
+  // Strict cutoff semantics:
+  //   asOfMonth === 0  → cutoff = -1 (FY not started; all 12 months forecast)
+  //   asOfMonth === 12 → cutoff = 11 (FY over; all 12 months actuals)
+  //   otherwise        → cutoff = asOfMonth - 1
+  const cutoffIdx = asOfMonth === 0 ? -1 : asOfIdx;
+  let actYTD = 0;
+  for (let i = 0; i <= cutoffIdx; i++) actYTD += actMonthly[i] || 0;
+  let fcstRemaining = 0;
+  for (let i = cutoffIdx + 1; i < 12; i++) fcstRemaining += fcstMonthly[i] || 0;
+  const eacComputed = actYTD + fcstRemaining;
+  const vac = bac - eacComputed;
+  const varianceVsBudget = eacComputed - bac;
+  const etc = Math.max(0, eacComputed - ac);
+
+  // EAC monthly curve: prefer entered series when explicitly captured;
+  // otherwise synthesize AC for past/current months + ETC distributed across
+  // future months in proportion to remaining AOP. Sums to `eacComputed`.
+  let eacMonthly: number[];
+  if (eacMonthlyEntered && eacMonthlyEntered.some(v => Number(v) !== 0)) {
+    eacMonthly = eacMonthlyEntered.slice();
+  } else {
+    eacMonthly = Array<number>(12).fill(0);
+    let futureAop = 0;
+    for (let i = 0; i < 12; i++) {
+      if (i < asOfMonth) eacMonthly[i] = actMonthly[i] || 0;
+      else futureAop += aopMonthly[i] || 0;
+    }
+    const remainingMonths = Math.max(0, 12 - asOfMonth);
+    for (let i = asOfMonth; i < 12; i++) {
+      if (futureAop > 0) {
+        eacMonthly[i] = etc * ((aopMonthly[i] || 0) / futureAop);
+      } else if (remainingMonths > 0) {
+        eacMonthly[i] = etc / remainingMonths;
+      }
+    }
+  }
+  const eacCum = cumArr(eacMonthly);
+
+  return {
+    bac, ac, pv, ev, cpi, spi,
+    eacEntered, eacComputed, vac, varianceVsBudget, etc,
+    pvCum, acCum, evCum, eacMonthly, eacCum,
+  };
+}
 
 // Local row shapes — kept narrow so we don't have to lean on Drizzle's full
 // $inferSelect for the few columns we actually consume.
@@ -72,6 +225,7 @@ export async function gatherProjectEvmSeries(
   fiscalYearStartMonth: number,
   projectIds: number[],
   today: Date = new Date(),
+  options: { fiscalYear?: number; includeEmpty?: boolean } = {},
 ): Promise<{
   fiscalYear: number;
   asOfMonth: number;
@@ -79,14 +233,13 @@ export async function gatherProjectEvmSeries(
   projects: ProjectEvmSeries[];
 }> {
   const fyStart = normalizeFiscalYearStartMonth(fiscalYearStartMonth);
-  const fiscalYear = currentFiscalYear(today, fyStart);
+  const fiscalYear = options.fiscalYear ?? currentFiscalYear(today, fyStart);
+  const includeEmpty = options.includeEmpty ?? false;
   const months = buildFiscalMonths(fiscalYear, fyStart);
 
-  if (projectIds.length === 0) {
-    return { fiscalYear, asOfMonth: 0, months, projects: [] };
-  }
-
-  // as-of fiscal-month index (1..12). Same logic as financialsRoutes.
+  // as-of fiscal-month index (1..12). Computed before the empty-projects
+  // early return so the dashboard route can rely on a correct asOfMonth even
+  // for orgs/portfolios with no projects.
   const monthEnds = months.map(m => new Date(Date.UTC(m.year, m.month, 0)));
   let asOfMonth = 0;
   for (let i = 0; i < monthEnds.length; i++) {
@@ -102,6 +255,10 @@ export async function gatherProjectEvmSeries(
     if (idx >= 0 && idx + 1 > asOfMonth) asOfMonth = idx + 1;
   } else if (today >= fyEndDate) {
     asOfMonth = 12;
+  }
+
+  if (projectIds.length === 0) {
+    return { fiscalYear, asOfMonth, months, projects: [] };
   }
 
   const calPairs = months.map(m => ({ year: m.year, month: m.month }));
@@ -203,91 +360,60 @@ export async function gatherProjectEvmSeries(
     const fcstArr = b["fcst"] ?? Array<number>(12).fill(0);
     const actArr = b["act"] ?? Array<number>(12).fill(0);
     const eacArr = b["eac"] ?? null;
-    const pvCum = cumArr(aopArr);
-    const acCum = cumArr(actArr);
-    const hasAopEntries = b["aop"] !== undefined;
-    const bacEntries = sumArr(aopArr);
-    const bac = hasAopEntries
-      ? bacEntries
-      : (bacFromCostItems.get(pid) ?? 0);
     const taskPc = taskProgressByProject.get(pid);
     const pcRaw = taskPc != null ? taskPc : (completionByProject.get(pid) ?? 0);
-    const pcFraction = Math.max(0, Math.min(1, pcRaw / 100));
 
-    const asOfIdx = Math.max(0, asOfMonth - 1);
-    const pvAtAsOf = asOfMonth > 0 ? pvCum[asOfIdx] : 0;
-    const evToDate = bac > 0 ? bac * pcFraction : 0;
-    const evCum = Array<number>(12).fill(0);
-    for (let i = 0; i < 12; i++) {
-      if (asOfMonth === 0) { evCum[i] = 0; continue; }
-      if (i <= asOfIdx) {
-        evCum[i] = pvAtAsOf > 0
-          ? evToDate * (pvCum[i] / pvAtAsOf)
-          : evToDate * ((i + 1) / asOfMonth);
-      } else {
-        evCum[i] = evToDate;
-      }
-    }
-    const ev = asOfMonth > 0 ? evCum[asOfIdx] : 0;
-    const ac = asOfMonth > 0 ? acCum[asOfIdx] : 0;
-    const pv = pvAtAsOf;
-    const cpi = ac > 0 ? ev / ac : 1;
-    const spi = pv > 0 ? ev / pv : 1;
+    const evm = computeProjectEvm({
+      aopMonthly: aopArr,
+      fcstMonthly: fcstArr,
+      actMonthly: actArr,
+      eacMonthlyEntered: eacArr,
+      bacFallback: bacFromCostItems.get(pid) ?? 0,
+      hasAopEntries: b["aop"] !== undefined,
+      pcRaw,
+      asOfMonth,
+    });
 
-    const cutoffIdx = asOfMonth === 0 ? -1 : asOfIdx;
-    let actYTD = 0;
-    for (let i = 0; i <= cutoffIdx; i++) actYTD += actArr[i] || 0;
-    let fcstRemaining = 0;
-    for (let i = cutoffIdx + 1; i < 12; i++) fcstRemaining += fcstArr[i] || 0;
-    const eacComputed = actYTD + fcstRemaining;
-    const etc = Math.max(0, eacComputed - ac);
-
-    let eacMonthlyOut: number[];
-    if (eacArr && eacArr.some((v: number) => Number(v) !== 0)) {
-      eacMonthlyOut = eacArr.slice();
-    } else {
-      eacMonthlyOut = Array<number>(12).fill(0);
-      let futureAop = 0;
-      for (let i = 0; i < 12; i++) {
-        if (i < asOfMonth) eacMonthlyOut[i] = actArr[i] || 0;
-        else futureAop += aopArr[i] || 0;
-      }
-      const remainingMonths = Math.max(0, 12 - asOfMonth);
-      for (let i = asOfMonth; i < 12; i++) {
-        if (futureAop > 0) {
-          eacMonthlyOut[i] = etc * ((aopArr[i] || 0) / futureAop);
-        } else if (remainingMonths > 0) {
-          eacMonthlyOut[i] = etc / remainingMonths;
-        }
-      }
-    }
-    const eacCum = cumArr(eacMonthlyOut);
-
-    // Skip projects with no plottable EVM data at all.
-    if (bac === 0 && acCum[11] === 0 && pvCum[11] === 0) continue;
+    // Skip projects with no plottable EVM data at all (Friday's chart panel
+    // doesn't want a flat line; the dashboard route opts back in via
+    // `includeEmpty: true` so org admins still see every project row).
+    if (!includeEmpty && evm.bac === 0 && evm.acCum[11] === 0 && evm.pvCum[11] === 0) continue;
 
     const points: EvmMonthPoint[] = months.map((m, i) => ({
       monthNum: m.monthNum,
       label: m.label,
       year: m.year,
       month: m.month,
-      pvCum: Math.round(pvCum[i]),
-      evCum: Math.round(evCum[i]),
-      acCum: Math.round(acCum[i]),
-      eacCum: Math.round(eacCum[i]),
+      pvCum: Math.round(evm.pvCum[i]),
+      evCum: Math.round(evm.evCum[i]),
+      acCum: Math.round(evm.acCum[i]),
+      eacCum: Math.round(evm.eacCum[i]),
     }));
 
     out.push({
       projectId: pid,
       fiscalYear,
-      asOfIndex: asOfMonth > 0 ? asOfIdx : -1,
-      bac: Math.round(bac),
-      ac: Math.round(ac),
-      pv: Math.round(pv),
-      ev: Math.round(ev),
-      eacComputed: Math.round(eacComputed),
-      cpi: Math.round(cpi * 100) / 100,
-      spi: Math.round(spi * 100) / 100,
+      asOfIndex: asOfMonth > 0 ? Math.max(0, asOfMonth - 1) : -1,
+      pcRaw,
+      bac: evm.bac,
+      ac: evm.ac,
+      pv: evm.pv,
+      ev: evm.ev,
+      eacEntered: evm.eacEntered,
+      eacComputed: evm.eacComputed,
+      vac: evm.vac,
+      varianceVsBudget: evm.varianceVsBudget,
+      etc: evm.etc,
+      cpi: evm.cpi,
+      spi: evm.spi,
+      pvMonthly: aopArr,
+      acMonthly: actArr,
+      fcstMonthly: fcstArr,
+      eacMonthly: evm.eacMonthly,
+      pvCum: evm.pvCum,
+      acCum: evm.acCum,
+      evCum: evm.evCum,
+      eacCum: evm.eacCum,
       points,
     });
   }
