@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import {
-  User,
+  User as UserIcon,
   Mail,
   CreditCard,
   Building2,
@@ -22,16 +22,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
+type AvatarSource = Pick<
+  NonNullable<ReturnType<typeof useAuth>["user"]>,
+  "avatarUrl" | "profileImageUrl" | "firstName"
+>;
+
 type AvatarDisplay =
   | { type: "image"; url: string }
   | { type: "emoji"; emoji: string }
   | { type: "fallback" };
 
-function getAvatarDisplay(user: {
-  avatarUrl?: string | null;
-  profileImageUrl?: string | null;
-  firstName?: string | null;
-} | null | undefined): AvatarDisplay {
+function getAvatarDisplay(user: AvatarSource | null | undefined): AvatarDisplay {
   const avatarUrl = user?.avatarUrl;
   if (!avatarUrl) {
     if (user?.profileImageUrl) return { type: "image", url: user.profileImageUrl };
@@ -48,12 +49,12 @@ function getAvatarDisplay(user: {
 interface UserMenuItem {
   name: string;
   href: string;
-  icon: typeof User;
+  icon: typeof UserIcon;
   superAdminOnly?: boolean;
 }
 
 const baseMenuItems: UserMenuItem[] = [
-  { name: "Profile", href: "/profile", icon: User },
+  { name: "Profile", href: "/profile", icon: UserIcon },
   { name: "Scheduled Reports", href: "/scheduled-reports", icon: Mail },
   { name: "Billing", href: "/billing", icon: CreditCard },
   { name: "Org Settings", href: "/org-settings", icon: Building2 },
@@ -61,12 +62,9 @@ const baseMenuItems: UserMenuItem[] = [
 ];
 
 interface UserMenuProps {
-  /**
-   * When true, navigation items first exit AI Mode (so the destination route
-   * is actually visible behind the AI Mode overlay) before routing.
-   */
+  // When true, navigate items first exit AI Mode before routing so the
+  // destination page becomes visible behind the overlay.
   exitAiModeOnNavigate?: boolean;
-  /** Show the user's first name + chevron next to the avatar (default true). */
   showName?: boolean;
 }
 
@@ -77,8 +75,9 @@ export function UserMenu({ exitAiModeOnNavigate = false, showName = true }: User
   const [open, setOpen] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
 
-  const isTeamMember = (user as any)?.role === "team_member";
-  const isSuperAdmin = (user as any)?.role === "super_admin" || (user as any)?.role === "marketing";
+  const role = user?.role;
+  const isTeamMember = role === "team_member";
+  const isSuperAdmin = role === "super_admin" || role === "marketing";
 
   const handleNavigate = (href: string) => {
     setOpen(false);
@@ -97,12 +96,12 @@ export function UserMenu({ exitAiModeOnNavigate = false, showName = true }: User
 
   const visibleItems = baseMenuItems.filter(item => {
     if (item.superAdminOnly && !isSuperAdmin) return false;
-    if (item.href === "/billing" && (currentOrganization as any)?.billingHidden && !isSuperAdmin) return false;
+    if (item.href === "/billing" && currentOrganization?.billingHidden && !isSuperAdmin) return false;
     if (isTeamMember && (item.href === "/org-settings" || item.href === "/billing" || item.href === "/scheduled-reports")) return false;
     return true;
   });
 
-  const display = getAvatarDisplay(user as any);
+  const display = getAvatarDisplay(user);
   const initial = user?.firstName?.[0] || user?.email?.[0]?.toUpperCase() || "U";
 
   return (
@@ -152,8 +151,8 @@ export function UserMenu({ exitAiModeOnNavigate = false, showName = true }: User
       <DropdownMenuContent
         align="end"
         sideOffset={8}
-        // AI Mode renders at z-[200], so the default z-50 on Radix portals
-        // would put this menu behind the overlay. Bump above z-200.
+        // AiModePage renders at z-[200], so the default Radix z-50 would put
+        // this menu behind the overlay. Bump above 200.
         className="w-60 z-[300]"
         data-testid="menu-user-ai"
       >

@@ -286,9 +286,6 @@ function Router() {
   );
 }
 
-// Tiny invisible component that hydrates the global AI Mode state from the
-// server's per-user `uiPreferences.aiMode` once the auth payload resolves.
-// Lives inside QueryClientProvider so it can subscribe to the query cache.
 function AiModeHydrator() {
   useAiModeServerSync();
   return null;

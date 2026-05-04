@@ -4,14 +4,10 @@ import type { User } from "@shared/models/auth";
 
 const STORAGE_KEY = "friday_ai_mode";
 
-// AI Mode is the default landing experience after login. We persist the user's
-// last-used mode in two places:
-//   - localStorage (instant, per-browser, used for the very first paint before
-//     the auth round-trip resolves)
-//   - server (`users.ui_preferences.aiMode`, follows the user across devices)
-//
-// On hydration the SERVER value wins, since it represents "the latest mode the
-// user was in last" anywhere. Toggling the mode writes to both places.
+// AI Mode is the default landing experience after login. It persists in two
+// places: localStorage for instant first paint, and the server (per-user
+// `ui_preferences.aiMode`) so the choice follows the user across devices.
+// Server wins on hydration; explicit user toggles update both.
 function loadInitial(): boolean {
   if (typeof window === "undefined") return true;
   try {
@@ -26,6 +22,7 @@ function loadInitial(): boolean {
 
 let globalAiMode: boolean = loadInitial();
 let hasHydratedFromServer = false;
+let hydratedForUserId: string | null = null;
 const listeners = new Set<(v: boolean) => void>();
 
 function persistLocal(value: boolean) {
@@ -52,16 +49,14 @@ async function persistServer(value: boolean): Promise<void> {
 export function setAiMode(value: boolean) {
   if (globalAiMode === value) return;
   globalAiMode = value;
-  // Once the user has explicitly toggled in this session, treat the local
-  // value as authoritative — don't let a stale server hydration overwrite it.
+  // Once the user has explicitly toggled, treat the local value as
+  // authoritative so a late server hydration doesn't overwrite it.
   hasHydratedFromServer = true;
   persistLocal(value);
   void persistServer(value);
   listeners.forEach(fn => fn(value));
 }
 
-// Internal: applied by the server-sync component when the auth payload first
-// resolves. Only takes effect once and only if the user hasn't already toggled.
 function applyServerValue(value: boolean) {
   if (hasHydratedFromServer) return;
   hasHydratedFromServer = true;
@@ -101,27 +96,19 @@ export function useAiModeEscapeHandler() {
   }, []);
 }
 
-// Tracks which user id the global state was last hydrated for. When the
-// authenticated user changes (logout → login as different user on the same
-// browser, no full reload), we reset the hydration guard so the new user's
-// server preference takes effect.
-let hydratedForUserId: string | null = null;
+type AuthUserWithPrefs = User & { uiPreferences?: { aiMode?: boolean } };
 
-// Mount once near the top of the React tree. Watches the cached auth user and,
-// the first time it sees a value, hydrates AI Mode from the server-side
-// `uiPreferences.aiMode` field. If the user has no stored preference yet
-// (first-ever login) AI Mode stays on by default.
+// Mount once near the top of the React tree. Watches the auth-user query and,
+// the first time it resolves for a given user id, hydrates AI Mode from the
+// server. On logout or different-user login the guard resets so the next
+// login hydrates fresh.
 export function useAiModeServerSync(): null {
   const queryClient = useQueryClient();
 
   useEffect(() => {
     const apply = () => {
-      const user = queryClient.getQueryData<(User & { uiPreferences?: { aiMode?: boolean } }) | null>([
-        "/api/auth/user",
-      ]);
+      const user = queryClient.getQueryData<AuthUserWithPrefs | null>(["/api/auth/user"]);
 
-      // User logged out (or session expired) — clear the guard so the next
-      // login can hydrate fresh from that user's server prefs.
       if (!user) {
         if (hydratedForUserId !== null) {
           hydratedForUserId = null;
@@ -130,22 +117,16 @@ export function useAiModeServerSync(): null {
         return;
       }
 
-      // Different user logged in on the same browser — reset and rehydrate.
-      const userId = user.id;
-      if (hydratedForUserId !== null && hydratedForUserId !== userId) {
+      if (hydratedForUserId !== null && hydratedForUserId !== user.id) {
         hasHydratedFromServer = false;
       }
       if (hasHydratedFromServer) return;
 
-      hydratedForUserId = userId;
+      hydratedForUserId = user.id;
       const serverValue = user.uiPreferences?.aiMode;
-      if (typeof serverValue === "boolean") {
-        applyServerValue(serverValue);
-      } else {
-        // No stored preference → keep the default (AI Mode on) AND mark
-        // hydration as complete so subsequent toggles aren't second-guessed.
-        applyServerValue(true);
-      }
+      // Missing server pref → keep the default (AI Mode on) and mark hydrated
+      // so subsequent toggles aren't second-guessed.
+      applyServerValue(typeof serverValue === "boolean" ? serverValue : true);
     };
 
     apply();

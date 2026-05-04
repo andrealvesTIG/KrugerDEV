@@ -24,8 +24,6 @@ async function loadPrefs(userId: string): Promise<UiPreferences> {
 }
 
 export function registerUiPreferenceRoutes(app: Express) {
-  // Read the current user's UI preferences. Returns `{}` for users who have
-  // never set anything; the client applies its own defaults (AI Mode on).
   app.get("/api/profile/ui-preferences", async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);
@@ -38,8 +36,8 @@ export function registerUiPreferenceRoutes(app: Express) {
     }
   });
 
-  // Merge-patch the current user's UI preferences. Only known keys are
-  // accepted; everything else is silently dropped.
+  // Merge-patch the caller's UI preferences. Unknown keys are silently
+  // dropped by sanitize().
   app.patch("/api/profile/ui-preferences", async (req, res) => {
     try {
       const userId = getUserIdFromRequest(req);

@@ -67,10 +67,8 @@ export const users = pgTable("users", {
   // Missing keys fall back to the catalog default (true) at read time.
   notificationPreferences: jsonb("notification_preferences").$type<Record<string, boolean>>().default({}),
 
-  // Per-user UI preferences that should follow the user across browsers/devices.
-  // Sparse — missing keys fall back to product defaults at read time.
-  //   - aiMode: last AI Mode state (true = AI Mode, false = standard layout).
-  //     When absent, AI Mode is the default for new/first-login users.
+  // Per-user UI preferences that follow the user across devices. Sparse —
+  // missing keys fall back to product defaults (AI Mode defaults on).
   uiPreferences: jsonb("ui_preferences").$type<{ aiMode?: boolean }>().default({}),
 
   createdAt: timestamp("created_at").defaultNow(),
