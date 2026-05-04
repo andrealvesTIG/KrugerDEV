@@ -35,6 +35,8 @@ import AgentPicker from "./AgentPicker";
 import { useActiveAgentName } from "@/hooks/use-active-agent-name";
 import { useAgentSuggestedPrompts } from "@/hooks/use-agent-prompts";
 import logoIcon from "@assets/image_1777744172216.png";
+import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
+import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
 import ThemedGif from "@/components/ui/themed-gif";
 import running_man from "@assets/runcycle18_1772300373437.gif";
 
@@ -400,11 +402,16 @@ export default function AiModePage() {
               transition={{ duration: 0.4 }}
               className="w-full max-w-2xl mx-auto text-center"
             >
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 ring-1 ring-border dark:ring-slate-700 mb-5 shadow-sm">
+              <div className="flex items-center justify-center mb-6">
                 <img
-                  src={logoIcon}
+                  src={logoBlack}
                   alt="FridayReport.AI"
-                  className="h-11 w-11 object-contain"
+                  className="block dark:hidden h-14 md:h-16 w-auto max-w-full object-contain mx-auto"
+                />
+                <img
+                  src={logoWhite}
+                  alt="FridayReport.AI"
+                  className="hidden dark:block h-14 md:h-16 w-auto max-w-full object-contain mx-auto"
                 />
               </div>
               <p
@@ -603,8 +610,8 @@ export default function AiModePage() {
                     ? `Ask about this ${pageContext.entityType}...`
                     : "Message Friday…")
               }
-              className="flex-1 min-h-[40px] max-h-[200px] resize-none border-0 bg-transparent px-2 py-2 text-sm focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
-              rows={1}
+              className="flex-1 min-h-[96px] max-h-[320px] resize-y border-0 bg-transparent px-2 py-2 text-sm focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
+              rows={4}
               disabled={isListening}
               data-testid="input-ai-message"
             />
