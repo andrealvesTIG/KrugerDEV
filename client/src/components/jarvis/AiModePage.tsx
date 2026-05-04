@@ -410,8 +410,9 @@ export default function AiModePage() {
               <p
                 className="text-xs font-semibold tracking-[0.25em] text-primary uppercase mb-2"
                 style={{ fontFamily: "'Outfit', sans-serif" }}
+                data-testid="text-ai-active-agent"
               >
-                Friday Agent
+                {activeAgentName}
               </p>
               {showOnboarding ? (
                 <OnboardingPrompts
