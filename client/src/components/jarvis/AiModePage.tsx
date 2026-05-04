@@ -10,6 +10,7 @@ import {
   Sparkles, Zap, Feather, ArrowRight, Plus,
 } from "lucide-react";
 import { ModeToggle } from "@/components/layout/ModeToggle";
+import { LandingFooter } from "@/components/layout/LandingFooter";
 import {
   Tooltip, TooltipContent, TooltipTrigger,
 } from "@/components/ui/tooltip";
@@ -56,6 +57,7 @@ export default function AiModePage() {
   const [micError, setMicError] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chunkQueueRef = useRef<Array<{ name: string; chunks: string[] }>>([]);
@@ -65,6 +67,19 @@ export default function AiModePage() {
     setAiMode(false);
     setTimeout(() => setLocation(path), 100);
   }, [setLocation]);
+
+  // When a link inside the embedded LandingFooter is clicked, exit AI mode
+  // first so the destination page is actually visible (otherwise the AI Mode
+  // overlay stays mounted on top of the new route). External links (target=
+  // _blank) are left alone.
+  const handleFooterNavCapture = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const anchor = (e.target as HTMLElement | null)?.closest("a");
+    if (!anchor) return;
+    if (anchor.target === "_blank") return;
+    const href = anchor.getAttribute("href") || "";
+    if (href.startsWith("http://") || href.startsWith("https://")) return;
+    setAiMode(false);
+  }, []);
 
   const handleVoiceResult = useCallback((transcript: string) => {
     setInterimText("");
@@ -95,9 +110,22 @@ export default function AiModePage() {
     else startListening();
   }, [isListening, startListening, stopListening]);
 
-  // Auto-scroll on new messages
+  // Auto-scroll on new messages — target the end-of-messages sentinel so the
+  // detailed footer below the conversation isn't pulled into view. When the
+  // conversation transitions to empty (new chat / switched to empty
+  // conversation), reset the scroll container to the top so the centered
+  // welcome/onboarding hero is actually visible and the footer stays below
+  // the fold until the user scrolls down.
   useEffect(() => {
-    if (scrollRef.current) {
+    if (messages.length === 0) {
+      if (scrollRef.current) {
+        scrollRef.current.scrollTop = 0;
+      }
+      return;
+    }
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ block: "end" });
+    } else if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
@@ -352,8 +380,9 @@ export default function AiModePage() {
 
       {/* Conversation surface */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
+        <div className="min-h-full flex flex-col">
         {!hasMessages ? (
-          <div className="min-h-full flex flex-col items-center justify-center px-4 py-10">
+          <div className="flex-1 flex flex-col items-center justify-center px-4 py-10">
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -407,7 +436,7 @@ export default function AiModePage() {
             </motion.div>
           </div>
         ) : (
-          <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-6">
+          <div className="flex-1 w-full max-w-3xl mx-auto px-4 md:px-6 py-6">
             {messages.map((msg, i) => (
               <MessageBubble
                 key={msg.id}
@@ -429,8 +458,13 @@ export default function AiModePage() {
                 </div>
               );
             })()}
+            <div ref={messagesEndRef} aria-hidden="true" />
           </div>
         )}
+          <div onClickCapture={handleFooterNavCapture}>
+            <LandingFooter />
+          </div>
+        </div>
       </div>
 
       {/* Composer */}
@@ -596,28 +630,6 @@ export default function AiModePage() {
           <p className="mt-2 text-[10px] text-muted-foreground dark:text-slate-400 text-center tracking-wide">
             AI-generated. Press <kbd className="px-1 py-0.5 rounded border border-border dark:border-slate-600 bg-muted dark:bg-slate-700 dark:text-slate-200 text-[10px]">Esc</kbd> to exit AI Mode.
           </p>
-
-          <div className="mt-2 flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-4">
-            <p className="text-[10px] text-muted-foreground">Copyright Friday Report LLC</p>
-            <div className="flex items-center gap-4">
-              <button
-                type="button"
-                onClick={() => handleNavigate("/terms")}
-                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                data-testid="link-ai-terms"
-              >
-                Terms of Service
-              </button>
-              <button
-                type="button"
-                onClick={() => handleNavigate("/privacy")}
-                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                data-testid="link-ai-privacy"
-              >
-                Privacy Statement
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
