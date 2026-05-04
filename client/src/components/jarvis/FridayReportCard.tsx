@@ -10,6 +10,7 @@ import {
   Copy,
   Printer,
   Download,
+  FileDown,
   ExternalLink,
   ChevronDown,
   ChevronUp,
@@ -247,6 +248,50 @@ const STANDALONE_CSS = `
   .friday-report-body img { max-width: 100%; height: auto; }
   @media print { .friday-report-shell { padding: 0.5in; max-width: none; } }
 `;
+
+function safeFilenamePart(s: string): string {
+  return (s || "report").replace(/[^a-z0-9_-]+/gi, "_").slice(0, 60) || "report";
+}
+
+export function buildReportPdfFilename(report: FridayReportData): string {
+  const dateSrc = report.generatedAt ? new Date(report.generatedAt) : new Date();
+  const date = isNaN(dateSrc.getTime()) ? new Date() : dateSrc;
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return `${safeFilenamePart(report.title)}_${yyyy}-${mm}-${dd}.pdf`;
+}
+
+export async function downloadReportAsPdf(report: FridayReportData): Promise<void> {
+  const res = await fetch("/api/jarvis/friday-report/pdf", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      title: report.title || "Report",
+      subtitle: report.subtitle || undefined,
+      generatedAt: report.generatedAt || undefined,
+      html: report.html || "",
+    }),
+  });
+  if (!res.ok) {
+    let message = `PDF export failed (${res.status})`;
+    try {
+      const j = await res.json();
+      if (j && typeof j.message === "string") message = j.message;
+    } catch { /* noop */ }
+    throw new Error(message);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = buildReportPdfFilename(report);
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 export function buildStandaloneReportHtml(report: FridayReportData, sanitizedHtml: string): string {
   const safeTitle = (report.title || "Report").replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] as string));
@@ -503,6 +548,8 @@ export function FridayReportCard({ report, variant = "panel" }: FridayReportCard
     }
   };
 
+  const [pdfBusy, setPdfBusy] = useState(false);
+
   const handleDownload = () => {
     try {
       const standalone = buildStandaloneReportHtml(report, sanitized);
@@ -518,6 +565,18 @@ export function FridayReportCard({ report, variant = "panel" }: FridayReportCard
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (err: unknown) {
       toast({ title: "Download failed", description: errorMessage(err), variant: "destructive" });
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      await downloadReportAsPdf(report);
+    } catch (err: unknown) {
+      toast({ title: "PDF export failed", description: errorMessage(err), variant: "destructive" });
+    } finally {
+      setPdfBusy(false);
     }
   };
 
@@ -683,6 +742,18 @@ export function FridayReportCard({ report, variant = "panel" }: FridayReportCard
           >
             <Download className="h-3 w-3 sm:mr-1" />
             <span className="hidden sm:inline">Download</span>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={handleDownloadPdf}
+            disabled={pdfBusy}
+            data-testid="friday-report-download-pdf"
+          >
+            <FileDown className="h-3 w-3 sm:mr-1" />
+            <span className="hidden sm:inline">{pdfBusy ? "Download PDF…" : "Download PDF"}</span>
           </Button>
           <Button
             type="button"

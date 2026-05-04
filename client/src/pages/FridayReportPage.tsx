@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Printer, Download, Copy } from "lucide-react";
+import { ArrowLeft, Printer, Download, FileDown, Copy } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   readReportForFullView,
   sanitizeReportHtml,
   buildStandaloneReportHtml,
+  downloadReportAsPdf,
   type FridayReportData,
 } from "@/components/jarvis/FridayReportCard";
 
@@ -73,6 +74,7 @@ export default function FridayReportPage() {
   const { toast } = useToast();
   const [report, setReport] = useState<FridayReportData | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   useEffect(() => {
     const id = params?.id;
@@ -121,6 +123,19 @@ export default function FridayReportPage() {
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!report || pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      await downloadReportAsPdf(report);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Could not export PDF.";
+      toast({ title: "PDF export failed", description: msg, variant: "destructive" });
+    } finally {
+      setPdfBusy(false);
+    }
   };
 
   const bodyTextRef = (() => {
@@ -207,6 +222,15 @@ export default function FridayReportPage() {
             </Button>
             <Button variant="outline" size="sm" onClick={handleDownload} data-testid="friday-report-fullview-download">
               <Download className="h-3.5 w-3.5 mr-1.5" /> Download
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadPdf}
+              disabled={pdfBusy}
+              data-testid="friday-report-fullview-download-pdf"
+            >
+              <FileDown className="h-3.5 w-3.5 mr-1.5" /> {pdfBusy ? "Download PDF…" : "Download PDF"}
             </Button>
           </div>
         </div>
