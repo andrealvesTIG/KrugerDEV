@@ -525,6 +525,7 @@ export function FridayReportCard({ report, variant = "panel" }: FridayReportCard
   const [overflowing, setOverflowing] = useState(false);
   const [savedReportId, setSavedReportId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [openingFull, setOpeningFull] = useState(false);
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
   const sanitized = useMemo(() => sanitizeReportHtml(report.html || ""), [report.html]);
@@ -596,20 +597,62 @@ export function FridayReportCard({ report, variant = "panel" }: FridayReportCard
     }
   };
 
-  const handleOpenFull = () => {
-    // If the report is already saved server-side, link directly to its
-    // permanent /friday-report/{numericId} URL — those resolve from the DB
-    // even after the local browser session ends or in another tab/device.
+  const handleOpenFull = async () => {
+    if (openingFull || isSaving) return;
+    // Already-saved reports have a stable, server-backed permalink that any
+    // tab on any device can resolve.
     if (savedReportId) {
       window.open(`/friday-report/${savedReportId}`, "_blank", "noopener");
       return;
     }
-    const id = stashReportForFullView(report, sanitized);
-    window.open(`/friday-report/${id}`, "_blank", "noopener");
+    // Open the popup synchronously to preserve the user-gesture popup
+    // permission, then navigate it once we know the destination URL.
+    // Without this, browsers block the window opened after `await`.
+    const popup = window.open("about:blank", "_blank");
+    if (!popup) {
+      // Popup blocker hit — fall back to the synchronous localStorage
+      // handoff path. Best-effort: works only when the new tab shares
+      // origin and has the entry in storage.
+      const id = stashReportForFullView(report, sanitized);
+      window.open(`/friday-report/${id}`, "_blank", "noopener");
+      return;
+    }
+    setOpeningFull(true);
+    try {
+      if (currentOrganization?.id) {
+        // Persist server-side first so the new tab can always re-load the
+        // report from `/api/jarvis/saved-reports/:id`, even when the
+        // localStorage handoff isn't available (cross-origin iframe,
+        // quota exceeded, original tab closed, different device).
+        const res = await apiRequest("POST", "/api/jarvis/saved-reports", {
+          organizationId: currentOrganization.id,
+          title: report.title || "Report",
+          subtitle: report.subtitle ?? null,
+          generatedAt: report.generatedAt ?? null,
+          html: sanitized || report.html,
+        });
+        const created = (await res.json()) as { id: number };
+        setSavedReportId(created.id);
+        queryClient.invalidateQueries({
+          queryKey: ["/api/jarvis/saved-reports", currentOrganization.id],
+        });
+        popup.location.href = `/friday-report/${created.id}`;
+        return;
+      }
+      // No active org → fall back to the localStorage stash so the user
+      // still gets something rather than a blank popup.
+      const id = stashReportForFullView(report, sanitized);
+      popup.location.href = `/friday-report/${id}`;
+    } catch {
+      const id = stashReportForFullView(report, sanitized);
+      popup.location.href = `/friday-report/${id}`;
+    } finally {
+      setOpeningFull(false);
+    }
   };
 
   const handleSave = async () => {
-    if (savedReportId || isSaving) return;
+    if (savedReportId || isSaving || openingFull) return;
     if (!currentOrganization?.id) {
       toast({
         title: "Couldn't save report",
@@ -780,7 +823,7 @@ export function FridayReportCard({ report, variant = "panel" }: FridayReportCard
               savedReportId && "text-emerald-500 dark:text-emerald-400",
             )}
             onClick={handleSave}
-            disabled={isSaving || !!savedReportId || !currentOrganization?.id}
+            disabled={isSaving || openingFull || !!savedReportId || !currentOrganization?.id}
             data-testid="friday-report-save"
             title={
               savedReportId
@@ -805,10 +848,15 @@ export function FridayReportCard({ report, variant = "panel" }: FridayReportCard
             size="sm"
             className="h-7 px-2 text-xs"
             onClick={handleOpenFull}
+            disabled={openingFull || isSaving}
             data-testid="friday-report-open-full"
           >
-            <ExternalLink className="h-3 w-3 sm:mr-1" />
-            <span className="hidden sm:inline">Open</span>
+            {openingFull ? (
+              <Loader2 className="h-3 w-3 sm:mr-1 animate-spin" />
+            ) : (
+              <ExternalLink className="h-3 w-3 sm:mr-1" />
+            )}
+            <span className="hidden sm:inline">{openingFull ? "Opening…" : "Open"}</span>
           </Button>
         </div>
       </div>
