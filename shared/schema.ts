@@ -2089,6 +2089,12 @@ export const fridayMessages = pgTable("friday_messages", {
   content: text("content").notNull(),
   attachments: jsonb("attachments").$type<Array<{ name: string; type: string; size: number }>>(),
   pageContext: jsonb("page_context").$type<{ path?: string; entityType?: string; entityId?: number | string }>(),
+  // Credits charged to produce this assistant reply, summed across every
+  // streaming round (and tool call) that contributed to it. Stored in
+  // hundredths of a credit so the value matches the credit ledger exactly
+  // (e.g. 300 = 3.00 credits). Null/0 on user messages and on legacy rows
+  // saved before per-reply credit tracking landed.
+  creditsUsed: integer("credits_used"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("friday_msg_conv_idx").on(table.conversationId, table.createdAt),

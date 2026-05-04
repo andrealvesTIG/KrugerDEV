@@ -63,12 +63,16 @@ export interface AiCreditContext {
  * Per-call credit metering hook for streaming endpoints. The route enforces
  * credits BEFORE each inner stream opens, runs `fn` (which returns the
  * stream object), and returns a `recordSuccess` callback the service must
- * invoke AFTER the stream completes successfully so failed streams aren't billed.
+ * invoke AFTER the stream completes successfully so failed streams aren't
+ * billed. `recordSuccess` resolves to the credits actually charged, in
+ * hundredths of a credit (matching the credit ledger), so the caller can
+ * sum across rounds and report a per-reply total. Returns 0 when no charge
+ * was recorded (e.g. user has no active subscription).
  */
 export type MeterPerCall = <T>(
   round: number,
   fn: () => Promise<T>,
-) => Promise<{ result: T; recordSuccess: () => Promise<void> }>;
+) => Promise<{ result: T; recordSuccess: () => Promise<number> }>;
 
 export class AiCreditsLimitError extends Error {
   readonly limitExceeded = true as const;
@@ -152,12 +156,14 @@ export async function enforceAiCredits(ctx: AiCreditContext): Promise<{ chargeUs
 export async function recordAiCredits(
   chargeUserId: string,
   ctx: AiCreditContext,
-): Promise<void> {
+): Promise<number> {
   const requestId = buildRequestId(ctx);
   // Pass requestId verbatim so callers that supply a stable `ctx.requestId`
   // get true idempotency across retries (the underlying usage_events table
-  // dedupes on requestId).
-  await recordCreditUsage(
+  // dedupes on requestId). Returns the credits actually charged in
+  // hundredths of a credit so streaming routes can report a per-reply
+  // total to the client.
+  return recordCreditUsage(
     chargeUserId,
     RESOURCE_TYPES.AI_RUN,
     requestId,

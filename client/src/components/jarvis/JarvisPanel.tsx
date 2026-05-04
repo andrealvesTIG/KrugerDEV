@@ -412,8 +412,12 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                     <span className="text-xs">{conciseMode ? "Brief" : "Detailed"}</span>
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p className="text-xs">{conciseMode ? "Short replies (click for detailed)" : "Detailed replies (click for brief)"}</p>
+                <TooltipContent side="bottom" className="max-w-[260px]">
+                  <p className="text-xs leading-relaxed">
+                    {conciseMode
+                      ? "Brief — short replies. Same per-round credit cost as Detailed, but Brief tends to use fewer credits per conversation because it does less work."
+                      : "Detailed — thorough replies. Same per-round credit cost as Brief, but Detailed tends to use more credits per conversation because it does more work."}
+                  </p>
                 </TooltipContent>
               </Tooltip>
               <Tooltip>

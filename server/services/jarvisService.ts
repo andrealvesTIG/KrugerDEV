@@ -2304,7 +2304,7 @@ CSV FILE IMPORT RULES:
       // Enforce credits BEFORE opening the stream; record only after the
       // stream completes successfully (see recordSuccess() below).
       let stream;
-      let recordSuccess: () => Promise<void>;
+      let recordSuccess: () => Promise<number>;
       try {
         const filteredTools = agentConfig
           ? jarvisTools.filter(t => t.type === "function" && agentConfig.allowedTools.includes(t.function.name))

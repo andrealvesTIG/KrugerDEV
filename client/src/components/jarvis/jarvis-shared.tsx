@@ -14,6 +14,7 @@ import {
   Compass,
   AlertTriangle,
   TrendingUp,
+  Wallet,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -717,6 +718,20 @@ function MessageBubbleImpl({ message, index, onNavigate, variant = "panel", onQu
     return null;
   }
 
+  // Friday stamps `creditsUsed` on completed assistant replies (in
+  // display credits, summed across every round). Show it as a small
+  // muted indicator under the bubble so users can see what each reply
+  // cost without leaving the chat. Hidden for user messages, missing
+  // values, and limit-exceeded errors (where creditsUsed is undefined).
+  const showCredits =
+    !isUser && typeof message.creditsUsed === "number" && message.creditsUsed > 0;
+  const creditsLabel = showCredits
+    ? `Used ${formatCredits(message.creditsUsed!)} credit${message.creditsUsed === 1 ? "" : "s"}`
+    : null;
+  const creditsClass = variant === "page"
+    ? "mt-0.5 ml-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground"
+    : "mt-0.5 ml-1 inline-flex items-center gap-1 text-[10px] text-slate-500";
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -725,29 +740,64 @@ function MessageBubbleImpl({ message, index, onNavigate, variant = "panel", onQu
       className={cn("flex gap-2 py-2", isUser ? "flex-row-reverse" : "flex-row")}
     >
       <div className={cn(
-        "min-w-0 rounded-lg px-4 py-2.5",
-        isUser ? userBubbleClass : assistantBubbleClass
+        "min-w-0",
+        isUser ? "" : "w-full",
       )}>
-        {isUser ? (
-          <div>
-            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-            {message.attachments && message.attachments.length > 0 && (
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {message.attachments.map(a => (
-                  <span key={a.name} className={attachmentChipClass}>
-                    <Paperclip className="h-2 w-2" />
-                    {a.name}
-                  </span>
-                ))}
-              </div>
-            )}
+        <div className={cn(
+          "min-w-0 rounded-lg px-4 py-2.5",
+          isUser ? userBubbleClass : assistantBubbleClass
+        )}>
+          {isUser ? (
+            <div>
+              <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+              {message.attachments && message.attachments.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {message.attachments.map(a => (
+                    <span key={a.name} className={attachmentChipClass}>
+                      <Paperclip className="h-2 w-2" />
+                      {a.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <MarkdownContent content={message.content} onNavigate={onNavigate} variant={variant} onQuickReply={onQuickReply} />
+          )}
+        </div>
+        {creditsLabel && (
+          <div
+            className={creditsClass}
+            data-testid={`text-friday-reply-credits-${index}`}
+            title="Credits charged for this reply, summed across every round and tool call. Matches the entry in your Billing ledger."
+          >
+            <Wallet className="h-2.5 w-2.5" />
+            {creditsLabel}
           </div>
-        ) : (
-          <MarkdownContent content={message.content} onNavigate={onNavigate} variant={variant} onQuickReply={onQuickReply} />
         )}
       </div>
     </motion.div>
   );
+}
+
+// Preserve the full ledger precision (credits are tracked in hundredths,
+// so up to 2 decimal places). Whole numbers render without a decimal
+// (e.g. "3"), fractional values render with the minimum decimals needed
+// to match the ledger exactly (e.g. "2.25", "0.5"). Uses toLocaleString
+// so larger numbers get a thousands separator.
+function formatCredits(value: number): string {
+  // Snap to the nearest hundredth to absorb any float jitter from the
+  // hundredths → display-credit divide on the wire, without ever
+  // rounding away meaningful precision the ledger recorded.
+  const rounded = Math.round(value * 100) / 100;
+  if (Number.isInteger(rounded)) return rounded.toLocaleString();
+  // Trim a trailing zero on tenth-precision values (2.50 → "2.5") while
+  // keeping true hundredth-precision values intact (2.25 → "2.25").
+  const oneDecimal = Math.round(rounded * 10) / 10 === rounded;
+  return rounded.toLocaleString(undefined, {
+    minimumFractionDigits: oneDecimal ? 1 : 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 // Memoize MessageBubble so completed messages don't re-render every time

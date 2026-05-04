@@ -198,12 +198,24 @@ export function registerJarvisRoutes(app: Express) {
         conversationId = created.id;
       }
       // Per-call: enforce before opening the stream, return a recordSuccess
-      // callback the service must invoke after the stream completes.
+      // callback the service must invoke after the stream completes. We
+      // accumulate credits charged across every round so we can surface a
+      // single "Used N credits" total on the assistant reply — sourced
+      // straight from the same call that wrote the ledger entry, so the
+      // chat indicator can never drift from the Billing page.
+      let creditsChargedHundredths = 0;
       const meterPerCall: MeterPerCall = async <T>(round: number, fn: () => Promise<T>) => {
         const ctx = { ...creditCtx, requestId: `${baseRequestId}_r${round}` };
         const { chargeUserId } = await enforceAiCredits(ctx);
         const result = await fn();
-        return { result, recordSuccess: () => recordAiCredits(chargeUserId, ctx) };
+        return {
+          result,
+          recordSuccess: async () => {
+            const charged = await recordAiCredits(chargeUserId, ctx);
+            creditsChargedHundredths += charged;
+            return charged;
+          },
+        };
       };
 
       // Open the SSE stream BEFORE doing any further DB writes so the
@@ -259,12 +271,25 @@ export function registerJarvisRoutes(app: Express) {
           (res as any).flush?.();
         },
         (fullResponse) => {
-          res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+          // Round to 2 decimal places (the credit ledger granularity) and
+          // ship the value the model just spent so the client can render
+          // an inline "Used N credits" indicator on this reply.
+          const creditsUsedDisplay = Math.round(creditsChargedHundredths) / 100;
+          res.write(`data: ${JSON.stringify({ done: true, creditsUsed: creditsUsedDisplay })}\n\n`);
           (res as any).flush?.();
           res.end();
-          // Persist the assistant message
+          // Persist the assistant message + the same hundredths total we
+          // just told the client so a later page reload renders the same
+          // value and matches the Billing ledger byte-for-byte.
           if (conversationId && fullResponse) {
-            fcAddMessage(conversationId, "assistant", fullResponse, null, null).catch((err) => {
+            fcAddMessage(
+              conversationId,
+              "assistant",
+              fullResponse,
+              null,
+              null,
+              creditsChargedHundredths > 0 ? Math.round(creditsChargedHundredths) : null,
+            ).catch((err) => {
               console.error("[JARVIS] Failed to persist assistant message:", err);
             });
           }

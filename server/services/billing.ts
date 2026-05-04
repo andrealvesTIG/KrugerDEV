@@ -984,7 +984,7 @@ export async function recordCreditUsage(
   resourceId: string | number,
   orgId?: number | null,
   requestId?: string,
-): Promise<void> {
+): Promise<number> {
   try {
     let subscription = null;
     if (orgId) {
@@ -996,7 +996,7 @@ export async function recordCreditUsage(
     }
     
     if (!subscription) {
-      return;
+      return 0;
     }
 
     const creditCost = await getResourceCreditCost(resourceType);
@@ -1008,8 +1008,13 @@ export async function recordCreditUsage(
       actorUserId: userId,
       requestId: requestId ?? `${resourceType}_${resourceId}_${Date.now()}`,
     });
+    // Returned in hundredths of a credit so callers (e.g. Friday's chat
+    // route) can sum across rounds and report the exact number that the
+    // ledger just recorded.
+    return creditCost;
   } catch (error) {
     console.error("[CREDITS] Error recording credit usage:", error);
+    return 0;
   }
 }
 

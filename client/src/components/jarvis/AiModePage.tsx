@@ -311,11 +311,11 @@ export default function AiModePage() {
                 </span>
               </button>
             </TooltipTrigger>
-            <TooltipContent side="bottom">
-              <p className="text-xs">
+            <TooltipContent side="bottom" className="max-w-[260px]">
+              <p className="text-xs leading-relaxed">
                 {conciseMode
-                  ? "Lite Mode — short, fast replies"
-                  : "Power Mode — detailed, thorough replies"}
+                  ? "Lite — short, fast replies. Same per-round credit cost as Power, but Lite tends to use fewer credits per conversation because it does less work."
+                  : "Power — detailed, thorough replies. Same per-round credit cost as Lite, but Power tends to use more credits per conversation because it does more work."}
               </p>
             </TooltipContent>
           </Tooltip>

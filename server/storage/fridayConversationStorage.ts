@@ -15,6 +15,7 @@ interface AddMessageRow {
   content: string;
   attachments: FridayAttachment[] | null;
   pageContext: FridayPageContext | null;
+  creditsUsed: number | null;
   createdAt: Date | string;
 }
 
@@ -94,6 +95,7 @@ export async function addMessage(
   content: string,
   attachments: FridayAttachment[] | null = null,
   pageContext: FridayPageContext | null = null,
+  creditsUsed: number | null = null,
 ) {
   // Single-statement CTE so the message INSERT and the conversation
   // lastMessageAt/updatedAt UPDATE are atomic — either both happen or
@@ -104,15 +106,16 @@ export async function addMessage(
   const pageContextJson = pageContext ? JSON.stringify(pageContext) : null;
   const result = await db.execute(sql`
     WITH inserted AS (
-      INSERT INTO friday_messages (conversation_id, role, content, attachments, page_context)
+      INSERT INTO friday_messages (conversation_id, role, content, attachments, page_context, credits_used)
       VALUES (
         ${conversationId},
         ${role},
         ${content},
         ${attachmentsJson}::jsonb,
-        ${pageContextJson}::jsonb
+        ${pageContextJson}::jsonb,
+        ${creditsUsed}
       )
-      RETURNING id, conversation_id, role, content, attachments, page_context, created_at
+      RETURNING id, conversation_id, role, content, attachments, page_context, credits_used, created_at
     ), updated AS (
       UPDATE friday_conversations
       SET last_message_at = NOW(), updated_at = NOW()
@@ -126,6 +129,7 @@ export async function addMessage(
       inserted.content,
       inserted.attachments,
       inserted.page_context         AS "pageContext",
+      inserted.credits_used         AS "creditsUsed",
       inserted.created_at           AS "createdAt"
     FROM inserted
   `);

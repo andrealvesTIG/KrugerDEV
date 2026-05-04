@@ -506,7 +506,7 @@ export function registerCustomAgentRoutes(app: Express) {
           return { result, recordSuccess: () => recordAiCredits(chargeUserId, ctx) };
         }
         const result = await fn();
-        return { result, recordSuccess: async () => {} };
+        return { result, recordSuccess: async () => 0 };
       };
 
       // Confirmed write actions are billed as `custom_chat_agent_action` —

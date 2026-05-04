@@ -9,6 +9,14 @@ export interface JarvisMessage {
   content: string;
   timestamp: Date;
   attachments?: { name: string; type: string; size: number }[];
+  /**
+   * Credits charged to produce this assistant reply, summed across every
+   * round (and tool call) Friday used. Display units (1 credit = 1.00),
+   * not hundredths. Undefined for user messages, in-flight streaming
+   * replies, errors, and any reply that ran out of credits — the UI hides
+   * the indicator in those cases.
+   */
+  creditsUsed?: number;
 }
 
 export interface PageContext {
@@ -151,6 +159,10 @@ interface ServerMessage {
   role: "user" | "assistant";
   content: string;
   attachments: { name: string; type: string; size: number }[] | null;
+  // Stored in hundredths of a credit (matches the credit ledger). Null
+  // for user messages and for legacy assistant rows saved before
+  // per-reply credit tracking landed.
+  creditsUsed: number | null;
   createdAt: string;
 }
 
@@ -167,6 +179,12 @@ function serverMessageToJarvis(m: ServerMessage): JarvisMessage {
     content: m.content,
     timestamp: new Date(m.createdAt),
     attachments: m.attachments ?? undefined,
+    // Convert from ledger hundredths to display credits. Drop zero/null
+    // so the UI can hide the indicator with a simple truthy check.
+    creditsUsed:
+      m.role === "assistant" && typeof m.creditsUsed === "number" && m.creditsUsed > 0
+        ? m.creditsUsed / 100
+        : undefined,
   };
 }
 
@@ -459,6 +477,23 @@ export function useJarvis() {
                 }
                 if (data.done) {
                   if (pendingContent) flushPendingContent();
+                  // Stamp the just-completed assistant overlay with the
+                  // credit total Friday charged for this reply so the
+                  // bubble shows "Used N credits" the moment streaming
+                  // ends. Skip when the value is missing or zero so older
+                  // clients / errored replies don't render a stale "0".
+                  if (typeof data.creditsUsed === "number" && data.creditsUsed > 0) {
+                    const charged = data.creditsUsed;
+                    setPendingMessages((prev) => {
+                      if (prev.length === 0) return prev;
+                      const updated = [...prev];
+                      const last = updated[updated.length - 1];
+                      if (last.role === "assistant") {
+                        updated[updated.length - 1] = { ...last, creditsUsed: charged };
+                      }
+                      return updated;
+                    });
+                  }
                   continue;
                 }
                 if (data.content) {
