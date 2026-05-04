@@ -10,6 +10,7 @@ import {
   Sparkles, Zap, Feather, ArrowRight, Plus,
 } from "lucide-react";
 import { ModeToggle } from "@/components/layout/ModeToggle";
+import { UserMenu } from "@/components/layout/UserMenu";
 import { LandingFooter } from "@/components/layout/LandingFooter";
 import {
   Tooltip, TooltipContent, TooltipTrigger,
@@ -588,6 +589,7 @@ export default function AiModePage() {
           <SavedReportsMenu align="end" alwaysVisibleLabel="Saved" />
           <ModeToggle />
           <ThemeToggle />
+          <UserMenu exitAiModeOnNavigate />
         </div>
       </header>
 

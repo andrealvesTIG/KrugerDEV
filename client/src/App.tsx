@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { useAiModeServerSync } from "@/hooks/use-ai-mode";
 import { OrganizationProvider, useOrganization } from "@/hooks/use-organization";
 import { OrgAccessDenied } from "@/components/OrgAccessDenied";
 import { useOrgAwareLocation, formatOrgHref } from "@/lib/orgRouter";
@@ -285,6 +286,14 @@ function Router() {
   );
 }
 
+// Tiny invisible component that hydrates the global AI Mode state from the
+// server's per-user `uiPreferences.aiMode` once the auth payload resolves.
+// Lives inside QueryClientProvider so it can subscribe to the query cache.
+function AiModeHydrator() {
+  useAiModeServerSync();
+  return null;
+}
+
 function App() {
   // Capture first-touch acquisition + install global click tracker
   useFirstTouch();
@@ -312,6 +321,7 @@ function App() {
             <UserJourneyProvider>
             <Toaster />
             <CookieConsentBanner />
+            <AiModeHydrator />
             <Suspense fallback={<PageLoader />}>
               <OrgAccessGate>
               <Switch>

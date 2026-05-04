@@ -50,6 +50,7 @@ import { registerBlogRoutes } from "./routes/blogRoutes";
 import { registerSystemEmailRoutes } from "./routes/systemEmailRoutes";
 import { registerSuperAdminAgentRoutes } from "./routes/superAdminAgentRoutes";
 import { registerNotificationPreferenceRoutes } from "./routes/notificationPreferenceRoutes";
+import { registerUiPreferenceRoutes } from "./routes/uiPreferenceRoutes";
 import { registerPowerBIAgentRoutes } from "./routes/powerbiAgentRoutes";
 import { registerLocationRoutes } from "./routes/locationRoutes";
 import { registerProjectTabTemplateRoutes } from "./routes/projectTabTemplateRoutes";
@@ -154,6 +155,7 @@ export async function registerRoutes(
   registerSystemEmailRoutes(app);
   registerSuperAdminAgentRoutes(app);
   registerNotificationPreferenceRoutes(app);
+  registerUiPreferenceRoutes(app);
   registerPowerBIAgentRoutes(app);
   registerLocationRoutes(app);
   registerProjectTabTemplateRoutes(app);
