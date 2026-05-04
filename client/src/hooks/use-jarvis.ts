@@ -250,14 +250,27 @@ export function useJarvis() {
     return (conversationQuery.data?.messages ?? []).map(serverMessageToJarvis);
   }, [conversationQuery.data]);
 
-  // Final messages = persisted (when not actively streaming) + pending overlay (when sending)
+  // Final messages = persisted (when not actively streaming) + pending overlay (when sending).
+  // While streaming, the server returns a conversationId mid-flight which triggers
+  // a refetch — the just-saved user row may now appear in `persistedMessages` while
+  // the optimistic copy still lives in `pendingMessages`. Strip the duplicate so the
+  // user's bubble doesn't render twice.
   const messages: JarvisMessage[] = useMemo(() => {
-    if (pendingMessages.length > 0) {
-      // Hide persisted versions of the user's currently-pending message to avoid dupes:
-      // pending only exists during the request; once complete we clear it and refetch.
-      return [...persistedMessages, ...pendingMessages];
+    if (pendingMessages.length === 0) return persistedMessages;
+
+    const overlayUser = pendingMessages.find((m) => m.role === "user");
+    const lastPersisted = persistedMessages[persistedMessages.length - 1];
+    const userAlreadyPersisted =
+      overlayUser != null &&
+      lastPersisted?.role === "user" &&
+      lastPersisted.content === overlayUser.content;
+
+    if (userAlreadyPersisted) {
+      // Keep only the assistant overlay (the streaming response).
+      const assistantOverlay = pendingMessages.filter((m) => m.role !== "user");
+      return [...persistedMessages, ...assistantOverlay];
     }
-    return persistedMessages;
+    return [...persistedMessages, ...pendingMessages];
   }, [persistedMessages, pendingMessages]);
 
   const setIsOpen = useCallback((open: boolean) => setIsOpenGlobal(open), []);
