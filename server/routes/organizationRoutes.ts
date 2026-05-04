@@ -376,18 +376,25 @@ export function registerOrganizationRoutes(app: Express) {
       const { DEFAULT_FRIDAY_AGENT_CONFIG } = await import('@shared/schema');
       const rawConfig = { ...DEFAULT_FRIDAY_AGENT_CONFIG, ...((org as any).fridayAgentConfig || {}) };
       const maskedConfig = { ...rawConfig };
-      if (maskedConfig.azureApiKey) {
-        const crypto = await import('crypto');
+      const cryptoMod = await import('crypto');
+      const maskKey = (value: string): string => {
+        if (!value) return value;
         try {
-          const decrypted = decryptApiKey(maskedConfig.azureApiKey, crypto);
-          maskedConfig.azureApiKey = decrypted.length > 8
+          const decrypted = decryptApiKey(value, cryptoMod);
+          return decrypted.length > 8
             ? decrypted.slice(0, 4) + '••••••••' + decrypted.slice(-4)
             : '••••••••';
         } catch {
-          maskedConfig.azureApiKey = maskedConfig.azureApiKey.length > 8
-            ? maskedConfig.azureApiKey.slice(0, 4) + '••••••••' + maskedConfig.azureApiKey.slice(-4)
+          return value.length > 8
+            ? value.slice(0, 4) + '••••••••' + value.slice(-4)
             : '••••••••';
         }
+      };
+      if (maskedConfig.azureApiKey) {
+        maskedConfig.azureApiKey = maskKey(maskedConfig.azureApiKey);
+      }
+      if (maskedConfig.anthropicApiKey) {
+        maskedConfig.anthropicApiKey = maskKey(maskedConfig.anthropicApiKey);
       }
       res.json(maskedConfig);
     } catch (err) {
@@ -417,8 +424,24 @@ export function registerOrganizationRoutes(app: Express) {
           return res.status(403).json({ message: 'Only admins can update Friday Agent config' });
         }
       }
-      const { fridayAgentConfigSchema } = await import('@shared/schema');
-      const parsed = fridayAgentConfigSchema.safeParse(req.body);
+      const { fridayAgentConfigSchema, DEFAULT_FRIDAY_AGENT_CONFIG } = await import('@shared/schema');
+      const existingOrg = await storage.getOrganization(orgId);
+      const existingConfig = {
+        ...DEFAULT_FRIDAY_AGENT_CONFIG,
+        ...(((existingOrg as any)?.fridayAgentConfig as any) || {}),
+      };
+      const reqBody = (req.body || {}) as Record<string, unknown>;
+      // Track which secret fields were actually submitted so we don't
+      // re-encrypt existing ciphertext when fields are omitted from a
+      // partial PUT payload.
+      const azureKeyProvided = Object.prototype.hasOwnProperty.call(reqBody, 'azureApiKey');
+      const anthropicKeyProvided = Object.prototype.hasOwnProperty.call(reqBody, 'anthropicApiKey');
+      // Default-merge over existing config so omitted fields don't wipe
+      // saved values. Secrets are also defaulted from existing config and
+      // are NOT re-encrypted below unless the caller explicitly submitted
+      // a fresh plaintext value.
+      const merged = { ...existingConfig, ...reqBody };
+      const parsed = fridayAgentConfigSchema.safeParse(merged);
       if (!parsed.success) {
         return res.status(400).json({ message: 'Invalid config', errors: parsed.error.flatten() });
       }
@@ -428,7 +451,7 @@ export function registerOrganizationRoutes(app: Express) {
           .replace(/\/openai\/?$/i, '')
           .replace(/\/+$/, '');
       }
-      if (parsed.data.useOrgAzure) {
+      if (parsed.data.provider === 'openai' && parsed.data.useOrgAzure) {
         const endpointVal = parsed.data.azureEndpoint;
         if (!endpointVal) {
           return res.status(400).json({ message: 'Azure endpoint is required when using org-specific model.' });
@@ -441,20 +464,58 @@ export function registerOrganizationRoutes(app: Express) {
         } catch {
           return res.status(400).json({ message: 'Azure endpoint must be a valid URL.' });
         }
-        const keyVal = parsed.data.azureApiKey?.trim();
-        if (!keyVal || keyVal.includes('••••')) {
-          const org = await storage.getOrganization(orgId);
-          const existingKey = ((org as any)?.fridayAgentConfig as any)?.azureApiKey || '';
-          if (!existingKey) {
-            return res.status(400).json({ message: 'Azure API key is required when using org-specific model.' });
+        // Azure key is required: either submitted plaintext, masked
+        // placeholder over an existing saved key, or already saved.
+        if (azureKeyProvided) {
+          const submitted = String(reqBody.azureApiKey ?? '').trim();
+          if (!submitted || submitted.includes('••••')) {
+            if (!existingConfig.azureApiKey) {
+              return res.status(400).json({ message: 'Azure API key is required when using org-specific model.' });
+            }
           }
+        } else if (!existingConfig.azureApiKey) {
+          return res.status(400).json({ message: 'Azure API key is required when using org-specific model.' });
         }
       }
-      const org = await storage.getOrganization(orgId);
-      if (parsed.data.azureApiKey && parsed.data.azureApiKey.includes('••••')) {
-        parsed.data.azureApiKey = ((org as any)?.fridayAgentConfig as any)?.azureApiKey || '';
-      } else if (parsed.data.azureApiKey && parsed.data.azureApiKey.length > 0) {
-        parsed.data.azureApiKey = encryptApiKey(parsed.data.azureApiKey);
+      if (parsed.data.provider === 'anthropic') {
+        if (anthropicKeyProvided) {
+          const submitted = String(reqBody.anthropicApiKey ?? '').trim();
+          if (!submitted || submitted.includes('••••')) {
+            if (!existingConfig.anthropicApiKey) {
+              return res.status(400).json({ message: 'Anthropic API key is required when using the Anthropic provider.' });
+            }
+          }
+        } else if (!existingConfig.anthropicApiKey) {
+          return res.status(400).json({ message: 'Anthropic API key is required when using the Anthropic provider.' });
+        }
+      }
+      // Resolve secret fields:
+      //   - If the caller did not submit the field, keep the existing ciphertext as-is.
+      //   - If the caller submitted the masked placeholder, keep the existing ciphertext as-is.
+      //   - If the caller submitted fresh plaintext, encrypt it.
+      if (!azureKeyProvided) {
+        parsed.data.azureApiKey = existingConfig.azureApiKey || '';
+      } else {
+        const submitted = String(reqBody.azureApiKey ?? '');
+        if (submitted.includes('••••')) {
+          parsed.data.azureApiKey = existingConfig.azureApiKey || '';
+        } else if (submitted.length > 0) {
+          parsed.data.azureApiKey = encryptApiKey(submitted);
+        } else {
+          parsed.data.azureApiKey = '';
+        }
+      }
+      if (!anthropicKeyProvided) {
+        parsed.data.anthropicApiKey = existingConfig.anthropicApiKey || '';
+      } else {
+        const submitted = String(reqBody.anthropicApiKey ?? '');
+        if (submitted.includes('••••')) {
+          parsed.data.anthropicApiKey = existingConfig.anthropicApiKey || '';
+        } else if (submitted.length > 0) {
+          parsed.data.anthropicApiKey = encryptApiKey(submitted);
+        } else {
+          parsed.data.anthropicApiKey = '';
+        }
       }
       const updated = await storage.updateOrganization(orgId, { fridayAgentConfig: parsed.data } as any);
       res.json((updated as any)?.fridayAgentConfig || parsed.data);

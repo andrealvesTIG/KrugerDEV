@@ -115,21 +115,27 @@ function enumWithMessage<T extends readonly [string, ...string[]]>(values: T, fi
 }
 
 export const fridayAgentConfigSchema = z.object({
+  provider: z.enum(["openai", "anthropic"]).default("openai"),
   useOrgAzure: z.boolean().default(false),
   azureEndpoint: z.string().max(500).default(""),
   azureApiKey: z.string().max(500).default(""),
   azureDeployment: z.string().max(200).default(""),
   azureApiVersion: z.string().max(50).default("2024-12-01-preview"),
+  anthropicApiKey: z.string().max(500).default(""),
+  anthropicModel: z.string().max(200).default("claude-3-5-sonnet-latest"),
 });
 
 export type FridayAgentConfig = z.infer<typeof fridayAgentConfigSchema>;
 
 export const DEFAULT_FRIDAY_AGENT_CONFIG: FridayAgentConfig = {
+  provider: "openai",
   useOrgAzure: false,
   azureEndpoint: "",
   azureApiKey: "",
   azureDeployment: "",
   azureApiVersion: "2024-12-01-preview",
+  anthropicApiKey: "",
+  anthropicModel: "claude-3-5-sonnet-latest",
 };
 
 export * from "./models/auth";

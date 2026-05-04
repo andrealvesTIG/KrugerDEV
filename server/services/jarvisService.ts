@@ -47,7 +47,9 @@ export async function getOrgOpenAIClient(orgId: number): Promise<{ client: OpenA
     const [org] = await db.select({ fridayAgentConfig: organizations.fridayAgentConfig })
       .from(organizations).where(eq(organizations.id, orgId));
     const config = org?.fridayAgentConfig as FridayAgentConfig | null;
-    if (config?.useOrgAzure && config.azureEndpoint && config.azureApiKey) {
+    // When the org has selected Anthropic, untouched OpenAI callers (custom agents,
+    // scheduled agents) fall back to the system default OpenAI/Azure client.
+    if (config?.provider !== "anthropic" && config?.useOrgAzure && config.azureEndpoint && config.azureApiKey) {
       const apiKey = decryptApiKey(config.azureApiKey);
       return {
         client: new AzureOpenAI({
@@ -63,6 +65,34 @@ export async function getOrgOpenAIClient(orgId: number): Promise<{ client: OpenA
     console.error(`[jarvis] Failed to load org ${orgId} Friday Agent config, using defaults:`, err);
   }
   return { client: defaultOpenai, deployment: DEFAULT_AZURE_DEPLOYMENT, isAzure: defaultIsAzure };
+}
+
+export type OrgLlmProvider =
+  | { provider: "openai"; client: OpenAI; deployment: string; isAzure: boolean }
+  | { provider: "anthropic"; apiKey: string; model: string };
+
+export async function getOrgLlmProvider(orgId: number): Promise<OrgLlmProvider> {
+  try {
+    const [org] = await db.select({ fridayAgentConfig: organizations.fridayAgentConfig })
+      .from(organizations).where(eq(organizations.id, orgId));
+    const config = org?.fridayAgentConfig as FridayAgentConfig | null;
+    if (config?.provider === "anthropic" && config.anthropicApiKey) {
+      try {
+        const apiKey = decryptApiKey(config.anthropicApiKey);
+        return {
+          provider: "anthropic",
+          apiKey,
+          model: config.anthropicModel || "claude-3-5-sonnet-latest",
+        };
+      } catch (err) {
+        console.error(`[jarvis] Failed to decrypt org ${orgId} Anthropic key, falling back to OpenAI:`, err);
+      }
+    }
+  } catch (err) {
+    console.error(`[jarvis] Failed to load org ${orgId} Friday Agent config for provider lookup:`, err);
+  }
+  const openai = await getOrgOpenAIClient(orgId);
+  return { provider: "openai", ...openai };
 }
 
 // Gantt-rendering capability directive. Kept as a separate constant so it can

@@ -36,7 +36,9 @@ async function getOrgClient(orgId: number) {
     const [org] = await db.select({ fridayAgentConfig: organizations.fridayAgentConfig })
       .from(organizations).where(eq(organizations.id, orgId));
     const cfg = org?.fridayAgentConfig as FridayAgentConfig | null;
-    if (cfg?.useOrgAzure && cfg.azureEndpoint && cfg.azureApiKey) {
+    // When the org has selected Anthropic, custom agents fall back to the
+    // system default OpenAI/Azure client (this service is OpenAI-only for now).
+    if (cfg?.provider !== "anthropic" && cfg?.useOrgAzure && cfg.azureEndpoint && cfg.azureApiKey) {
       const apiKey = decryptApiKey(cfg.azureApiKey);
       return {
         client: new AzureOpenAI({
