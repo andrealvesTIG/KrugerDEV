@@ -48,6 +48,7 @@ import { registerMeetingRoutes } from "./routes/meetingRoutes";
 import { registerCorrespondenceRoutes } from "./routes/correspondenceRoutes";
 import { registerBlogRoutes } from "./routes/blogRoutes";
 import { registerSystemEmailRoutes } from "./routes/systemEmailRoutes";
+import { registerSuperAdminAgentRoutes } from "./routes/superAdminAgentRoutes";
 import { registerNotificationPreferenceRoutes } from "./routes/notificationPreferenceRoutes";
 import { registerPowerBIAgentRoutes } from "./routes/powerbiAgentRoutes";
 import { registerLocationRoutes } from "./routes/locationRoutes";
@@ -151,6 +152,7 @@ export async function registerRoutes(
   registerCorrespondenceRoutes(app);
   registerBlogRoutes(app);
   registerSystemEmailRoutes(app);
+  registerSuperAdminAgentRoutes(app);
   registerNotificationPreferenceRoutes(app);
   registerPowerBIAgentRoutes(app);
   registerLocationRoutes(app);

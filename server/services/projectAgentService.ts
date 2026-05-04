@@ -4,6 +4,14 @@ import { eq, and, sql, lte, isNotNull, not, inArray } from "drizzle-orm";
 import { sendEmail } from "./email";
 import OpenAI from "openai";
 import { withAiCredits, resolveSystemUserId } from "./aiCredits";
+import {
+  isBuiltinAgentEnabled,
+  getBuiltinAgentPromptOverride,
+  getBuiltinAgentModelOverride,
+} from "../storage/builtinAgentSettingsStorage";
+
+export const PROJECT_AGENT_DEFAULT_SYSTEM_PROMPT = "You are a project management assistant. Generate a structured meeting agenda in HTML format with these sections: Wins & Accomplishments, Current Focus, Upcoming Deadlines, Blockers & Risks, Discussion Points, and Action Items. Use clean HTML with <h3> for sections, <ul>/<li> for items. Be concise and actionable.";
+export const PROJECT_AGENT_DEFAULT_MODEL = "gpt-4o-mini";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -122,6 +130,10 @@ async function getProjectContext(projectId: number) {
 }
 
 export async function runMeetingAgenda(agentId: number, projectId: number, triggerUserId: string | null = null): Promise<void> {
+  if (!(await isBuiltinAgentEnabled("project_agent"))) {
+    await logAgentAction(agentId, projectId, "meeting_agenda", "Meeting Agenda", [], "skipped", "Project Agent is disabled by the platform administrator");
+    return;
+  }
   const ctx = await getProjectContext(projectId);
   if (!ctx) throw new Error("Project not found");
 
@@ -150,14 +162,18 @@ Overdue: ${ctx.overdueTasks.map(t => `- ${t.name} (was due ${t.endDate})`).join(
 Open issues: ${ctx.openIssues.map(i => `- [${i.priority || 'medium'}] ${i.title}`).join('\n') || 'None'}`;
 
   try {
+    const [promptOverride, modelOverride] = await Promise.all([
+      getBuiltinAgentPromptOverride("project_agent"),
+      getBuiltinAgentModelOverride("project_agent"),
+    ]);
     const completion = await withAiCredits(
       { userId: charge.userId, orgId: charge.orgId, action: "agent_meeting_agenda", entityId: projectId },
       () => openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: modelOverride ?? PROJECT_AGENT_DEFAULT_MODEL,
         messages: [
           {
             role: "system",
-            content: "You are a project management assistant. Generate a structured meeting agenda in HTML format with these sections: Wins & Accomplishments, Current Focus, Upcoming Deadlines, Blockers & Risks, Discussion Points, and Action Items. Use clean HTML with <h3> for sections, <ul>/<li> for items. Be concise and actionable."
+            content: promptOverride ?? PROJECT_AGENT_DEFAULT_SYSTEM_PROMPT,
           },
           { role: "user", content: `Generate a meeting agenda for this project:\n${contextSummary}` }
         ],
@@ -183,6 +199,10 @@ Open issues: ${ctx.openIssues.map(i => `- [${i.priority || 'medium'}] ${i.title}
 }
 
 export async function runTaskFollowUp(agentId: number, projectId: number, _triggerUserId: string | null = null): Promise<void> {
+  if (!(await isBuiltinAgentEnabled("project_agent"))) {
+    await logAgentAction(agentId, projectId, "task_follow_up", "Task Follow-Up", [], "skipped", "Project Agent is disabled by the platform administrator");
+    return;
+  }
   const ctx = await getProjectContext(projectId);
   if (!ctx) throw new Error("Project not found");
 
@@ -235,6 +255,10 @@ export async function runTaskFollowUp(agentId: number, projectId: number, _trigg
 }
 
 export async function runStatusReport(agentId: number, projectId: number, _triggerUserId: string | null = null): Promise<void> {
+  if (!(await isBuiltinAgentEnabled("project_agent"))) {
+    await logAgentAction(agentId, projectId, "status_report", "Status Report", [], "skipped", "Project Agent is disabled by the platform administrator");
+    return;
+  }
   const ctx = await getProjectContext(projectId);
   if (!ctx) throw new Error("Project not found");
 

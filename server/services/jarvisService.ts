@@ -1,6 +1,12 @@
 import { db } from "../db";
 import { projects, portfolios, issues, tasks, taskDependencies, resources, statusReportHistory, healthStatusHistory, organizationMembers, organizationInvites, taskResourceAssignments, projectChangeLogs, users, organizations, financialEntries, timesheetEntries } from "@shared/schema";
 import type { FridayAgentConfig } from "@shared/schema";
+import {
+  isBuiltinAgentEnabled,
+  getBuiltinAgentPromptOverride,
+  getBuiltinAgentModelOverride,
+  getBuiltinAgentProviderConfig,
+} from "../storage/builtinAgentSettingsStorage";
 import { eq, and, sql, inArray, isNull, desc, gte, isNotNull } from "drizzle-orm";
 import OpenAI, { AzureOpenAI } from "openai";
 import Anthropic from "@anthropic-ai/sdk";
@@ -44,6 +50,7 @@ const DEFAULT_AZURE_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4.1
 const defaultIsAzure = !!(process.env.AZURE_OPENAI_API_KEY && process.env.AZURE_OPENAI_ENDPOINT);
 
 export async function getOrgOpenAIClient(orgId: number): Promise<{ client: OpenAI; deployment: string; isAzure: boolean }> {
+  // 1. Per-org Friday config (if the org configured its own Azure tenant).
   try {
     const [org] = await db.select({ fridayAgentConfig: organizations.fridayAgentConfig })
       .from(organizations).where(eq(organizations.id, orgId));
@@ -64,6 +71,35 @@ export async function getOrgOpenAIClient(orgId: number): Promise<{ client: OpenA
     }
   } catch (err) {
     console.error(`[jarvis] Failed to load org ${orgId} Friday Agent config, using defaults:`, err);
+  }
+  // 2. Platform-level Friday provider override set by super admin
+  //    (server/storage/builtinAgentSettingsStorage.ts). Lets us swap the
+  //    platform-default Azure tenant or OpenAI key without redeploying.
+  try {
+    const platform = await getBuiltinAgentProviderConfig("friday");
+    if (platform?.azure?.endpoint && platform.azure.apiKey) {
+      return {
+        client: new AzureOpenAI({
+          apiKey: platform.azure.apiKey,
+          endpoint: platform.azure.endpoint,
+          apiVersion: platform.azure.apiVersion || "2024-12-01-preview",
+        }),
+        deployment: platform.azure.deployment || DEFAULT_AZURE_DEPLOYMENT,
+        isAzure: true,
+      };
+    }
+    if (platform?.openai?.apiKey) {
+      return {
+        client: new OpenAI({
+          apiKey: platform.openai.apiKey,
+          baseURL: platform.openai.baseURL || undefined,
+        }),
+        deployment: DEFAULT_AZURE_DEPLOYMENT,
+        isAzure: false,
+      };
+    }
+  } catch (err) {
+    console.error(`[jarvis] Failed to load platform Friday provider config:`, err);
   }
   return { client: defaultOpenai, deployment: DEFAULT_AZURE_DEPLOYMENT, isAzure: defaultIsAzure };
 }
@@ -174,7 +210,7 @@ Required structure (hero is non-negotiable): (1) \`<header class="hero hero--goo
 Inline components: badges \`<span class="badge badge--good|warn|danger|info|muted">\`; status dots \`<span class="status-dot status-dot--warn"></span>\`. Tables ≤ 8 cols, right-align numeric cols with \`class="num"\`, prefer badges/status-dots over colored text.
 Use reports for status/exec/portfolio/digest output, tables >3 rows or cols, anything copy/print/share-worthy, long-form analysis with structure. Do NOT use for short answers, single-entity lookups (use friday-card), entity lists (use friday-cards — clickable), or follow-up questions. Do NOT mix report blocks with friday-cards in the same response. Top-level fence only; one report per response.`;
 
-const SYSTEM_PROMPT = `You are Friday Report, a warm, professional AI assistant for portfolio and project management. Your name is "Friday Report" or simply "Friday." Always introduce yourself politely when starting a new conversation — for example: "Hello! I'm Friday Report, your project management assistant. How can I help you today?" Be courteous, helpful, and encouraging in every response. Use a conversational yet professional tone — as if speaking to a valued colleague. Say "please," "thank you," and "you're welcome" naturally. When delivering difficult news (red health, overdue tasks, risks), be empathetic and solution-oriented rather than blunt.
+export const FRIDAY_DEFAULT_SYSTEM_PROMPT = `You are Friday Report, a warm, professional AI assistant for portfolio and project management. Your name is "Friday Report" or simply "Friday." Always introduce yourself politely when starting a new conversation — for example: "Hello! I'm Friday Report, your project management assistant. How can I help you today?" Be courteous, helpful, and encouraging in every response. Use a conversational yet professional tone — as if speaking to a valued colleague. Say "please," "thank you," and "you're welcome" naturally. When delivering difficult news (red health, overdue tasks, risks), be empathetic and solution-oriented rather than blunt.
 
 You help users understand project health, risks, issues, mitigations, tasks, dependencies, and priorities using real application data. You do not invent facts. You clearly separate observations, risks, and recommendations. When suggesting updates or actions, you require confirmation before any write operation.
 
@@ -2278,6 +2314,13 @@ export async function streamJarvisResponse(
   agentConfig?: CustomAgentRuntimeConfig,
 ) {
   try {
+    // Built-in Friday can be globally disabled by a super admin from the
+    // Super Admin → Agents tab. Custom agents are gated separately by their
+    // own `enabled` column, so we only apply this guard for built-in calls.
+    if (!agentConfig && !(await isBuiltinAgentEnabled("friday"))) {
+      onError(new Error("Friday is currently disabled by your administrator. Please try again later."));
+      return;
+    }
     let [context, needsSetup] = await Promise.all([
       gatherOrganizationContext(orgId),
       agentConfig ? Promise.resolve(false) : detectOrgNeedsSetup(orgId, userId),
@@ -2354,12 +2397,15 @@ CSV FILE IMPORT RULES:
 - Use the bulk_create_tasks tool to create all tasks at once — do NOT call create_task repeatedly.
 - After creation, report how many tasks were created successfully.`;
 
-    // Custom agents replace SYSTEM_PROMPT entirely, so they lose the
-    // Gantt-rendering directive. Append it so they still know they CAN draw
+    // Custom agents replace the Friday system prompt entirely, so they lose
+    // the rendering directives. Append them so they still know they CAN draw
     // inline Gantt charts via the fenced gantt-chart block.
+    // For built-in Friday, super admins can override the default prompt via
+    // the Super Admin → Agents → Built-in tab; fall back to the baked default.
+    const fridayPromptOverride = agentConfig ? null : await getBuiltinAgentPromptOverride("friday");
     const baseSystem = agentConfig
       ? `${agentConfig.systemPrompt}\n\n${GANTT_DIRECTIVE}\n\n${BURNDOWN_DIRECTIVE}\n\n${SCURVE_DIRECTIVE}\n\n${QUICK_REPLIES_DIRECTIVE}\n\n${REPORT_DIRECTIVE}`
-      : SYSTEM_PROMPT;
+      : (fridayPromptOverride ?? FRIDAY_DEFAULT_SYSTEM_PROMPT);
     const includeActionDirective = agentConfig
       ? agentConfig.allowedTools.some(t => CUSTOM_AGENT_SAFE_TOOLS.has(t))
       : true;
@@ -2528,6 +2574,10 @@ CSV FILE IMPORT RULES:
       llmProvider && llmProvider.provider === "openai"
         ? { client: llmProvider.client, deployment: llmProvider.deployment, isAzure: llmProvider.isAzure }
         : await getOrgOpenAIClient(orgId);
+    // For non-Azure built-in Friday, allow a super-admin platform-wide model
+    // override (Task #120). Azure flows always use the deployment id and
+    // custom agents bring their own model, so we skip the override there.
+    const fridayModelOverride = (!agentConfig && !orgIsAzure) ? await getBuiltinAgentModelOverride("friday") : null;
 
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
       // Enforce credits BEFORE opening the stream; record only after the
@@ -2540,7 +2590,7 @@ CSV FILE IMPORT RULES:
           : jarvisTools;
         ({ result: stream, recordSuccess } = await meterPerCall(round, () => callOpenAIWithRetry(
           () => orgOpenai.chat.completions.create({
-            model: orgIsAzure ? orgDeployment : (agentConfig?.model || "gpt-4o"),
+            model: orgIsAzure ? orgDeployment : (agentConfig?.model || fridayModelOverride || "gpt-4o"),
             messages: apiMessages,
             stream: true,
             max_completion_tokens: concise ? 4096 : 8192,

@@ -18,11 +18,11 @@ import {
 import { getUserIdFromRequest, getUserOrgIds, getUserOrgRole } from "./helpers";
 import { apiRoute, body, r200, stdRes, authRes } from "../route-registry";
 
-const ALLOWED_MODELS = ["gpt-4o", "gpt-4o-mini"] as const;
+export const ALLOWED_MODELS = ["gpt-4o", "gpt-4o-mini"] as const;
 // Safe write surface exposed to custom agents — these are the user-facing
 // action names defined in the product spec (task #71). Each maps to an
 // existing Friday tool function so no new write capabilities are introduced.
-const ALLOWED_AGENT_ACTIONS = [
+export const ALLOWED_AGENT_ACTIONS = [
   "create_task",
   "create_mitigation",
   "assign_owner",
@@ -31,7 +31,7 @@ const ALLOWED_AGENT_ACTIONS = [
   // scheduled-only — gates whether the agent's report is actually emailed
   "send_email",
 ] as const;
-type AllowedAgentAction = (typeof ALLOWED_AGENT_ACTIONS)[number];
+export type AllowedAgentAction = (typeof ALLOWED_AGENT_ACTIONS)[number];
 
 // Map public action name → underlying jarvisService tool function name.
 // `send_email` is intentionally NOT mapped to any chat-tool: it's only used
@@ -60,15 +60,15 @@ const BUILTIN_AGENTS: BuiltinAgentEntry[] = [
   { id: -2, kind: "builtin", category: "builtin", name: "Power BI Request", description: "Convert plain language into structured Power BI requests.", icon: "BarChart3", type: "chat", href: "/powerbi-agent" },
   { id: -3, kind: "builtin", category: "builtin", name: "Project Agent", description: "Per-project scheduled summaries.", icon: "ClipboardList", type: "scheduled", href: "/projects" },
 ];
-const ALLOWED_ICONS = ["Bot","Sparkles","BrainCircuit","Bookmark","ClipboardList","FileText","BarChart3","Calendar","Users","Mail","Wand2","Rocket","ShieldCheck","Lightbulb","Zap"] as const;
+export const ALLOWED_ICONS = ["Bot","Sparkles","BrainCircuit","Bookmark","ClipboardList","FileText","BarChart3","Calendar","Users","Mail","Wand2","Rocket","ShieldCheck","Lightbulb","Zap"] as const;
 
-const dataScopeSchema = z.object({
+export const dataScopeSchema = z.object({
   type: z.enum(["org","portfolios","projects"]),
   portfolioIds: z.array(z.number().int().positive()).max(200).nullable().optional(),
   projectIds: z.array(z.number().int().positive()).max(500).nullable().optional(),
 });
 
-const baseSchema = z.object({
+export const baseSchema = z.object({
   organizationId: z.number().int().positive(),
   type: z.enum(["chat","scheduled"]),
   name: z.string().min(1).max(120),

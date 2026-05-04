@@ -10,6 +10,12 @@ import { extractAllAttachments } from "./powerbiAttachmentExtraction";
 import { analyzeAttachments, mergeAnalyses } from "./powerbiAttachmentAnalysis";
 import { AiCreditsLimitError, type MeterPerCall } from "./aiCredits";
 import type { PbiAttachmentAnalysis } from "@shared/schema";
+import {
+  isBuiltinAgentEnabled,
+  getBuiltinAgentPromptOverride,
+  getBuiltinAgentModelOverride,
+  getBuiltinAgentProviderConfig,
+} from "../storage/builtinAgentSettingsStorage";
 
 export const ALLOWED_ATTACHMENT_TYPES = new Set<string>([
   "image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp",
@@ -29,8 +35,29 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
-const anthropicKey = process.env.ANTHROPIC_API_KEY;
-const anthropic = anthropicKey ? new Anthropic({ apiKey: anthropicKey }) : null;
+const envAnthropicKey = process.env.ANTHROPIC_API_KEY;
+const envAnthropic = envAnthropicKey ? new Anthropic({ apiKey: envAnthropicKey }) : null;
+
+// Returns the Anthropic client to use for the Power BI agent. Prefers the
+// per-platform `anthropic.apiKey` set by a super admin in the built-in
+// agent settings; falls back to the env-var-derived client.
+async function getAnthropicForPowerBI(): Promise<Anthropic | null> {
+  try {
+    const platform = await getBuiltinAgentProviderConfig("powerbi");
+    if (platform?.anthropic?.apiKey) {
+      return new Anthropic({ apiKey: platform.anthropic.apiKey });
+    }
+  } catch (err) {
+    console.error("[powerbiAgent] Failed to load platform Anthropic config:", err);
+  }
+  return envAnthropic;
+}
+
+// Synchronous "is Claude configured?" check — used by isModelAvailable below.
+// We can't await the platform config in a sync function, so this only
+// reports the env-var presence. The platform-config fallback is consulted
+// inside the streaming path. The UI hides Claude when neither is set.
+const anthropic = envAnthropic;
 
 export type PbiModelTier = "fast" | "smart" | "claude";
 
@@ -57,7 +84,7 @@ export function availableProviders(): { id: PbiModelTier; label: string; availab
     }));
 }
 
-const SYSTEM_PROMPT = `You are the Power BI Report Request Agent for FridayReport.AI. You guide clients through a structured intake conversation for new Power BI report requests. Be professional, friendly, and concise.
+export const POWERBI_DEFAULT_SYSTEM_PROMPT = `You are the Power BI Report Request Agent for FridayReport.AI. You guide clients through a structured intake conversation for new Power BI report requests. Be professional, friendly, and concise.
 
 Your job: gather everything the internal team needs to estimate effort. Do NOT share estimates, timelines, or pricing with the client.
 
@@ -485,8 +512,9 @@ async function streamWithOpenAI(
   meterPerCall: MeterPerCall,
   onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
 ): Promise<string> {
+  const promptOverride = await getBuiltinAgentPromptOverride("powerbi");
   const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: promptOverride ?? POWERBI_DEFAULT_SYSTEM_PROMPT },
   ];
   for (const m of messages) {
     if (m.role === "user") {
@@ -499,8 +527,11 @@ async function streamWithOpenAI(
   let fullResponse = "";
   let allStreamedText = "";
   const MAX_ROUNDS = 3;
-  // For tool-call submission step, force smart model.
-  let modelToUse = PBI_MODELS[modelTier].model;
+  // For tool-call submission step, force smart model. A super-admin platform
+  // override (set on the Super Admin → Agents → Built-in tab) replaces the
+  // tier-resolved model id when present.
+  const modelOverride = await getBuiltinAgentModelOverride("powerbi");
+  let modelToUse = modelOverride ?? PBI_MODELS[modelTier].model;
 
   for (let round = 0; round <= MAX_ROUNDS; round++) {
     // Enforce credits BEFORE the stream opens; record after it completes.
@@ -541,7 +572,7 @@ async function streamWithOpenAI(
     if (!hasToolCalls || finishReason !== "tool_calls") break;
 
     // Force smart model for the synthesis turn after tool execution (keeps message quality high).
-    modelToUse = PBI_MODELS.smart.model;
+    modelToUse = modelOverride ?? PBI_MODELS.smart.model;
 
     apiMessages.push({
       role: "assistant",
@@ -582,8 +613,11 @@ async function streamWithAnthropic(
   meterPerCall: MeterPerCall,
   onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
 ): Promise<string> {
-  if (!anthropic) throw new Error("Claude is not configured");
+  const anthropicClient = await getAnthropicForPowerBI();
+  if (!anthropicClient) throw new Error("Claude is not configured");
 
+  const claudePromptOverride = await getBuiltinAgentPromptOverride("powerbi");
+  const claudeSystemPrompt = claudePromptOverride ?? POWERBI_DEFAULT_SYSTEM_PROMPT;
   const apiMessages: Anthropic.MessageParam[] = [];
   for (const m of messages) {
     if (m.role === "user") {
@@ -603,7 +637,7 @@ async function streamWithAnthropic(
       model: PBI_MODELS.claude.model,
       max_tokens: 2048,
       temperature: 0.4,
-      system: SYSTEM_PROMPT,
+      system: claudeSystemPrompt,
       messages: apiMessages,
       tools: anthropicTools,
     }));
@@ -747,6 +781,10 @@ export async function streamPowerBIAgentResponse(
   onPhase?: (phase: { phase: "analyzing" | "analyzed"; fileCount?: number }) => void,
 ) {
   try {
+    if (!(await isBuiltinAgentEnabled("powerbi"))) {
+      onError(new Error("The Power BI Request agent is currently disabled by your administrator. Please try again later."));
+      return;
+    }
     if (!isModelAvailable(modelTier)) {
       modelTier = "fast";
     }

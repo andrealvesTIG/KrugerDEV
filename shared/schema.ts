@@ -5515,6 +5515,49 @@ export type CustomAgentConversation = typeof customAgentConversations.$inferSele
 export type CustomAgentMessage = typeof customAgentMessages.$inferSelect;
 export type CustomAgentLog = typeof customAgentLogs.$inferSelect;
 
+// Platform-level settings for the three built-in agents (Friday, Power BI
+// Request, Project Agent). Singleton row per agent_key. Lets super admins
+// disable an agent globally and/or override the default system prompt and
+// model used by the service. NULL columns mean "use the service-baked
+// default". Caching is handled in server/storage/builtinAgentSettingsStorage.ts.
+export const BUILTIN_AGENT_KEYS = ["friday", "powerbi", "project_agent"] as const;
+export type BuiltinAgentKey = (typeof BUILTIN_AGENT_KEYS)[number];
+
+// Structured provider-credential blob set per built-in agent. Each section
+// is optional — when missing the runtime falls back to the platform env
+// vars (AZURE_OPENAI_*, OPENAI_API_KEY, ANTHROPIC_API_KEY). Only super
+// admins can write these via /api/admin/agents/builtin/:key.
+export const builtinAgentProviderConfigSchema = z.object({
+  azure: z.object({
+    endpoint: z.string().max(500).optional(),
+    apiKey: z.string().max(500).optional(),
+    deployment: z.string().max(200).optional(),
+    apiVersion: z.string().max(50).optional(),
+  }).partial().optional(),
+  openai: z.object({
+    apiKey: z.string().max(500).optional(),
+    baseURL: z.string().max(500).optional(),
+  }).partial().optional(),
+  anthropic: z.object({
+    apiKey: z.string().max(500).optional(),
+  }).partial().optional(),
+}).partial();
+
+export type BuiltinAgentProviderConfig = z.infer<typeof builtinAgentProviderConfigSchema>;
+
+export const builtinAgentSettings = pgTable("builtin_agent_settings", {
+  agentKey: text("agent_key").primaryKey(),
+  enabled: boolean("enabled").notNull().default(true),
+  defaultSystemPrompt: text("default_system_prompt"),
+  defaultModel: text("default_model"),
+  providerConfig: jsonb("provider_config").$type<BuiltinAgentProviderConfig>(),
+  updatedBy: varchar("updated_by").references(() => users.id),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type BuiltinAgentSetting = typeof builtinAgentSettings.$inferSelect;
+export type InsertBuiltinAgentSetting = typeof builtinAgentSettings.$inferInsert;
+
 // Custom one-shot migration tracker used by `server/migrations/*` (e.g.
 // `migrateMonthToCalendar`). Declared here so `drizzle-kit push` recognises
 // the existing table instead of suggesting a rename to a new schema table.
