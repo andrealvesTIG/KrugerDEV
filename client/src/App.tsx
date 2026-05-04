@@ -61,6 +61,7 @@ const PrivacyStatement = lazy(() => import("@/pages/PrivacyStatement"));
 const PublicUserGuide = lazy(() => import("@/pages/PublicUserGuide"));
 const FridayPage = lazy(() => import("@/pages/FridayPage"));
 const FridayReportPage = lazy(() => import("@/pages/FridayReportPage"));
+const SharedFridayReport = lazy(() => import("@/pages/SharedFridayReport"));
 const Simulation = lazy(() => import("@/pages/Simulation"));
 const PmoRadar = lazy(() => import("@/pages/PmoRadar"));
 const ReportSubscriptions = lazy(() => import("@/pages/ReportSubscriptions"));
@@ -359,6 +360,9 @@ function App() {
                 </Route>
                 <Route path="/friday-report/:id">
                   <Suspense fallback={<PageLoader />}><FridayReportPage /></Suspense>
+                </Route>
+                <Route path="/r/friday-report/:token">
+                  <Suspense fallback={<PageLoader />}><SharedFridayReport /></Suspense>
                 </Route>
                 <Route path="/signup">
                   <Suspense fallback={<PageLoader />}><LandingPageNew /></Suspense>

@@ -2109,9 +2109,18 @@ export const fridaySavedReports = pgTable("friday_saved_reports", {
   generatedAt: timestamp("generated_at"),
   html: text("html").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  // Public sharing — when shareToken is set and not revoked/expired, the
+  // report is reachable at /r/friday-report/{token} with no login required.
+  // The token is rotated on each Share action and cleared on Revoke.
+  shareToken: text("share_token"),
+  sharedAt: timestamp("shared_at"),
+  sharedByUserId: varchar("shared_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  shareExpiresAt: timestamp("share_expires_at"),
+  shareRevokedAt: timestamp("share_revoked_at"),
 }, (table) => [
   index("friday_saved_reports_org_idx").on(table.organizationId, table.createdAt),
   index("friday_saved_reports_user_idx").on(table.savedByUserId),
+  uniqueIndex("friday_saved_reports_share_token_idx").on(table.shareToken),
 ]);
 
 export type FridaySavedReport = typeof fridaySavedReports.$inferSelect;

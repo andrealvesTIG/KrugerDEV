@@ -7,7 +7,7 @@ import {
   getUserOrgRole,
   logUserActivity,
 } from "./helpers";
-import { apiRoute, body, r200, inputRes, authRes, stdRes } from "../route-registry";
+import { apiRoute, body, r200, inputRes, authRes, stdRes, pathStr, e404 } from "../route-registry";
 import {
   enforceAiCredits,
   recordAiCredits,
@@ -33,6 +33,9 @@ import {
   listSavedReports as srList,
   getSavedReport as srGet,
   deleteSavedReport as srDelete,
+  setShareToken as srSetShare,
+  revokeShareToken as srRevokeShare,
+  getReportByShareToken as srGetByToken,
 } from "../storage/fridaySavedReportStorage";
 
 const MAX_MESSAGES = 50;
@@ -759,6 +762,184 @@ export function registerJarvisRoutes(app: Express) {
     } catch (error: any) {
       console.error("[JARVIS] Friday report PDF error:", error);
       res.status(500).json({ message: error?.message || "Failed to render PDF" });
+    }
+  });
+
+  // ----- Public share links for saved reports -----
+
+  // Owners/admins (or the user who saved the report) can mint a public
+  // share link. The link points at /r/friday-report/{token} on the client
+  // and resolves via the public GET below — no login required.
+  const SHARE_EXPIRY_DAYS = z.union([
+    z.literal(7),
+    z.literal(30),
+    z.literal(90),
+    z.literal(365),
+  ]).optional().nullable();
+  const createShareSchema = z.object({
+    organizationId: z.number().int().positive(),
+    expiresInDays: SHARE_EXPIRY_DAYS,
+  });
+
+  function canShareReport(role: string, savedByUserId: string | null, userId: string): boolean {
+    if (role === "owner" || role === "org_admin") return true;
+    return !!savedByUserId && savedByUserId === userId;
+  }
+
+  apiRoute(app, 'post', '/api/jarvis/saved-reports/:id/share', {
+    tag: 'AI',
+    summary: 'Mint a public share link for a saved Friday report',
+    requestBody: body({
+      type: 'object',
+      properties: {
+        organizationId: { type: 'integer' },
+        expiresInDays: { type: 'integer', nullable: true, enum: [7, 30, 90, 365], description: 'Optional expiry. Omit for a non-expiring link.' },
+      },
+      required: ['organizationId'],
+    }),
+    responses: { ...r200('Share token + URL', { type: 'object' }), ...inputRes, ...stdRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ message: "Invalid id" });
+
+      const parsed = createShareSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
+      }
+      const { organizationId, expiresInDays } = parsed.data;
+
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      const role = await getUserOrgRole(userId, organizationId);
+      if (!role || role === "viewer") {
+        return res.status(403).json({ message: "You don't have permission to share reports" });
+      }
+      const existing = await srGet(id, organizationId);
+      if (!existing) return res.status(404).json({ message: "Saved report not found" });
+      if (!canShareReport(role, existing.savedByUserId, userId)) {
+        return res.status(403).json({ message: "Only the user who saved this report (or an admin) can share it" });
+      }
+
+      const expiresAt = expiresInDays
+        ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
+        : null;
+      const updated = await srSetShare({
+        reportId: id,
+        organizationId,
+        sharedByUserId: userId,
+        expiresAt,
+      });
+      if (!updated) return res.status(404).json({ message: "Saved report not found" });
+
+      logUserActivity(userId, "friday_report_share_create", "friday_saved_report", id, {
+        expiresInDays: expiresInDays ?? null,
+      }, req).catch(() => {});
+
+      res.json({
+        id: updated.id,
+        shareToken: updated.shareToken,
+        sharedAt: updated.sharedAt,
+        sharedByUserId: updated.sharedByUserId,
+        shareExpiresAt: updated.shareExpiresAt,
+        shareRevokedAt: updated.shareRevokedAt,
+        // Path only — the client knows its own origin and we want this to
+        // work behind reverse proxies / preview domains without the server
+        // having to guess the host.
+        sharePath: `/r/friday-report/${updated.shareToken}`,
+      });
+    } catch (error: any) {
+      console.error("[JARVIS] Create share error:", error);
+      res.status(500).json({ message: error.message || "Failed to create share link" });
+    }
+  });
+
+  apiRoute(app, 'delete', '/api/jarvis/saved-reports/:id/share', {
+    tag: 'AI',
+    summary: 'Revoke the public share link on a saved Friday report',
+    parameters: [pathStr('id')],
+    responses: { ...r200('Revoked', { type: 'object' }), ...stdRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const id = Number(req.params.id);
+      const orgIdRaw = req.query.organizationId;
+      const organizationId = Number(Array.isArray(orgIdRaw) ? orgIdRaw[0] : orgIdRaw);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ message: "Invalid id" });
+      if (!Number.isFinite(organizationId) || organizationId <= 0) {
+        return res.status(400).json({ message: "organizationId is required" });
+      }
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      const role = await getUserOrgRole(userId, organizationId);
+      if (!role || role === "viewer") {
+        return res.status(403).json({ message: "You don't have permission to revoke share links" });
+      }
+      const existing = await srGet(id, organizationId);
+      if (!existing) return res.status(404).json({ message: "Saved report not found" });
+      if (!canShareReport(role, existing.savedByUserId, userId)) {
+        return res.status(403).json({ message: "Only the user who saved this report (or an admin) can revoke its share link" });
+      }
+      const revoked = await srRevokeShare(id, organizationId);
+      if (!revoked) return res.status(404).json({ message: "Saved report not found" });
+
+      logUserActivity(userId, "friday_report_share_revoke", "friday_saved_report", id, {}, req).catch(() => {});
+
+      res.json({
+        id: revoked.id,
+        shareToken: null,
+        sharedAt: revoked.sharedAt,
+        shareRevokedAt: revoked.shareRevokedAt,
+      });
+    } catch (error: any) {
+      console.error("[JARVIS] Revoke share error:", error);
+      res.status(500).json({ message: error.message || "Failed to revoke share link" });
+    }
+  });
+
+  // Public read endpoint — intentionally no auth check, no org check. The
+  // share token IS the access credential. We return only the fields the
+  // public viewer needs: title/subtitle/timestamps + sanitized HTML; no
+  // org id, no saver identity.
+  apiRoute(app, 'get', '/api/public/friday-reports/:token', {
+    tag: 'AI',
+    summary: 'View a publicly-shared Friday report (no login required)',
+    parameters: [pathStr('token')],
+    security: [],
+    responses: { ...r200('Shared saved report', { type: 'object' }), ...e404 },
+  }, async (req, res) => {
+    try {
+      const token = String(req.params.token || "");
+      // Hex tokens are exactly 64 chars; reject obvious garbage early so we
+      // don't even hit the DB.
+      if (!/^[a-f0-9]{16,128}$/i.test(token)) {
+        return res.status(404).json({ message: "Report not found" });
+      }
+      const report = await srGetByToken(token);
+      if (!report) return res.status(404).json({ message: "Report not found" });
+
+      // Don't cache shared reports — revocation must take effect quickly.
+      res.setHeader("Cache-Control", "private, no-store");
+      res.json({
+        id: report.id,
+        title: report.title,
+        subtitle: report.subtitle,
+        generatedAt: report.generatedAt,
+        sharedAt: report.sharedAt,
+        shareExpiresAt: report.shareExpiresAt,
+        createdAt: report.createdAt,
+        html: report.html,
+      });
+    } catch (error: any) {
+      console.error("[JARVIS] Public shared report error:", error);
+      res.status(500).json({ message: "Failed to load shared report" });
     }
   });
 

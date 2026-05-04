@@ -9,10 +9,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Bookmark, ExternalLink, Trash2, Loader2, FileText } from "lucide-react";
+import {
+  Bookmark,
+  ExternalLink,
+  Trash2,
+  Loader2,
+  FileText,
+  Share2,
+  Link2,
+} from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { ShareReportDialog, type ShareableReport } from "./ShareReportDialog";
 
 interface SavedReportSummary {
   id: number;
@@ -22,6 +31,10 @@ interface SavedReportSummary {
   subtitle: string | null;
   generatedAt: string | null;
   createdAt: string;
+  shareToken?: string | null;
+  sharedAt?: string | null;
+  shareExpiresAt?: string | null;
+  shareRevokedAt?: string | null;
 }
 
 function formatRelative(dateStr: string | null): string {
@@ -52,6 +65,7 @@ export function SavedReportsMenu({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [shareTarget, setShareTarget] = useState<ShareableReport | null>(null);
 
   const { data: reports = [], isLoading } = useQuery<SavedReportSummary[]>({
     queryKey: ["/api/jarvis/saved-reports", orgId],
@@ -102,9 +116,25 @@ export function SavedReportsMenu({
     deleteMutation.mutate(id);
   };
 
+  const handleShare = (e: React.MouseEvent, r: SavedReportSummary) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShareTarget({
+      id: r.id,
+      organizationId: r.organizationId,
+      title: r.title,
+      shareToken: r.shareToken ?? null,
+      sharedAt: r.sharedAt ?? null,
+      shareExpiresAt: r.shareExpiresAt ?? null,
+      shareRevokedAt: r.shareRevokedAt ?? null,
+    });
+    setOpen(false);
+  };
+
   const count = reports.length;
 
   return (
+    <>
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button
@@ -190,6 +220,25 @@ export function SavedReportsMenu({
                 </button>
                 <button
                   type="button"
+                  className={
+                    "p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground " +
+                    (r.shareToken
+                      ? "text-emerald-600 dark:text-emerald-400 opacity-100"
+                      : "")
+                  }
+                  aria-label={r.shareToken ? "Manage share link" : "Share report"}
+                  title={r.shareToken ? "Share link active — click to manage" : "Share report"}
+                  onClick={(e) => handleShare(e, r)}
+                  data-testid={`saved-report-share-${r.id}`}
+                >
+                  {r.shareToken ? (
+                    <Link2 className="h-3 w-3" />
+                  ) : (
+                    <Share2 className="h-3 w-3" />
+                  )}
+                </button>
+                <button
+                  type="button"
                   className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
                   aria-label="Delete saved report"
                   onClick={(e) => handleDelete(e, r.id)}
@@ -203,5 +252,13 @@ export function SavedReportsMenu({
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+    <ShareReportDialog
+      open={!!shareTarget}
+      onOpenChange={(o) => {
+        if (!o) setShareTarget(null);
+      }}
+      report={shareTarget}
+    />
+    </>
   );
 }
