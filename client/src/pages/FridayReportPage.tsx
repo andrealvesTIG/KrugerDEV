@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Printer, Download, FileDown, Copy } from "lucide-react";
+import { ArrowLeft, Printer, Download, FileDown, Copy, CalendarClock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   readReportForFullView,
@@ -10,6 +10,7 @@ import {
   downloadReportAsPdf,
   type FridayReportData,
 } from "@/components/jarvis/FridayReportCard";
+import { buildReportCss } from "@/components/jarvis/fridayReportTheme";
 
 interface ServerSavedReport {
   id: number;
@@ -44,28 +45,40 @@ async function fetchSavedReportFromServer(id: string): Promise<FridayReportData 
 }
 
 const PAGE_CSS = `
-  .friday-report-fullview-body { color: hsl(var(--foreground)); font-size: 0.95rem; line-height: 1.6; }
-  .friday-report-fullview-body h1 { font-size: 1.6rem; font-weight: 700; margin: 1.25rem 0 0.6rem; }
-  .friday-report-fullview-body h2 { font-size: 1.3rem; font-weight: 700; margin: 1.1rem 0 0.5rem; }
-  .friday-report-fullview-body h3 { font-size: 1.1rem; font-weight: 600; margin: 0.9rem 0 0.4rem; }
-  .friday-report-fullview-body h4 { font-size: 1rem; font-weight: 600; margin: 0.8rem 0 0.4rem; }
-  .friday-report-fullview-body p { margin: 0.6rem 0; }
-  .friday-report-fullview-body ul, .friday-report-fullview-body ol { margin: 0.6rem 0; padding-left: 1.5rem; }
-  .friday-report-fullview-body li { margin: 0.25rem 0; }
-  .friday-report-fullview-body blockquote { border-left: 3px solid hsl(var(--border)); padding: 0.25rem 0.85rem; margin: 0.6rem 0; color: hsl(var(--muted-foreground)); }
-  .friday-report-fullview-body code { background: hsl(var(--muted)); padding: 0.1rem 0.3rem; border-radius: 0.25rem; font-size: 0.85em; }
-  .friday-report-fullview-body pre { background: hsl(var(--muted)); padding: 0.85rem; border-radius: 0.5rem; overflow-x: auto; }
-  .friday-report-fullview-body a { color: hsl(var(--primary)); text-decoration: underline; text-underline-offset: 2px; }
-  .friday-report-fullview-body table { border-collapse: collapse; width: 100%; margin: 0.85rem 0; font-size: 0.9rem; }
-  .friday-report-fullview-body th, .friday-report-fullview-body td { border: 1px solid hsl(var(--border)); padding: 0.55rem 0.7rem; text-align: left; vertical-align: top; }
-  .friday-report-fullview-body th { background: hsl(var(--muted)); font-weight: 600; }
-  .friday-report-fullview-body tr:nth-child(even) td { background: hsl(var(--muted) / 0.4); }
-  .friday-report-fullview-body hr { border: 0; border-top: 1px solid hsl(var(--border)); margin: 1.25rem 0; }
-  .friday-report-fullview-body img { max-width: 100%; height: auto; border-radius: 0.25rem; }
-  @media print {
-    .friday-report-fullview-actions { display: none !important; }
-    .friday-report-fullview-shell { max-width: none !important; padding: 0.5in !important; }
-  }
+${buildReportCss(".friday-report-fullview-body")}
+.friday-report-fullview-card {
+  position: relative;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 12px 32px -16px rgba(15,23,42,0.18);
+}
+.friday-report-fullview-card::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px;
+  background: linear-gradient(90deg, #6366f1, #0ea5e9, #06b6d4);
+}
+.friday-report-fullview-header {
+  padding: 1.75rem 2rem 1.25rem;
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.05), hsl(var(--primary) / 0.01));
+  border-bottom: 1px solid hsl(var(--border));
+}
+.friday-report-fullview-meta {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  color: hsl(var(--muted-foreground)); font-size: 0.7rem;
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+  margin-top: 0.9rem; padding: 0.2rem 0.6rem;
+  background: hsl(var(--muted)); border-radius: 999px;
+  border: 1px solid hsl(var(--border));
+}
+.friday-report-fullview-body { padding: 1.5rem 2rem 2rem; }
+@media print {
+  .friday-report-fullview-actions { display: none !important; }
+  .friday-report-fullview-card { box-shadow: none !important; border: 0 !important; border-radius: 0 !important; }
+  .friday-report-fullview-card::before { display: none !important; }
+  .friday-report-fullview-header { background: none !important; padding: 0.5in 0.5in 0.25in !important; }
+  .friday-report-fullview-body { padding: 0.25in 0.5in 0.5in !important; }
+}
 `;
 
 export default function FridayReportPage() {
@@ -235,18 +248,27 @@ export default function FridayReportPage() {
           </div>
         </div>
       </header>
-      <div className="friday-report-fullview-shell max-w-4xl mx-auto px-4 md:px-8 py-8">
-        <div className="border-b border-border pb-4 mb-6">
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground">{report.title}</h1>
-          {report.subtitle && (
-            <p className="text-sm md:text-base text-muted-foreground mt-1">{report.subtitle}</p>
-          )}
-          <p className="text-xs text-muted-foreground mt-2">Generated {generated}</p>
+      <div className="friday-report-fullview-shell max-w-4xl mx-auto px-3 md:px-6 py-6 md:py-8">
+        <div className="friday-report-fullview-card">
+          <div className="friday-report-fullview-header">
+            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">
+              {report.title}
+            </h1>
+            {report.subtitle && (
+              <p className="text-sm md:text-base text-muted-foreground mt-1">
+                {report.subtitle}
+              </p>
+            )}
+            <span className="friday-report-fullview-meta">
+              <CalendarClock className="h-3 w-3" />
+              {generated}
+            </span>
+          </div>
+          <div
+            className="friday-report-fullview-body"
+            dangerouslySetInnerHTML={{ __html: sanitized }}
+          />
         </div>
-        <div
-          className="friday-report-fullview-body"
-          dangerouslySetInnerHTML={{ __html: sanitized }}
-        />
       </div>
     </div>
   );

@@ -234,11 +234,72 @@ Header schema:
 - generatedAt (optional): ISO 8601 timestamp.
 
 HTML rules:
-- Use only semantic HTML: h1–h4, p, ul/ol/li, table/thead/tbody/tr/th/td, blockquote, strong/em, code/pre, hr, a, img, figure/figcaption, span/div.
+- Use only semantic HTML: h1–h4, p, ul/ol/li, table/thead/tbody/tr/th/td, blockquote, strong/em, code/pre, hr, a, img, figure/figcaption, span/div, dl/dt/dd.
 - NO <script>, <iframe>, <style>, <link>, <form>, <input>, <button>, event handlers, or javascript: URLs — they will be stripped.
-- Inline styles are allowed for color/background/text-align/font-weight/padding/margin/border/width — use them sparingly to mark health (red/amber/green).
+- Prefer the design-system utility classes below over inline styles. Inline styles are allowed but reserve them for one-off color emphasis only.
 - For internal app links use the same routes as cards (\`/projects/{id}\`, \`/portfolios/{id}\`, \`/resources/{id}\`).
 - Keep the body self-contained: no external CSS, no external scripts.
+
+Design system — the report container ships with a polished, compact theme. Use these utility classes (via \`class="…"\`) to make reports graphical and scannable. Use them generously; a great report mixes prose with KPIs, badges, callouts, and tight tables.
+
+KPI tiles — use at the top of any data-heavy report:
+\`\`\`html
+<div class="kpi-grid">
+  <div class="kpi kpi--good"><p class="kpi__label">On-track projects</p><p class="kpi__value">14</p><p class="kpi__delta kpi__delta--up">+2 vs last week</p></div>
+  <div class="kpi kpi--warn"><p class="kpi__label">At risk</p><p class="kpi__value">3</p></div>
+  <div class="kpi kpi--danger"><p class="kpi__label">Red</p><p class="kpi__value">1</p></div>
+  <div class="kpi"><p class="kpi__label">Budget used</p><p class="kpi__value">$2.4M</p><p class="kpi__delta">68% of plan</p></div>
+</div>
+\`\`\`
+Variants: \`kpi--good | kpi--warn | kpi--danger | kpi--info\` (default = neutral). Optional \`kpi__delta--up | kpi__delta--down\` for trend color.
+
+Badges (pills) for status / labels in tables, headings, or inline:
+\`<span class="badge badge--good">On track</span>\` — variants: \`good | warn | danger | info | muted\`.
+
+Status dot — small inline indicator (great inside table cells before a status word):
+\`<span class="status-dot status-dot--warn"></span> Amber\`
+
+Callouts — for key takeaways, risks, blockers, or recommendations:
+\`\`\`html
+<div class="callout callout--warn">
+  <p class="callout__title">Vendor delay risks Q4 launch</p>
+  <p>Mitigation: shift creative review to next sprint; add 1 week buffer.</p>
+</div>
+\`\`\`
+Variants: default (info), \`callout--success | callout--warn | callout--danger\`.
+
+Progress bars for % complete:
+\`<div class="progress progress--warn"><span class="progress__fill" style="width:62%"></span></div>\`
+Variants: default | \`progress--good | progress--warn | progress--danger\`.
+
+Multi-column splits for compact side-by-side blocks (auto-stacks on mobile):
+\`<div class="split"><div>…</div><div>…</div></div>\` — use \`split--3\` for three columns.
+
+Compact metadata list:
+\`\`\`html
+<dl class="meta">
+  <dt>Owner</dt><dd>Jane Doe</dd>
+  <dt>Due</dt><dd>Oct 30, 2025</dd>
+</dl>
+\`\`\`
+
+Section card — wrap a logical group of related content in a soft-bordered card with a small uppercase title:
+\`\`\`html
+<section class="section">
+  <p class="section__title">This week's focus</p>
+  <ul><li>…</li></ul>
+</section>
+\`\`\`
+
+Tables — keep them tight and useful. The container styles them automatically (rounded, soft borders, hover). Add \`class="num"\` on numeric \`<th>\`/\`<td>\` for right-aligned tabular numerals. Use badges/status-dots inside cells instead of colored text whenever possible.
+
+Composition guidance for a great report:
+- Open with 3–6 KPI tiles summarizing the headline numbers.
+- Use h2 for top-level sections; the renderer adds a gradient marker automatically.
+- Prefer badges + status dots over raw colored text for health/status.
+- Use callouts for the 1–3 things the reader must act on.
+- Keep tables ≤ 8 columns; trim filler columns; right-align numbers.
+- End with a "Next steps" list of crisp action items.
 
 When to use report blocks:
 - Status reports, executive summaries, portfolio reviews, weekly digests.

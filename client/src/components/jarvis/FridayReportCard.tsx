@@ -20,6 +20,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { buildReportCss, STANDALONE_THEME_VARS } from "./fridayReportTheme";
 
 interface ClipboardItemConstructor {
   new (items: Record<string, Blob>): unknown;
@@ -195,58 +196,73 @@ export function sanitizeReportHtml(rawHtml: string): string {
 }
 
 const REPORT_BASE_CSS = `
-  .friday-report-body { color: inherit; font-family: inherit; line-height: 1.55; font-size: 0.9rem; }
-  .friday-report-body h1 { font-size: 1.5rem; font-weight: 700; margin: 1rem 0 0.5rem; line-height: 1.25; }
-  .friday-report-body h2 { font-size: 1.25rem; font-weight: 700; margin: 1rem 0 0.5rem; line-height: 1.3; }
-  .friday-report-body h3 { font-size: 1.05rem; font-weight: 600; margin: 0.85rem 0 0.4rem; }
-  .friday-report-body h4 { font-size: 0.95rem; font-weight: 600; margin: 0.75rem 0 0.35rem; }
-  .friday-report-body p { margin: 0.5rem 0; }
-  .friday-report-body ul, .friday-report-body ol { margin: 0.5rem 0; padding-left: 1.5rem; }
-  .friday-report-body li { margin: 0.2rem 0; }
-  .friday-report-body blockquote { border-left: 3px solid hsl(var(--border)); padding: 0.25rem 0.75rem; margin: 0.5rem 0; color: hsl(var(--muted-foreground)); }
-  .friday-report-body code { background: hsl(var(--muted)); padding: 0.1rem 0.3rem; border-radius: 0.25rem; font-size: 0.85em; }
-  .friday-report-body pre { background: hsl(var(--muted)); padding: 0.75rem; border-radius: 0.5rem; overflow-x: auto; font-size: 0.85em; margin: 0.5rem 0; }
-  .friday-report-body pre code { background: transparent; padding: 0; }
-  .friday-report-body a { color: hsl(var(--primary)); text-decoration: underline; text-underline-offset: 2px; }
-  .friday-report-body table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; font-size: 0.85rem; }
-  .friday-report-body th, .friday-report-body td { border: 1px solid hsl(var(--border)); padding: 0.5rem 0.65rem; text-align: left; vertical-align: top; }
-  .friday-report-body th { background: hsl(var(--muted)); font-weight: 600; }
-  .friday-report-body tr:nth-child(even) td { background: hsl(var(--muted) / 0.4); }
-  .friday-report-body hr { border: 0; border-top: 1px solid hsl(var(--border)); margin: 1rem 0; }
-  .friday-report-body img { max-width: 100%; height: auto; border-radius: 0.25rem; }
-  .friday-report-body figure { margin: 0.75rem 0; }
-  .friday-report-body figcaption { font-size: 0.8rem; color: hsl(var(--muted-foreground)); text-align: center; margin-top: 0.25rem; }
-  @media print {
-    .friday-report-card-actions { display: none !important; }
-    .friday-report-card-collapse { display: none !important; }
-    .friday-report-body-wrapper { max-height: none !important; overflow: visible !important; }
-  }
+${buildReportCss(".friday-report-body")}
+@media print {
+  .friday-report-card-actions { display: none !important; }
+  .friday-report-card-collapse { display: none !important; }
+  .friday-report-body-wrapper { max-height: none !important; overflow: visible !important; }
+}
 `;
 
 const STANDALONE_CSS = `
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: #0f172a; background: #ffffff; margin: 0; padding: 0; }
-  .friday-report-shell { max-width: 880px; margin: 0 auto; padding: 2.5rem 2rem; }
-  .friday-report-header { border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem; margin-bottom: 1.5rem; }
-  .friday-report-title { font-size: 1.75rem; font-weight: 700; margin: 0 0 0.25rem; color: #0f172a; }
-  .friday-report-subtitle { color: #475569; font-size: 0.95rem; margin: 0; }
-  .friday-report-meta { color: #64748b; font-size: 0.8rem; margin-top: 0.5rem; }
-  .friday-report-body { color: #0f172a; font-size: 0.95rem; line-height: 1.6; }
-  .friday-report-body h1 { font-size: 1.5rem; font-weight: 700; margin: 1.25rem 0 0.6rem; }
-  .friday-report-body h2 { font-size: 1.25rem; font-weight: 700; margin: 1.1rem 0 0.5rem; }
-  .friday-report-body h3 { font-size: 1.05rem; font-weight: 600; margin: 0.9rem 0 0.4rem; }
-  .friday-report-body p { margin: 0.6rem 0; }
-  .friday-report-body ul, .friday-report-body ol { margin: 0.6rem 0; padding-left: 1.5rem; }
-  .friday-report-body li { margin: 0.25rem 0; }
-  .friday-report-body blockquote { border-left: 3px solid #cbd5e1; padding: 0.25rem 0.75rem; margin: 0.6rem 0; color: #475569; }
-  .friday-report-body code { background: #f1f5f9; padding: 0.1rem 0.3rem; border-radius: 0.25rem; font-size: 0.85em; }
-  .friday-report-body pre { background: #f1f5f9; padding: 0.75rem; border-radius: 0.5rem; overflow-x: auto; }
-  .friday-report-body a { color: #2563eb; text-decoration: underline; }
-  .friday-report-body table { border-collapse: collapse; width: 100%; margin: 0.85rem 0; font-size: 0.9rem; }
-  .friday-report-body th, .friday-report-body td { border: 1px solid #e2e8f0; padding: 0.5rem 0.7rem; text-align: left; vertical-align: top; }
-  .friday-report-body th { background: #f8fafc; font-weight: 600; }
-  .friday-report-body hr { border: 0; border-top: 1px solid #e2e8f0; margin: 1.25rem 0; }
-  .friday-report-body img { max-width: 100%; height: auto; }
-  @media print { .friday-report-shell { padding: 0.5in; max-width: none; } }
+:root {
+${STANDALONE_THEME_VARS}
+}
+body {
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: hsl(var(--foreground));
+  background: #f8fafc;
+  margin: 0; padding: 0;
+}
+.friday-report-shell {
+  max-width: 920px; margin: 1.5rem auto; padding: 0;
+  background: #ffffff;
+  border: 1px solid hsl(var(--border));
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 12px 32px -16px rgba(15,23,42,0.18);
+}
+.friday-report-header {
+  position: relative;
+  padding: 1.5rem 2rem 1.25rem;
+  background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(14,165,233,0.04));
+  border-bottom: 1px solid hsl(var(--border));
+}
+.friday-report-header::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px;
+  background: linear-gradient(90deg, #6366f1, #0ea5e9, #06b6d4);
+}
+.friday-report-title {
+  font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em;
+  margin: 0 0 0.2rem; color: hsl(var(--foreground));
+}
+.friday-report-subtitle {
+  color: hsl(var(--muted-foreground)); font-size: 0.92rem;
+  margin: 0; font-weight: 500;
+}
+.friday-report-meta {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  color: hsl(var(--muted-foreground)); font-size: 0.72rem;
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+  margin-top: 0.85rem; padding: 0.2rem 0.55rem;
+  background: hsl(var(--muted)); border-radius: 999px;
+  border: 1px solid hsl(var(--border));
+}
+.friday-report-meta::before {
+  content: ""; width: 6px; height: 6px; border-radius: 999px;
+  background: linear-gradient(180deg, #6366f1, #0ea5e9);
+}
+.friday-report-shell .friday-report-body { padding: 1.25rem 2rem 1.75rem; }
+${buildReportCss(".friday-report-shell .friday-report-body")}
+@media print {
+  body { background: #ffffff; }
+  .friday-report-shell {
+    box-shadow: none; border: 0; border-radius: 0;
+    margin: 0; max-width: none;
+  }
+  .friday-report-header { padding: 0.5in 0.5in 0.25in; }
+  .friday-report-shell .friday-report-body { padding: 0.25in 0.5in 0.5in; }
+}
 `;
 
 function safeFilenamePart(s: string): string {
