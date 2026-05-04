@@ -380,9 +380,8 @@ export default function AiModePage() {
 
       {/* Conversation surface */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
-        <div className="min-h-full flex flex-col">
         {!hasMessages ? (
-          <div className="flex-1 flex flex-col items-center justify-center px-4 py-10">
+          <div className="min-h-full flex flex-col items-center justify-center px-4 py-10">
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -436,7 +435,7 @@ export default function AiModePage() {
             </motion.div>
           </div>
         ) : (
-          <div className="flex-1 w-full max-w-3xl mx-auto px-4 md:px-6 py-6">
+          <div className="min-h-full w-full max-w-3xl mx-auto px-4 md:px-6 py-6">
             {messages.map((msg, i) => (
               <MessageBubble
                 key={msg.id}
@@ -461,9 +460,8 @@ export default function AiModePage() {
             <div ref={messagesEndRef} aria-hidden="true" />
           </div>
         )}
-          <div onClickCapture={handleFooterNavCapture}>
-            <LandingFooter />
-          </div>
+        <div onClickCapture={handleFooterNavCapture}>
+          <LandingFooter />
         </div>
       </div>
 
