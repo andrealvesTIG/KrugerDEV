@@ -83,6 +83,8 @@ const DESTRUCTIVE_ACTIONS: ReadonlySet<FridayActionType> = new Set([
 export interface FridayCardActionData {
   industry?: string;
   dismiss?: boolean;
+  /** When true on configure_organization, bypass the empty-workspace guard and seed demo data anyway. */
+  force?: boolean;
   [key: string]: unknown;
 }
 

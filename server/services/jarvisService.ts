@@ -2111,7 +2111,11 @@ If the user describes "something else" or an industry that isn't in that list, s
 5. After Apply succeeds, your next reply should welcome the user and link to the new portfolio/projects (the action result will include their IDs and names — render them as markdown links like [Portfolio Name](/portfolios/{id})).
 6. If the user says "not now", "skip", or otherwise declines, drop the configure card offer and ask how else you can help.
 
-Important: only emit the configure_organization card while the workspace is empty. Never offer it for orgs that already have projects.`;
+If the workspace already has projects/portfolios and the user explicitly asks for demo data anyway (e.g. "add demo projects", "seed sample data", "do it anyway"), you may still emit the card. In that case:
+- Title: "Add demo projects to your workspace"
+- Subtitle: "I'll add a demo portfolio with sample projects, milestones, risks, and resources alongside your existing data."
+- The Apply action's data must include "force": true (e.g. \`{"label":"Create demo projects anyway","type":"configure_organization","data":{"industry":"{Industry}","force":true}}\`).
+Otherwise, do not offer the card to non-empty workspaces unprompted.`;
 
 export interface CustomAgentRuntimeConfig {
   systemPrompt: string;
@@ -2568,8 +2572,9 @@ export async function executeJarvisAction(
       return { success: false, message: "Only an Organization Admin can configure the workspace." };
     }
     const industryRaw = typeof action.data?.industry === "string" ? action.data.industry : "General";
+    const force = action.data?.force === true;
     const { configureOrganizationFromIndustry } = await import("./onboarding");
-    const result = await configureOrganizationFromIndustry(userId, orgId, industryRaw);
+    const result = await configureOrganizationFromIndustry(userId, orgId, industryRaw, { force });
     if (!result.success) {
       return { success: false, message: result.message };
     }

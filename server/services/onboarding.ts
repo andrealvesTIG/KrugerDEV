@@ -535,8 +535,9 @@ export async function getOrganizationSetupStatus(
 }
 
 /**
- * Friday-driven org setup. Refuses if the org already has projects/portfolios
- * so we can't double-seed an active workspace. Reuses the existing
+ * Friday-driven org setup. By default refuses if the org already has
+ * projects/portfolios so we don't double-seed an active workspace. Pass
+ * `force: true` to override and add demo data anyway. Reuses the existing
  * `generateSampleDataForOrg` so we get the same templates the regular
  * onboarding wizard produces.
  */
@@ -544,6 +545,7 @@ export async function configureOrganizationFromIndustry(
   userId: string,
   organizationId: number,
   industry: string,
+  options: { force?: boolean } = {},
 ): Promise<{
   success: boolean;
   message: string;
@@ -551,12 +553,14 @@ export async function configureOrganizationFromIndustry(
   portfolio?: { id: number; name: string } | null;
   projects?: Array<{ id: number; name: string }>;
 }> {
-  const status = await getOrganizationSetupStatus(organizationId);
-  if (!status.needsSetup) {
-    return {
-      success: false,
-      message: `This workspace already has ${status.projectCount} project${status.projectCount === 1 ? "" : "s"} and ${status.portfolioCount} portfolio${status.portfolioCount === 1 ? "" : "s"}. To avoid duplicating data, the one-click setup only runs on empty workspaces. You can still ask me to create individual projects, tasks, or risks.`,
-    };
+  if (!options.force) {
+    const status = await getOrganizationSetupStatus(organizationId);
+    if (!status.needsSetup) {
+      return {
+        success: false,
+        message: `This workspace already has ${status.projectCount} project${status.projectCount === 1 ? "" : "s"} and ${status.portfolioCount} portfolio${status.portfolioCount === 1 ? "" : "s"}. To avoid duplicating data, the one-click setup only runs on empty workspaces. You can still ask me to create individual projects, tasks, or risks.`,
+      };
+    }
   }
 
   const matched = (SUPPORTED_ONBOARDING_INDUSTRIES as readonly string[]).includes(industry)
