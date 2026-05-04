@@ -1,4 +1,3 @@
-import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAiMode, setAiMode } from "@/hooks/use-ai-mode";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -25,12 +24,6 @@ export function ModeToggle({ className }: ModeToggleProps) {
             className,
           )}
         >
-          <Sparkles
-            className={cn(
-              "h-3.5 w-3.5 transition-colors",
-              aiMode ? "text-primary" : "text-muted-foreground group-hover:text-foreground",
-            )}
-          />
           <span
             className={cn(
               "text-xs font-semibold tracking-wide transition-colors",
