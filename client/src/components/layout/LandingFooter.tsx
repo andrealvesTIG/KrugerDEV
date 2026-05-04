@@ -179,7 +179,7 @@ export function LandingFooter() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-8">
           <div className="col-span-2 md:col-span-3 lg:col-span-1 mb-4 lg:mb-0">
             <div className="flex items-center gap-2 mb-4">
-              <img src={logoWhite} alt="FridayReport.AI" className="h-7" />
+              <img src={logoWhite} alt="FridayReport.AI" className="h-7 w-auto max-w-full object-contain" />
             </div>
             <p className="text-sm text-slate-400 mb-4 max-w-xs">
               Enterprise PPM platform to manage portfolios, track progress, and deliver projects on time.
