@@ -231,6 +231,14 @@ export function registerSuperAdminAgentRoutes(app: Express) {
 
     const latestByAgent = await loadLatestLogByAgent(rows.map(r => r.agent.id));
 
+    console.log('[admin/agents/custom] DEBUG', {
+      query: req.query,
+      conditionsCount: conditions.length,
+      rowsLen: rows.length,
+      count,
+      ids: rows.map(r => r.agent.id),
+    });
+
     res.json({
       total: count,
       limit,
