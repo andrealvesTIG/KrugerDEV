@@ -383,7 +383,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                   lastSpokenRef.current = "";
                   stopSpeaking();
                 }}
-                onboardingActive={forceOnboarding}
+                onboardingActive={showOnboarding && activeAgentId === null}
               />
               
               {pageContext.entityType && (() => {

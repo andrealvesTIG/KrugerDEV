@@ -270,7 +270,7 @@ export default function AiModePage() {
             onSelect={switchAgent}
             variant="page"
             onStartOnboarding={handleStartOnboardingAgent}
-            onboardingActive={forceOnboarding}
+            onboardingActive={showOnboarding && activeAgentId === null}
           />
         </div>
         <div className="flex items-center gap-1 sm:gap-2">
