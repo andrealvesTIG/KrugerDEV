@@ -3,6 +3,7 @@ import { projects, portfolios, issues, tasks, taskDependencies, resources, statu
 import type { FridayAgentConfig } from "@shared/schema";
 import { eq, and, sql, inArray, isNull, desc, gte, isNotNull } from "drizzle-orm";
 import OpenAI, { AzureOpenAI } from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { decryptApiKey, requireEmailVerified, getUserOrgRole, logUserActivity } from "../routes/helpers";
 import { AiCreditsLimitError, type MeterPerCall } from "./aiCredits";
 import { storage } from "../storage";
@@ -2038,6 +2039,58 @@ function isTransientOpenAIError(err: any): boolean {
   return false;
 }
 
+// Lazy adapter: convert the existing OpenAI function-calling tool definitions
+// into Anthropic's `tools` shape so the same JSON schemas drive both
+// providers. Cached once on first use — `jarvisTools` is a module-level
+// constant, so the conversion is purely deterministic.
+let cachedAnthropicJarvisTools: Anthropic.Tool[] | null = null;
+function getAnthropicJarvisTools(): Anthropic.Tool[] {
+  if (cachedAnthropicJarvisTools) return cachedAnthropicJarvisTools;
+  cachedAnthropicJarvisTools = jarvisTools
+    .filter((t) => t.type === "function")
+    .map((t) => {
+      const fn = (t as OpenAI.Chat.Completions.ChatCompletionTool & { type: "function" }).function;
+      const params = (fn.parameters ?? { type: "object", properties: {} }) as Anthropic.Tool.InputSchema;
+      return {
+        name: fn.name,
+        description: fn.description ?? "",
+        input_schema: params,
+      };
+    });
+  return cachedAnthropicJarvisTools;
+}
+
+function classifyAnthropicError(err: any): { userMessage: string; logDetails: string } {
+  const status = err?.status || err?.response?.status;
+  const message = err?.message || "Unknown error";
+  const type = err?.type || err?.constructor?.name || "UnknownError";
+  const code = err?.code || "none";
+  const logDetails = `provider=anthropic type=${type} status=${status || "N/A"} code=${code} message=${message}`;
+
+  if (status === 401 || status === 403) {
+    return { userMessage: "Anthropic authentication failed. Please check your API key in Organization Settings → Friday Agent.", logDetails };
+  }
+  if (status === 404) {
+    return { userMessage: "Anthropic model not found. Please check the model name in Organization Settings → Friday Agent.", logDetails };
+  }
+  if (status === 429) {
+    return { userMessage: "Anthropic is rate-limiting requests. Please try again in a moment.", logDetails };
+  }
+  if (status === 400) {
+    return { userMessage: "Anthropic rejected the request — check your model name and API key in Organization Settings → Friday Agent.", logDetails };
+  }
+  if (status >= 500 && status < 600) {
+    return { userMessage: "Anthropic is temporarily unavailable. Please try again shortly.", logDetails };
+  }
+  if (code === "ETIMEDOUT" || code === "ECONNABORTED" || err?.type === "timeout") {
+    return { userMessage: "Anthropic request timed out. Please try again.", logDetails };
+  }
+  if (code === "ECONNRESET" || code === "ECONNREFUSED" || err?.type === "connection_error") {
+    return { userMessage: "Could not connect to Anthropic. Please try again.", logDetails };
+  }
+  return { userMessage: "Anthropic call failed — check your key and model in Organization Settings → Friday Agent.", logDetails };
+}
+
 function classifyOpenAIError(err: any): { userMessage: string; logDetails: string } {
   const status = err?.status || err?.response?.status;
   const message = err?.message || "Unknown error";
@@ -2336,11 +2389,145 @@ CSV FILE IMPORT RULES:
       })),
     ];
 
-    const { client: orgOpenai, deployment: orgDeployment, isAzure: orgIsAzure } = await getOrgOpenAIClient(orgId);
+    // Custom agents (and the scheduled-agent path) always use OpenAI today —
+    // switching them to Anthropic is tracked as a future task. For the regular
+    // Friday chat surface, honour the org-level provider choice.
+    const llmProvider = agentConfig ? null : await getOrgLlmProvider(orgId);
 
     let fullResponse = "";
     const pendingPdfLinks: Array<{ filename: string; downloadUrl: string }> = [];
     const MAX_TOOL_ROUNDS = 5;
+
+    if (llmProvider?.provider === "anthropic") {
+      // Anthropic is text-only on the Friday surface for this iteration —
+      // image attachments must be rejected with an actionable error so the
+      // user knows to switch providers (rather than silently dropping the
+      // image and producing a worse answer).
+      if (attachments?.some((a) => typeof a.type === "string" && a.type.startsWith("image/"))) {
+        const msg = "Image attachments require OpenAI. Switch your Friday Agent provider to OpenAI in Organization Settings → Friday Agent to send images.";
+        const enrichedError: JarvisEnrichedError = Object.assign(new Error(msg), {
+          logDetails: "anthropic image attachment rejected",
+        });
+        onError(enrichedError);
+        return;
+      }
+
+      const anthropic = new Anthropic({ apiKey: llmProvider.apiKey });
+      const anthropicTools = getAnthropicJarvisTools();
+      // Build the Anthropic message thread from the user/assistant turns
+      // only — the system prompt goes through the top-level `system`
+      // parameter, not as messages[0].
+      const anthropicMessages: Anthropic.MessageParam[] = messages
+        .filter((m) => m.role === "user" || m.role === "assistant")
+        .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+      try {
+        for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+          // Enforce credits BEFORE opening the stream; record only after the
+          // stream closes successfully — same contract as the OpenAI path so
+          // a failed call isn't billed and credit limits abort the loop
+          // round-by-round.
+          let stream: ReturnType<Anthropic["messages"]["stream"]>;
+          let recordSuccess: () => Promise<number>;
+          try {
+            ({ result: stream, recordSuccess } = await meterPerCall(round, async () =>
+              anthropic.messages.stream({
+                model: llmProvider.model,
+                max_tokens: concise ? 4096 : 8192,
+                temperature: 0.3,
+                system: systemMessage,
+                messages: anthropicMessages,
+                ...(anthropicTools.length > 0 ? { tools: anthropicTools } : {}),
+              }),
+            ));
+          } catch (err: any) {
+            if (err instanceof AiCreditsLimitError) {
+              console.warn(`[JARVIS] Anthropic tool loop aborted at round ${round} — AI credit limit reached`);
+              onError(err);
+              return;
+            }
+            throw err;
+          }
+
+          for await (const event of stream) {
+            if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+              fullResponse += event.delta.text;
+              onChunk(event.delta.text);
+            }
+          }
+
+          const final = await stream.finalMessage();
+          await recordSuccess();
+
+          const stopReason = final.stop_reason || "";
+          const toolUses: Anthropic.ToolUseBlock[] = [];
+          for (const block of final.content) {
+            if (block.type === "tool_use") toolUses.push(block);
+          }
+
+          if (stopReason !== "tool_use" || toolUses.length === 0) break;
+
+          // Anthropic requires the assistant turn to come back verbatim
+          // (with both text + tool_use blocks) before we can attach
+          // tool_result blocks in a follow-up user message.
+          anthropicMessages.push({ role: "assistant", content: final.content });
+
+          const toolResults: Anthropic.ToolResultBlockParam[] = [];
+          for (const tu of toolUses) {
+            try {
+              const args = (tu.input ?? {}) as Record<string, any>;
+              const result = await handleToolCall(orgId, userId, tu.name, args);
+              if (tu.name === "generate_pdf") {
+                try {
+                  const parsed = JSON.parse(result);
+                  if (parsed?.success && typeof parsed.downloadUrl === "string" && typeof parsed.filename === "string") {
+                    pendingPdfLinks.push({ filename: parsed.filename, downloadUrl: parsed.downloadUrl });
+                  }
+                } catch {}
+              }
+              toolResults.push({ type: "tool_result", tool_use_id: tu.id, content: result });
+            } catch (err: any) {
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: tu.id,
+                content: JSON.stringify({ success: false, message: err?.message || "Tool execution failed." }),
+                is_error: true,
+              });
+            }
+          }
+
+          anthropicMessages.push({ role: "user", content: toolResults });
+          fullResponse = "";
+        }
+      } catch (err: any) {
+        const { userMessage, logDetails } = classifyAnthropicError(err);
+        console.error(`[JARVIS] Anthropic stream error: ${logDetails}`, err?.stack || err);
+        const enrichedError: JarvisEnrichedError = Object.assign(new Error(userMessage), {
+          originalError: err,
+          logDetails,
+        });
+        onError(enrichedError);
+        return;
+      }
+
+      // Same trailing PDF-link guarantee as the OpenAI path: if Claude
+      // forgot to echo a generated download link, append it ourselves so
+      // the user always has a clickable artifact for files we wrote.
+      const missingLinksA = pendingPdfLinks.filter((l) => !fullResponse.includes(l.downloadUrl));
+      if (missingLinksA.length > 0) {
+        const appended = missingLinksA.map((l) => `\n\n[Download ${l.filename}](${l.downloadUrl})`).join("");
+        fullResponse += appended;
+        onChunk(appended);
+      }
+
+      onDone(fullResponse);
+      return;
+    }
+
+    const { client: orgOpenai, deployment: orgDeployment, isAzure: orgIsAzure } =
+      llmProvider && llmProvider.provider === "openai"
+        ? { client: llmProvider.client, deployment: llmProvider.deployment, isAzure: llmProvider.isAzure }
+        : await getOrgOpenAIClient(orgId);
 
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
       // Enforce credits BEFORE opening the stream; record only after the
