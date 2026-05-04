@@ -26,6 +26,7 @@ import {
   tryParseFridayBurndownChart,
   tryParseFridaySCurveChart,
 } from "./FridayProgressCharts";
+import { FridayReportCard, tryParseFridayReport } from "./FridayReportCard";
 
 export const GLOBAL_PROMPTS = [
   "Which projects are at risk?",
@@ -557,6 +558,51 @@ export function MarkdownContent({ content, onNavigate, variant = "panel", onQuic
       // Streaming-incomplete (no closing fence yet): show shimmer placeholder
       elements.push(
         <div key={`qr-pending-${i}`} className="my-2 h-8 w-40 rounded-full border border-border bg-muted/40 animate-pulse" />
+      );
+      i = j - 1;
+      continue;
+    }
+
+    // Detect fenced report block (rich HTML report)
+    if (line.trim().startsWith("```report")) {
+      const bodyLines: string[] = [];
+      let j = i + 1;
+      while (j < lines.length && lines[j].trim() !== "```") {
+        bodyLines.push(lines[j]);
+        j++;
+      }
+      const bodyText = bodyLines.join("\n");
+      const hasClose = j < lines.length && lines[j].trim() === "```";
+      if (hasClose && bodyText.trim().length > 0) {
+        const report = tryParseFridayReport(bodyText);
+        if (report) {
+          elements.push(
+            <FridayReportCard
+              key={`rp-${i}`}
+              report={report}
+              variant={variant}
+              onNavigate={onNavigate}
+            />
+          );
+        } else {
+          elements.push(
+            <div
+              key={`rp-fallback-${i}`}
+              className="my-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
+            >
+              I couldn't render this report. The header may be malformed — please ask me to regenerate it.
+            </div>
+          );
+        }
+        i = j;
+        continue;
+      }
+      // Streaming-incomplete: show shimmer placeholder
+      elements.push(
+        <div
+          key={`rp-pending-${i}`}
+          className="my-3 h-40 rounded-md border border-border bg-muted/40 animate-pulse"
+        />
       );
       i = j - 1;
       continue;

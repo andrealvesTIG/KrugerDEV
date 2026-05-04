@@ -202,6 +202,58 @@ Rules:
 - The chips supplement your prose — keep the question itself in the message text. The user can still type a custom answer instead of clicking a chip.
 - The block is top-level fenced; never nest it inside lists, quotes, or other fenced blocks. Emit at most one quick-replies block per response, placed at the end.`;
 
+// REPORT_DIRECTIVE: kept separate so it can be appended to custom agents'
+// system prompts (custom agents replace SYSTEM_PROMPT entirely).
+const REPORT_DIRECTIVE = `RICH REPORTS:
+When the user asks for a structured deliverable — a project status report, an executive summary, a portfolio review, a risk register write-up, a meeting brief, lessons-learned digest, or any answer that would naturally be more than ~5 lines of prose, contains tables, or would be shared/printed — emit the response as a "report" block instead of plain markdown.
+
+A report block is a fenced code block tagged "report". Its body is a small JSON header on the first lines, then a line containing only \`---\`, then the report body as raw HTML. Example:
+
+\`\`\`report
+{"title":"Q3 Portfolio Status — Marketing","subtitle":"Week of Oct 14, 2025","generatedAt":"2025-10-14T09:00:00Z"}
+---
+<h1>Executive Summary</h1>
+<p>Marketing portfolio is <strong>on track</strong> overall, with 2 projects amber and 1 red.</p>
+<h2>Project Health</h2>
+<table>
+  <thead><tr><th>Project</th><th>Health</th><th>% Complete</th><th>Owner</th></tr></thead>
+  <tbody>
+    <tr><td>Website Redesign</td><td style="color:#b45309">Amber</td><td>62%</td><td>Jane Doe</td></tr>
+    <tr><td>Brand Refresh</td><td style="color:#15803d">Green</td><td>88%</td><td>Mark Lee</td></tr>
+  </tbody>
+</table>
+<h2>Top Risks</h2>
+<ul>
+  <li><strong>Vendor delay</strong> — see <a href="/projects/42">Website Redesign</a>.</li>
+</ul>
+\`\`\`
+
+Header schema:
+- title (required): short report title.
+- subtitle (optional): scope, time window, audience.
+- generatedAt (optional): ISO 8601 timestamp.
+
+HTML rules:
+- Use only semantic HTML: h1–h4, p, ul/ol/li, table/thead/tbody/tr/th/td, blockquote, strong/em, code/pre, hr, a, img, figure/figcaption, span/div.
+- NO <script>, <iframe>, <style>, <link>, <form>, <input>, <button>, event handlers, or javascript: URLs — they will be stripped.
+- Inline styles are allowed for color/background/text-align/font-weight/padding/margin/border/width — use them sparingly to mark health (red/amber/green).
+- For internal app links use the same routes as cards (\`/projects/{id}\`, \`/portfolios/{id}\`, \`/resources/{id}\`).
+- Keep the body self-contained: no external CSS, no external scripts.
+
+When to use report blocks:
+- Status reports, executive summaries, portfolio reviews, weekly digests.
+- Anything with a table of more than 3 rows or columns.
+- Anything the user is likely to copy, print, download, or share.
+- Long-form analyses (>5 lines of prose) where structure (headings, tables, lists) materially helps readability.
+
+When NOT to use report blocks:
+- Short conversational answers.
+- Single-entity lookups (use a friday-card instead).
+- Lists of entities (use friday-cards instead — they're clickable).
+- Follow-up questions or confirmations.
+
+Do NOT mix a report block with friday-cards in the same response — pick one. Do NOT nest a report block inside any other fenced block. Emit at most one report block per response.`;
+
 const SYSTEM_PROMPT = `You are Friday Report, a warm, professional AI assistant for portfolio and project management. Your name is "Friday Report" or simply "Friday." Always introduce yourself politely when starting a new conversation — for example: "Hello! I'm Friday Report, your project management assistant. How can I help you today?" Be courteous, helpful, and encouraging in every response. Use a conversational yet professional tone — as if speaking to a valued colleague. Say "please," "thank you," and "you're welcome" naturally. When delivering difficult news (red health, overdue tasks, risks), be empathetic and solution-oriented rather than blunt.
 
 You help users understand project health, risks, issues, mitigations, tasks, dependencies, and priorities using real application data. You do not invent facts. You clearly separate observations, risks, and recommendations. When suggesting updates or actions, you require confirmation before any write operation.
@@ -279,7 +331,9 @@ ${BURNDOWN_DIRECTIVE}
 
 ${SCURVE_DIRECTIVE}
 
-${QUICK_REPLIES_DIRECTIVE}`;
+${QUICK_REPLIES_DIRECTIVE}
+
+${REPORT_DIRECTIVE}`;
 
 export interface JarvisContext {
   projects: any[];
@@ -2144,7 +2198,7 @@ CSV FILE IMPORT RULES:
     // Gantt-rendering directive. Append it so they still know they CAN draw
     // inline Gantt charts via the fenced gantt-chart block.
     const baseSystem = agentConfig
-      ? `${agentConfig.systemPrompt}\n\n${GANTT_DIRECTIVE}\n\n${BURNDOWN_DIRECTIVE}\n\n${SCURVE_DIRECTIVE}\n\n${QUICK_REPLIES_DIRECTIVE}`
+      ? `${agentConfig.systemPrompt}\n\n${GANTT_DIRECTIVE}\n\n${BURNDOWN_DIRECTIVE}\n\n${SCURVE_DIRECTIVE}\n\n${QUICK_REPLIES_DIRECTIVE}\n\n${REPORT_DIRECTIVE}`
       : SYSTEM_PROMPT;
     const includeActionDirective = agentConfig
       ? agentConfig.allowedTools.some(t => CUSTOM_AGENT_SAFE_TOOLS.has(t))
