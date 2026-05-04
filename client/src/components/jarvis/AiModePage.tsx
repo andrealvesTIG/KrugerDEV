@@ -289,6 +289,205 @@ export default function AiModePage() {
       ? input + (input ? " " : "") + interimText
       : input;
 
+  // Composer is rendered in two places: a prominent "hero" version in the
+  // middle of the welcome screen (no messages yet), and a compact sticky
+  // bar at the bottom once a chat is in progress. Same controls, different
+  // emphasis.
+  const renderComposer = (hero: boolean) => (
+    <div className={cn("w-full mx-auto", hero ? "max-w-2xl" : "max-w-3xl px-4 md:px-6 py-3")}>
+      <input
+        ref={hero ? undefined : fileInputRef}
+        type="file"
+        multiple
+        accept={FILE_ACCEPT_ATTR}
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+
+      <AnimatePresence>
+        {csvChunkQueue.length > 0 && !isLoading && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-2 p-2 rounded border border-border bg-muted"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-muted-foreground">
+                <Paperclip className="h-3 w-3 inline mr-1" />
+                {csvChunkQueue[0]?.name} — {csvChunkQueue[0]?.chunks.length} chunk{csvChunkQueue[0]?.chunks.length !== 1 ? "s" : ""} remaining
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-6 px-2 text-xs"
+                onClick={processNextChunk}
+              >
+                Send next chunk
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {pendingFiles.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-2 flex flex-wrap gap-1.5"
+          >
+            {pendingFiles.map(f => (
+              <span
+                key={f.name}
+                className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-muted text-foreground border border-border"
+              >
+                <Paperclip className="h-3 w-3" />
+                <span className="max-w-[180px] truncate">{f.name}</span>
+                <span className="text-muted-foreground">({(f.size / 1024).toFixed(0)}KB)</span>
+                <button
+                  onClick={() => removeFile(f.name)}
+                  className="ml-0.5 text-muted-foreground hover:text-destructive transition-colors"
+                  aria-label={`Remove ${f.name}`}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {micError && (
+        <div className="mb-2 text-xs text-destructive text-center px-3 py-1.5 rounded bg-destructive/10 border border-destructive/30">
+          {micError}
+        </div>
+      )}
+
+      <div
+        className={cn(
+          "flex items-end gap-2 rounded-2xl bg-card dark:bg-slate-800 transition-all",
+          hero
+            ? "px-3 py-2.5 border-2 border-primary/40 dark:border-primary/50 shadow-2xl shadow-primary/10 dark:shadow-primary/20 ring-4 ring-primary/10 dark:ring-primary/15 focus-within:border-primary/70 focus-within:ring-primary/25 dark:focus-within:ring-primary/30"
+            : "px-2 py-1.5 border border-border dark:border-slate-600 shadow-sm focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/20 dark:focus-within:border-primary/60 dark:focus-within:ring-primary/30"
+        )}
+      >
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={pendingFiles.length >= 5}
+              className={cn(
+                "rounded-full text-muted-foreground hover:text-foreground flex-shrink-0",
+                hero ? "h-10 w-10" : "h-9 w-9"
+              )}
+              aria-label="Attach files"
+              data-testid={hero ? "button-ai-attach-hero" : "button-ai-attach"}
+            >
+              <Paperclip className={hero ? "h-5 w-5" : "h-4 w-4"} />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <p className="text-xs">Attach files (max 5, 500KB each)</p>
+          </TooltipContent>
+        </Tooltip>
+
+        {micSupported && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={handleMicToggle}
+                className={cn(
+                  "rounded-full flex-shrink-0 transition-colors",
+                  hero ? "h-10 w-10" : "h-9 w-9",
+                  isListening
+                    ? "bg-destructive/15 text-destructive hover:bg-destructive/25 ring-2 ring-destructive/40"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                aria-label={isListening ? "Stop dictation" : "Dictate"}
+                data-testid={hero ? "button-ai-mic-hero" : "button-ai-mic"}
+              >
+                {isListening
+                  ? <MicOff className={hero ? "h-5 w-5" : "h-4 w-4"} />
+                  : <Mic className={hero ? "h-5 w-5" : "h-4 w-4"} />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p className="text-xs">{isListening ? "Stop dictation" : "Dictate (push to talk)"}</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        <Textarea
+          ref={hero ? undefined : textareaRef}
+          value={composedTextareaValue}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={
+            isListening
+              ? "Listening... speak now"
+              : (pageContext.entityType
+                ? `Ask about this ${pageContext.entityType}...`
+                : hero
+                  ? "Ask Friday anything — type a question, paste data, or drop a file…"
+                  : "Message Friday…")
+          }
+          className={cn(
+            "flex-1 resize-y border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none",
+            hero
+              ? "min-h-[140px] max-h-[360px] px-3 py-3 text-base placeholder:text-muted-foreground/80"
+              : "min-h-[96px] max-h-[320px] px-2 py-2 text-sm"
+          )}
+          rows={hero ? 5 : 4}
+          disabled={isListening}
+          data-testid={hero ? "input-ai-message-hero" : "input-ai-message"}
+          autoFocus={hero}
+        />
+
+        {isLoading ? (
+          <Button
+            size="icon"
+            onClick={stopGeneration}
+            className={cn(
+              "rounded-full bg-destructive/10 text-destructive hover:bg-destructive/20 flex-shrink-0",
+              hero ? "h-11 w-11" : "h-9 w-9"
+            )}
+            title="Stop response"
+            data-testid={hero ? "button-ai-stop-hero" : "button-ai-stop"}
+          >
+            <Square className={hero ? "h-5 w-5" : "h-4 w-4"} />
+          </Button>
+        ) : (
+          <Button
+            size="icon"
+            onClick={handleSend}
+            disabled={(!input.trim() && pendingFiles.length === 0) || isListening}
+            className={cn(
+              "rounded-full flex-shrink-0 shadow-md",
+              hero ? "h-11 w-11" : "h-9 w-9"
+            )}
+            aria-label="Send message"
+            data-testid={hero ? "button-ai-send-hero" : "button-ai-send"}
+          >
+            <Send className={hero ? "h-5 w-5" : "h-4 w-4"} />
+          </Button>
+        )}
+      </div>
+
+      <p className={cn(
+        "text-muted-foreground dark:text-slate-400 text-center tracking-wide",
+        hero ? "mt-3 text-[11px]" : "mt-2 text-[10px]"
+      )}>
+        AI-generated. Press <kbd className="px-1 py-0.5 rounded border border-border dark:border-slate-600 bg-muted dark:bg-slate-700 dark:text-slate-200 text-[10px]">Esc</kbd> to exit AI Mode.
+      </p>
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 z-[200] flex flex-col bg-background dark:bg-slate-950">
       {/* Slim header */}
@@ -422,25 +621,38 @@ export default function AiModePage() {
                 {activeAgentName}
               </p>
               {showOnboarding ? (
-                <OnboardingPrompts
-                  variant="page"
-                  onPick={(message) => sendMessage(message)}
-                />
+                <>
+                  <OnboardingPrompts
+                    variant="page"
+                    onPick={(message) => sendMessage(message)}
+                  />
+                  <div className="mt-8">
+                    {renderComposer(true)}
+                  </div>
+                </>
               ) : (
                 <>
                   <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground dark:text-white mb-2">
                     How can Friday help today?
                   </h1>
-                  <p className="text-sm text-muted-foreground dark:text-slate-300 mb-8">
+                  <p className="text-sm text-muted-foreground dark:text-slate-300 mb-6">
                     Ask anything about your portfolios, projects, risks, or resources.
                   </p>
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.1 }}
+                    className="mb-8"
+                  >
+                    {renderComposer(true)}
+                  </motion.div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {suggestedPrompts.map((prompt, idx) => (
                       <motion.button
                         key={prompt}
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: 0.1 + idx * 0.05 }}
+                        transition={{ duration: 0.3, delay: 0.2 + idx * 0.05 }}
                         onClick={() => sendMessage(prompt)}
                         className="group flex items-start gap-3 text-left p-4 rounded-xl border border-border dark:border-slate-700 bg-card dark:bg-slate-900 hover:bg-accent hover:border-primary/40 dark:hover:bg-slate-800 dark:hover:border-primary/60 transition-all shadow-sm dark:shadow-none"
                         data-testid={`button-ai-suggested-${idx}`}
@@ -480,171 +692,13 @@ export default function AiModePage() {
             <div ref={messagesEndRef} aria-hidden="true" />
           </div>
         )}
-        {/* Composer — sticky to viewport bottom while in chat; slides up to reveal footer when scrolled all the way down */}
-        <div className="sticky bottom-0 z-10 border-t border-border dark:border-slate-700 bg-background/95 dark:bg-slate-900/95 backdrop-blur-sm">
-        <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-3">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept={FILE_ACCEPT_ATTR}
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-
-          <AnimatePresence>
-            {csvChunkQueue.length > 0 && !isLoading && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="mb-2 p-2 rounded border border-border bg-muted"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-muted-foreground">
-                    <Paperclip className="h-3 w-3 inline mr-1" />
-                    {csvChunkQueue[0]?.name} — {csvChunkQueue[0]?.chunks.length} chunk{csvChunkQueue[0]?.chunks.length !== 1 ? "s" : ""} remaining
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-6 px-2 text-xs"
-                    onClick={processNextChunk}
-                  >
-                    Send next chunk
-                  </Button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <AnimatePresence>
-            {pendingFiles.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
-                className="mb-2 flex flex-wrap gap-1.5"
-              >
-                {pendingFiles.map(f => (
-                  <span
-                    key={f.name}
-                    className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-muted text-foreground border border-border"
-                  >
-                    <Paperclip className="h-3 w-3" />
-                    <span className="max-w-[180px] truncate">{f.name}</span>
-                    <span className="text-muted-foreground">({(f.size / 1024).toFixed(0)}KB)</span>
-                    <button
-                      onClick={() => removeFile(f.name)}
-                      className="ml-0.5 text-muted-foreground hover:text-destructive transition-colors"
-                      aria-label={`Remove ${f.name}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {micError && (
-            <div className="mb-2 text-xs text-destructive text-center px-3 py-1.5 rounded bg-destructive/10 border border-destructive/30">
-              {micError}
-            </div>
-          )}
-
-          <div className="flex items-end gap-2 rounded-2xl border border-border dark:border-slate-600 bg-card dark:bg-slate-800 px-2 py-1.5 shadow-sm focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/20 dark:focus-within:border-primary/60 dark:focus-within:ring-primary/30 transition-all">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={pendingFiles.length >= 5}
-                  className="h-9 w-9 rounded-full text-muted-foreground hover:text-foreground flex-shrink-0"
-                  aria-label="Attach files"
-                  data-testid="button-ai-attach"
-                >
-                  <Paperclip className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                <p className="text-xs">Attach files (max 5, 500KB each)</p>
-              </TooltipContent>
-            </Tooltip>
-
-            {micSupported && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={handleMicToggle}
-                    className={cn(
-                      "h-9 w-9 rounded-full flex-shrink-0 transition-colors",
-                      isListening
-                        ? "bg-destructive/15 text-destructive hover:bg-destructive/25 ring-2 ring-destructive/40"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                    aria-label={isListening ? "Stop dictation" : "Dictate"}
-                    data-testid="button-ai-mic"
-                  >
-                    {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p className="text-xs">{isListening ? "Stop dictation" : "Dictate (push to talk)"}</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-
-            <Textarea
-              ref={textareaRef}
-              value={composedTextareaValue}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                isListening
-                  ? "Listening... speak now"
-                  : (pageContext.entityType
-                    ? `Ask about this ${pageContext.entityType}...`
-                    : "Message Friday…")
-              }
-              className="flex-1 min-h-[96px] max-h-[320px] resize-y border-0 bg-transparent px-2 py-2 text-sm focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none"
-              rows={4}
-              disabled={isListening}
-              data-testid="input-ai-message"
-            />
-
-            {isLoading ? (
-              <Button
-                size="icon"
-                onClick={stopGeneration}
-                className="h-9 w-9 rounded-full bg-destructive/10 text-destructive hover:bg-destructive/20 flex-shrink-0"
-                title="Stop response"
-                data-testid="button-ai-stop"
-              >
-                <Square className="h-4 w-4" />
-              </Button>
-            ) : (
-              <Button
-                size="icon"
-                onClick={handleSend}
-                disabled={(!input.trim() && pendingFiles.length === 0) || isListening}
-                className="h-9 w-9 rounded-full flex-shrink-0"
-                aria-label="Send message"
-                data-testid="button-ai-send"
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            )}
+        {/* Composer — sticky to viewport bottom while in chat; the welcome
+            screen renders its own larger "hero" version inline above. */}
+        {hasMessages && (
+          <div className="sticky bottom-0 z-10 border-t border-border dark:border-slate-700 bg-background/95 dark:bg-slate-900/95 backdrop-blur-sm">
+            {renderComposer(false)}
           </div>
-
-          <p className="mt-2 text-[10px] text-muted-foreground dark:text-slate-400 text-center tracking-wide">
-            AI-generated. Press <kbd className="px-1 py-0.5 rounded border border-border dark:border-slate-600 bg-muted dark:bg-slate-700 dark:text-slate-200 text-[10px]">Esc</kbd> to exit AI Mode.
-          </p>
-        </div>
-        </div>
+        )}
         <div onClickCapture={handleFooterNavCapture}>
           <LandingFooter />
         </div>
