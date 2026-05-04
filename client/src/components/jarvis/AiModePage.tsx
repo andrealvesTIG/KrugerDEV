@@ -447,7 +447,7 @@ export default function AiModePage() {
             </motion.div>
           </div>
         ) : (
-          <div className="min-h-full w-full max-w-3xl mx-auto px-4 md:px-6 py-6">
+          <div className="min-h-full w-full max-w-3xl mx-auto px-4 md:px-6 pt-6 pb-32">
             {messages.map((msg, i) => (
               <MessageBubble
                 key={msg.id}
@@ -472,13 +472,8 @@ export default function AiModePage() {
             <div ref={messagesEndRef} aria-hidden="true" />
           </div>
         )}
-        <div onClickCapture={handleFooterNavCapture}>
-          <LandingFooter />
-        </div>
-      </div>
-
-      {/* Composer */}
-      <div className="flex-shrink-0 border-t border-border dark:border-slate-700 bg-background/95 dark:bg-slate-900/95 backdrop-blur-sm">
+        {/* Composer — sticky to viewport bottom while in chat; slides up to reveal footer when scrolled all the way down */}
+        <div className="sticky bottom-0 z-10 border-t border-border dark:border-slate-700 bg-background/95 dark:bg-slate-900/95 backdrop-blur-sm">
         <div className="w-full max-w-3xl mx-auto px-4 md:px-6 py-3">
           <input
             ref={fileInputRef}
@@ -640,6 +635,10 @@ export default function AiModePage() {
           <p className="mt-2 text-[10px] text-muted-foreground dark:text-slate-400 text-center tracking-wide">
             AI-generated. Press <kbd className="px-1 py-0.5 rounded border border-border dark:border-slate-600 bg-muted dark:bg-slate-700 dark:text-slate-200 text-[10px]">Esc</kbd> to exit AI Mode.
           </p>
+        </div>
+        </div>
+        <div onClickCapture={handleFooterNavCapture}>
+          <LandingFooter />
         </div>
       </div>
     </div>
