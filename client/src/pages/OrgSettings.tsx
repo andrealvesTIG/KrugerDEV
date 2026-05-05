@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { Card, CardContent } from "@/components/ui/card";
@@ -108,7 +108,6 @@ const settingsTabs = [
   { value: "demo", label: "Demo Data", icon: Sparkles },
   { value: "reminders", label: "Reminders & Escalation", icon: Bell },
   { value: "integrations", label: "Integrations", icon: Plug },
-  { value: "friday-agent", label: "Friday Agent", icon: Bot },
   { value: "agents", label: "Agents", icon: Bot },
   { value: "risk-assessment", label: "Risk Assessment", icon: ShieldAlert },
   { value: "scoring", label: "Portfolio Scoring", icon: Target },
@@ -116,11 +115,54 @@ const settingsTabs = [
   { value: "act-as", label: "Act As User", icon: UserCheck },
 ];
 
+function getInitialTabFromLocation(): { tab: string; agentsSubTab: "custom" | "friday" } {
+  if (typeof window === "undefined") {
+    return { tab: "general", agentsSubTab: "custom" };
+  }
+  const params = new URLSearchParams(window.location.search);
+  const raw = params.get("tab") || window.location.hash.replace(/^#/, "");
+  if (raw === "friday-agent") {
+    return { tab: "agents", agentsSubTab: "friday" };
+  }
+  if (raw === "agents") {
+    return { tab: "agents", agentsSubTab: "custom" };
+  }
+  if (raw) {
+    return { tab: raw, agentsSubTab: "custom" };
+  }
+  return { tab: "general", agentsSubTab: "custom" };
+}
+
 function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organization }) {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState("general");
+  const initial = getInitialTabFromLocation();
+  const [activeTab, setActiveTab] = useState(initial.tab);
+  const [agentsSubTab, setAgentsSubTab] = useState<"custom" | "friday">(initial.agentsSubTab);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDesktopSidebarCollapsed, setIsDesktopSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    const onPopState = () => {
+      const next = getInitialTabFromLocation();
+      setActiveTab(next.tab);
+      setAgentsSubTab(next.agentsSubTab);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  const handleTabChange = (value: string) => {
+    if (value === "friday-agent") {
+      setActiveTab("agents");
+      setAgentsSubTab("friday");
+    } else if (value === "agents") {
+      setActiveTab("agents");
+      setAgentsSubTab("custom");
+    } else {
+      setActiveTab(value);
+    }
+    setIsMobileMenuOpen(false);
+  };
   
   const memberships = useOrganization().memberships;
   const userOrgRole = memberships?.find(m => m.organizationId === currentOrganization?.id)?.role;
@@ -143,10 +185,7 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
   const ActiveIcon = activeTabInfo.icon;
 
   return (
-    <Tabs value={activeTab} onValueChange={(value) => {
-      setActiveTab(value);
-      setIsMobileMenuOpen(false);
-    }} orientation="vertical" className="flex flex-col md:flex-row gap-4 md:gap-6">
+    <Tabs value={activeTab} onValueChange={handleTabChange} orientation="vertical" className="flex flex-col md:flex-row gap-4 md:gap-6">
       <div className="md:hidden">
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -275,12 +314,24 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         <TabsContent value="integrations" className="mt-0">
           <IntegrationsPage />
         </TabsContent>
-        <TabsContent value="friday-agent" className="mt-0">
-          <FridayAgentConfigSection organizationId={currentOrganization.id} />
-        </TabsContent>
         {isAdminOrOwner && (
           <TabsContent value="agents" className="mt-0">
-            <OrgAgentsSection organizationId={currentOrganization.id} />
+            <Tabs
+              value={agentsSubTab}
+              onValueChange={(v) => setAgentsSubTab(v as "custom" | "friday")}
+              className="w-full"
+            >
+              <TabsList className="mb-4">
+                <TabsTrigger value="custom" data-testid="tab-agents-custom">Custom Agents</TabsTrigger>
+                <TabsTrigger value="friday" data-testid="tab-agents-friday">Friday Agent</TabsTrigger>
+              </TabsList>
+              <TabsContent value="custom" className="mt-0">
+                <OrgAgentsSection organizationId={currentOrganization.id} />
+              </TabsContent>
+              <TabsContent value="friday" className="mt-0">
+                <FridayAgentConfigSection organizationId={currentOrganization.id} />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
         )}
         <TabsContent value="risk-assessment" className="mt-0">
