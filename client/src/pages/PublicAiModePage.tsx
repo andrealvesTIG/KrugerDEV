@@ -880,7 +880,7 @@ export default function PublicAiModePage() {
                 <Lock className="h-6 w-6 text-primary" />
               </div>
             </div>
-            <DialogTitle className="text-center">You've used your {questionLimit} free questions</DialogTitle>
+            <DialogTitle className="text-center">Sign in to continue</DialogTitle>
             <DialogDescription className="text-center">
               Sign in or create a free account to keep chatting with Friday. Your conversation so far will be saved to your account, and Friday will pick up exactly where you left off.
             </DialogDescription>
