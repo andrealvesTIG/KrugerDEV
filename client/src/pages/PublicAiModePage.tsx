@@ -657,6 +657,57 @@ export default function PublicAiModePage() {
                 </div>
               );
             })()}
+            {/* In-conversation sign-in / sign-up CTA. Appears once the
+                user has spent both free questions and the assistant has
+                finished streaming, so the next step is visible in the
+                transcript itself rather than buried in a placeholder or
+                gated behind clicking Send a 3rd time. The login-wall
+                dialog still fires if they try to send anyway. */}
+            {remaining === 0 && !isLoading && (
+              <div
+                className="my-4 rounded-2xl border border-primary/30 bg-primary/5 dark:bg-primary/10 p-4 md:p-5"
+                data-testid="card-public-ai-inline-cta"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+                    <Lock className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-foreground dark:text-white mb-1">
+                      You've used your {QUESTION_LIMIT} free questions
+                    </h3>
+                    <p className="text-xs text-muted-foreground dark:text-slate-300 mb-3 leading-relaxed">
+                      Sign in or create a free account to keep chatting. Your conversation so far will be saved and Friday will pick up exactly where you left off.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          trackEvent("guest_converted", "friday-public", "signup_inline");
+                          goToAuth("register");
+                        }}
+                        className="w-full sm:flex-1"
+                        data-testid="button-public-ai-inline-signup"
+                      >
+                        Create free account
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          trackEvent("guest_converted", "friday-public", "signin_inline");
+                          goToAuth("login");
+                        }}
+                        className="w-full sm:flex-1"
+                        data-testid="button-public-ai-inline-signin"
+                      >
+                        Sign in
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             <div ref={messagesEndRef} aria-hidden="true" />
           </div>
         )}
