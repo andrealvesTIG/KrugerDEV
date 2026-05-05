@@ -2084,7 +2084,9 @@ export const fridayConversations = pgTable("friday_conversations", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   // When true, every reply Friday streams for this conversation includes
-  // the ONBOARDING_DIRECTIVE in the system prompt — regardless of whether
+  // the onboarding directive (ONBOARDING_DEFAULT_PROMPT, super-admin
+  // overridable via builtin_agent_settings) in the system prompt —
+  // regardless of whether
   // the org is auto-detected as empty. Set by /api/jarvis/guest/adopt so a
   // visitor whose public-preview chat we just migrated keeps getting the
   // onboarding agent (offer to seed a workspace, ask about industry, etc.)
@@ -5573,12 +5575,14 @@ export type CustomAgentConversation = typeof customAgentConversations.$inferSele
 export type CustomAgentMessage = typeof customAgentMessages.$inferSelect;
 export type CustomAgentLog = typeof customAgentLogs.$inferSelect;
 
-// Platform-level settings for the three built-in agents (Friday, Power BI
-// Request, Project Agent). Singleton row per agent_key. Lets super admins
-// disable an agent globally and/or override the default system prompt and
-// model used by the service. NULL columns mean "use the service-baked
-// default". Caching is handled in server/storage/builtinAgentSettingsStorage.ts.
-export const BUILTIN_AGENT_KEYS = ["friday", "powerbi", "project_agent"] as const;
+// Platform-level settings for the platform-built-in agents (Friday,
+// Power BI Request, Project Agent, and the Onboarding directive that
+// gets appended to Friday for first-time users / public previews).
+// Singleton row per agent_key. Lets super admins disable an agent
+// globally and/or override the default system prompt and model used by
+// the service. NULL columns mean "use the service-baked default".
+// Caching is handled in server/storage/builtinAgentSettingsStorage.ts.
+export const BUILTIN_AGENT_KEYS = ["friday", "powerbi", "project_agent", "onboarding"] as const;
 export type BuiltinAgentKey = (typeof BUILTIN_AGENT_KEYS)[number];
 
 // Structured provider-credential blob set per built-in agent. Each section

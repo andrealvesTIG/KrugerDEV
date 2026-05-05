@@ -30,7 +30,10 @@ import {
 } from "../storage/builtinAgentSettingsStorage";
 import { computeNextRun } from "../services/customAgentService";
 import { baseSchema as customAgentBaseSchema } from "./customAgentRoutes";
-import { FRIDAY_DEFAULT_SYSTEM_PROMPT } from "../services/jarvisService";
+import {
+  FRIDAY_DEFAULT_SYSTEM_PROMPT,
+  ONBOARDING_DEFAULT_PROMPT,
+} from "../services/jarvisService";
 import { POWERBI_DEFAULT_SYSTEM_PROMPT } from "../services/powerbiAgentService";
 import {
   PROJECT_AGENT_DEFAULT_SYSTEM_PROMPT,
@@ -70,6 +73,17 @@ const BUILTIN_AGENTS: Array<{
     description: "Scheduled per-project agent: meeting agendas, task follow-ups, status reports.",
     defaultPrompt: PROJECT_AGENT_DEFAULT_SYSTEM_PROMPT,
     defaultModel: PROJECT_AGENT_DEFAULT_MODEL,
+  },
+  {
+    id: -4,
+    key: "onboarding",
+    name: "Onboarding Agent",
+    description:
+      "Greets first-time users and guests on /ai, asks which capital-projects focus area they're in (Capital Projects / Project Controls / Industrial Automation / Construction), and offers to seed a demo workspace. Runs as an addendum to Friday — disable to fall back to plain Friday for new workspaces.",
+    defaultPrompt: ONBOARDING_DEFAULT_PROMPT,
+    // Onboarding rides on top of Friday at runtime, so the model
+    // override is informational only — the field is hidden in the UI.
+    defaultModel: "(uses Friday's model)",
   },
 ];
 
@@ -526,7 +540,7 @@ export function registerSuperAdminAgentRoutes(app: Express) {
   // ---------------------------------------------------------------------------
   apiRoute(app, "get", "/api/admin/agents/builtin", {
     tag: "Admin: Agents",
-    summary: "Super admin: list built-in agent settings (Friday / Power BI / Project Agent)",
+    summary: "Super admin: list built-in agent settings (Friday / Power BI / Project Agent / Onboarding)",
     responses: { ...r200("Built-in agents", { type: "array" }), ...stdRes },
   }, async (req: Request, res: Response) => {
     const userId = await requireSuperAdmin(req, res);

@@ -2226,7 +2226,12 @@ async function detectOrgNeedsSetup(orgId: number, userId: string): Promise<boole
   }
 }
 
-const ONBOARDING_DIRECTIVE = `\n\nONBOARDING MODE — This workspace is brand new (no portfolios or projects yet) and the user has not finished onboarding.
+// Default text appended to Friday's system prompt when onboarding mode
+// is active (new workspace OR a guest /ai conversation that just got
+// adopted). Exported so the Super Admin → Agents → Built-in card can
+// show + reset to it; admins can override the body via the
+// "onboarding" key in builtin_agent_settings.
+export const ONBOARDING_DEFAULT_PROMPT = `ONBOARDING MODE — This workspace is brand new (no portfolios or projects yet) and the user has not finished onboarding.
 
 FridayReport.AI is a Capital Projects PPM purpose-built for owners, EPCs, project controls teams, industrial automation / OT engineers, and construction GCs. Frame the conversation around capital projects, not generic SaaS work.
 
@@ -2367,7 +2372,22 @@ export async function streamJarvisResponse(
       includeChartData,
     });
     const attachmentContext = buildAttachmentContext(attachments);
-    const onboardingDirective = (needsSetup || options?.forceOnboarding) ? ONBOARDING_DIRECTIVE : "";
+    // Onboarding directive: appended to Friday's system prompt when
+    // either the workspace is brand new (needsSetup) or the request
+    // explicitly forced it (e.g. an adopted public-preview chat). Body
+    // is super-admin overridable via the "onboarding" built-in agent
+    // card; if the admin disables the onboarding agent we skip
+    // appending entirely (Friday answers without the seed-workspace
+    // playbook).
+    let onboardingDirective = "";
+    if (!agentConfig && (needsSetup || options?.forceOnboarding)) {
+      const onboardingEnabled = await isBuiltinAgentEnabled("onboarding");
+      if (onboardingEnabled) {
+        const onboardingOverride = await getBuiltinAgentPromptOverride("onboarding");
+        const body = onboardingOverride ?? ONBOARDING_DEFAULT_PROMPT;
+        onboardingDirective = `\n\n${body}`;
+      }
+    }
 
     const conciseDirective = concise
       ? `\n\nIMPORTANT — Concise mode is ON. Keep every reply SHORT: max 3-5 bullet points or 2-3 short sentences. No lengthy explanations. Omit sections that have nothing notable. If the user needs more detail, they will ask.`

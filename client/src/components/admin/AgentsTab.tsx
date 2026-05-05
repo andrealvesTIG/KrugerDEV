@@ -26,7 +26,7 @@ import {
   Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
 import {
-  Loader2, Search, MoreHorizontal, Bot, Database, Briefcase, RefreshCw, Save,
+  Loader2, Search, MoreHorizontal, Bot, Database, Briefcase, Compass, RefreshCw, Save,
   ChevronDown, ChevronRight,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -112,7 +112,7 @@ interface BuiltinProviderRedacted {
 
 interface BuiltinAgentRow {
   id: number;
-  key: "friday" | "powerbi" | "project_agent";
+  key: "friday" | "powerbi" | "project_agent" | "onboarding";
   name: string;
   description: string;
   builtinDefaultPrompt: string;
@@ -781,6 +781,7 @@ const BUILTIN_ICON: Record<BuiltinAgentRow["key"], typeof Bot> = {
   friday: Bot,
   powerbi: Database,
   project_agent: Briefcase,
+  onboarding: Compass,
 };
 
 function BuiltinAgentCard({ agent }: { agent: BuiltinAgentRow }) {
@@ -872,9 +873,15 @@ function BuiltinAgentCard({ agent }: { agent: BuiltinAgentRow }) {
   const handleResetPrompt = () => setPrompt("");
   const handleResetModel = () => setModel("");
 
-  const showAzure = agent.key === "friday" || agent.key === "project_agent";
-  const showOpenAI = true;
-  const showAnthropic = agent.key === "powerbi";
+  // Onboarding rides on top of Friday's runtime — it has no model or
+  // provider of its own. Hide those sections (and the per-card model
+  // override) so admins only see what's actually configurable for it.
+  const isOnboarding = agent.key === "onboarding";
+  const showAzure = !isOnboarding && (agent.key === "friday" || agent.key === "project_agent");
+  const showOpenAI = !isOnboarding;
+  const showAnthropic = !isOnboarding && agent.key === "powerbi";
+  const showModel = !isOnboarding;
+  const showProviderSection = !isOnboarding;
 
   return (
     <Card data-testid={`card-builtin-${agent.key}`}>
@@ -934,27 +941,34 @@ function BuiltinAgentCard({ agent }: { agent: BuiltinAgentRow }) {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor={`model-${agent.key}`}>Default model override</Label>
-              {model && (
-                <Button type="button" variant="ghost" size="sm" onClick={handleResetModel} data-testid={`button-reset-model-${agent.key}`}>
-                  Reset
-                </Button>
-              )}
+          {showModel ? (
+            <div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor={`model-${agent.key}`}>Default model override</Label>
+                {model && (
+                  <Button type="button" variant="ghost" size="sm" onClick={handleResetModel} data-testid={`button-reset-model-${agent.key}`}>
+                    Reset
+                  </Button>
+                )}
+              </div>
+              <Input
+                id={`model-${agent.key}`}
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder={agent.builtinDefaultModel}
+                className="mt-1 font-mono text-xs"
+                data-testid={`input-model-${agent.key}`}
+              />
+              <div className="mt-1 text-xs text-muted-foreground">
+                Platform default: <span className="font-mono">{agent.builtinDefaultModel}</span>
+              </div>
             </div>
-            <Input
-              id={`model-${agent.key}`}
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder={agent.builtinDefaultModel}
-              className="mt-1 font-mono text-xs"
-              data-testid={`input-model-${agent.key}`}
-            />
-            <div className="mt-1 text-xs text-muted-foreground">
-              Platform default: <span className="font-mono">{agent.builtinDefaultModel}</span>
+          ) : (
+            <div className="text-xs text-muted-foreground">
+              This agent runs as an addendum to Friday — it shares Friday's
+              model and provider credentials. Edit those on the Friday card.
             </div>
-          </div>
+          )}
           <div className="flex items-end">
             <div className="text-xs text-muted-foreground">
               {agent.updatedAt ? <>Last updated {fmtDate(agent.updatedAt)}</> : "No overrides yet"}
@@ -995,6 +1009,7 @@ function BuiltinAgentCard({ agent }: { agent: BuiltinAgentRow }) {
           </Button>
         </div>
 
+        {showProviderSection && (
         <div className="border-t pt-4">
           <Button
             type="button"
@@ -1053,6 +1068,7 @@ function BuiltinAgentCard({ agent }: { agent: BuiltinAgentRow }) {
             </div>
           )}
         </div>
+        )}
       </CardContent>
     </Card>
   );
