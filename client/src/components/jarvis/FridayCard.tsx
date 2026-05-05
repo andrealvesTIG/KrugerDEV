@@ -399,6 +399,52 @@ export function FridayCard({ card, onNavigate }: FridayCardProps) {
           </div>
         )}
 
+        {/* Escape hatch for the empty-workspace guard on configure_organization.
+            The backend rejects setup if the org already has projects/portfolios
+            unless { force: true } is passed. When the apply attempt fails we
+            surface a second, explicit-consent button that re-fires the same
+            action with force=true so the user can opt into seeding demo data
+            on top of existing content. */}
+        {runState?.status === "error" && !isLocked && (() => {
+          const applyIdx = card.actions?.findIndex(
+            (a) => a.type === "configure_organization" && !isDismissAction(a),
+          ) ?? -1;
+          if (applyIdx < 0) return null;
+          const applyAction = card.actions![applyIdx];
+          const alreadyForced = applyAction.data?.force === true;
+          if (alreadyForced) return null;
+          return (
+            <div className="mt-2 flex flex-col gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs self-start border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
+                disabled={busyAction !== null}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAction(applyIdx, {
+                    ...applyAction,
+                    label: "Apply setup anyway",
+                    data: { ...(applyAction.data ?? {}), force: true },
+                  });
+                }}
+                data-testid="friday-card-action-configure_organization-force"
+              >
+                {busyAction === applyIdx ? (
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                ) : (
+                  <Bolt className="h-3 w-3 mr-1" />
+                )}
+                Apply setup anyway
+              </Button>
+              <p className="text-[11px] text-muted-foreground">
+                Adds the demo portfolio and projects on top of your existing
+                workspace. You can delete them later.
+              </p>
+            </div>
+          );
+        })()}
+
         {isLocked && (
           <div className="mt-2 text-[11px] text-muted-foreground">
             {completedLabel} completed.
