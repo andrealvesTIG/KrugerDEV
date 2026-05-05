@@ -10,7 +10,6 @@ import {
   HardHat,
   Zap,
   Sparkles,
-  Compass,
   AlertTriangle,
   TrendingUp,
   ClipboardList,
@@ -66,7 +65,6 @@ export const ONBOARDING_GOAL_OPTIONS: Array<{
   { key: "controls", label: "Stand up project controls", message: "I want to stand up project controls — cost, schedule, change, and reporting.", icon: ClipboardList },
   { key: "evm", label: "Run earned value (EVM / CPI / SPI)", message: "I want to run earned value management with CPI and SPI on my projects.", icon: TrendingUp },
   { key: "risks", label: "Track risks, RFIs, and issues", message: "I want to track risks, RFIs, submittals, and issues across my projects.", icon: AlertTriangle },
-  { key: "explore", label: "Just exploring", message: "I'm just exploring the app for now — show me what it can do.", icon: Compass },
 ];
 
 interface OnboardingPromptsProps {
