@@ -760,7 +760,7 @@ export default function PublicAiModePage() {
                 Onboarding Agent — free preview
               </p>
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground dark:text-white mb-2">
-                Welcome — let's see how Friday can help
+                Welcome, project professionals — how can Friday help?
               </h1>
               <p className="text-sm text-muted-foreground dark:text-slate-300 mb-6">
                 FridayReport.AI is built for capital projects, project controls, industrial automation, and construction. Pick the focus that fits your work — or ask Friday anything. {questionLimit} free questions, no sign-up required.
