@@ -757,9 +757,12 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const organizationId = parseInt(req.params.organizationId);
-      const { name, fieldType, entityType, description, isRequired, options, defaultValue, displayOrder, isActive } = req.body;
+      const { name, fieldType, entityType, description, isRequired, options, defaultValue, formula, displayOrder, isActive } = req.body;
       if (!name || typeof name !== "string" || !name.trim()) {
         return res.status(400).json({ message: "Field name is required" });
+      }
+      if (fieldType === 'formula' && (!formula || typeof formula !== 'string' || !formula.trim())) {
+        return res.status(400).json({ message: "Formula is required for calculated fields" });
       }
       const field = await storage.createCustomFieldDefinition({
         organizationId,
@@ -770,6 +773,7 @@ export async function registerMiscRoutes(app: Express) {
         isRequired,
         options,
         defaultValue,
+        formula: fieldType === 'formula' ? formula.trim() : null,
         displayOrder,
         isActive,
       });
@@ -790,7 +794,7 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const id = parseInt(req.params.id);
-      const { name, fieldName, fieldType, fieldLabel, entityType, description, isRequired, options, defaultValue, displayOrder, isActive } = req.body;
+      const { name, fieldName, fieldType, fieldLabel, entityType, description, isRequired, options, defaultValue, formula, displayOrder, isActive } = req.body;
       const safeUpdate: Record<string, any> = {};
       const nameVal = name ?? fieldName;
       if (nameVal !== undefined) safeUpdate.name = nameVal;
@@ -800,8 +804,23 @@ export async function registerMiscRoutes(app: Express) {
       if (isRequired !== undefined) safeUpdate.isRequired = isRequired;
       if (options !== undefined) safeUpdate.options = options;
       if (defaultValue !== undefined) safeUpdate.defaultValue = defaultValue;
+      if (formula !== undefined) safeUpdate.formula = formula;
       if (displayOrder !== undefined) safeUpdate.displayOrder = displayOrder;
       if (isActive !== undefined) safeUpdate.isActive = isActive;
+      // Determine the effective field type after this update (may be a switch
+      // from another type to 'formula' without `formula` in the payload).
+      const existing = await storage.getCustomFieldDefinition(id);
+      const effectiveType = safeUpdate.fieldType ?? existing?.fieldType;
+      if (effectiveType === 'formula') {
+        const effectiveFormula = safeUpdate.formula !== undefined ? safeUpdate.formula : (existing as any)?.formula;
+        if (!effectiveFormula || !String(effectiveFormula).trim()) {
+          return res.status(400).json({ message: "Formula is required for calculated fields" });
+        }
+        safeUpdate.formula = String(effectiveFormula).trim();
+      } else if (safeUpdate.fieldType !== undefined && safeUpdate.fieldType !== 'formula') {
+        // Switching away from formula — clear the stored expression.
+        safeUpdate.formula = null;
+      }
       const field = await storage.updateCustomFieldDefinition(id, safeUpdate);
       res.json(field);
     } catch (error) {

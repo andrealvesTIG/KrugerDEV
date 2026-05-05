@@ -23,6 +23,7 @@ const FIELD_TYPES = [
   { value: "multiselect", label: "Multi Select" },
   { value: "checkbox", label: "Checkbox" },
   { value: "url", label: "URL" },
+  { value: "formula", label: "Formula (Calculated)" },
 ] as const;
 
 const ENTITY_TYPES = [
@@ -50,6 +51,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
   const [description, setDescription] = useState("");
   const [isRequired, setIsRequired] = useState(false);
   const [options, setOptions] = useState("");
+  const [formula, setFormula] = useState("");
 
   const filteredFields = useMemo(() =>
     fields.filter(f => (f.entityType || 'project') === activeEntityTab),
@@ -63,6 +65,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
     setDescription("");
     setIsRequired(false);
     setOptions("");
+    setFormula("");
     setEditingField(null);
   };
 
@@ -74,6 +77,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
     setDescription(field.description || "");
     setIsRequired(field.isRequired ?? false);
     setOptions(field.options ? (field.options as string[]).join(", ") : "");
+    setFormula((field as any).formula || "");
     setShowAddDialog(true);
   };
 
@@ -87,6 +91,13 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
       ? options.split(",").map(o => o.trim()).filter(Boolean)
       : null;
 
+    if (fieldType === "formula" && !formula.trim()) {
+      toast({ title: "Error", description: "Formula is required for calculated fields", variant: "destructive" });
+      return;
+    }
+
+    const formulaValue = fieldType === "formula" ? formula.trim() : null;
+
     try {
       if (editingField) {
         await updateMutation.mutateAsync({
@@ -98,7 +109,8 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
           description: description.trim() || null,
           isRequired,
           options: optionsArray,
-        });
+          formula: formulaValue,
+        } as any);
         toast({ title: "Success", description: "Custom field updated" });
       } else {
         await createMutation.mutateAsync({
@@ -109,8 +121,9 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
           description: description.trim() || null,
           isRequired,
           options: optionsArray,
+          formula: formulaValue,
           displayOrder: filteredFields.length,
-        });
+        } as any);
         toast({ title: "Success", description: "Custom field created" });
       }
       setShowAddDialog(false);
@@ -316,6 +329,45 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
                   placeholder="Option 1, Option 2, Option 3"
                   data-testid="input-field-options"
                 />
+              </div>
+            )}
+            {fieldType === "formula" && (
+              <div className="space-y-2">
+                <Label htmlFor="field-formula">Formula / Mask *</Label>
+                <Input
+                  id="field-formula"
+                  value={formula}
+                  onChange={(e) => setFormula(e.target.value)}
+                  placeholder="e.g., {Budget} * 1.1 + {Contingency}"
+                  data-testid="input-field-formula"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Reference other numeric custom fields by name in curly braces. Supports + - * / % and parentheses.
+                </p>
+                {(() => {
+                  const numericFields = fields.filter(f =>
+                    (f.entityType || 'project') === entityType &&
+                    (f.fieldType === 'number' || f.fieldType === 'formula') &&
+                    f.id !== editingField?.id
+                  );
+                  if (numericFields.length === 0) return null;
+                  return (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      <span className="text-[10px] uppercase tracking-wide text-muted-foreground self-center mr-1">Available:</span>
+                      {numericFields.map(f => (
+                        <Badge
+                          key={f.id}
+                          variant="outline"
+                          className="cursor-pointer text-[11px]"
+                          onClick={() => setFormula(prev => prev + `{${f.name}}`)}
+                          data-testid={`badge-formula-ref-${f.id}`}
+                        >
+                          {`{${f.name}}`}
+                        </Badge>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             )}
             <div className="space-y-2">

@@ -3037,12 +3037,17 @@ export const customFieldDefinitions = pgTable("custom_field_definitions", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   name: text("name").notNull(),
-  fieldType: text("field_type").notNull(), // 'text', 'number', 'date', 'select', 'multiselect', 'checkbox', 'url'
+  fieldType: text("field_type").notNull(), // 'text', 'number', 'date', 'select', 'multiselect', 'checkbox', 'url', 'formula'
   entityType: text("entity_type").default("project").notNull(), // 'project', 'task', 'resource', 'intake' (intake-typed fields also appear on the resulting project after conversion)
   description: text("description"),
   isRequired: boolean("is_required").default(false),
   options: text("options").array(), // For select/multiselect types
   defaultValue: text("default_value"),
+  // For fieldType='formula': the expression/mask used to calculate this field at
+  // display time. Supports +, -, *, /, parentheses, numeric literals, and other
+  // numeric custom-field references by name as `{Field Name}`. Computed values
+  // are not persisted (read-only at render).
+  formula: text("formula"),
   displayOrder: integer("display_order").default(0),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
