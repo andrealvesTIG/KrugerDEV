@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Loader2, Trash2, FileText, Pencil, Plus, Check, FolderKanban, ListTodo, Users } from "lucide-react";
+import { Loader2, Trash2, FileText, Pencil, Plus, Check, FolderKanban, ListTodo, Users, ClipboardList } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +29,7 @@ const ENTITY_TYPES = [
   { value: "project", label: "Project", icon: FolderKanban },
   { value: "task", label: "Task", icon: ListTodo },
   { value: "resource", label: "Resource", icon: Users },
+  { value: "intake", label: "Intake", icon: ClipboardList },
 ] as const;
 
 export function CustomFieldsSection({ organizationId }: { organizationId: number }) {

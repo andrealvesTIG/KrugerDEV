@@ -949,6 +949,74 @@ export async function registerMiscRoutes(app: Express) {
   });
 
   // ============================================
+  // INTAKE CUSTOM FIELD VALUES ROUTES
+  // ============================================
+
+  apiRoute(app, 'get', '/api/intakes/:intakeId/custom-field-values', { tag: 'Custom Fields', summary: 'Get custom field values for an intake', parameters: [pathId('intakeId')], responses: { ...r200('Intake custom field values', ref('CustomField')), ...authRes } }, async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+    try {
+      const intakeId = parseInt(req.params.intakeId);
+      const values = await storage.getIntakeCustomFieldValues(intakeId);
+      res.json(values);
+    } catch (error) {
+      console.error('Error fetching intake custom field values:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to fetch intake custom field values' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'put', '/api/intakes/:intakeId/custom-field-values/:fieldDefinitionId', { tag: 'Custom Fields', summary: 'Update an intake custom field value', parameters: [pathId('intakeId'), pathId('fieldDefinitionId')], requestBody: body({ type: 'object', properties: { value: { type: 'string' } } }), responses: { ...r200('Intake custom field value updated', ref('CustomField')), ...updateRes } }, async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+    try {
+      const intakeId = parseInt(req.params.intakeId);
+      const fieldDefinitionId = parseInt(req.params.fieldDefinitionId);
+      const { value } = req.body;
+      const fieldValue = await storage.upsertIntakeCustomFieldValue({ intakeId, fieldDefinitionId, value });
+      res.json(fieldValue);
+    } catch (error) {
+      console.error('Error updating intake custom field value:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update intake custom field value' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'put', '/api/intakes/:intakeId/custom-field-values', { tag: 'Custom Fields', summary: 'Bulk update intake custom field values', parameters: [pathId('intakeId')], requestBody: body({ type: 'object' }), responses: { ...r200('Intake custom field values updated', ref('CustomField')), ...updateRes } }, async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+    try {
+      const intakeId = parseInt(req.params.intakeId);
+      const { values } = req.body;
+      const results = await Promise.all(
+        (values as Array<{ fieldDefinitionId: number; value: string | null }>).map(v =>
+          storage.upsertIntakeCustomFieldValue({ intakeId, fieldDefinitionId: v.fieldDefinitionId, value: v.value })
+        )
+      );
+      res.json(results);
+    } catch (error) {
+      console.error('Error bulk updating intake custom field values:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update intake custom field values' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'delete', '/api/intakes/:intakeId/custom-field-values/:fieldDefinitionId', { tag: 'Custom Fields', summary: 'Delete an intake custom field value', parameters: [pathId('intakeId'), pathId('fieldDefinitionId')], responses: { ...r204('Intake custom field value deleted'), ...fullRes } }, async (req, res) => {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return res.status(401).json({ message: 'Authentication required' });
+    try {
+      const intakeId = parseInt(req.params.intakeId);
+      const fieldDefinitionId = parseInt(req.params.fieldDefinitionId);
+      await storage.deleteIntakeCustomFieldValue(intakeId, fieldDefinitionId);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Error deleting intake custom field value:', error);
+      const classified = classifyError(error);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to delete intake custom field value' : classified.message });
+    }
+  });
+
+  // ============================================
   // TASK CUSTOM FIELD VALUES ROUTES
   // ============================================
 

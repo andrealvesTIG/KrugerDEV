@@ -4,6 +4,7 @@ import {
   projectIntakes, mppImports, mppImportTasks, changeRequests,
   intakeWorkflows, intakeWorkflowSteps, projectWorkflows, projectWorkflowSteps,
   projects, tasks, taskDependencies, powerbiIntakeRequests,
+  intakeCustomFieldValues, projectCustomFieldValues,
   type ProjectIntake, type InsertProjectIntake, type UpdateProjectIntakeRequest,
   type MppImport, type InsertMppImport,
   type MppImportTask, type InsertMppImportTask,
@@ -70,35 +71,55 @@ export async function deleteProjectIntake(id: number): Promise<void> {
 }
 
 export async function approveProjectIntake(id: number, approvedBy: string): Promise<Project> {
-  const intake = await getProjectIntake(id);
-  if (!intake) {
-    throw new Error("Project intake not found");
-  }
+  return await db.transaction(async (tx) => {
+    const [intake] = await tx.select().from(projectIntakes).where(eq(projectIntakes.id, id));
+    if (!intake) {
+      throw new Error("Project intake not found");
+    }
 
-  const [newProject] = await db.insert(projects).values({
-    organizationId: intake.organizationId,
-    portfolioId: intake.portfolioId,
-    name: intake.projectName,
-    description: intake.description,
-    budget: intake.estimatedBudget ?? 0,
-    status: "Initiation",
-    priority: "Medium",
-    health: "Green",
-  }).returning();
+    const [newProject] = await tx.insert(projects).values({
+      organizationId: intake.organizationId,
+      portfolioId: intake.portfolioId,
+      name: intake.projectName,
+      description: intake.description,
+      budget: intake.estimatedBudget ?? 0,
+      status: "Initiation",
+      priority: "Medium",
+      health: "Green",
+    }).returning();
 
-  await db.update(projectIntakes)
-    .set({
-      status: "approved",
-      currentStep: "submit_to_pmo",
-      pmoSubmitted: true,
-      approvedAt: new Date(),
-      approvedBy: approvedBy,
-      createdProjectId: newProject.id,
-      updatedAt: new Date(),
-    })
-    .where(eq(projectIntakes.id, id));
+    // Carry forward any custom field values captured on the intake (definitions
+    // with entityType='intake') onto the new project. Both tables key off the
+    // same fieldDefinitionId, so the same field appears on the project with
+    // the captured value already populated.
+    const intakeValues = await tx.select().from(intakeCustomFieldValues)
+      .where(eq(intakeCustomFieldValues.intakeId, id));
+    if (intakeValues.length > 0) {
+      await tx.insert(projectCustomFieldValues).values(
+        intakeValues.map(v => ({
+          projectId: newProject.id,
+          fieldDefinitionId: v.fieldDefinitionId,
+          value: v.value,
+        }))
+      ).onConflictDoNothing({
+        target: [projectCustomFieldValues.projectId, projectCustomFieldValues.fieldDefinitionId],
+      });
+    }
 
-  return newProject;
+    await tx.update(projectIntakes)
+      .set({
+        status: "approved",
+        currentStep: "submit_to_pmo",
+        pmoSubmitted: true,
+        approvedAt: new Date(),
+        approvedBy: approvedBy,
+        createdProjectId: newProject.id,
+        updatedAt: new Date(),
+      })
+      .where(eq(projectIntakes.id, id));
+
+    return newProject;
+  });
 }
 
 export async function getMppImports(organizationId: number): Promise<MppImport[]> {

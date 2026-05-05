@@ -3038,7 +3038,7 @@ export const customFieldDefinitions = pgTable("custom_field_definitions", {
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   name: text("name").notNull(),
   fieldType: text("field_type").notNull(), // 'text', 'number', 'date', 'select', 'multiselect', 'checkbox', 'url'
-  entityType: text("entity_type").default("project").notNull(), // 'project', 'task', 'resource'
+  entityType: text("entity_type").default("project").notNull(), // 'project', 'task', 'resource', 'intake' (intake-typed fields also appear on the resulting project after conversion)
   description: text("description"),
   isRequired: boolean("is_required").default(false),
   options: text("options").array(), // For select/multiselect types
@@ -3120,6 +3120,29 @@ export const insertResourceCustomFieldValueSchema = createInsertSchema(resourceC
 
 export type InsertResourceCustomFieldValue = z.infer<typeof insertResourceCustomFieldValueSchema>;
 export type ResourceCustomFieldValue = typeof resourceCustomFieldValues.$inferSelect;
+
+// Intake Custom Field Values - Store values for custom fields per intake.
+// Definitions with entityType='intake' show up on the intake form. When the
+// intake is approved/converted to a project, these values are copied into
+// project_custom_field_values keyed by the same fieldDefinitionId, so the
+// resulting project carries the captured intake data forward automatically.
+export const intakeCustomFieldValues = pgTable("intake_custom_field_values", {
+  id: serial("id").primaryKey(),
+  intakeId: integer("intake_id").references(() => projectIntakes.id, { onDelete: "cascade" }).notNull(),
+  fieldDefinitionId: integer("field_definition_id").references(() => customFieldDefinitions.id).notNull(),
+  value: text("value"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  uniqueIndex("icfv_intake_field_idx").on(table.intakeId, table.fieldDefinitionId),
+]);
+
+export const insertIntakeCustomFieldValueSchema = createInsertSchema(intakeCustomFieldValues).omit({
+  id: true,
+  updatedAt: true,
+});
+
+export type InsertIntakeCustomFieldValue = z.infer<typeof insertIntakeCustomFieldValueSchema>;
+export type IntakeCustomFieldValue = typeof intakeCustomFieldValues.$inferSelect;
 
 // Custom Project Tabs - User-defined tabs for project details
 export const customProjectTabs = pgTable("custom_project_tabs", {

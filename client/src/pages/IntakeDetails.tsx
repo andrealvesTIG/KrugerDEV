@@ -19,7 +19,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, Shield, Calculator, Save, Lightbulb, Gavel, ChevronsUpDown, Paperclip, MessageSquare, Image as ImageIcon, Download, User as UserIcon, Bot } from "lucide-react";
+import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, Shield, Calculator, Save, Lightbulb, Gavel, ChevronsUpDown, Paperclip, MessageSquare, Image as ImageIcon, Download, User as UserIcon, Bot, Pencil, X, ExternalLink } from "lucide-react";
+import { useCustomFieldDefinitions, useIntakeCustomFieldValues, useUpdateIntakeCustomFieldValue } from "@/hooks/use-custom-fields";
+import type { CustomFieldDefinition } from "@shared/schema";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -792,6 +794,12 @@ export default function IntakeDetails() {
                   />
                 </div>
               </div>
+
+              <IntakeCustomFieldsSection
+                intakeId={intake.id}
+                organizationId={currentOrganization?.id}
+                isLocked={isLocked}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -1108,6 +1116,184 @@ export default function IntakeDetails() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked }: { intakeId: number; organizationId: number | undefined; isLocked: boolean }) {
+  const { toast } = useToast();
+  const { data: allDefinitions = [], isLoading: definitionsLoading } = useCustomFieldDefinitions(organizationId);
+  const definitions = allDefinitions.filter(d => (d.entityType || 'project') === 'intake');
+  const { data: values = [], isLoading: valuesLoading } = useIntakeCustomFieldValues(intakeId);
+  const updateValue = useUpdateIntakeCustomFieldValue();
+  const [editingFieldId, setEditingFieldId] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
+
+  if (!organizationId) return null;
+  if (definitionsLoading || valuesLoading) return null;
+  if (definitions.length === 0) return null;
+
+  const getFieldValue = (fieldId: number): string => {
+    const val = values.find(v => v.fieldDefinitionId === fieldId);
+    return val?.value || "";
+  };
+
+  const handleEdit = (field: CustomFieldDefinition) => {
+    if (isLocked) return;
+    setEditingFieldId(field.id);
+    setEditValue(getFieldValue(field.id));
+  };
+
+  const handleSave = async (fieldId: number) => {
+    try {
+      await updateValue.mutateAsync({
+        intakeId,
+        fieldDefinitionId: fieldId,
+        value: editValue || null,
+      });
+      toast({ title: "Saved" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to save", variant: "destructive" });
+    }
+    setEditingFieldId(null);
+  };
+
+  const handleCancel = () => {
+    setEditingFieldId(null);
+    setEditValue("");
+  };
+
+  const parseMultiSelectValue = (value: string): string[] => {
+    if (!value) return [];
+    try { return JSON.parse(value); } catch { return value ? [value] : []; }
+  };
+
+  const toggleMultiSelectOption = (opt: string) => {
+    const current = parseMultiSelectValue(editValue);
+    const updated = current.includes(opt) ? current.filter(v => v !== opt) : [...current, opt];
+    setEditValue(JSON.stringify(updated));
+  };
+
+  const renderFieldInput = (field: CustomFieldDefinition) => {
+    switch (field.fieldType) {
+      case "checkbox":
+        return (
+          <Checkbox
+            checked={editValue === "true"}
+            onCheckedChange={(checked) => setEditValue(checked ? "true" : "false")}
+            data-testid={`input-intake-custom-field-${field.id}`}
+          />
+        );
+      case "select":
+        return (
+          <Select value={editValue} onValueChange={setEditValue}>
+            <SelectTrigger data-testid={`select-intake-custom-field-${field.id}`}>
+              <SelectValue placeholder="Select..." />
+            </SelectTrigger>
+            <SelectContent>
+              {(field.options as string[] || []).map((opt) => (
+                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      case "multiselect": {
+        const selectedValues = parseMultiSelectValue(editValue);
+        return (
+          <div className="flex flex-wrap gap-1" data-testid={`multiselect-intake-custom-field-${field.id}`}>
+            {(field.options as string[] || []).map((opt) => (
+              <Badge
+                key={opt}
+                variant={selectedValues.includes(opt) ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => toggleMultiSelectOption(opt)}
+                data-testid={`option-intake-${field.id}-${opt}`}
+              >{opt}</Badge>
+            ))}
+          </div>
+        );
+      }
+      case "date":
+        return <Input type="date" value={editValue} onChange={(e) => setEditValue(e.target.value)} data-testid={`input-intake-custom-field-${field.id}`} />;
+      case "number":
+        return <Input type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} data-testid={`input-intake-custom-field-${field.id}`} />;
+      case "url":
+        return <Input type="url" value={editValue} onChange={(e) => setEditValue(e.target.value)} placeholder="https://..." data-testid={`input-intake-custom-field-${field.id}`} />;
+      default:
+        return <Input value={editValue} onChange={(e) => setEditValue(e.target.value)} data-testid={`input-intake-custom-field-${field.id}`} />;
+    }
+  };
+
+  const renderFieldValue = (field: CustomFieldDefinition) => {
+    const value = getFieldValue(field.id);
+    if (!value) return <span className="text-muted-foreground text-sm" data-testid={`value-intake-empty-${field.id}`}>Not set</span>;
+
+    switch (field.fieldType) {
+      case "checkbox":
+        return value === "true"
+          ? <Check className="h-4 w-4 text-green-600" data-testid={`value-intake-check-${field.id}`} />
+          : <X className="h-4 w-4 text-muted-foreground" data-testid={`value-intake-uncheck-${field.id}`} />;
+      case "url":
+        return (
+          <a href={value} target="_blank" rel="noopener noreferrer" className="underline text-sm flex items-center gap-1" data-testid={`link-intake-custom-field-${field.id}`}>
+            {value.length > 30 ? value.substring(0, 30) + "..." : value}
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        );
+      case "multiselect": {
+        const selected = parseMultiSelectValue(value);
+        return (
+          <div className="flex flex-wrap gap-1" data-testid={`value-intake-multiselect-${field.id}`}>
+            {selected.map((v) => <Badge key={v} variant="secondary" className="text-xs">{v}</Badge>)}
+          </div>
+        );
+      }
+      case "date":
+        return <span className="text-sm" data-testid={`value-intake-date-${field.id}`}>{format(new Date(value), 'MMM d, yyyy')}</span>;
+      default:
+        return <span className="text-sm" data-testid={`value-intake-text-${field.id}`}>{value}</span>;
+    }
+  };
+
+  return (
+    <div className="mt-4 pt-4 border-t border-border" data-testid="section-intake-custom-fields">
+      <div className="flex items-center gap-2 mb-3">
+        <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Custom Fields</Label>
+        <Badge variant="secondary" className="text-[10px]">{definitions.length}</Badge>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
+        {definitions.map((field) => (
+          <div key={field.id} className="space-y-2" data-testid={`intake-custom-field-${field.id}`}>
+            <Label className="text-xs flex items-center gap-1">
+              {field.name}
+              {field.isRequired && <span className="text-destructive">*</span>}
+            </Label>
+            {editingFieldId === field.id ? (
+              <div className="flex items-center gap-2">
+                {renderFieldInput(field)}
+                <Button size="icon" variant="ghost" onClick={() => handleSave(field.id)} data-testid={`button-save-intake-field-${field.id}`}>
+                  <Check className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" onClick={handleCancel} data-testid={`button-cancel-intake-field-${field.id}`}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div
+                className={cn(
+                  "flex items-center justify-between p-2 rounded min-h-[36px] border border-input",
+                  !isLocked && "cursor-pointer hover-elevate"
+                )}
+                onClick={() => handleEdit(field)}
+                data-testid={`button-edit-intake-field-${field.id}`}
+              >
+                {renderFieldValue(field)}
+                {!isLocked && <Pencil className="h-3 w-3 text-muted-foreground" />}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

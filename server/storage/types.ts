@@ -76,6 +76,7 @@ import type {
   ProjectDecision, InsertProjectDecision,
   TaskCustomFieldValue, InsertTaskCustomFieldValue,
   ResourceCustomFieldValue, InsertResourceCustomFieldValue,
+  IntakeCustomFieldValue, InsertIntakeCustomFieldValue,
 } from "@shared/schema";
 import type { BillingTransaction, InsertBillingTransaction } from "@shared/models/billing";
 
@@ -609,6 +610,9 @@ export interface IMiscStorage {
   getResourceCustomFieldValues(resourceId: number): Promise<ResourceCustomFieldValue[]>;
   upsertResourceCustomFieldValue(value: InsertResourceCustomFieldValue): Promise<ResourceCustomFieldValue>;
   deleteResourceCustomFieldValue(resourceId: number, fieldDefinitionId: number): Promise<void>;
+  getIntakeCustomFieldValues(intakeId: number): Promise<IntakeCustomFieldValue[]>;
+  upsertIntakeCustomFieldValue(value: InsertIntakeCustomFieldValue): Promise<IntakeCustomFieldValue>;
+  deleteIntakeCustomFieldValue(intakeId: number, fieldDefinitionId: number): Promise<void>;
 }
 
 export interface IStorage extends

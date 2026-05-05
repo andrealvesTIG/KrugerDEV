@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { CustomFieldDefinition, ProjectCustomFieldValue, TaskCustomFieldValue, ResourceCustomFieldValue, InsertCustomFieldDefinition } from "@shared/schema";
+import type { CustomFieldDefinition, ProjectCustomFieldValue, TaskCustomFieldValue, ResourceCustomFieldValue, IntakeCustomFieldValue, InsertCustomFieldDefinition } from "@shared/schema";
 
 export function useCustomFieldDefinitions(organizationId: number | undefined | null) {
   return useQuery<CustomFieldDefinition[]>({
@@ -184,3 +184,30 @@ export function useUpdateResourceCustomFieldValue() {
     },
   });
 }
+
+export function useIntakeCustomFieldValues(intakeId: number | undefined | null) {
+  return useQuery<IntakeCustomFieldValue[]>({
+    queryKey: [`/api/intakes/${intakeId}/custom-field-values`],
+    enabled: !!intakeId,
+  });
+}
+
+export function useUpdateIntakeCustomFieldValue() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ intakeId, fieldDefinitionId, value }: { intakeId: number; fieldDefinitionId: number; value: string | null }) => {
+      const res = await fetch(`/api/intakes/${intakeId}/custom-field-values/${fieldDefinitionId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value }),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to update intake custom field value");
+      return res.json() as Promise<IntakeCustomFieldValue>;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/intakes/${variables.intakeId}/custom-field-values`] });
+    },
+  });
+}
+

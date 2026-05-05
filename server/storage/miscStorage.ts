@@ -5,7 +5,7 @@ import {
   projectViews, systemProjectViews, notifications,
   userConsents,
   tasks, projects,
-  customFieldDefinitions, projectCustomFieldValues, taskCustomFieldValues, resourceCustomFieldValues,
+  customFieldDefinitions, projectCustomFieldValues, taskCustomFieldValues, resourceCustomFieldValues, intakeCustomFieldValues,
   customProjectTabs, customTabSections, customTabFields,
   projectScoringCriteria, projectScores, portfolioScoringConfig,
   projectBenefits, projectDecisions, lessonsLearned,
@@ -25,6 +25,7 @@ import {
   type ProjectCustomFieldValue, type InsertProjectCustomFieldValue,
   type TaskCustomFieldValue, type InsertTaskCustomFieldValue,
   type ResourceCustomFieldValue, type InsertResourceCustomFieldValue,
+  type IntakeCustomFieldValue, type InsertIntakeCustomFieldValue,
   type CustomProjectTab, type InsertCustomProjectTab,
   type CustomTabSection, type InsertCustomTabSection,
   type CustomTabField, type InsertCustomTabField,
@@ -443,6 +444,30 @@ export async function deleteResourceCustomFieldValue(resourceId: number, fieldDe
     .where(and(
       eq(resourceCustomFieldValues.resourceId, resourceId),
       eq(resourceCustomFieldValues.fieldDefinitionId, fieldDefinitionId)
+    ));
+}
+
+export async function getIntakeCustomFieldValues(intakeId: number): Promise<IntakeCustomFieldValue[]> {
+  return await db.select().from(intakeCustomFieldValues)
+    .where(eq(intakeCustomFieldValues.intakeId, intakeId));
+}
+
+export async function upsertIntakeCustomFieldValue(value: InsertIntakeCustomFieldValue): Promise<IntakeCustomFieldValue> {
+  const [result] = await db.insert(intakeCustomFieldValues)
+    .values(value)
+    .onConflictDoUpdate({
+      target: [intakeCustomFieldValues.intakeId, intakeCustomFieldValues.fieldDefinitionId],
+      set: { value: value.value, updatedAt: new Date() },
+    })
+    .returning();
+  return result;
+}
+
+export async function deleteIntakeCustomFieldValue(intakeId: number, fieldDefinitionId: number): Promise<void> {
+  await db.delete(intakeCustomFieldValues)
+    .where(and(
+      eq(intakeCustomFieldValues.intakeId, intakeId),
+      eq(intakeCustomFieldValues.fieldDefinitionId, fieldDefinitionId)
     ));
 }
 
