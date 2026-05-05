@@ -38,8 +38,7 @@ import { useAgentSuggestedPrompts } from "@/hooks/use-agent-prompts";
 import logoIcon from "@assets/image_1777744172216.png";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
-import ThemedGif from "@/components/ui/themed-gif";
-import running_man from "@assets/runcycle18_1772300373437.gif";
+import FridayThinking from "./FridayThinking";
 
 export default function AiModePage() {
   const {
@@ -705,7 +704,7 @@ export default function AiModePage() {
               if (!noTokensYet) return null;
               return (
                 <div className="flex items-center gap-2 py-3 px-1" data-testid="friday-thinking">
-                  <ThemedGif src={running_man} alt="Running" className="h-10 w-10 object-contain" />
+                  <FridayThinking className="h-10 w-10" size={40} />
                   <span className="text-xs text-muted-foreground">{activeAgentName} is working on it like there is no tomorrow...</span>
                 </div>
               );
