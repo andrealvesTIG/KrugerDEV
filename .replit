@@ -86,3 +86,11 @@ timeoutMs = 120000
 
 [objectStorage]
 defaultBucketID = "replit-objstore-a3493cd3-4812-4c6a-a0d1-cce7f20b5c59"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 5904
+externalPort = 3000
