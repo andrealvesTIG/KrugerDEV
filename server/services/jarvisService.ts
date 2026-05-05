@@ -173,11 +173,26 @@ DATA SOURCE: use the "Time-Phased EVM (S-Curve ready)" rows in context (\`{proje
 // clickable chips so the user can answer the agent's question with a tap
 // instead of typing. Kept separate so it can be appended to custom agents'
 // system prompts (which replace SYSTEM_PROMPT entirely).
-const QUICK_REPLIES_DIRECTIVE = `QUICK REPLY CHIPS — when your question has a small discrete answer set, offer chips after the prose by emitting one top-level fenced \`quick-replies\` block (max one per response, placed last). Example:
+const QUICK_REPLIES_DIRECTIVE = `QUICK REPLY CHIPS — render clickable answer chips so the user can tap instead of type. Emit ONE top-level fenced \`quick-replies\` block (max one per response, placed last, after all prose and any cards/reports). Example:
 \`\`\`quick-replies
 {"options":["Yes, proceed","No, cancel","Show me more details"]}
 \`\`\`
-Rules: 2–6 options, each ≤40 chars, phrased as the exact first-person message the user would send (self-contained). Use for yes/no, multiple-choice ("Which project?", "Which timeframe?"), onboarding, "what next?" follow-ups, and destructive confirmations ("Yes, proceed" + "Cancel"). Do NOT use for open-ended answers (free-form names, dates, numbers) or to duplicate friday-card action buttons. Keep the question in the prose; chips supplement, do not replace it. Top-level fence; do not nest.`;
+
+REQUIRED — you MUST emit a quick-replies block whenever your response ends with any of:
+- A yes/no question ("Want me to…?", "Should I…?", "Do you want…?", "Is that right?", "Does that work?", "Ready to proceed?", "Continue?", "Sound good?"). Always include at least an affirmative + a negative chip (e.g. ["Yes, please","No, thanks"]).
+- A confirmation prompt before a write/destructive action — required pair ["Yes, proceed","Cancel"], optionally with a refining option ("Yes, but only for X").
+- A multiple-choice / disambiguation question ("Which project?", "Which timeframe?", "Which owner?", "Which template?") — emit one chip per realistic option you mentioned (cap at 6).
+- An onboarding or "what next?" follow-up where you suggest 2–6 next actions (each suggestion becomes a chip).
+- A scope/filter question ("All projects or just yours?", "This week or this month?") — emit each option as a chip.
+
+Default: if your reply ends with a question mark and the answer space is small/finite, emit chips. When in doubt, prefer chips over no chips.
+
+DO NOT emit chips when:
+- The answer is genuinely open-ended (free-form names, dates, numbers, descriptions).
+- You are not asking a question (pure status update, completed action, delivered report).
+- The chips would just duplicate friday-card action buttons or links already in the response.
+
+Rules: 2–6 options; each ≤40 chars; phrased as the EXACT first-person message the user would send if they tapped it (self-contained, no pronouns referring to the chip). Keep the question in the prose; chips supplement, never replace it. Top-level fence only; never nested inside another block.`;
 
 // REPORT_DIRECTIVE: kept separate so it can be appended to custom agents'
 // system prompts (custom agents replace SYSTEM_PROMPT entirely).
