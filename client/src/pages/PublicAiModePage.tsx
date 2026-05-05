@@ -596,7 +596,7 @@ export default function PublicAiModePage() {
       )}
       <div
         className={cn(
-          "flex items-end gap-2 rounded-2xl bg-card dark:bg-slate-800 transition-all",
+          "flex flex-col rounded-2xl bg-card dark:bg-slate-800 transition-all",
           hero
             ? "px-3 py-2.5 border-2 border-primary/40 dark:border-primary/50 shadow-2xl shadow-primary/10 dark:shadow-primary/20 ring-4 ring-primary/10 dark:ring-primary/15 focus-within:border-primary/70 focus-within:ring-primary/25"
             : "px-2 py-1.5 border border-border dark:border-slate-600 shadow-sm focus-within:border-primary/40 focus-within:ring-1 focus-within:ring-primary/20",
@@ -617,7 +617,7 @@ export default function PublicAiModePage() {
                 : "Sign in to keep chatting with Friday."
           }
           className={cn(
-            "flex-1 resize-y border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none",
+            "w-full resize-y border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none",
             hero
               ? "min-h-[140px] max-h-[360px] px-3 py-3 text-base placeholder:text-muted-foreground/80"
               : "min-h-[96px] max-h-[320px] px-2 py-2 text-sm",
@@ -627,61 +627,64 @@ export default function PublicAiModePage() {
           autoFocus={hero}
           disabled={isListening}
         />
-        {micSupported && remaining > 0 && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={handleMicToggle}
-                className={cn(
-                  "rounded-full flex-shrink-0 transition-colors",
-                  hero ? "h-11 w-11" : "h-9 w-9",
-                  isListening
-                    ? "bg-destructive/15 text-destructive hover:bg-destructive/25 ring-2 ring-destructive/40"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-                aria-label={isListening ? "Stop dictation" : "Dictate"}
-                data-testid={hero ? "button-public-ai-mic-hero" : "button-public-ai-mic"}
-              >
-                {isListening
-                  ? <MicOff className={hero ? "h-5 w-5" : "h-4 w-4"} />
-                  : <Mic className={hero ? "h-5 w-5" : "h-4 w-4"} />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              <p className="text-xs">{isListening ? "Stop dictation" : "Dictate (push to talk)"}</p>
-            </TooltipContent>
-          </Tooltip>
-        )}
-        {isLoading ? (
-          <Button
-            size="icon"
-            onClick={stopGeneration}
-            className={cn(
-              "rounded-full bg-destructive/10 text-destructive hover:bg-destructive/20 flex-shrink-0",
-              hero ? "h-11 w-11" : "h-9 w-9",
-            )}
-            aria-label="Stop response"
-            data-testid="button-public-ai-stop"
-          >
-            <Square className={hero ? "h-5 w-5" : "h-4 w-4"} />
-          </Button>
-        ) : (
-          <Button
-            size="icon"
-            onClick={handleSend}
-            disabled={!input.trim()}
-            className={cn(
-              "rounded-full flex-shrink-0 shadow-md",
-              hero ? "h-11 w-11" : "h-9 w-9",
-            )}
-            aria-label="Send message"
-            data-testid="button-public-ai-send"
-          >
-            <Send className={hero ? "h-5 w-5" : "h-4 w-4"} />
-          </Button>
-        )}
+        <div className={cn("flex items-center gap-2", hero ? "mt-2" : "mt-1.5")}>
+          {micSupported && remaining > 0 && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={handleMicToggle}
+                  className={cn(
+                    "rounded-full flex-shrink-0 transition-colors",
+                    hero ? "h-11 w-11" : "h-9 w-9",
+                    isListening
+                      ? "bg-destructive/15 text-destructive hover:bg-destructive/25 ring-2 ring-destructive/40"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                  aria-label={isListening ? "Stop dictation" : "Dictate"}
+                  data-testid={hero ? "button-public-ai-mic-hero" : "button-public-ai-mic"}
+                >
+                  {isListening
+                    ? <MicOff className={hero ? "h-5 w-5" : "h-4 w-4"} />
+                    : <Mic className={hero ? "h-5 w-5" : "h-4 w-4"} />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <p className="text-xs">{isListening ? "Stop dictation" : "Dictate (push to talk)"}</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          <div className="flex-1" />
+          {isLoading ? (
+            <Button
+              size="icon"
+              onClick={stopGeneration}
+              className={cn(
+                "rounded-full bg-destructive/10 text-destructive hover:bg-destructive/20 flex-shrink-0",
+                hero ? "h-11 w-11" : "h-9 w-9",
+              )}
+              aria-label="Stop response"
+              data-testid="button-public-ai-stop"
+            >
+              <Square className={hero ? "h-5 w-5" : "h-4 w-4"} />
+            </Button>
+          ) : (
+            <Button
+              size="icon"
+              onClick={handleSend}
+              disabled={!input.trim()}
+              className={cn(
+                "rounded-full flex-shrink-0 shadow-md",
+                hero ? "h-11 w-11" : "h-9 w-9",
+              )}
+              aria-label="Send message"
+              data-testid="button-public-ai-send"
+            >
+              <Send className={hero ? "h-5 w-5" : "h-4 w-4"} />
+            </Button>
+          )}
+        </div>
       </div>
       {remaining === 0 && (
         <p
