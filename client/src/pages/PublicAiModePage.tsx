@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from "react";
 import { Helmet } from "react-helmet-async";
 import { useLocation } from "wouter";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Send, Square, Lock, Sparkles, X, Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -674,7 +674,7 @@ export default function PublicAiModePage() {
   );
 
   return (
-    <div className="fixed inset-0 z-[200] flex flex-col bg-background dark:bg-slate-950">
+    <div className="fixed inset-0 flex flex-col bg-background dark:bg-slate-950">
       <Helmet>
         <title>Try Friday AI — Free Project Management Assistant | FridayReport.AI</title>
         <meta
@@ -866,57 +866,58 @@ export default function PublicAiModePage() {
         )}
         <LandingFooter />
       </div>
-      {/* Login wall — fired when the user tries to ask a 3rd question. */}
-      <AnimatePresence>
-        {showLoginWall && (
-          <Dialog open={showLoginWall} onOpenChange={setShowLoginWall}>
-            <DialogContent className="sm:max-w-md" data-testid="dialog-public-ai-login-wall">
-              <DialogHeader>
-                <div className="flex items-center justify-center mb-3">
-                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Lock className="h-6 w-6 text-primary" />
-                  </div>
-                </div>
-                <DialogTitle className="text-center">You've used your {questionLimit} free questions</DialogTitle>
-                <DialogDescription className="text-center">
-                  Sign in or create a free account to keep chatting with Friday. Your conversation so far will be saved to your account, and Friday will pick up exactly where you left off.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-2">
-                <Button
-                  variant="outline"
-                  className="w-full sm:w-auto"
-                  onClick={() => setShowLoginWall(false)}
-                  data-testid="button-public-ai-wall-dismiss"
-                >
-                  <X className="h-4 w-4 mr-1" /> Not now
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full sm:flex-1"
-                  onClick={() => {
-                    trackEvent("guest_converted", "friday-public", "signin");
-                    goToAuth("login");
-                  }}
-                  data-testid="button-public-ai-wall-signin"
-                >
-                  Sign in
-                </Button>
-                <Button
-                  className="w-full sm:flex-1"
-                  onClick={() => {
-                    trackEvent("guest_converted", "friday-public", "signup");
-                    goToAuth("register");
-                  }}
-                  data-testid="button-public-ai-wall-signup"
-                >
-                  Create free account
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )}
-      </AnimatePresence>
+      {/* Login wall — fired when the user tries to ask a 3rd question.
+          Radix Dialog manages its own portal + open/close animation, so we
+          render it unconditionally and let `open` drive visibility. The
+          previous `<AnimatePresence>{showLoginWall && <Dialog .../>}` pattern
+          conflicted with Radix's own mount lifecycle and could swallow the
+          first open in some edge cases. */}
+      <Dialog open={showLoginWall} onOpenChange={setShowLoginWall}>
+        <DialogContent className="sm:max-w-md" data-testid="dialog-public-ai-login-wall">
+          <DialogHeader>
+            <div className="flex items-center justify-center mb-3">
+              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Lock className="h-6 w-6 text-primary" />
+              </div>
+            </div>
+            <DialogTitle className="text-center">You've used your {questionLimit} free questions</DialogTitle>
+            <DialogDescription className="text-center">
+              Sign in or create a free account to keep chatting with Friday. Your conversation so far will be saved to your account, and Friday will pick up exactly where you left off.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => setShowLoginWall(false)}
+              data-testid="button-public-ai-wall-dismiss"
+            >
+              <X className="h-4 w-4 mr-1" /> Not now
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full sm:flex-1"
+              onClick={() => {
+                trackEvent("guest_converted", "friday-public", "signin");
+                goToAuth("login");
+              }}
+              data-testid="button-public-ai-wall-signin"
+            >
+              Sign in
+            </Button>
+            <Button
+              className="w-full sm:flex-1"
+              onClick={() => {
+                trackEvent("guest_converted", "friday-public", "signup");
+                goToAuth("register");
+              }}
+              data-testid="button-public-ai-wall-signup"
+            >
+              Create free account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
