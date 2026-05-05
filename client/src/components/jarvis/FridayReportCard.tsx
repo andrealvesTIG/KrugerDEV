@@ -278,35 +278,167 @@ export function buildReportPdfFilename(report: FridayReportData): string {
   return `${safeFilenamePart(report.title)}_${yyyy}-${mm}-${dd}.pdf`;
 }
 
+// Render the report to a PDF that visually matches the on-screen HTML
+// report (hero, KPIs, callouts, badges, gradients, fonts — full design
+// system fidelity). We mount the same standalone HTML used by Print/Save
+// in an off-screen iframe, snapshot it with html2canvas, and slice the
+// tall canvas into letter-sized pages embedded in a jsPDF document.
 export async function downloadReportAsPdf(report: FridayReportData): Promise<void> {
-  const res = await fetch("/api/jarvis/friday-report/pdf", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({
-      title: report.title || "Report",
-      subtitle: report.subtitle || undefined,
-      generatedAt: report.generatedAt || undefined,
-      html: report.html || "",
-    }),
-  });
-  if (!res.ok) {
-    let message = `PDF export failed (${res.status})`;
-    try {
-      const j = await res.json();
-      if (j && typeof j.message === "string") message = j.message;
-    } catch { /* noop */ }
-    throw new Error(message);
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+    import("html2canvas"),
+    import("jspdf"),
+  ]);
+
+  const sanitized = sanitizeReportHtml(report.html || "");
+  const standalone = buildStandaloneReportHtml(report, sanitized);
+
+  // Letter @ 96dpi = 816 x 1056 px. We render the iframe at the shell's
+  // natural max width (920px) so the layout matches the on-screen view,
+  // then scale the snapshot to fit the page width.
+  const RENDER_WIDTH = 960;
+  const PAGE_W_PX = 816;
+  const PAGE_H_PX = 1056;
+
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.position = "fixed";
+  iframe.style.left = "-100000px";
+  iframe.style.top = "0";
+  iframe.style.width = `${RENDER_WIDTH}px`;
+  iframe.style.height = "100px";
+  iframe.style.border = "0";
+  iframe.style.opacity = "0";
+  iframe.style.pointerEvents = "none";
+  document.body.appendChild(iframe);
+
+  try {
+    const idoc = iframe.contentDocument;
+    if (!idoc) throw new Error("Could not create render frame");
+    idoc.open();
+    idoc.write(standalone);
+    idoc.close();
+
+    // Strip lazy-loading: off-screen iframes can defer it forever and stall
+    // the export. We need every image to start loading immediately.
+    idoc.querySelectorAll<HTMLImageElement>("img[loading='lazy']").forEach((img) => {
+      img.removeAttribute("loading");
+    });
+
+    // Wait for fonts and images inside the iframe to settle, with an
+    // overall timeout so a stalled asset can't hang the export.
+    const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T | null> =>
+      Promise.race<T | null>([
+        p.then((v) => v),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+      ]);
+    await new Promise((r) => setTimeout(r, 50));
+    const ifonts = (idoc as Document & { fonts?: { ready?: Promise<unknown> } }).fonts;
+    if (ifonts?.ready) {
+      await withTimeout(ifonts.ready as Promise<unknown>, 2000);
+    }
+    const imgs = Array.from(idoc.images || []);
+    if (imgs.length) {
+      await withTimeout(
+        Promise.all(
+          imgs.map((img) =>
+            img.complete
+              ? Promise.resolve()
+              : new Promise<void>((resolve) => {
+                  img.addEventListener("load", () => resolve(), { once: true });
+                  img.addEventListener("error", () => resolve(), { once: true });
+                }),
+          ),
+        ),
+        4000,
+      );
+    }
+
+    // html2canvas can't render `-webkit-background-clip: text` (the hero
+    // title gradient renders blank). For each hero title we (a) drop the
+    // gradient/clip so the text becomes visible again, and (b) preserve
+    // the *variant* color (good/warn/danger) by reading what the
+    // surrounding `.hero--*` class maps to, falling back to the inherited
+    // foreground color when no variant is set.
+    const variantColor = (el: HTMLElement): string | null => {
+      let host: HTMLElement | null = el;
+      while (host && host !== idoc.body) {
+        if (host.classList?.contains("hero--good")) return "rgb(16,185,129)";
+        if (host.classList?.contains("hero--warn")) return "rgb(245,158,11)";
+        if (host.classList?.contains("hero--danger")) return "rgb(244,63,94)";
+        host = host.parentElement;
+      }
+      return null;
+    };
+    idoc
+      .querySelectorAll<HTMLElement>(
+        ".hero__title, [style*='background-clip'], [style*='-webkit-background-clip']",
+      )
+      .forEach((el) => {
+        el.style.background = "none";
+        el.style.backgroundImage = "none";
+        el.style.backgroundClip = "border-box";
+        (el.style as CSSStyleDeclaration & { webkitBackgroundClip?: string }).webkitBackgroundClip = "border-box";
+        const color = variantColor(el) || "#0f172a";
+        (el.style as CSSStyleDeclaration & { webkitTextFillColor?: string }).webkitTextFillColor = color;
+        el.style.color = color;
+      });
+
+    // Allow the iframe layout to settle at full content height.
+    iframe.style.height = `${Math.max(idoc.body.scrollHeight, idoc.documentElement.scrollHeight)}px`;
+    await new Promise((r) => setTimeout(r, 60));
+
+    const target = idoc.body;
+    const canvas = await html2canvas(target, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      windowWidth: RENDER_WIDTH,
+      windowHeight: target.scrollHeight,
+      logging: false,
+    });
+
+    if (canvas.width === 0 || canvas.height === 0) {
+      throw new Error("Failed to render report content");
+    }
+
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "px",
+      format: [PAGE_W_PX, PAGE_H_PX],
+      hotfixes: ["px_scaling"],
+    });
+
+    // canvas was rendered at RENDER_WIDTH * scale. Each PDF page should
+    // contain a slice of equal aspect ratio — height in *canvas* px equals
+    // (PAGE_H_PX / PAGE_W_PX) * canvas.width.
+    const sliceHeightCanvasPx = Math.floor((PAGE_H_PX / PAGE_W_PX) * canvas.width);
+    const totalSlices = Math.max(1, Math.ceil(canvas.height / sliceHeightCanvasPx));
+
+    for (let i = 0; i < totalSlices; i++) {
+      const sy = i * sliceHeightCanvasPx;
+      const sh = Math.min(sliceHeightCanvasPx, canvas.height - sy);
+      const sliceCanvas = document.createElement("canvas");
+      sliceCanvas.width = canvas.width;
+      sliceCanvas.height = sh;
+      const ctx = sliceCanvas.getContext("2d");
+      if (!ctx) continue;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+      ctx.drawImage(canvas, 0, sy, canvas.width, sh, 0, 0, canvas.width, sh);
+
+      // PNG (lossless) keeps small text, badge borders, status dots, and
+      // table rules crisp — JPEG was visibly artifacted at 0.92.
+      const imgData = sliceCanvas.toDataURL("image/png");
+      const drawHpx = (sh / canvas.width) * PAGE_W_PX;
+
+      if (i > 0) pdf.addPage([PAGE_W_PX, PAGE_H_PX], "portrait");
+      pdf.addImage(imgData, "PNG", 0, 0, PAGE_W_PX, drawHpx, undefined, "FAST");
+    }
+
+    pdf.save(buildReportPdfFilename(report));
+  } finally {
+    try { document.body.removeChild(iframe); } catch { /* noop */ }
   }
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = buildReportPdfFilename(report);
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export function buildStandaloneReportHtml(report: FridayReportData, sanitizedHtml: string): string {
