@@ -34,8 +34,7 @@ import { SavedReportsMenu } from "./SavedReportsMenu";
 import AgentPicker from "./AgentPicker";
 import { useActiveAgentName } from "@/hooks/use-active-agent-name";
 import { useAgentSuggestedPrompts } from "@/hooks/use-agent-prompts";
-import ThemedGif from "@/components/ui/themed-gif";
-import running_man from "@assets/runcycle18_1772300373437.gif";
+import FridayThinking from "./FridayThinking";
 
 type InteractionMode = "chat" | "voice" | "dictate";
 
@@ -642,7 +641,7 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
                     if (!noTokensYet) return null;
                     return (
                       <div className="flex items-center gap-2 py-2 px-1" data-testid="friday-thinking-panel">
-                        <ThemedGif src={running_man} alt="Running" className="h-8 w-8 object-contain" />
+                        <FridayThinking className="h-8 w-8" size={32} />
                         <span className="text-[11px] text-cyan-300/70">{activeAgentName} is working on it like there is no tomorrow...</span>
                       </div>
                     );
