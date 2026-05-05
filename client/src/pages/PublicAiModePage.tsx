@@ -248,9 +248,17 @@ export default function PublicAiModePage() {
           { credentials: "include" },
         );
         if (!res.ok || cancelled) return;
-        const data = (await res.json()) as { questionLimit?: number };
-        if (!cancelled && typeof data.questionLimit === "number" && data.questionLimit >= 0) {
+        const data = (await res.json()) as { questionLimit?: number; questionsUsed?: number };
+        if (cancelled) return;
+        if (typeof data.questionLimit === "number" && data.questionLimit >= 0) {
           setQuestionLimit(data.questionLimit);
+        }
+        // Seed questionsUsed from the server so a returning visitor who
+        // already exhausted their free questions sees the login wall /
+        // inline CTA on first paint instead of a happy-path composer
+        // that silently rejects every preset click with a 402.
+        if (typeof data.questionsUsed === "number" && data.questionsUsed >= 0) {
+          setQuestionsUsed(data.questionsUsed);
         }
       } catch {
         // Best-effort — keep the default if the ping fails.

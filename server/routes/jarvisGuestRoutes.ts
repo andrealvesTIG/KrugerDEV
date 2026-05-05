@@ -583,6 +583,23 @@ export function registerJarvisGuestRoutes(app: Express): void {
     const idParam = typeof req.query.id === "string" ? req.query.id : null;
     const id = idParam && GUEST_SESSION_RE.test(idParam) ? idParam : crypto.randomUUID().replace(/-/g, "");
     const questionLimit = await getGuestQuestionLimit().catch(() => DEFAULT_GUEST_QUESTION_LIMIT);
-    res.json({ guestSessionId: id, questionLimit });
+    // Also return the current questionCount so the client can seed its
+    // "remaining" gauge on page load and avoid a stale 0/limit display
+    // when the user reloads after exhausting their free questions in a
+    // prior visit. Adopted sessions report as fully-used so the client
+    // immediately shows the inline sign-in CTA instead of letting the
+    // user click an industry preset and watch optimistic bubbles flash.
+    let questionsUsed = 0;
+    try {
+      const existing = await getGuestConversation(id);
+      if (existing) {
+        questionsUsed = existing.adoptedByUserId
+          ? questionLimit
+          : Math.min(existing.questionCount ?? 0, questionLimit);
+      }
+    } catch {
+      // Best-effort — fall back to 0 so the UX still loads.
+    }
+    res.json({ guestSessionId: id, questionLimit, questionsUsed });
   });
 }
