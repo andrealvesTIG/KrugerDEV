@@ -119,6 +119,106 @@ function userAgent(req: Request): string | null {
   return typeof ua === "string" ? ua : null;
 }
 
+// ---- Bot / non-browser request defenses --------------------------------
+//
+// The public /api/jarvis/guest/* endpoints are an unauthenticated
+// free-LLM surface. They're already capped per session, per IP, and per
+// minute, but cheap server-side checks keep the obvious abuse off the
+// LLM budget entirely:
+//
+//   1. Honeypot — the real client never sends `hp`. A populated value
+//      in the body is a reliable bot tell.
+//   2. User-Agent — drop empty UAs and well-known crawler / HTTP-client
+//      UAs. Real browsers always send a sensible UA.
+//   3. Origin / Referer — chat & adopt are POSTs from a same-origin
+//      browser fetch. Server-to-server clients won't set these to our
+//      host. (GET /session is checked by UA only because some browser
+//      referrer policies legitimately strip Origin/Referer on GETs.)
+//
+// All three are advisory: a determined attacker can spoof any of them.
+// They exist to block low-effort scrapers and incidental abuse without
+// adding friction for real visitors.
+
+const KNOWN_BOT_UA_RE = /(bot|crawl|spider|scrape|headlesschrome|phantomjs|slurp|wget|curl|python-requests|python-urllib|httpx|libwww-perl|java-http-client|okhttp|go-http-client|axios\/|node-fetch|undici|postman|insomnia)/i;
+
+function isLikelyBotUserAgent(ua: string | null): boolean {
+  if (!ua) return true;
+  const trimmed = ua.trim();
+  if (trimmed.length < 16) return true;
+  return KNOWN_BOT_UA_RE.test(trimmed);
+}
+
+function allowedRequestHosts(req: Request): Set<string> {
+  const hosts = new Set<string>();
+  const reqHost = req.headers.host;
+  if (typeof reqHost === "string" && reqHost.length > 0) {
+    hosts.add(reqHost.toLowerCase());
+  }
+  const envDomains = process.env.REPLIT_DOMAINS;
+  if (typeof envDomains === "string" && envDomains.length > 0) {
+    for (const d of envDomains.split(",")) {
+      const t = d.trim().toLowerCase();
+      if (t.length > 0) hosts.add(t);
+    }
+  }
+  const dev = process.env.REPLIT_DEV_DOMAIN;
+  if (typeof dev === "string" && dev.length > 0) hosts.add(dev.toLowerCase());
+  return hosts;
+}
+
+function isSameOriginRequest(req: Request): boolean {
+  const allowed = allowedRequestHosts(req);
+  // Without any baseline host we can't safely reject — fail open so
+  // local development and unusual proxy setups aren't bricked.
+  if (allowed.size === 0) return true;
+  const candidates: string[] = [];
+  const origin = req.headers.origin;
+  if (typeof origin === "string" && origin.length > 0) candidates.push(origin);
+  const referer = req.headers.referer;
+  if (typeof referer === "string" && referer.length > 0) candidates.push(referer);
+  if (candidates.length === 0) return false;
+  for (const c of candidates) {
+    try {
+      const host = new URL(c).host.toLowerCase();
+      if (allowed.has(host)) return true;
+    } catch {
+      // ignore malformed header value
+    }
+  }
+  return false;
+}
+
+function honeypotTripped(body: unknown): boolean {
+  if (!body || typeof body !== "object") return false;
+  const hp = (body as Record<string, unknown>).hp;
+  if (hp === undefined || hp === null) return false;
+  if (typeof hp === "string") return hp.length > 0;
+  // Any non-string value here is a bot (the real client never sets `hp`)
+  return true;
+}
+
+// Returns true and writes a 403 response if the request looks
+// non-human. Caller should return immediately when this returns true.
+function rejectIfNonHumanRequest(
+  req: Request,
+  res: Response,
+  opts: { checkOrigin: boolean; checkHoneypot: boolean },
+): boolean {
+  if (opts.checkHoneypot && honeypotTripped(req.body)) {
+    res.status(403).json({ code: "forbidden", message: "Request rejected." });
+    return true;
+  }
+  if (isLikelyBotUserAgent(userAgent(req))) {
+    res.status(403).json({ code: "forbidden", message: "This endpoint is for browser users only." });
+    return true;
+  }
+  if (opts.checkOrigin && !isSameOriginRequest(req)) {
+    res.status(403).json({ code: "forbidden", message: "Cross-origin requests are not allowed." });
+    return true;
+  }
+  return false;
+}
+
 // Express's Response inherits flushHeaders() from http.ServerResponse,
 // and the optional `flush()` method is added at runtime by the
 // `compression` middleware. Both are typed as optional here so we can
@@ -155,6 +255,7 @@ export function registerJarvisGuestRoutes(app: Express): void {
     guestChatIpRateLimit,
     guestChatSessionRateLimit,
     async (req, res) => {
+    if (rejectIfNonHumanRequest(req, res, { checkOrigin: true, checkHoneypot: true })) return;
     let parsed;
     try {
       parsed = chatBodySchema.safeParse(req.body);
@@ -312,6 +413,7 @@ export function registerJarvisGuestRoutes(app: Express): void {
   // adopted_at IS NULL ensures only one caller wins the claim, even
   // when two requests race; losers reconcile by re-reading the row.
   app.post("/api/jarvis/guest/adopt", guestAdoptRateLimit, async (req, res) => {
+    if (rejectIfNonHumanRequest(req, res, { checkOrigin: true, checkHoneypot: true })) return;
     const userId = getUserIdFromRequest(req);
     if (!userId) {
       return res.status(401).json({ code: "unauthenticated", message: "Sign in to continue your conversation." });
@@ -454,6 +556,7 @@ export function registerJarvisGuestRoutes(app: Express): void {
   // required (the client generates one too), but having it avoids a
   // round-trip to the chat endpoint just to discover the cap counter.
   app.get("/api/jarvis/guest/session", (req, res) => {
+    if (rejectIfNonHumanRequest(req, res, { checkOrigin: false, checkHoneypot: false })) return;
     const idParam = typeof req.query.id === "string" ? req.query.id : null;
     const id = idParam && GUEST_SESSION_RE.test(idParam) ? idParam : crypto.randomUUID().replace(/-/g, "");
     res.json({ guestSessionId: id, questionLimit: GUEST_QUESTION_LIMIT });
