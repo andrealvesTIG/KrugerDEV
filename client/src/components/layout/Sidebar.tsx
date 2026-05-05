@@ -142,6 +142,7 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
   return [
     { id: "home", name: "Home", isDefault: true, hidden: false, items: [
       { type: "module" as const, key: "home", hidden: false },
+      { type: "module" as const, key: "agents", hidden: false },
       { type: "module" as const, key: "dashboard", hidden: false },
       { type: "module" as const, key: "templates", hidden: false },
     ]},
@@ -176,7 +177,6 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
     { id: "help", name: "Help", isDefault: true, hidden: false, collapsedByDefault: true, items: [
       { type: "module" as const, key: "calendar", hidden: false },
       { type: "module" as const, key: "lessons-learned", hidden: false },
-      { type: "module" as const, key: "agents", hidden: false },
       { type: "module" as const, key: "user-guide", hidden: false },
       { type: "module" as const, key: "training", hidden: false },
       { type: "module" as const, key: "media", hidden: false },
@@ -200,6 +200,7 @@ function migrateOldFlatStructure(structure: SidebarStructure): SidebarStructure 
   const newStructure: SidebarStructure = [
     { id: "home", name: "Home", isDefault: true, hidden: false, items: [
       { type: "module" as const, key: "home", hidden: getItemHidden("home") },
+      { type: "module" as const, key: "agents", hidden: getItemHidden("agents") },
       { type: "module" as const, key: "dashboard", hidden: getItemHidden("dashboard") },
       { type: "module" as const, key: "templates", hidden: getItemHidden("templates") },
     ]},
@@ -298,7 +299,37 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   ensureModule("meetings", "portfolio", "construction-invoices", true);
   ensureModule("correspondence", "portfolio", "meetings", true);
   ensureModule("media", "help", "training");
-  ensureModule("agents", "help", "lessons-learned");
+  ensureModule("agents", "home", "home");
+
+  // Relocate "agents" to the Home group for any existing user structure
+  // where it previously lived under Help (or any other group). Preserves
+  // the user's hidden flag so a hidden Agents stays hidden.
+  {
+    let agentsItem: SidebarStructure[number]["items"][number] | undefined;
+    let agentsAlreadyInHome = false;
+    for (const g of updatedStructure) {
+      for (const item of g.items) {
+        if (item.type === "module" && item.key === "agents") {
+          if (g.id === "home") agentsAlreadyInHome = true;
+          else agentsItem = item;
+        }
+      }
+    }
+    if (agentsItem && !agentsAlreadyInHome) {
+      updatedStructure = updatedStructure.map(g => ({
+        ...g,
+        items: g.items.filter(item => !(item.type === "module" && item.key === "agents")),
+      }));
+      updatedStructure = updatedStructure.map(g => {
+        if (g.id !== "home") return g;
+        const items = [...g.items];
+        const homeIdx = items.findIndex(i => i.type === "module" && i.key === "home");
+        const insertAt = homeIdx >= 0 ? homeIdx + 1 : 0;
+        items.splice(insertAt, 0, agentsItem!);
+        return { ...g, items };
+      });
+    }
+  }
 
   // Remove the legacy Power BI Request sidebar entry: it now lives only inside the
   // New Intake dialog as an intake type that redirects to /powerbi-agent.
