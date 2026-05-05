@@ -28,6 +28,7 @@ import {
   splitCsvIntoChunks,
   FILE_ACCEPT_ATTR,
   FILE_ALLOWED_EXTENSIONS,
+  markChatStarted,
 } from "./jarvis-shared";
 import { useOrgSetupStatus } from "@/hooks/use-needs-org-setup";
 import { RecentChatsMenu } from "./RecentChatsMenu";
@@ -44,7 +45,7 @@ export default function AiModePage() {
   const {
     messages, isLoading, sendMessage, selectQuickReply, stopGeneration,
     conciseMode, setConciseMode, pageContext,
-    conversations, activeConversationId, switchConversation, newConversation,
+    conversations, conversationsLoading, activeConversationId, switchConversation, newConversation,
     startOnboardingAgent, forceOnboarding,
     activeAgentId, switchAgent,
   } = useJarvis();
@@ -136,6 +137,23 @@ export default function AiModePage() {
   useEffect(() => {
     textareaRef.current?.focus();
   }, []);
+
+  // Suppress the one-time chip-discoverability tip for users who already
+  // have prior Friday chat history at the moment they open AI Mode.
+  // We snapshot the conversation list ONCE on first non-loading evaluation
+  // so an in-session newly-created conversation (brand-new user sending
+  // their first message) doesn't accidentally flip the flag and hide the
+  // tip from the very chip row that just appeared. The flag is sticky in
+  // localStorage; once set it stays set for this user.
+  const hasCheckedHistoryRef = useRef(false);
+  useEffect(() => {
+    if (hasCheckedHistoryRef.current) return;
+    if (conversationsLoading) return;
+    hasCheckedHistoryRef.current = true;
+    if (conversations.length > 0) {
+      markChatStarted();
+    }
+  }, [conversations.length, conversationsLoading]);
 
   // Stop listening when leaving the page
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { JSX, memo } from "react";
+import { JSX, memo, useEffect, useState } from "react";
 import {
   Paperclip,
   FolderOpen,
@@ -15,6 +15,7 @@ import {
   ClipboardList,
   Wallet,
   Check,
+  X,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -270,6 +271,199 @@ interface MarkdownContentProps {
    * default unselected, clickable state.
    */
   quickReplySelection?: string;
+}
+
+// One-time discoverability tip for the new clickable Yes/No (and other small
+// discrete-answer) chips Friday now sends by default. We show a small inline
+// hint above the very first chip row a user sees, then never again. Persist
+// the seen flag in localStorage so it survives reloads, and use a module-level
+// flag so only one chip row in the current page session ever claims the tip
+// (subsequent rows render plain).
+// We *also* suppress the tip for users who have already used Friday's chat
+// (i.e. their account already has prior chat history when this feature
+// shipped). The panel/page mount-time effects call `markChatStarted()` as
+// soon as they observe a non-empty conversation list at load time, so
+// returning users never get a tip about a behaviour they're already
+// familiar with — only true first-timers see it.
+const QUICK_REPLY_TIP_STORAGE_KEY = "friday:quickRepliesTipSeen";
+const CHAT_STARTED_STORAGE_KEY = "friday:hasUsedChat";
+let quickReplyTipClaimed = false;
+
+function hasSeenQuickReplyTip(): boolean {
+  try {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem(QUICK_REPLY_TIP_STORAGE_KEY) === "1";
+  } catch {
+    return true;
+  }
+}
+
+function markQuickReplyTipSeen(): void {
+  try {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(QUICK_REPLY_TIP_STORAGE_KEY, "1");
+  } catch {
+    // ignore storage failures (private mode / quota)
+  }
+}
+
+function hasUsedFridayChat(): boolean {
+  try {
+    if (typeof window === "undefined") return true;
+    return window.localStorage.getItem(CHAT_STARTED_STORAGE_KEY) === "1";
+  } catch {
+    return true;
+  }
+}
+
+// Called by the panel/page hosts the moment they observe any prior
+// conversation history at load time. Idempotent — safe to call on every
+// render.
+export function markChatStarted(): void {
+  try {
+    if (typeof window === "undefined") return;
+    if (window.localStorage.getItem(CHAT_STARTED_STORAGE_KEY) === "1") return;
+    window.localStorage.setItem(CHAT_STARTED_STORAGE_KEY, "1");
+  } catch {
+    // ignore storage failures (private mode / quota)
+  }
+}
+
+interface QuickRepliesBlockProps {
+  options: string[];
+  variant: Variant;
+  onQuickReply?: (text: string) => void;
+  /**
+   * Which chip on this bubble's `quick-replies` block was clicked
+   * previously, if any. When set, the matching option renders as
+   * "selected" (filled + check) and the others render muted; all
+   * chips are disabled — Friday's confirmation flows are one-shot.
+   */
+  quickReplySelection?: string;
+}
+
+function QuickRepliesBlock({ options, variant, onQuickReply, quickReplySelection }: QuickRepliesBlockProps) {
+  const hasSelection = typeof quickReplySelection === "string" && quickReplySelection.length > 0;
+
+  // Decide once on mount whether *this* chip row gets to be the tip-bearer.
+  // After this row claims it, no other row in the session will show the tip.
+  // We also skip the tip entirely on rows that already have a previous
+  // selection — there's nothing to discover when every chip is locked.
+  // Independent gates:
+  //   1. No prior selection on this row.
+  //   2. The user hasn't already dismissed/seen the tip (localStorage).
+  //   3. The user hasn't already used Friday's chat — returning users
+  //      with prior history skip the tip entirely.
+  //   4. No earlier chip row in this page session has claimed the tip.
+  const [showTip, setShowTip] = useState<boolean>(() => {
+    if (hasSelection) return false;
+    if (hasSeenQuickReplyTip()) return false;
+    if (hasUsedFridayChat()) return false;
+    if (quickReplyTipClaimed) return false;
+    quickReplyTipClaimed = true;
+    return true;
+  });
+
+  // Auto-dismiss the tip after a few seconds even if the user never clicks a
+  // chip, so it doesn't linger forever next to a stale message.
+  useEffect(() => {
+    if (!showTip) return;
+    const timer = window.setTimeout(() => {
+      setShowTip(false);
+      markQuickReplyTipSeen();
+    }, 8000);
+    return () => window.clearTimeout(timer);
+  }, [showTip]);
+
+  const dismissTip = () => {
+    if (!showTip) return;
+    setShowTip(false);
+    markQuickReplyTipSeen();
+  };
+
+  const handleClick = (opt: string) => {
+    if (hasSelection) return;
+    dismissTip();
+    onQuickReply?.(opt);
+  };
+
+  // Three visual states:
+  //  - default (no selection yet): clickable chip with the standard hover
+  //    affordance.
+  //  - selected (this option was the user's pick): filled, checkmarked,
+  //    disabled — the visual anchor when scrolling back through history.
+  //  - muted (a sibling of the selected option): low opacity, disabled,
+  //    no hover — clearly "rejected" without deleting the alternatives.
+  // Disabled-because-no-handler (e.g. SSR / printing) reuses the muted
+  // style so the row never looks half-interactive.
+  const chipBase = "inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all";
+  const defaultChipClass = variant === "page"
+    ? `${chipBase} border border-border bg-card hover:bg-accent hover:border-primary/40 text-foreground shadow-sm disabled:opacity-50 disabled:cursor-not-allowed`
+    : `${chipBase} border border-cyan-700/40 bg-cyan-900/20 text-cyan-100 hover:bg-cyan-800/40 hover:border-cyan-500/60 hover:text-cyan-50 disabled:opacity-50 disabled:cursor-not-allowed`;
+  const selectedChipClass = variant === "page"
+    ? `${chipBase} border border-primary bg-primary text-primary-foreground shadow-sm cursor-default font-medium`
+    : `${chipBase} border border-cyan-400/80 bg-cyan-500/30 text-cyan-50 cursor-default font-medium`;
+  const mutedChipClass = variant === "page"
+    ? `${chipBase} border border-border/60 bg-muted/40 text-muted-foreground line-through cursor-not-allowed opacity-60`
+    : `${chipBase} border border-cyan-900/30 bg-cyan-950/30 text-cyan-300/50 line-through cursor-not-allowed opacity-60`;
+
+  const tipClass = variant === "page"
+    ? "mb-1.5 inline-flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] text-foreground/80"
+    : "mb-1.5 inline-flex items-center gap-2 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1 text-[11px] text-cyan-100";
+
+  const tipDismissClass = variant === "page"
+    ? "rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+    : "rounded p-0.5 text-cyan-300/70 hover:text-cyan-100 hover:bg-cyan-800/40 transition-colors";
+
+  return (
+    <div className="my-2" data-testid="quick-replies-block">
+      {showTip && (
+        <div className={tipClass} data-testid="quick-replies-tip" role="status">
+          <Sparkles className="h-3 w-3 flex-shrink-0" />
+          <span>New: tap an answer to send it instantly.</span>
+          <button
+            type="button"
+            onClick={dismissTip}
+            aria-label="Dismiss tip"
+            className={tipDismissClass}
+            data-testid="button-dismiss-quick-replies-tip"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      )}
+      <div
+        className="flex flex-wrap gap-1.5"
+        data-testid="quick-replies"
+        data-quick-reply-selection={hasSelection ? quickReplySelection : undefined}
+      >
+        {options.map((opt, idx) => {
+          const isSelected = hasSelection && opt === quickReplySelection;
+          const isMuted = hasSelection && !isSelected;
+          const cls = isSelected
+            ? selectedChipClass
+            : isMuted
+              ? mutedChipClass
+              : defaultChipClass;
+          return (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => handleClick(opt)}
+              disabled={!onQuickReply || hasSelection}
+              aria-pressed={isSelected || undefined}
+              className={cls}
+              data-testid={`quick-reply-${idx}`}
+              data-state={isSelected ? "selected" : isMuted ? "muted" : "default"}
+            >
+              {isSelected && <Check className="h-3 w-3" aria-hidden="true" />}
+              <span>{opt}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export function tryParseQuickReplies(jsonText: string): string[] | null {
@@ -541,63 +735,14 @@ export function MarkdownContent({ content, onNavigate, variant = "panel", onQuic
         if (jsonText.length > 0) {
           const options = tryParseQuickReplies(jsonText);
           if (options && options.length > 0) {
-            // Three visual states:
-            //  - default (no selection yet): clickable chip with the
-            //    standard hover affordance
-            //  - selected (this option was the user's pick): filled,
-            //    checkmarked, disabled — the visual anchor when scrolling
-            //    back through history
-            //  - muted (a sibling of the selected option): low opacity,
-            //    disabled, no hover — clearly "rejected" without
-            //    deleting the alternatives
-            // Disabled-because-no-handler (e.g. SSR / printing) reuses
-            // the muted style so the row never looks half-interactive.
-            const hasSelection = typeof quickReplySelection === "string" && quickReplySelection.length > 0;
-            const chipBase = "inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all";
-            const defaultChipClass = variant === "page"
-              ? `${chipBase} border border-border bg-card hover:bg-accent hover:border-primary/40 text-foreground shadow-sm disabled:opacity-50 disabled:cursor-not-allowed`
-              : `${chipBase} border border-cyan-700/40 bg-cyan-900/20 text-cyan-100 hover:bg-cyan-800/40 hover:border-cyan-500/60 hover:text-cyan-50 disabled:opacity-50 disabled:cursor-not-allowed`;
-            const selectedChipClass = variant === "page"
-              ? `${chipBase} border border-primary bg-primary text-primary-foreground shadow-sm cursor-default font-medium`
-              : `${chipBase} border border-cyan-400/80 bg-cyan-500/30 text-cyan-50 cursor-default font-medium`;
-            const mutedChipClass = variant === "page"
-              ? `${chipBase} border border-border/60 bg-muted/40 text-muted-foreground line-through cursor-not-allowed opacity-60`
-              : `${chipBase} border border-cyan-900/30 bg-cyan-950/30 text-cyan-300/50 line-through cursor-not-allowed opacity-60`;
             elements.push(
-              <div
+              <QuickRepliesBlock
                 key={`qr-${i}`}
-                className="my-2 flex flex-wrap gap-1.5"
-                data-testid="quick-replies"
-                data-quick-reply-selection={hasSelection ? quickReplySelection : undefined}
-              >
-                {options.map((opt, idx) => {
-                  const isSelected = hasSelection && opt === quickReplySelection;
-                  const isMuted = hasSelection && !isSelected;
-                  const cls = isSelected
-                    ? selectedChipClass
-                    : isMuted
-                      ? mutedChipClass
-                      : defaultChipClass;
-                  return (
-                    <button
-                      key={`qr-${i}-${idx}`}
-                      type="button"
-                      onClick={() => {
-                        if (hasSelection) return;
-                        onQuickReply?.(opt);
-                      }}
-                      disabled={!onQuickReply || hasSelection}
-                      aria-pressed={isSelected || undefined}
-                      className={cls}
-                      data-testid={`quick-reply-${idx}`}
-                      data-state={isSelected ? "selected" : isMuted ? "muted" : "default"}
-                    >
-                      {isSelected && <Check className="h-3 w-3" aria-hidden="true" />}
-                      <span>{opt}</span>
-                    </button>
-                  );
-                })}
-              </div>
+                options={options}
+                variant={variant}
+                onQuickReply={onQuickReply}
+                quickReplySelection={quickReplySelection}
+              />
             );
           } else {
             // Malformed JSON: fall back to raw code block so the user can see

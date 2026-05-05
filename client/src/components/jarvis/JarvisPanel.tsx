@@ -27,6 +27,7 @@ import {
   MAX_FILE_SIZE,
   CSV_CHUNK_BYTES,
   splitCsvIntoChunks,
+  markChatStarted,
 } from "./jarvis-shared";
 import { useOrgSetupStatus } from "@/hooks/use-needs-org-setup";
 import { RecentChatsMenu } from "./RecentChatsMenu";
@@ -55,7 +56,7 @@ interface JarvisPanelProps {
 export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoListenConsumed }: JarvisPanelProps) {
   const {
     messages, isLoading, sendMessage, selectQuickReply, stopGeneration, conciseMode, setConciseMode, pageContext,
-    conversations, activeConversationId, switchConversation, newConversation,
+    conversations, conversationsLoading, activeConversationId, switchConversation, newConversation,
     startOnboardingAgent, forceOnboarding,
     activeAgentId, switchAgent,
   } = useJarvis();
@@ -226,6 +227,23 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
     }
     prevMessageCountRef.current = messages.length;
   }, [messages.length]);
+
+  // Suppress the one-time chip-discoverability tip for users who already
+  // have prior Friday chat history at the moment they open the panel.
+  // We snapshot the conversation list ONCE on first non-loading evaluation
+  // so an in-session newly-created conversation (brand-new user sending
+  // their first message) doesn't accidentally flip the flag and hide the
+  // tip from the very chip row that just appeared. The flag is sticky in
+  // localStorage; once set it stays set for this user.
+  const hasCheckedHistoryRef = useRef(false);
+  useEffect(() => {
+    if (hasCheckedHistoryRef.current) return;
+    if (conversationsLoading) return;
+    hasCheckedHistoryRef.current = true;
+    if (conversations.length > 0) {
+      markChatStarted();
+    }
+  }, [conversations.length, conversationsLoading]);
 
   useEffect(() => {
     if (mode === "chat" || mode === "dictate") {
