@@ -279,6 +279,39 @@ export async function addAgentMessage(
   return row;
 }
 
+export type CustomAgentMessageMetadata = { quickReplySelection?: string };
+
+/**
+ * Merge a small JSON patch into a custom-agent message's `metadata`
+ * column. Mirrors `setFridayMessageMetadata` so chip-selection
+ * persistence works the same way for both built-in Friday and custom
+ * chat agents.
+ *
+ * Scoped to assistant messages only — chips only ever live on
+ * assistant bubbles, and a user message should never gain a
+ * "quickReplySelection" marker.
+ */
+export async function setAgentMessageMetadata(
+  messageId: number,
+  conversationId: number,
+  patch: CustomAgentMessageMetadata,
+): Promise<{ id: number; metadata: CustomAgentMessageMetadata | null } | null> {
+  const patchJson = JSON.stringify(patch);
+  const result = await db.execute(sql`
+    UPDATE custom_agent_messages
+    SET metadata = COALESCE(metadata, '{}'::jsonb) || ${patchJson}::jsonb
+    WHERE id = ${messageId}
+      AND conversation_id = ${conversationId}
+      AND role = 'assistant'
+    RETURNING id, metadata
+  `);
+  const raw: unknown = result;
+  const rows = Array.isArray(raw)
+    ? (raw as unknown as { id: number; metadata: CustomAgentMessageMetadata | null }[])
+    : ((raw as { rows?: unknown[] }).rows as { id: number; metadata: CustomAgentMessageMetadata | null }[] | undefined) ?? [];
+  return rows[0] ?? null;
+}
+
 export async function updateAgentConversationTitle(id: number, title: string) {
   await db.update(customAgentConversations).set({ title: title.slice(0, 200), updatedAt: new Date() }).where(eq(customAgentConversations.id, id));
 }

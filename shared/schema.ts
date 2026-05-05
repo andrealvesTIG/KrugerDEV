@@ -2101,6 +2101,13 @@ export const fridayMessages = pgTable("friday_messages", {
   // (e.g. 300 = 3.00 credits). Null/0 on user messages and on legacy rows
   // saved before per-reply credit tracking landed.
   creditsUsed: integer("credits_used"),
+  // Per-message UI state that should survive a page reload / conversation
+  // switch. Today this records the quick-reply chip the user picked on
+  // an assistant message so the chips on that bubble can render with the
+  // chosen option highlighted and the others muted. Null on legacy rows
+  // and on every assistant message where no chip was clicked — the UI
+  // treats null/missing as "no selection yet".
+  metadata: jsonb("metadata").$type<{ quickReplySelection?: string }>(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("friday_msg_conv_idx").on(table.conversationId, table.createdAt),
@@ -5489,6 +5496,11 @@ export const customAgentMessages = pgTable("custom_agent_messages", {
   content: text("content").notNull(),
   attachments: jsonb("attachments").$type<{ name: string; type: string; size: number }[] | null>(),
   pageContext: jsonb("page_context").$type<Record<string, any> | null>(),
+  // Per-message UI state. Mirrors `friday_messages.metadata` — currently
+  // records the quick-reply chip the user picked on an assistant message
+  // so the chips on that bubble can render with the chosen option
+  // highlighted and the others muted on reload.
+  metadata: jsonb("metadata").$type<{ quickReplySelection?: string } | null>(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (t) => [
   index("custom_agent_messages_conv_idx").on(t.conversationId, t.createdAt),

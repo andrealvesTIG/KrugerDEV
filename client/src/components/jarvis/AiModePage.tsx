@@ -42,7 +42,7 @@ import FridayThinking from "./FridayThinking";
 
 export default function AiModePage() {
   const {
-    messages, isLoading, sendMessage, stopGeneration,
+    messages, isLoading, sendMessage, selectQuickReply, stopGeneration,
     conciseMode, setConciseMode, pageContext,
     conversations, activeConversationId, switchConversation, newConversation,
     startOnboardingAgent, forceOnboarding,
@@ -227,10 +227,15 @@ export default function AiModePage() {
   }, [sendMessage]);
 
   // Stable callback identity so MessageBubble's memo comparator skips
-  // completed bubbles while a new response streams in.
-  const handleQuickReply = useCallback((text: string) => {
+  // completed bubbles while a new response streams in. Persists the
+  // selection on the source assistant bubble (so the chip styles
+  // survive a refresh / conversation switch) AND fires the user's
+  // reply in parallel — the PATCH is fire-and-forget and the chat UX
+  // shouldn't wait on it.
+  const handleQuickReply = useCallback((messageId: string, text: string) => {
+    void selectQuickReply(messageId, text);
     sendMessage(text);
-  }, [sendMessage]);
+  }, [selectQuickReply, sendMessage]);
 
   const removeFile = useCallback((name: string) => {
     setPendingFiles(prev => prev.filter(f => f.name !== name));

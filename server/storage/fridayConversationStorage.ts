@@ -5,6 +5,8 @@ import { and, desc, eq, isNull, sql } from "drizzle-orm";
 export type FridayAttachment = { name: string; type: string; size: number };
 export type FridayPageContext = { path?: string; entityType?: string; entityId?: number | string };
 
+export type FridayMessageMetadata = { quickReplySelection?: string };
+
 // Row shape returned by the addMessage CTE — matches the friday_messages
 // schema with snake_case columns aliased back to camelCase so callers see
 // the same shape Drizzle would normally produce from a select.
@@ -16,7 +18,13 @@ interface AddMessageRow {
   attachments: FridayAttachment[] | null;
   pageContext: FridayPageContext | null;
   creditsUsed: number | null;
+  metadata: FridayMessageMetadata | null;
   createdAt: Date | string;
+}
+
+interface SetMetadataRow {
+  id: number;
+  metadata: FridayMessageMetadata | null;
 }
 
 export async function createConversation(
@@ -115,7 +123,7 @@ export async function addMessage(
         ${pageContextJson}::jsonb,
         ${creditsUsed}
       )
-      RETURNING id, conversation_id, role, content, attachments, page_context, credits_used, created_at
+      RETURNING id, conversation_id, role, content, attachments, page_context, credits_used, metadata, created_at
     ), updated AS (
       UPDATE friday_conversations
       SET last_message_at = NOW(), updated_at = NOW()
@@ -130,6 +138,7 @@ export async function addMessage(
       inserted.attachments,
       inserted.page_context         AS "pageContext",
       inserted.credits_used         AS "creditsUsed",
+      inserted.metadata             AS "metadata",
       inserted.created_at           AS "createdAt"
     FROM inserted
   `);
@@ -142,6 +151,40 @@ export async function addMessage(
     ? (raw as unknown as AddMessageRow[])
     : ((raw as { rows?: unknown[] }).rows as AddMessageRow[] | undefined) ?? [];
   return rows[0];
+}
+
+/**
+ * Merge a small JSON patch into a Friday message's `metadata` column.
+ *
+ * Used today to persist which quick-reply chip the user picked on an
+ * assistant bubble so the chips render in the "selected" state on
+ * future loads. The merge is a JSONB `||` so unrelated keys we add to
+ * metadata in the future aren't clobbered by a partial update.
+ *
+ * Scoped by `conversationId` AND `role = 'assistant'` so a stray PATCH
+ * can't (a) reach into a different conversation's row by guessing a
+ * message id, and (b) tag a user message — chips only ever live on
+ * assistant bubbles. Returns `null` when no row matches.
+ */
+export async function setFridayMessageMetadata(
+  messageId: number,
+  conversationId: number,
+  patch: FridayMessageMetadata,
+): Promise<SetMetadataRow | null> {
+  const patchJson = JSON.stringify(patch);
+  const result = await db.execute(sql`
+    UPDATE friday_messages
+    SET metadata = COALESCE(metadata, '{}'::jsonb) || ${patchJson}::jsonb
+    WHERE id = ${messageId}
+      AND conversation_id = ${conversationId}
+      AND role = 'assistant'
+    RETURNING id, metadata
+  `);
+  const raw: unknown = result;
+  const rows: SetMetadataRow[] = Array.isArray(raw)
+    ? (raw as unknown as SetMetadataRow[])
+    : ((raw as { rows?: unknown[] }).rows as SetMetadataRow[] | undefined) ?? [];
+  return rows[0] ?? null;
 }
 
 export async function updateConversationTitle(

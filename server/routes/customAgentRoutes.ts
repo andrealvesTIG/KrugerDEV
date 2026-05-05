@@ -7,6 +7,7 @@ import {
   listVisibleAgents, getAgentForUser, canEditAgent, createAgent, updateAgent, archiveAgent, deleteAgent,
   listAgentMembers, listAgentLogs, listAgentConversations, getAgentConversation, getAgentMessages,
   createAgentConversation, addAgentMessage, updateAgentConversationTitle, archiveAgentConversation, deleteAgentConversation,
+  setAgentMessageMetadata,
   userIsOrgAdmin, listAllOrgAgentsForAdmin, reassignAgentOwner, getOrgAgentUsageStats,
 } from "../storage/customAgentStorage";
 import { runScheduledAgent, computeNextRun } from "../services/customAgentService";
@@ -442,6 +443,46 @@ export function registerCustomAgentRoutes(app: Express) {
     if (!userId) return;
     await deleteAgentConversation(cid, orgId, userId);
     res.json({ success: true });
+  });
+
+  apiRoute(app, 'patch', '/api/agents/:id/conversations/:cid/messages/:mid/quick-reply', {
+    tag: 'Agents',
+    summary: "Mark which quick-reply chip the user picked on a custom-agent assistant message",
+    requestBody: body({
+      type: 'object',
+      properties: {
+        option: { type: 'string', description: 'The chip label the user clicked.' },
+      },
+      required: ['option'],
+    }),
+    responses: { ...r200('Updated message metadata', { type: 'object' }), ...stdRes },
+  }, async (req: Request, res: Response) => {
+    try {
+      const id = Number(req.params.id);
+      const cid = Number(req.params.cid);
+      const mid = Number(req.params.mid);
+      const orgId = Number(req.query.organizationId);
+      if (!Number.isFinite(id) || id <= 0 || !Number.isFinite(cid) || cid <= 0 || !Number.isFinite(mid) || mid <= 0) {
+        return res.status(400).json({ message: "Invalid id" });
+      }
+      if (!orgId) return res.status(400).json({ message: "organizationId required" });
+      const userId = await ensureOrgAccess(req, res, orgId);
+      if (!userId) return;
+      const schema = z.object({ option: z.string().min(1).max(200) });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.issues.map(i => i.message).join(", ") });
+      // Verify the conversation belongs to this agent + user.
+      const conv = await getAgentConversation(cid, id, orgId, userId);
+      if (!conv) return res.status(404).json({ message: "Conversation not found" });
+      const updated = await setAgentMessageMetadata(mid, cid, {
+        quickReplySelection: parsed.data.option,
+      });
+      if (!updated) return res.status(404).json({ message: "Message not found" });
+      res.json({ id: updated.id, metadata: updated.metadata });
+    } catch (err: any) {
+      console.error("[customAgent] Quick-reply select error:", err);
+      res.status(500).json({ message: err.message || "Failed to mark quick-reply" });
+    }
   });
 
   // ----- Chat agent streaming -----

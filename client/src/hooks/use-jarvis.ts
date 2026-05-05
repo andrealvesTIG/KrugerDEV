@@ -17,6 +17,15 @@ export interface JarvisMessage {
    * the indicator in those cases.
    */
   creditsUsed?: number;
+  /**
+   * Which `quick-replies` chip the user picked on this assistant
+   * message, if any. When set, the chip block on the bubble renders the
+   * matching option as "selected" (filled + check) and the others muted.
+   * Survives a page reload because it lives on `friday_messages.metadata`.
+   * Undefined on user messages and on assistant messages where no chip
+   * was clicked.
+   */
+  quickReplySelection?: string;
 }
 
 export interface PageContext {
@@ -163,6 +172,10 @@ interface ServerMessage {
   // for user messages and for legacy assistant rows saved before
   // per-reply credit tracking landed.
   creditsUsed: number | null;
+  // Per-message UI state (currently just `quickReplySelection`). Null on
+  // legacy rows and on every message where no chip was clicked. Schema:
+  // server/storage/fridayConversationStorage.ts → FridayMessageMetadata.
+  metadata: { quickReplySelection?: string } | null;
   createdAt: string;
 }
 
@@ -184,6 +197,10 @@ function serverMessageToJarvis(m: ServerMessage): JarvisMessage {
     creditsUsed:
       m.role === "assistant" && typeof m.creditsUsed === "number" && m.creditsUsed > 0
         ? m.creditsUsed / 100
+        : undefined,
+    quickReplySelection:
+      m.role === "assistant" && typeof m.metadata?.quickReplySelection === "string"
+        ? m.metadata.quickReplySelection
         : undefined,
   };
 }
@@ -579,6 +596,79 @@ export function useJarvis() {
     }
   }, []);
 
+  /**
+   * Persist (and optimistically reflect) which quick-reply chip the
+   * user picked on a specific assistant message. Returns immediately —
+   * sendMessage is the caller's job and should fire in parallel so the
+   * user sees their reply land in the chat without waiting on this PATCH.
+   *
+   * Optimistic-update strategy: write `quickReplySelection` straight
+   * into the cached conversation BEFORE the PATCH so the chip flips to
+   * "selected" on the next render (~16ms), not after the round-trip
+   * (~50–100ms). The PATCH then makes the selection survive a refetch /
+   * reload — the next refetch (triggered by sendMessage's finally
+   * block) reads back the same value, so the optimistic state and the
+   * server state agree.
+   *
+   * No-ops when the message id isn't a persisted server row
+   * (`srv-<n>`). That happens during the very brief window between the
+   * assistant message finishing streaming and the conversation refetch
+   * landing — accepting "no persistence in that window" is the cheap,
+   * safe fallback.
+   */
+  const selectQuickReply = useCallback(
+    async (messageId: string, option: string) => {
+      if (!orgId || !activeConversationId) return;
+      const numericMatch = messageId.match(/^srv-(\d+)$/);
+      if (!numericMatch) return;
+      const mid = Number(numericMatch[1]);
+
+      // Optimistic cache patch so the chip flips to "selected"
+      // immediately. The shape mirrors what serverMessageToJarvis reads
+      // back so a subsequent refetch lands on a no-op diff.
+      queryClient.setQueryData<ServerConversationDetail | null>(
+        [...convQueryKey, activeConversationId],
+        (old) =>
+          old
+            ? {
+                ...old,
+                messages: old.messages.map((m) =>
+                  m.id === mid
+                    ? {
+                        ...m,
+                        metadata: {
+                          ...(m.metadata ?? {}),
+                          quickReplySelection: option,
+                        },
+                      }
+                    : m,
+                ),
+              }
+            : old,
+      );
+
+      const url = activeAgentId
+        ? `/api/agents/${activeAgentId}/conversations/${activeConversationId}/messages/${mid}/quick-reply?organizationId=${orgId}`
+        : `/api/jarvis/conversations/${activeConversationId}/messages/${mid}/quick-reply?organizationId=${orgId}`;
+      try {
+        const res = await fetch(url, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ option }),
+        });
+        if (!res.ok) {
+          // The optimistic update stays for now; the next refetch will
+          // reconcile with the server's truth.
+          console.error("[Friday] Failed to persist quick-reply selection:", res.status);
+        }
+      } catch (err) {
+        console.error("[Friday] Failed to persist quick-reply selection:", err);
+      }
+    },
+    [orgId, activeConversationId, activeAgentId, queryClient, convQueryKey],
+  );
+
   const switchAgent = useCallback((agentId: number | null) => {
     if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
     setIsLoading(false);
@@ -593,6 +683,7 @@ export function useJarvis() {
     toggleOpen,
     isLoading,
     sendMessage,
+    selectQuickReply,
     clearMessages,
     stopGeneration,
     conciseMode,

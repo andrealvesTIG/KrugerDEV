@@ -54,7 +54,7 @@ interface JarvisPanelProps {
 
 export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoListenConsumed }: JarvisPanelProps) {
   const {
-    messages, isLoading, sendMessage, stopGeneration, conciseMode, setConciseMode, pageContext,
+    messages, isLoading, sendMessage, selectQuickReply, stopGeneration, conciseMode, setConciseMode, pageContext,
     conversations, activeConversationId, switchConversation, newConversation,
     startOnboardingAgent, forceOnboarding,
     activeAgentId, switchAgent,
@@ -99,10 +99,14 @@ export default function JarvisPanel({ open, onOpenChange, autoListen, onAutoList
   }, [mode, sendMessage, stopGeneration]);
 
   // Stable callback identity so MessageBubble's memo comparator skips
-  // completed bubbles while a new response streams in.
-  const handleQuickReply = useCallback((text: string) => {
+  // completed bubbles while a new response streams in. Persists the
+  // selection on the source assistant bubble (so the chip styles
+  // survive a refresh / conversation switch) AND fires the user's
+  // reply in parallel — the PATCH is fire-and-forget.
+  const handleQuickReply = useCallback((messageId: string, text: string) => {
+    void selectQuickReply(messageId, text);
     sendMessage(text);
-  }, [sendMessage]);
+  }, [selectQuickReply, sendMessage]);
 
   const handleInterimResult = useCallback((transcript: string) => {
     setInterimText(transcript);

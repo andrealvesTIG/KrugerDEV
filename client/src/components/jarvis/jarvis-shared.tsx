@@ -14,6 +14,7 @@ import {
   TrendingUp,
   ClipboardList,
   Wallet,
+  Check,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -260,6 +261,15 @@ interface MarkdownContentProps {
   onNavigate?: (path: string) => void;
   variant?: Variant;
   onQuickReply?: (text: string) => void;
+  /**
+   * Which chip on this bubble's `quick-replies` block was clicked
+   * previously, if any. When set, the chip block renders the matching
+   * option as "selected" (filled + check) and the others muted, and all
+   * chips are disabled — Friday's confirmation flows are one-shot.
+   * Undefined means "no selection yet" — render the chips in their
+   * default unselected, clickable state.
+   */
+  quickReplySelection?: string;
 }
 
 export function tryParseQuickReplies(jsonText: string): string[] | null {
@@ -389,7 +399,7 @@ function renderInline(
   return parts.length > 0 ? parts : [text];
 }
 
-export function MarkdownContent({ content, onNavigate, variant = "panel", onQuickReply }: MarkdownContentProps) {
+export function MarkdownContent({ content, onNavigate, variant = "panel", onQuickReply, quickReplySelection }: MarkdownContentProps) {
   const lines = content.split("\n");
   const elements: JSX.Element[] = [];
 
@@ -531,23 +541,62 @@ export function MarkdownContent({ content, onNavigate, variant = "panel", onQuic
         if (jsonText.length > 0) {
           const options = tryParseQuickReplies(jsonText);
           if (options && options.length > 0) {
-            const chipClass = variant === "page"
-              ? "inline-flex items-center px-3 py-1.5 rounded-full text-xs border border-border bg-card hover:bg-accent hover:border-primary/40 text-foreground transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              : "inline-flex items-center px-3 py-1.5 rounded-full text-xs border border-cyan-700/40 bg-cyan-900/20 text-cyan-100 hover:bg-cyan-800/40 hover:border-cyan-500/60 hover:text-cyan-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed";
+            // Three visual states:
+            //  - default (no selection yet): clickable chip with the
+            //    standard hover affordance
+            //  - selected (this option was the user's pick): filled,
+            //    checkmarked, disabled — the visual anchor when scrolling
+            //    back through history
+            //  - muted (a sibling of the selected option): low opacity,
+            //    disabled, no hover — clearly "rejected" without
+            //    deleting the alternatives
+            // Disabled-because-no-handler (e.g. SSR / printing) reuses
+            // the muted style so the row never looks half-interactive.
+            const hasSelection = typeof quickReplySelection === "string" && quickReplySelection.length > 0;
+            const chipBase = "inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all";
+            const defaultChipClass = variant === "page"
+              ? `${chipBase} border border-border bg-card hover:bg-accent hover:border-primary/40 text-foreground shadow-sm disabled:opacity-50 disabled:cursor-not-allowed`
+              : `${chipBase} border border-cyan-700/40 bg-cyan-900/20 text-cyan-100 hover:bg-cyan-800/40 hover:border-cyan-500/60 hover:text-cyan-50 disabled:opacity-50 disabled:cursor-not-allowed`;
+            const selectedChipClass = variant === "page"
+              ? `${chipBase} border border-primary bg-primary text-primary-foreground shadow-sm cursor-default font-medium`
+              : `${chipBase} border border-cyan-400/80 bg-cyan-500/30 text-cyan-50 cursor-default font-medium`;
+            const mutedChipClass = variant === "page"
+              ? `${chipBase} border border-border/60 bg-muted/40 text-muted-foreground line-through cursor-not-allowed opacity-60`
+              : `${chipBase} border border-cyan-900/30 bg-cyan-950/30 text-cyan-300/50 line-through cursor-not-allowed opacity-60`;
             elements.push(
-              <div key={`qr-${i}`} className="my-2 flex flex-wrap gap-1.5" data-testid="quick-replies">
-                {options.map((opt, idx) => (
-                  <button
-                    key={`qr-${i}-${idx}`}
-                    type="button"
-                    onClick={() => onQuickReply?.(opt)}
-                    disabled={!onQuickReply}
-                    className={chipClass}
-                    data-testid={`quick-reply-${idx}`}
-                  >
-                    {opt}
-                  </button>
-                ))}
+              <div
+                key={`qr-${i}`}
+                className="my-2 flex flex-wrap gap-1.5"
+                data-testid="quick-replies"
+                data-quick-reply-selection={hasSelection ? quickReplySelection : undefined}
+              >
+                {options.map((opt, idx) => {
+                  const isSelected = hasSelection && opt === quickReplySelection;
+                  const isMuted = hasSelection && !isSelected;
+                  const cls = isSelected
+                    ? selectedChipClass
+                    : isMuted
+                      ? mutedChipClass
+                      : defaultChipClass;
+                  return (
+                    <button
+                      key={`qr-${i}-${idx}`}
+                      type="button"
+                      onClick={() => {
+                        if (hasSelection) return;
+                        onQuickReply?.(opt);
+                      }}
+                      disabled={!onQuickReply || hasSelection}
+                      aria-pressed={isSelected || undefined}
+                      className={cls}
+                      data-testid={`quick-reply-${idx}`}
+                      data-state={isSelected ? "selected" : isMuted ? "muted" : "default"}
+                    >
+                      {isSelected && <Check className="h-3 w-3" aria-hidden="true" />}
+                      <span>{opt}</span>
+                    </button>
+                  );
+                })}
               </div>
             );
           } else {
@@ -703,7 +752,13 @@ interface MessageBubbleProps {
   index: number;
   onNavigate?: (path: string) => void;
   variant?: Variant;
-  onQuickReply?: (text: string) => void;
+  /**
+   * Fired when the user clicks a chip on this bubble. The first arg is
+   * the bubble's message id (e.g. `srv-123`) so the parent can persist
+   * the selection against the right server row before/while sending the
+   * follow-up user message.
+   */
+  onQuickReply?: (messageId: string, text: string) => void;
 }
 
 function MessageBubbleImpl({ message, index, onNavigate, variant = "panel", onQuickReply }: MessageBubbleProps) {
@@ -769,7 +824,16 @@ function MessageBubbleImpl({ message, index, onNavigate, variant = "panel", onQu
               )}
             </div>
           ) : (
-            <MarkdownContent content={message.content} onNavigate={onNavigate} variant={variant} onQuickReply={onQuickReply} />
+            <MarkdownContent
+              content={message.content}
+              onNavigate={onNavigate}
+              variant={variant}
+              // Bind the message id at the bubble boundary so MarkdownContent
+              // (and the chip render inside it) doesn't need to know about
+              // server ids — it just calls `onQuickReply(opt)`.
+              onQuickReply={onQuickReply ? (text) => onQuickReply(message.id, text) : undefined}
+              quickReplySelection={message.quickReplySelection}
+            />
           )}
         </div>
         {creditsLabel && (
@@ -811,10 +875,15 @@ function formatCredits(value: number): string {
 // the streaming bubble's content grows. The streaming bubble is the last
 // in the list; its content prop changes per rAF flush. Every other bubble
 // has stable props, so React skips the entire markdown re-parse.
+//
+// `quickReplySelection` is included in the comparator so a freshly
+// clicked chip flips to its "selected" state on the very next render
+// instead of being skipped by the memo.
 export const MessageBubble = memo(MessageBubbleImpl, (prev, next) => {
   return (
     prev.message === next.message &&
     prev.message.content === next.message.content &&
+    prev.message.quickReplySelection === next.message.quickReplySelection &&
     prev.index === next.index &&
     prev.variant === next.variant &&
     prev.onNavigate === next.onNavigate &&

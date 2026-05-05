@@ -27,6 +27,7 @@ import {
   updateConversationTitle as fcUpdateTitle,
   archiveConversation as fcArchive,
   deleteConversation as fcDelete,
+  setFridayMessageMetadata,
 } from "../storage/fridayConversationStorage";
 import {
   createSavedReport as srCreate,
@@ -552,6 +553,55 @@ export function registerJarvisRoutes(app: Express) {
     } catch (error: any) {
       console.error("[JARVIS] Rename conversation error:", error);
       res.status(500).json({ message: error.message || "Failed to rename conversation" });
+    }
+  });
+
+  apiRoute(app, 'patch', '/api/jarvis/conversations/:cid/messages/:mid/quick-reply', {
+    tag: 'AI',
+    summary: "Mark which quick-reply chip the user picked on a Friday assistant message",
+    requestBody: body({
+      type: 'object',
+      properties: {
+        option: { type: 'string', description: 'The chip label the user clicked.' },
+      },
+      required: ['option'],
+    }),
+    responses: { ...r200('Updated message metadata', { type: 'object' }), ...inputRes, ...stdRes, ...e404 },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const cid = Number(req.params.cid);
+      const mid = Number(req.params.mid);
+      const orgIdRaw = req.query.organizationId;
+      const organizationId = Number(Array.isArray(orgIdRaw) ? orgIdRaw[0] : orgIdRaw);
+      if (!Number.isFinite(cid) || cid <= 0 || !Number.isFinite(mid) || mid <= 0) {
+        return res.status(400).json({ message: "Invalid id" });
+      }
+      if (!Number.isFinite(organizationId) || organizationId <= 0) {
+        return res.status(400).json({ message: "organizationId is required" });
+      }
+      const schema = z.object({ option: z.string().min(1).max(200) });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Invalid request: " + parsed.error.issues.map(i => i.message).join(", ") });
+      }
+      const accessibleOrgIds = await getUserOrgIds(userId);
+      if (!accessibleOrgIds.includes(organizationId)) {
+        return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+      // Org+user gate via fcGet so users can't mark chips on a
+      // conversation that isn't theirs.
+      const conv = await fcGet(cid, organizationId, userId);
+      if (!conv) return res.status(404).json({ message: "Conversation not found" });
+      const updated = await setFridayMessageMetadata(mid, cid, {
+        quickReplySelection: parsed.data.option,
+      });
+      if (!updated) return res.status(404).json({ message: "Message not found" });
+      res.json({ id: updated.id, metadata: updated.metadata });
+    } catch (error: any) {
+      console.error("[JARVIS] Quick-reply select error:", error);
+      res.status(500).json({ message: error.message || "Failed to mark quick-reply" });
     }
   });
 
