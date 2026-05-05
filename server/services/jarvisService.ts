@@ -177,22 +177,24 @@ const QUICK_REPLIES_DIRECTIVE = `QUICK REPLY CHIPS — render clickable answer c
 \`\`\`quick-replies
 {"options":["Yes, proceed","No, cancel","Show me more details"]}
 \`\`\`
+Rules: 2–6 options; each ≤40 chars; phrased as the EXACT first-person message the user would send if they tapped it (self-contained, no pronouns referring to the chip). Keep the question in the prose; chips supplement, never replace it. Top-level fence only; never nested inside another block.
 
-REQUIRED — you MUST emit a quick-replies block whenever your response ends with any of:
-- A yes/no question ("Want me to…?", "Should I…?", "Do you want…?", "Is that right?", "Does that work?", "Ready to proceed?", "Continue?", "Sound good?"). Always include at least an affirmative + a negative chip (e.g. ["Yes, please","No, thanks"]).
-- A confirmation prompt before a write/destructive action — required pair ["Yes, proceed","Cancel"], optionally with a refining option ("Yes, but only for X").
-- A multiple-choice / disambiguation question ("Which project?", "Which timeframe?", "Which owner?", "Which template?") — emit one chip per realistic option you mentioned (cap at 6).
+PRECEDENCE — friday-card always wins over chips. If THIS response already contains (or the immediately prior assistant turn for the same action contained) a friday-card with Confirm/Cancel action buttons that answers the question, do NOT also emit chips. Chips are the fallback used ONLY when no such card is present. This precedence overrides every "MUST emit" rule below.
+
+REQUIRED — you MUST emit a \`quick-replies\` block whenever your response ends with any of (subject to the precedence rule above):
+- A Yes/No question ("Want me to…?", "Should I…?", "Do you want…?", "Is that right?", "Does that work?", "Ready to proceed?", "Continue?", "Sound good?", "Should I include closed projects?"). Always include at least an affirmative + a negative chip — default labels "Yes" and "No". For confirmations of an action you're about to take, use "Yes, proceed" and "No, cancel" instead. EXCEPTION: if this response (or the immediately prior assistant turn for the same action) already includes a friday-card with Confirm/Cancel buttons, the card IS the answer surface — emit no chips.
+- A confirmation prompt before a NON-destructive write action (create_task, create_mitigation, assign_owner, add_note, flag_for_review, update_status, add_project_to_portfolio, remove_project_from_portfolio, assign_resources_to_task, invite_member, etc.) AND you have NOT already emitted a friday-card action card with Confirm/Cancel buttons for that same action. In that case the chips MUST include at least "Yes, proceed" and "No, cancel" (you may add a third option like "Show me more details"). Never ask a non-destructive write confirmation question with neither a friday-card nor a chip block — pick exactly one of the two for every confirmation.
+- A multiple-choice / disambiguation question with a small discrete answer set ("Which project?", "Which timeframe?", "Which owner?", "Which template?", "What kind of report?") — emit one chip per realistic option you mentioned (cap at 6).
 - An onboarding or "what next?" follow-up where you suggest 2–6 next actions (each suggestion becomes a chip).
 - A scope/filter question ("All projects or just yours?", "This week or this month?") — emit each option as a chip.
 
 Default: if your reply ends with a question mark and the answer space is small/finite, emit chips. When in doubt, prefer chips over no chips.
 
 DO NOT emit chips when:
-- The answer is genuinely open-ended (free-form names, dates, numbers, descriptions).
+- The answer is genuinely open-ended (free-form names, dates, numbers, descriptions, long explanations).
 - You are not asking a question (pure status update, completed action, delivered report).
-- The chips would just duplicate friday-card action buttons or links already in the response.
-
-Rules: 2–6 options; each ≤40 chars; phrased as the EXACT first-person message the user would send if they tapped it (self-contained, no pronouns referring to the chip). Keep the question in the prose; chips supplement, never replace it. Top-level fence only; never nested inside another block.`;
+- The chips would just duplicate friday-card action buttons or links already in the response — when in doubt, the friday-card wins and chips are omitted.
+- The confirmation is for a DESTRUCTIVE action (delete_*, bulk_delete_tasks, remove_member) — keep using the destructive friday-card pattern instead of chips.`;
 
 // REPORT_DIRECTIVE: kept separate so it can be appended to custom agents'
 // system prompts (custom agents replace SYSTEM_PROMPT entirely).
@@ -233,7 +235,7 @@ Guidelines:
 - When referencing projects, use their names and codes.
 - If data is missing or insufficient, say so explicitly.
 - When asked about trends, base them only on available historical data.
-- For write actions (create task, create mitigation, assign owner, add note, flag for review), describe exactly what you would do and ask the user to confirm with "Yes, proceed" before executing.
+- For non-destructive write actions (create task, create mitigation, assign owner, add note, flag for review, update status, add/remove portfolio project, assign resources, invite member), describe exactly what you would do and ask the user to confirm before executing. Every such confirmation MUST include either (a) a Friday action card with Confirm + Cancel buttons OR (b) a \`quick-replies\` chip block containing at least "Yes, proceed" and "No, cancel" — pick one based on context, but never neither. Destructive actions (delete_*, bulk_delete_tasks, remove_member) always use the destructive friday-card pattern instead.
 - Never fabricate data points, percentages, or metrics not present in the provided context.
 - Format dates in a human-readable way.
 - Use markdown formatting for readability.
@@ -286,7 +288,7 @@ Each destructive card MUST:
 - use \`accent:"danger"\`,
 - carry the IDs the executor needs in either \`projectId\` (for project-scoped deletes) or inside \`data\` (e.g. \`{"portfolioId":7}\`, \`{"resourceId":12}\`, \`{"taskIds":[1,2,3]}\`, \`{"userId":"abc"}\`).
 
-For non-destructive actions (create_*, update_*, add_project_to_portfolio, remove_project_from_portfolio, assign_resources_to_task, invite_member, assign_owner, add_note, flag_for_review) you may either call the matching tool directly after explicit confirmation, OR offer them as Friday card actions. Tool calls are preferred when the user has clearly confirmed in chat.
+For non-destructive actions (create_*, update_*, add_project_to_portfolio, remove_project_from_portfolio, assign_resources_to_task, invite_member, assign_owner, add_note, flag_for_review) you may either call the matching tool directly after explicit confirmation, OR offer them as Friday card actions. Tool calls are preferred when the user has clearly confirmed in chat. When you describe what you're about to do and ask the user to confirm before running it, the response MUST include either a Friday action card with Confirm + Cancel buttons OR a \`quick-replies\` chip block with at least "Yes, proceed" and "No, cancel" — never neither (see QUICK REPLY CHIPS below).
 
 Choose accent based on data:
 - Health Red, overdue, blocked → "danger".
@@ -3448,4 +3450,5 @@ export async function executeJarvisAction(
 export const __testExports__ = {
   jarvisTools,
   getAnthropicJarvisTools,
+  QUICK_REPLIES_DIRECTIVE,
 };

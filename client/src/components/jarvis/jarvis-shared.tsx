@@ -253,7 +253,7 @@ interface MarkdownContentProps {
   onQuickReply?: (text: string) => void;
 }
 
-function tryParseQuickReplies(jsonText: string): string[] | null {
+export function tryParseQuickReplies(jsonText: string): string[] | null {
   try {
     const parsed = JSON.parse(jsonText);
     let opts: unknown;
