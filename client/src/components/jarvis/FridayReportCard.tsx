@@ -9,7 +9,6 @@ import {
   FileText,
   Copy,
   Printer,
-  Download,
   FileDown,
   ExternalLink,
   ChevronDown,
@@ -667,24 +666,6 @@ export function FridayReportCard({ report, variant = "panel" }: FridayReportCard
 
   const [pdfBusy, setPdfBusy] = useState(false);
 
-  const handleDownload = () => {
-    try {
-      const standalone = buildStandaloneReportHtml(report, sanitized);
-      const safeName = (report.title || "report").replace(/[^a-z0-9_-]+/gi, "_").slice(0, 60) || "report";
-      const blob = new Blob([standalone], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${safeName}.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (err: unknown) {
-      toast({ title: "Download failed", description: errorMessage(err), variant: "destructive" });
-    }
-  };
-
   const handleDownloadPdf = async () => {
     if (pdfBusy) return;
     setPdfBusy(true);
@@ -879,17 +860,6 @@ export function FridayReportCard({ report, variant = "panel" }: FridayReportCard
           >
             <Printer className="h-3 w-3 sm:mr-1" />
             <span className="hidden sm:inline">Print</span>
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={handleDownload}
-            data-testid="friday-report-download"
-          >
-            <Download className="h-3 w-3 sm:mr-1" />
-            <span className="hidden sm:inline">Download</span>
           </Button>
           <Button
             type="button"
