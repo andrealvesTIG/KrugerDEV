@@ -111,6 +111,15 @@ const chatBodySchema = z.object({
 
 const adoptBodySchema = z.object({
   guestSessionId: z.string().regex(GUEST_SESSION_RE, "Invalid guest session id"),
+  // Optional: the org the client is currently "in" (per its local
+  // selection). When the user belongs to multiple orgs, this lets the
+  // adopted conversation land in the same workspace the user will see
+  // after the post-signin redirect — instead of `userOrgs[0]`, which
+  // is whatever Postgres returns first and may be a different org
+  // than the one currently active in the client. Membership is
+  // verified server-side before use; an unknown / non-member id is
+  // ignored and the fallback (ensureUserOrganization) takes over.
+  preferredOrganizationId: z.number().int().positive().optional(),
 });
 
 function clientIp(req: Request): string | null {
@@ -434,7 +443,7 @@ export function registerJarvisGuestRoutes(app: Express): void {
     if (!parsed.success) {
       return res.status(400).json({ code: "bad_request", message: parsed.error.issues.map((i) => i.message).join(", ") });
     }
-    const { guestSessionId } = parsed.data;
+    const { guestSessionId, preferredOrganizationId } = parsed.data;
 
     const guest = await getGuestConversation(guestSessionId);
     if (!guest) {
@@ -496,11 +505,34 @@ export function registerJarvisGuestRoutes(app: Express): void {
       return res.status(401).json({ code: "unauthenticated", message: "User not found." });
     }
     let organizationId: number | null = null;
-    try {
-      const ensured = await ensureUserOrganization(userId, user.email ?? `${userId}@unknown.local`);
-      organizationId = ensured.organization?.id ?? null;
-    } catch (err) {
-      console.error("[friday-guest] ensureUserOrganization failed:", (err as Error).message);
+    // Prefer the org the client says it's currently in, but only when
+    // the user is actually a member. This keeps the adopted conv in
+    // the same workspace the user will land in after the post-signin
+    // redirect, instead of an arbitrary "first" membership.
+    if (preferredOrganizationId) {
+      try {
+        const [memberOfPreferred] = await db
+          .select({ organizationId: organizationMembers.organizationId })
+          .from(organizationMembers)
+          .where(
+            and(
+              eq(organizationMembers.userId, userId),
+              eq(organizationMembers.organizationId, preferredOrganizationId),
+            ),
+          )
+          .limit(1);
+        if (memberOfPreferred) organizationId = memberOfPreferred.organizationId;
+      } catch (err) {
+        console.error("[friday-guest] preferred org membership check failed:", (err as Error).message);
+      }
+    }
+    if (!organizationId) {
+      try {
+        const ensured = await ensureUserOrganization(userId, user.email ?? `${userId}@unknown.local`);
+        organizationId = ensured.organization?.id ?? null;
+      } catch (err) {
+        console.error("[friday-guest] ensureUserOrganization failed:", (err as Error).message);
+      }
     }
     // Fallback: if ensureUserOrganization couldn't land an org for any
     // reason, fall back to the user's first membership row directly.

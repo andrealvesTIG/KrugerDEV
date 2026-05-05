@@ -142,11 +142,31 @@ export default function PublicAiModePage() {
     setAdopting(true);
     (async () => {
       try {
+        // Pass the client's currently-selected org so the adopted
+        // conversation lands in the same workspace the user will see
+        // after the post-signin redirect. Without this, multi-org
+        // users get the conversation created in `userOrgs[0]` (server
+        // fallback) — which may not match the client's localStorage
+        // selection — and the chat surface 404s on the conv detail
+        // fetch because the org id in the URL doesn't match.
+        let preferredOrgId: number | null = null;
+        try {
+          const raw = localStorage.getItem("currentOrgId");
+          if (raw) {
+            const n = Number(raw);
+            if (Number.isFinite(n) && n > 0) preferredOrgId = n;
+          }
+        } catch {
+          // ignore
+        }
         const res = await fetch("/api/jarvis/guest/adopt", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ guestSessionId }),
+          body: JSON.stringify({
+            guestSessionId,
+            ...(preferredOrgId ? { preferredOrganizationId: preferredOrgId } : {}),
+          }),
         });
         const data: AdoptResponse = res.ok
           ? await res.json()
@@ -160,6 +180,16 @@ export default function PublicAiModePage() {
               `friday_active_conversation_${data.organizationId}_friday`,
               String(data.conversationId),
             );
+            // Also clear any prior active-agent pointer for this org.
+            // useJarvis's reconciliation reads
+            //   loadActiveConversationId(orgId, loadActiveAgentId(orgId))
+            // — if a stale agent id from a previous logged-in session
+            // is still in sessionStorage, the reconciliation reads the
+            // wrong key (`..._agent_<id>` instead of `..._friday`) and
+            // the adopted conversation id we just wrote is invisible.
+            // Clearing the agent forces Friday scope so the right key
+            // is read.
+            sessionStorage.removeItem(`friday_active_agent_${data.organizationId}`);
           } catch {
             // ignore
           }

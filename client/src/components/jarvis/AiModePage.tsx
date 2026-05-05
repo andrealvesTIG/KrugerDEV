@@ -202,8 +202,34 @@ export default function AiModePage() {
       adoptFlag = null;
       adoptedConvIdStr = null;
     }
-    // No pending question → still scrub residual adoption breadcrumbs so
-    // a later flow doesn't trip over stale state from an aborted attempt.
+    // Parse defensively: ignore non-numeric / non-positive ids so a
+    // corrupted breadcrumb can't kick switchConversation into an invalid
+    // value (and through it, a render loop).
+    const adoptedConvIdParsed = adoptedConvIdStr ? Number(adoptedConvIdStr) : NaN;
+    const adoptedConvId =
+      Number.isFinite(adoptedConvIdParsed) && adoptedConvIdParsed > 0
+        ? adoptedConvIdParsed
+        : null;
+
+    // Step 1 — surface the adopted transcript. Runs whenever the
+    // post-adoption flag is set, regardless of whether the user also
+    // had a pending over-cap question. Without this, a user who hit
+    // the wall after their 5th question and clicked "Sign in"
+    // (instead of trying to send a 6th) would land on an empty chat
+    // surface because nothing else activates the migrated conversation.
+    // If the adopted id isn't active yet, switch to it and let the
+    // next render re-enter this effect with the right active id.
+    // forceOnboarding keeps AgentPicker / hero copy from flashing
+    // generic Friday before the conversation detail query lands.
+    if (adoptFlag && adoptedConvId != null && activeConversationId !== adoptedConvId) {
+      switchConversation(adoptedConvId, { forceOnboarding: true });
+      return;
+    }
+
+    // Step 2 — replay the optional pending question (the over-cap
+    // 6th ask the server stashed). When there's no pending question
+    // we're done: scrub the breadcrumbs (the adopted conv is already
+    // active from Step 1) and exit.
     if (!pending) {
       if (adoptFlag || adoptedConvIdStr) {
         try {
@@ -226,26 +252,9 @@ export default function AiModePage() {
       }
       return;
     }
-    // Parse defensively: ignore non-numeric / non-positive ids so a
-    // corrupted breadcrumb can't kick switchConversation into an invalid
-    // value (and through it, a render loop).
-    const adoptedConvIdParsed = adoptedConvIdStr ? Number(adoptedConvIdStr) : NaN;
-    const adoptedConvId =
-      Number.isFinite(adoptedConvIdParsed) && adoptedConvIdParsed > 0
-        ? adoptedConvIdParsed
-        : null;
-    // Guard (1): if we know the adopted conversation id and it's not yet
-    // active, switch to it explicitly and bail out — switchConversation
-    // will trigger another render and this effect will run again with
-    // the right active id. Force onboarding on the switch so the
-    // AgentPicker / hero copy don't briefly flash generic Friday before
-    // the conversation detail query lands.
-    if (adoptedConvId != null && activeConversationId !== adoptedConvId) {
-      switchConversation(adoptedConvId, { forceOnboarding: true });
-      return;
-    }
-    // Guard (2): legacy/no-id case — wait for whatever conversation id
-    // useJarvis ends up hydrating from sessionStorage.
+    // Wait for whatever conversation id useJarvis ends up hydrating
+    // from sessionStorage (legacy/no-id case where adoptedConvId is
+    // null but adoptFlag is set).
     if (activeConversationId == null) return;
     pendingReplayRef.current = true;
     try {
