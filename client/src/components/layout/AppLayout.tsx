@@ -32,6 +32,7 @@ import { useJarvis } from "@/hooks/use-jarvis";
 import { useAiMode } from "@/hooks/use-ai-mode";
 import AiModePage from "@/components/jarvis/AiModePage";
 import { ModeToggle } from "@/components/layout/ModeToggle";
+import { UserMenu } from "@/components/layout/UserMenu";
 import { useWakeWord } from "@/hooks/use-wake-word";
 import { useUserJourney } from "@/hooks/use-user-journey";
 
@@ -355,6 +356,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
             <NotificationBell />
             <ModeToggle />
             <span className="hidden sm:inline-flex"><ThemeToggle /></span>
+            <UserMenu />
           </div>
           <HelpDialog open={helpDialogOpen} onOpenChange={setHelpDialogOpen} />
         </header>
