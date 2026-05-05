@@ -528,7 +528,18 @@ export function registerJarvisGuestRoutes(app: Express): void {
 
     let conversationId: number;
     try {
-      const conv = await fcCreate(organizationId, userId, title || "Continued from public preview");
+      // Stamp is_onboarding=true so every subsequent reply on this
+      // adopted conversation streams with the onboarding directive in
+      // the system prompt. Without this flag, the user's *next* turn
+      // (and every page reload after) would fall back to generic
+      // Friday because the request-time forceOnboarding=true breadcrumb
+      // only survives the very first replayed message.
+      const conv = await fcCreate(
+        organizationId,
+        userId,
+        title || "Continued from public preview",
+        { isOnboarding: true },
+      );
       conversationId = conv.id;
     } catch (err) {
       console.error("[friday-guest] fcCreate failed:", (err as Error).message);

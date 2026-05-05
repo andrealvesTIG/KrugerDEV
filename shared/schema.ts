@@ -2083,6 +2083,15 @@ export const fridayConversations = pgTable("friday_conversations", {
   lastMessageAt: timestamp("last_message_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  // When true, every reply Friday streams for this conversation includes
+  // the ONBOARDING_DIRECTIVE in the system prompt — regardless of whether
+  // the org is auto-detected as empty. Set by /api/jarvis/guest/adopt so a
+  // visitor whose public-preview chat we just migrated keeps getting the
+  // onboarding agent (offer to seed a workspace, ask about industry, etc.)
+  // even on accounts whose org is no longer empty. Defaults to false; the
+  // standard "Start onboarding agent" button still triggers per-message
+  // forceOnboarding without touching this column.
+  isOnboarding: boolean("is_onboarding").notNull().default(false),
 }, (table) => [
   index("friday_conv_user_idx").on(table.userId, table.lastMessageAt),
   index("friday_conv_org_idx").on(table.organizationId),

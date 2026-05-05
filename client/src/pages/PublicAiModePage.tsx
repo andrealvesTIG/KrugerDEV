@@ -35,6 +35,12 @@ import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
 const GUEST_SESSION_KEY = "friday_guest_session_id";
 const PENDING_QUESTION_KEY = "friday_pending_user_message";
 const PENDING_ADOPT_KEY = "friday_pending_guest_adopt";
+// Holds the conversation id created by /api/jarvis/guest/adopt so the
+// post-redirect AiModePage can deterministically switch to that exact
+// thread before replaying the pending question — even if the in-memory
+// `_activeConversationId` in useJarvis is stale from a long-lived SPA
+// session in the same org.
+const PENDING_ADOPT_CONV_ID_KEY = "friday_pending_guest_adopt_conversation_id";
 
 function loadGuestSessionId(): string {
   try {
@@ -163,6 +169,19 @@ export default function PublicAiModePage() {
           // sessionStorage question is the one we just adopted.
           try {
             sessionStorage.setItem(PENDING_ADOPT_KEY, "1");
+          } catch {
+            // ignore
+          }
+          // Also stash the adopted conversation id so the replay can
+          // call switchConversation(adoptedId, { forceOnboarding: true })
+          // before sending the pending question. The plain
+          // `friday_active_conversation_<orgId>_friday` write above
+          // updates sessionStorage but NOT the in-memory pointer in
+          // useJarvis when the org id was already active in this tab
+          // (e.g. user navigated to /ai from inside the app), so the
+          // replay needs an explicit hand-off id to be safe.
+          try {
+            sessionStorage.setItem(PENDING_ADOPT_CONV_ID_KEY, String(data.conversationId));
           } catch {
             // ignore
           }

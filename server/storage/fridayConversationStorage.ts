@@ -31,6 +31,7 @@ export async function createConversation(
   orgId: number,
   userId: string,
   title: string | null = null,
+  options?: { isOnboarding?: boolean },
 ) {
   const [row] = await db
     .insert(fridayConversations)
@@ -38,6 +39,11 @@ export async function createConversation(
       organizationId: orgId,
       userId,
       title,
+      // Only stamp onboarding mode when the caller explicitly asks for
+      // it (today: the guest-adopt route). Every other create path —
+      // "+ New chat", server-side title backfill, etc. — leaves the
+      // column at its default (false) so generic Friday is the default.
+      isOnboarding: options?.isOnboarding === true ? true : false,
     })
     .returning();
   return row;
@@ -54,6 +60,7 @@ export async function listConversations(orgId: number, userId: string, limit = 5
       lastMessageAt: fridayConversations.lastMessageAt,
       createdAt: fridayConversations.createdAt,
       updatedAt: fridayConversations.updatedAt,
+      isOnboarding: fridayConversations.isOnboarding,
       snippet: sql<string | null>`(
         SELECT substring(content from 1 for 140)
         FROM ${fridayMessages}

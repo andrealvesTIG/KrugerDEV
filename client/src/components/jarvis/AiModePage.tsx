@@ -41,6 +41,8 @@ import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
 import FridayThinking from "./FridayThinking";
 
+const PENDING_ADOPT_CONV_ID_KEY = "friday_pending_guest_adopt_conversation_id";
+
 export default function AiModePage() {
   const {
     messages, isLoading, sendMessage, selectQuickReply, stopGeneration,
@@ -161,35 +163,100 @@ export default function AiModePage() {
   // pick it up here once the conversation has hydrated and fire it as
   // the user's first authenticated message. Guarded by a one-shot ref
   // so React-strict-mode double-invocation doesn't double-send.
+  //
+  // Three guards on top of the one-shot ref keep this deterministic:
+  //   1. We block until the **adopted** conversation id (written to
+  //      sessionStorage by PublicAiModePage) is the active one in
+  //      useJarvis. If the user already had a different active
+  //      conversation in this tab — common in a long-lived SPA session
+  //      where useJarvis was previously mounted with the same org and
+  //      held a stale `_activeConversationId` in module-level state —
+  //      we explicitly call switchConversation(adoptedId, { forceOnboarding: true })
+  //      first and let the next render of this effect run the actual
+  //      replay. Without this we could send the adopted-transcript
+  //      question into the wrong conversation, or worse start a fresh
+  //      one with no transcript and no onboarding flag.
+  //   2. We also block when adoptedConvId is missing but activeConversationId
+  //      hasn't hydrated yet — sessionStorage->in-memory restoration in
+  //      useJarvis is async on first orgId resolution.
+  //   3. We pass `{ forceOnboarding: true }` to sendMessage explicitly.
+  //      The conversation row is stamped is_onboarding on the server,
+  //      but its detail query may not have returned by the time we send,
+  //      so `effectiveForceOnboarding` could still be false in this
+  //      exact tick. The explicit override guarantees the first
+  //      authenticated reply uses the onboarding directive (and the
+  //      server ORs in its own persisted column for every turn after).
   const pendingReplayRef = useRef(false);
   useEffect(() => {
     if (pendingReplayRef.current) return;
     if (isLoading) return;
     let pending: string | null = null;
     let adoptFlag: string | null = null;
+    let adoptedConvIdStr: string | null = null;
     try {
       pending = sessionStorage.getItem("friday_pending_user_message");
       adoptFlag = sessionStorage.getItem("friday_pending_guest_adopt");
+      adoptedConvIdStr = sessionStorage.getItem(PENDING_ADOPT_CONV_ID_KEY);
     } catch {
       pending = null;
       adoptFlag = null;
+      adoptedConvIdStr = null;
     }
-    if (!pending) return;
+    // No pending question → still scrub residual adoption breadcrumbs so
+    // a later flow doesn't trip over stale state from an aborted attempt.
+    if (!pending) {
+      if (adoptFlag || adoptedConvIdStr) {
+        try {
+          sessionStorage.removeItem("friday_pending_guest_adopt");
+          sessionStorage.removeItem(PENDING_ADOPT_CONV_ID_KEY);
+        } catch {
+          /* ignore */
+        }
+      }
+      return;
+    }
     // Only auto-send while the post-adoption flag is present so we
     // never accidentally replay an old question on a fresh session.
     if (!adoptFlag) {
-      try { sessionStorage.removeItem("friday_pending_user_message"); } catch { /* ignore */ }
+      try {
+        sessionStorage.removeItem("friday_pending_user_message");
+        sessionStorage.removeItem(PENDING_ADOPT_CONV_ID_KEY);
+      } catch {
+        /* ignore */
+      }
       return;
     }
+    // Parse defensively: ignore non-numeric / non-positive ids so a
+    // corrupted breadcrumb can't kick switchConversation into an invalid
+    // value (and through it, a render loop).
+    const adoptedConvIdParsed = adoptedConvIdStr ? Number(adoptedConvIdStr) : NaN;
+    const adoptedConvId =
+      Number.isFinite(adoptedConvIdParsed) && adoptedConvIdParsed > 0
+        ? adoptedConvIdParsed
+        : null;
+    // Guard (1): if we know the adopted conversation id and it's not yet
+    // active, switch to it explicitly and bail out — switchConversation
+    // will trigger another render and this effect will run again with
+    // the right active id. Force onboarding on the switch so the
+    // AgentPicker / hero copy don't briefly flash generic Friday before
+    // the conversation detail query lands.
+    if (adoptedConvId != null && activeConversationId !== adoptedConvId) {
+      switchConversation(adoptedConvId, { forceOnboarding: true });
+      return;
+    }
+    // Guard (2): legacy/no-id case — wait for whatever conversation id
+    // useJarvis ends up hydrating from sessionStorage.
+    if (activeConversationId == null) return;
     pendingReplayRef.current = true;
     try {
       sessionStorage.removeItem("friday_pending_user_message");
       sessionStorage.removeItem("friday_pending_guest_adopt");
+      sessionStorage.removeItem(PENDING_ADOPT_CONV_ID_KEY);
     } catch {
       // ignore
     }
-    sendMessage(pending);
-  }, [isLoading, sendMessage]);
+    sendMessage(pending, undefined, { forceOnboarding: true });
+  }, [isLoading, sendMessage, activeConversationId, switchConversation]);
 
   // Stop listening when leaving the page
   useEffect(() => {

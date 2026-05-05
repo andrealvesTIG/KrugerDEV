@@ -185,11 +185,19 @@ export function registerJarvisRoutes(app: Express) {
       // they don't add latency to TTFB.
       let conversationId: number | null = null;
       let needsCreate = true;
+      // Tracks the conversation row's persisted is_onboarding flag (set by
+      // /api/jarvis/guest/adopt for migrated public-preview chats). We OR
+      // it onto the request's forceOnboarding below so the onboarding
+      // directive is applied for every reply on that conversation —
+      // even if the client forgot to send forceOnboarding=true, and even
+      // after a page reload that re-mounts the chat without the flag.
+      let persistedIsOnboarding = false;
       if (incomingConversationId) {
         const existing = await fcGet(incomingConversationId, organizationId, userId);
         if (existing) {
           conversationId = existing.id;
           needsCreate = false;
+          persistedIsOnboarding = existing.isOnboarding === true;
         }
       }
       const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
@@ -316,7 +324,7 @@ export function registerJarvisRoutes(app: Express) {
         meterPerCall,
         pageContext ? { path: pageContext.path, entityType: pageContext.entityType, entityId: pageContext.entityId } : undefined,
         attachments,
-        { forceOnboarding: forceOnboarding === true },
+        { forceOnboarding: forceOnboarding === true || persistedIsOnboarding },
       );
     } catch (error) {
       if (error instanceof AiCreditsLimitError) {

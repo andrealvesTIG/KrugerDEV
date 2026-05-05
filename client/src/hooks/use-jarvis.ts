@@ -48,6 +48,16 @@ export interface FridayConversationSummary {
   lastMessageAt: string;
   createdAt: string;
   snippet: string | null;
+  /**
+   * True when this conversation was created by /api/jarvis/guest/adopt
+   * after a visitor signed in from the public /ai preview. While true,
+   * every reply on this thread streams with the onboarding directive in
+   * the system prompt — which is what keeps "the welcome chat continues
+   * as the Onboarding Agent after sign-in" working across page reloads
+   * and even on accounts whose org is no longer empty. Optional /
+   * defaults to false so legacy clients tolerate older payloads.
+   */
+  isOnboarding?: boolean;
 }
 
 const ACTIVE_CONV_KEY_PREFIX = "friday_active_conversation_";
@@ -183,6 +193,10 @@ interface ServerConversationDetail {
   id: number;
   title: string | null;
   messages: ServerMessage[];
+  // Mirrors fridayConversations.is_onboarding. Same semantics as the
+  // summary's flag — set on adopted public-preview chats so the
+  // onboarding directive sticks across reloads.
+  isOnboarding?: boolean;
 }
 
 function serverMessageToJarvis(m: ServerMessage): JarvisMessage {
@@ -212,17 +226,32 @@ export function useJarvis() {
   const [location] = useLocation();
   const { activeConversationId, activeAgentId, isOpen } = useFridaySharedState();
 
-  // Sync active conversation id with the current organization. When orgId
-  // changes (org switcher), discard any previous-org conversationId and
-  // re-hydrate from sessionStorage scoped to the new org. Sending a request
-  // with a conversationId that belongs to another org would be rejected
-  // server-side (org+user gate in fcGet) and would confuse the UI.
+  // Reconcile the in-memory active-conversation/agent pointers with
+  // sessionStorage on mount and whenever orgId changes. We can't gate
+  // this purely on `_activeOrgId !== orgId` — long-lived SPA sessions
+  // can keep `_activeOrgId` matching the current org while
+  // sessionStorage was just updated by another flow (e.g. the post-
+  // signin /api/jarvis/guest/adopt handler writes the adopted
+  // conversation id to sessionStorage before redirecting back into AI
+  // Mode). Treating sessionStorage as authoritative here lets that
+  // hand-off land instead of being shadowed by a stale module-level
+  // pointer from a prior conversation in the same org.
+  //
+  // Sending a request with a conversationId that belongs to another
+  // org would still be rejected server-side (org+user gate in fcGet),
+  // so cross-org safety is unchanged.
   useEffect(() => {
     if (!orgId) return;
-    if (_activeOrgId !== orgId) {
+    const ssAgentId = loadActiveAgentId(orgId);
+    const ssConvId = loadActiveConversationId(orgId, ssAgentId);
+    if (
+      _activeOrgId !== orgId ||
+      _activeAgentId !== ssAgentId ||
+      _activeConversationId !== ssConvId
+    ) {
       _activeOrgId = orgId;
-      _activeAgentId = loadActiveAgentId(orgId);
-      _activeConversationId = loadActiveConversationId(orgId, _activeAgentId);
+      _activeAgentId = ssAgentId;
+      _activeConversationId = ssConvId;
       notify();
     }
   }, [orgId]);
@@ -285,6 +314,24 @@ export function useJarvis() {
     return (conversationQuery.data?.messages ?? []).map(serverMessageToJarvis);
   }, [conversationQuery.data]);
 
+  // The effective onboarding flag combines two sources:
+  //   1. Local state set explicitly by the "Onboarding agent" launcher
+  //      button (a one-shot for a brand-new chat in the current org).
+  //   2. The server-persisted is_onboarding column on the active
+  //      conversation row — set today by /api/jarvis/guest/adopt for
+  //      chats migrated from the public /ai preview, and the source of
+  //      truth that survives page reloads + signs-in across devices.
+  // We surface the union as `forceOnboarding` so AgentPicker shows
+  // "Onboarding active", `showOnboarding` derived in AiModePage flips
+  // to the onboarding hero/prompts, and sendMessage sends the
+  // forceOnboarding=true field for the very first replayed message
+  // (before the conversation refetch lands and the server can read its
+  // own column). Even if a buggy client somehow forgot to send it, the
+  // server still ORs in the persisted column, so the directive is
+  // applied either way.
+  const activeConvIsOnboarding = conversationQuery.data?.isOnboarding === true;
+  const effectiveForceOnboarding = forceOnboarding || activeConvIsOnboarding;
+
   // Final messages = persisted (when not actively streaming) + pending overlay (when sending).
   // While streaming, the server returns a conversationId mid-flight which triggers
   // a refetch — the just-saved user row may now appear in `persistedMessages` while
@@ -340,8 +387,19 @@ export function useJarvis() {
   }, [switchConversation]);
 
   const sendMessage = useCallback(
-    async (content: string, attachments?: FileAttachment[]) => {
+    async (
+      content: string,
+      attachments?: FileAttachment[],
+      opts?: { forceOnboarding?: boolean },
+    ) => {
       if (!orgId || isLoading) return;
+      // The caller can hard-pin onboarding mode for THIS one send (no
+      // hook state is mutated). The post-signin replay in AiModePage uses
+      // this so the very first authenticated turn is guaranteed to land
+      // with the onboarding directive — even though the active
+      // conversation's detail query hasn't returned yet so
+      // `effectiveForceOnboarding` is still false at that exact moment.
+      const sendForceOnboarding = effectiveForceOnboarding || opts?.forceOnboarding === true;
 
       const userOverlay: JarvisMessage = {
         id: `user-${Date.now()}`,
@@ -392,7 +450,7 @@ export function useJarvis() {
               size: a.size,
               content: a.content,
             })),
-            forceOnboarding: forceOnboarding || undefined,
+            forceOnboarding: sendForceOnboarding || undefined,
           }),
           signal: abortRef.current.signal,
         });
@@ -579,7 +637,7 @@ export function useJarvis() {
         if (!preservePendingOnFinish) setPendingMessages([]);
       }
     },
-    [orgId, isLoading, conciseMode, activeConversationId, activeAgentId, persistedMessages, queryClient, chatUrl, convQueryKey, forceOnboarding],
+    [orgId, isLoading, conciseMode, activeConversationId, activeAgentId, persistedMessages, queryClient, chatUrl, convQueryKey, effectiveForceOnboarding],
   );
 
   const clearMessages = useCallback(() => {
@@ -696,7 +754,7 @@ export function useJarvis() {
     switchConversation,
     newConversation,
     startOnboardingAgent,
-    forceOnboarding,
+    forceOnboarding: effectiveForceOnboarding,
     activeAgentId,
     switchAgent,
   };
