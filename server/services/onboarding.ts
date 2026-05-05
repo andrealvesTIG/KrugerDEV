@@ -1,5 +1,22 @@
 import { db } from "../db";
-import { users, organizations, organizationMembers, portfolios, projects, issues, tasks, resources, changeRequests, projectIntakes, subscriptions } from "@shared/schema";
+import {
+  users,
+  organizations,
+  organizationMembers,
+  portfolios,
+  portfolioKeyDates,
+  projects,
+  issues,
+  tasks,
+  taskDependencies,
+  taskResourceAssignments,
+  milestones,
+  resources,
+  changeRequests,
+  projectIntakes,
+  subscriptions,
+  financialEntries,
+} from "@shared/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { extractDomain, isPersonalEmailDomain } from "./companyLookup";
 
@@ -336,7 +353,38 @@ export async function generateSampleDataForOrg(
 ): Promise<{ portfolio: any; projects: any[] }> {
   const template = getIndustryTemplate(industry);
   const today = new Date();
-  
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth() + 1; // 1..12
+
+  // ── 1. Resources first ──────────────────────────────────────────────
+  // Created up-front so tasks can be assigned to them in the project
+  // loop below. The exact list is intentionally generic (industry-
+  // agnostic role coverage: PM, BA, lead, designer, developer).
+  const resourceTemplates = [
+    { name: 'John Smith', email: 'john.smith@demo.com', title: 'Senior Project Manager', department: 'Project Management', skills: 'Agile,Scrum,PMP,Risk Management' },
+    { name: 'Sarah Johnson', email: 'sarah.johnson@demo.com', title: 'Business Analyst', department: 'Business Analysis', skills: 'Requirements,BPMN,SQL,Data Analysis' },
+    { name: 'Michael Chen', email: 'michael.chen@demo.com', title: 'Technical Lead', department: 'Engineering', skills: 'Architecture,Cloud,DevOps,Python' },
+    { name: 'Emily Rodriguez', email: 'emily.rodriguez@demo.com', title: 'UX Designer', department: 'Design', skills: 'Figma,User Research,Prototyping,CSS' },
+    { name: 'David Kim', email: 'david.kim@demo.com', title: 'Developer', department: 'Engineering', skills: 'React,TypeScript,Node.js,PostgreSQL' },
+  ];
+
+  const createdResources: Array<{ id: number; displayName: string }> = [];
+  for (const resourceTemplate of resourceTemplates) {
+    const [r] = await db.insert(resources).values({
+      organizationId,
+      displayName: resourceTemplate.name,
+      email: resourceTemplate.email,
+      title: resourceTemplate.title,
+      department: resourceTemplate.department,
+      skills: resourceTemplate.skills,
+      hourlyRate: Math.floor(Math.random() * 100) + 80,
+      isActive: true,
+      isDemo: true,
+    }).returning({ id: resources.id, displayName: resources.displayName });
+    createdResources.push(r);
+  }
+
+  // ── 2. Portfolio + portfolio key dates ──────────────────────────────
   const [portfolio] = await db.insert(portfolios).values({
     organizationId,
     name: template.portfolioName,
@@ -345,14 +393,36 @@ export async function generateSampleDataForOrg(
     managerId: userId,
     isDemo: true,
   }).returning();
-  
+
+  // Portfolio-level key dates so the Portfolio overview renders a
+  // populated timeline instead of an empty state.
+  const keyDateTemplates = [
+    { title: 'Portfolio Kickoff', type: 'Milestone', daysFromToday: -30, status: 'Completed', completed: true },
+    { title: 'Q2 Steering Committee Review', type: 'Review', daysFromToday: 45, status: 'Upcoming', completed: false },
+    { title: 'Mid-Year Budget Reforecast', type: 'Deadline', daysFromToday: 90, status: 'Upcoming', completed: false },
+    { title: 'Annual Portfolio Close-Out', type: 'Milestone', daysFromToday: 270, status: 'Upcoming', completed: false },
+  ];
+  for (const kd of keyDateTemplates) {
+    await db.insert(portfolioKeyDates).values({
+      portfolioId: portfolio.id,
+      organizationId,
+      title: kd.title,
+      keyDateType: kd.type,
+      date: formatDate(addDays(today, kd.daysFromToday)),
+      status: kd.status,
+      completed: kd.completed,
+      createdBy: userId,
+      isDemo: true,
+    });
+  }
+
   const createdProjects: any[] = [];
-  
+
   for (let i = 0; i < template.projects.length; i++) {
     const projectTemplate = template.projects[i];
     const startOffset = i * 30;
     const endOffset = startOffset + 120;
-    
+
     const [project] = await db.insert(projects).values({
       organizationId,
       portfolioId: portfolio.id,
@@ -369,26 +439,79 @@ export async function generateSampleDataForOrg(
       source: 'manual',
       isDemo: true,
     }).returning();
-    
+
     createdProjects.push(project);
-    
+
+    // ── 3a. Milestone tasks (with IDs captured for deps + assignments)
+    const createdTaskIds: number[] = [];
     for (let j = 0; j < projectTemplate.milestones.length; j++) {
       const milestone = projectTemplate.milestones[j];
-      await db.insert(tasks).values({
+      const dueDate = formatDate(addDays(today, startOffset + (j + 1) * 20));
+      const startDate = formatDate(addDays(today, startOffset + j * 20));
+      const status = j === 0 ? 'Completed' : j === 1 ? 'In Progress' : 'Not Started';
+
+      const [t] = await db.insert(tasks).values({
         projectId: project.id,
         name: milestone.title,
         description: milestone.description,
-        endDate: formatDate(addDays(today, startOffset + (j + 1) * 20)),
-        startDate: formatDate(addDays(today, startOffset + j * 20)),
-        status: j === 0 ? 'Completed' : j === 1 ? 'In Progress' : 'Not Started',
-        progress: j === 0 ? 100 : 0,
+        endDate: dueDate,
+        startDate,
+        status,
+        progress: j === 0 ? 100 : j === 1 ? 40 : 0,
         priority: 'Medium',
         taskType: 'Milestone',
         isMilestone: true,
         isDemo: true,
+      }).returning({ id: tasks.id });
+      createdTaskIds.push(t.id);
+
+      // Mirror the same milestone into the dedicated `milestones` table
+      // so pages that read from there (governance/phase-gate views)
+      // also see populated demo data.
+      await db.insert(milestones).values({
+        projectId: project.id,
+        organizationId,
+        milestoneNumber: `MS-${String(project.id).padStart(3, '0')}-${String(j + 1).padStart(2, '0')}`,
+        title: milestone.title,
+        description: milestone.description,
+        milestoneType: j === projectTemplate.milestones.length - 1 ? 'Phase Gate' : 'Deliverable',
+        dueDate,
+        baselineDueDate: dueDate,
+        startDate,
+        completed: status === 'Completed',
+        actualCompletionDate: status === 'Completed' ? dueDate : null,
+        status,
+        priority: 'Medium',
+        ownerId: userId,
+        isDemo: true,
       });
     }
-    
+
+    // ── 3b. Task dependencies (finish-to-start chain across milestones)
+    for (let depIdx = 1; depIdx < createdTaskIds.length; depIdx++) {
+      await db.insert(taskDependencies).values({
+        taskId: createdTaskIds[depIdx],
+        dependsOnTaskId: createdTaskIds[depIdx - 1],
+        dependencyType: 'finish-to-start',
+        lagDays: 0,
+        isDemo: true,
+      });
+    }
+
+    // ── 3c. Task → resource assignments (round-robin so every demo
+    //         resource shows up on at least one task across the portfolio)
+    for (let asgnIdx = 0; asgnIdx < createdTaskIds.length; asgnIdx++) {
+      const resource = createdResources[(i * 2 + asgnIdx) % createdResources.length];
+      if (!resource) continue;
+      await db.insert(taskResourceAssignments).values({
+        taskId: createdTaskIds[asgnIdx],
+        resourceId: resource.id,
+        allocationPercentage: 50,
+        role: asgnIdx === 0 ? 'Lead' : 'Support',
+        isDemo: true,
+      });
+    }
+
     for (const risk of projectTemplate.risks) {
       await db.insert(issues).values({
         projectId: project.id,
@@ -401,7 +524,7 @@ export async function generateSampleDataForOrg(
         isDemo: true,
       });
     }
-    
+
     for (const issue of projectTemplate.issues) {
       await db.insert(issues).values({
         projectId: project.id,
@@ -413,13 +536,13 @@ export async function generateSampleDataForOrg(
         isDemo: true,
       });
     }
-    
+
     // Add demo change requests for each project
     const changeRequestTemplates = [
       { title: 'Scope Expansion Request', description: 'Additional features requested by stakeholders', type: 'Scope', priority: 'High', justification: 'Business requirement change based on market feedback' },
       { title: 'Timeline Adjustment', description: 'Schedule change due to resource constraints', type: 'Schedule', priority: 'Medium', justification: 'Resource availability requires timeline shift' },
     ];
-    
+
     for (let crIdx = 0; crIdx < changeRequestTemplates.length; crIdx++) {
       const crTemplate = changeRequestTemplates[crIdx];
       await db.insert(changeRequests).values({
@@ -436,29 +559,90 @@ export async function generateSampleDataForOrg(
         isDemo: true,
       });
     }
-  }
-  
-  // Add demo resources
-  const resourceTemplates = [
-    { name: 'John Smith', email: 'john.smith@demo.com', title: 'Senior Project Manager', department: 'Project Management', skills: 'Agile,Scrum,PMP,Risk Management' },
-    { name: 'Sarah Johnson', email: 'sarah.johnson@demo.com', title: 'Business Analyst', department: 'Business Analysis', skills: 'Requirements,BPMN,SQL,Data Analysis' },
-    { name: 'Michael Chen', email: 'michael.chen@demo.com', title: 'Technical Lead', department: 'Engineering', skills: 'Architecture,Cloud,DevOps,Python' },
-    { name: 'Emily Rodriguez', email: 'emily.rodriguez@demo.com', title: 'UX Designer', department: 'Design', skills: 'Figma,User Research,Prototyping,CSS' },
-    { name: 'David Kim', email: 'david.kim@demo.com', title: 'Developer', department: 'Engineering', skills: 'React,TypeScript,Node.js,PostgreSQL' },
-  ];
-  
-  for (const resourceTemplate of resourceTemplates) {
-    await db.insert(resources).values({
-      organizationId,
-      displayName: resourceTemplate.name,
-      email: resourceTemplate.email,
-      title: resourceTemplate.title,
-      department: resourceTemplate.department,
-      skills: resourceTemplate.skills,
-      hourlyRate: Math.floor(Math.random() * 100) + 80,
-      isActive: true,
-      isDemo: true,
-    });
+
+    // ── 3d. Financial entries — populate the Financials grid with three
+    //         line items (Capital / Direct Expense / Labor) across the
+    //         current calendar year. Each item gets 36 cells: AOP +
+    //         Forecast for all 12 months, plus Actuals for past months.
+    //         Storage is calendar-anchored (server translates to the
+    //         org's fiscal-month index at the API boundary).
+    const financialItems = [
+      {
+        suffix: 'eng-labor',
+        itemName: 'Engineering Labor',
+        financialView: 'Labor',
+        costCategory: 'Engineering',
+        costSpecification: 'In-House',
+        category: 'Direct Expense',
+        wbs: '1.1',
+        aopMonthly: 65000,
+        fcstMonthly: 67500,
+        actMonthly: 64200,
+      },
+      {
+        suffix: 'equipment',
+        itemName: 'Equipment & Hardware',
+        financialView: 'Capital',
+        costCategory: 'Equipment',
+        costSpecification: 'Purchased',
+        category: 'Capital',
+        wbs: '2.1',
+        aopMonthly: 42000,
+        fcstMonthly: 45500,
+        actMonthly: 41000,
+      },
+      {
+        suffix: 'software',
+        itemName: 'Software & Licenses',
+        financialView: 'Direct Expense',
+        costCategory: 'Software',
+        costSpecification: 'Subscription',
+        category: 'OpEx',
+        wbs: '3.1',
+        aopMonthly: 18000,
+        fcstMonthly: 19500,
+        actMonthly: 17800,
+      },
+    ];
+
+    const financialRows: Array<typeof financialEntries.$inferInsert> = [];
+    for (let fIdx = 0; fIdx < financialItems.length; fIdx++) {
+      const item = financialItems[fIdx];
+      const itemKey = `demo-${project.id}-${item.suffix}`;
+      const scenarios: Array<{ s: 'aop' | 'fcst' | 'act'; base: number }> = [
+        { s: 'aop', base: item.aopMonthly },
+        { s: 'fcst', base: item.fcstMonthly },
+        { s: 'act', base: item.actMonthly },
+      ];
+      for (const { s, base } of scenarios) {
+        for (let m = 1; m <= 12; m++) {
+          // Don't seed actuals into the future — only past + current month.
+          if (s === 'act' && m > currentMonth) continue;
+          // Small seasonal sine wave (±15%) so charts have variance.
+          const seasonal = 1 + 0.15 * Math.sin(((m - 1) / 12) * 2 * Math.PI);
+          const amount = Math.round(base * seasonal);
+          financialRows.push({
+            projectId: project.id,
+            fiscalYear: currentYear,
+            scenario: s,
+            month: m,
+            amount,
+            itemKey,
+            itemName: item.itemName,
+            financialView: item.financialView,
+            costCategory: item.costCategory,
+            costSpecification: item.costSpecification,
+            category: item.category,
+            wbs: item.wbs,
+            sortOrder: fIdx,
+            isDemo: true,
+          });
+        }
+      }
+    }
+    if (financialRows.length > 0) {
+      await db.insert(financialEntries).values(financialRows);
+    }
   }
   
   // Add demo project intakes (pipeline items)

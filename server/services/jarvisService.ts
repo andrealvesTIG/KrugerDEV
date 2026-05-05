@@ -2236,7 +2236,7 @@ Your job in this conversation:
 3. Then OFFER to configure the workspace for them by emitting a single Friday action card. Use this exact format on its own line as a top-level fenced block:
 
 \`\`\`friday-card
-{"type":"action","title":"Set up your workspace for {Industry}","subtitle":"I'll create a starter portfolio with sample projects, milestones, risks, and demo resources tailored to {Industry}.","accent":"default","fields":[{"label":"Industry","value":"{Industry}"},{"label":"What you'll get","value":"1 portfolio, 2 demo projects, milestones, risks, and resources"}],"actions":[{"label":"Apply setup","type":"configure_organization","data":{"industry":"{Industry}"}},{"label":"Not now","type":"configure_organization","data":{"dismiss":true}}]}
+{"type":"action","title":"Set up your workspace for {Industry}","subtitle":"I'll seed a full demo portfolio for {Industry} — projects, milestones, risks, issues, change requests, financials, resources, dependencies, and pipeline intakes.","accent":"default","fields":[{"label":"Industry","value":"{Industry}"},{"label":"What you'll get","value":"1 portfolio (with key dates), 2 projects, milestones + dependencies, risks, issues, change requests, monthly financials (AOP/Forecast/Actuals), 5 resources assigned to tasks, and 4 pipeline intakes"}],"actions":[{"label":"Apply setup","type":"configure_organization","data":{"industry":"{Industry}"}},{"label":"Not now","type":"configure_organization","data":{"dismiss":true}}]}
 \`\`\`
 
 Supported industry keys (use exactly these in the data.industry field):
@@ -2253,7 +2253,7 @@ If the user describes "something else" or an industry that isn't in that list, s
 
 If the workspace already has projects/portfolios and the user explicitly asks for demo data anyway (e.g. "add demo projects", "seed sample data", "do it anyway"), you may still emit the card. In that case:
 - Title: "Add demo projects to your workspace"
-- Subtitle: "I'll add a demo portfolio with sample projects, milestones, risks, and resources alongside your existing data."
+- Subtitle: "I'll add a demo portfolio (projects, milestones, risks, issues, change requests, financials, resources, dependencies, pipeline intakes) alongside your existing data."
 - The Apply action's data must include "force": true (e.g. \`{"label":"Create demo projects anyway","type":"configure_organization","data":{"industry":"{Industry}","force":true}}\`).
 Otherwise, do not offer the card to non-empty workspaces unprompted.`;
 
