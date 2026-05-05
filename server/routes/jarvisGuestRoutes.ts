@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from "express";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import crypto from "crypto";
 import { z } from "zod";
 import { db } from "../db";
@@ -66,8 +66,13 @@ const guestChatSessionRateLimit = rateLimit({
       ? (req.body as { guestSessionId: string }).guestSessionId
       : null;
     // Fall back to IP when the body hasn't been parsed yet so the
-    // limiter still has something to key on.
-    return id && GUEST_SESSION_RE.test(id) ? `gs:${id}` : `ip:${req.ip ?? "unknown"}`;
+    // limiter still has something to key on. Use express-rate-limit's
+    // `ipKeyGenerator` helper so IPv6 addresses are normalized to a
+    // /64 subnet — without it, a single IPv6 visitor can trivially
+    // bypass the cap by rotating the low 64 bits of their address.
+    return id && GUEST_SESSION_RE.test(id)
+      ? `gs:${id}`
+      : `ip:${ipKeyGenerator(req.ip ?? "unknown")}`;
   },
 });
 
