@@ -158,7 +158,13 @@ export function SavedReportsMenu({
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align={align} className="w-80 max-h-[60vh] overflow-y-auto">
+      <DropdownMenuContent
+        align={align}
+        sideOffset={8}
+        // AiModePage renders at z-[200], so the default Radix z-50 would
+        // put this dropdown behind the overlay and make it unclickable.
+        className="w-80 max-h-[60vh] overflow-y-auto z-[300]"
+      >
         <DropdownMenuLabel className="flex items-center gap-2">
           <Bookmark className="h-3.5 w-3.5" /> Saved Reports
         </DropdownMenuLabel>
