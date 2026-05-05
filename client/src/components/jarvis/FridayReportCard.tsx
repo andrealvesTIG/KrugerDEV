@@ -22,15 +22,6 @@ import {
 import { cn } from "@/lib/utils";
 import { buildReportCss, STANDALONE_THEME_VARS } from "./fridayReportTheme";
 
-interface ClipboardItemConstructor {
-  new (items: Record<string, Blob>): unknown;
-}
-type ClipboardCapableWindow = Window & { ClipboardItem?: ClipboardItemConstructor };
-
-function getClipboardItemCtor(): ClipboardItemConstructor | undefined {
-  return (window as ClipboardCapableWindow).ClipboardItem;
-}
-
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   if (typeof err === "string") return err;
@@ -674,29 +665,6 @@ export function FridayReportCard({ report, variant = "panel" }: FridayReportCard
     }
   }, [sanitized]);
 
-  const handleCopy = async () => {
-    try {
-      const standalone = buildStandaloneReportHtml(report, sanitized);
-      const Ctor = getClipboardItemCtor();
-      if (navigator.clipboard && Ctor) {
-        const item = new Ctor({
-          "text/html": new Blob([standalone], { type: "text/html" }),
-          "text/plain": new Blob([bodyRef.current?.innerText || report.title], { type: "text/plain" }),
-        });
-        // navigator.clipboard.write expects a list of ClipboardItem instances;
-        // the runtime accepts our typed wrapper.
-        await (navigator.clipboard as Clipboard & {
-          write: (items: unknown[]) => Promise<void>;
-        }).write([item]);
-      } else {
-        await navigator.clipboard.writeText(bodyRef.current?.innerText || report.title);
-      }
-      toast({ title: "Copied", description: "Report copied to clipboard." });
-    } catch (err: unknown) {
-      toast({ title: "Copy failed", description: errorMessage(err), variant: "destructive" });
-    }
-  };
-
   const [pdfBusy, setPdfBusy] = useState(false);
 
   const handleDownload = () => {
@@ -901,17 +869,6 @@ export function FridayReportCard({ report, variant = "panel" }: FridayReportCard
           )}
         </div>
         <div className="friday-report-card-actions flex items-center gap-1 flex-shrink-0">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={handleCopy}
-            data-testid="friday-report-copy"
-          >
-            <Copy className="h-3 w-3 sm:mr-1" />
-            <span className="hidden sm:inline">Copy</span>
-          </Button>
           <Button
             type="button"
             variant="ghost"
