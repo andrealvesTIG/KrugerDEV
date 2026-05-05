@@ -41,3 +41,5 @@ export { CustomDashboard } from "./CustomDashboard";
 export { CreateCustomDashboardDialog } from "./CreateCustomDashboardDialog";
 export { AddPowerBIDialog } from "./AddPowerBIDialog";
 export { KpiAnalyticsDashboard } from "./KpiAnalyticsDashboard";
+export { AgentReportsDashboard } from "./AgentReportsDashboard";
+export { AgentDashboardsDashboard } from "./AgentDashboardsDashboard";

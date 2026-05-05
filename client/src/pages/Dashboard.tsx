@@ -54,6 +54,8 @@ import {
   CreateCustomDashboardDialog,
   AddPowerBIDialog,
   KpiAnalyticsDashboard,
+  AgentReportsDashboard,
+  AgentDashboardsDashboard,
 } from "@/components/dashboard";
 import { 
   LayoutDashboard, 
@@ -85,6 +87,7 @@ import {
   FileBarChart,
   Timer,
   GripVertical,
+  Bookmark,
 } from "lucide-react";
 import { SiTableau, SiLooker, SiMetabase } from "react-icons/si";
 import { useOrganization } from "@/hooks/use-organization";
@@ -209,6 +212,22 @@ const DASHBOARD_TABS: DashboardTab[] = [
     icon: BarChart3,
     submenus: [
       { id: "kpi-analytics-overview", label: "Overview", icon: BarChart3 },
+    ]
+  },
+  {
+    id: "agent-reports",
+    label: "Agent Reports",
+    icon: Bookmark,
+    submenus: [
+      { id: "agent-reports-overview", label: "Overview", icon: Bookmark },
+    ]
+  },
+  {
+    id: "agent-dashboards",
+    label: "Agent Dashboards",
+    icon: Sparkles,
+    submenus: [
+      { id: "agent-dashboards-overview", label: "Overview", icon: Sparkles },
     ]
   },
 ];
@@ -850,6 +869,16 @@ export default function Dashboard() {
 
         {/* KPI Analytics Dashboard */}
         {activeSubmenu === 'kpi-analytics-overview' && <ErrorBoundary><KpiAnalyticsDashboard /></ErrorBoundary>}
+
+        {/* Agent Reports & Agent Dashboards */}
+        {activeSubmenu === 'agent-reports-overview' && (
+          <ErrorBoundary><AgentReportsDashboard /></ErrorBoundary>
+        )}
+        {activeSubmenu === 'agent-dashboards-overview' && (
+          <ErrorBoundary>
+            <AgentDashboardsDashboard onOpenDashboard={handleSelectCustomDashboard} />
+          </ErrorBoundary>
+        )}
         
         {/* Custom Dashboards */}
         {activeSubmenu.startsWith('custom-') && selectedCustomDashboard && (

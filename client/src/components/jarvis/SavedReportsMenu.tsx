@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +18,7 @@ import {
   FileText,
   Share2,
   Link2,
+  ArrowRight,
 } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
@@ -64,6 +66,7 @@ export function SavedReportsMenu({
   const orgId = currentOrganization?.id;
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [open, setOpen] = useState(false);
   const [shareTarget, setShareTarget] = useState<ShareableReport | null>(null);
 
@@ -183,7 +186,8 @@ export function SavedReportsMenu({
             </div>
           </div>
         ) : (
-          reports.map((r) => (
+          <>
+          {reports.map((r) => (
             <DropdownMenuItem
               key={r.id}
               className="group flex items-start gap-2 py-2 pr-2 cursor-pointer"
@@ -254,8 +258,21 @@ export function SavedReportsMenu({
                 </button>
               </div>
             </DropdownMenuItem>
-          ))
+          ))}
+          </>
         )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => {
+            setOpen(false);
+            setLocation("/dashboards?view=agent-reports-overview");
+          }}
+          className="text-xs justify-center text-muted-foreground hover:text-foreground"
+          data-testid="button-saved-reports-view-all"
+        >
+          <span>View all in Agent Reports</span>
+          <ArrowRight className="h-3 w-3 ml-1.5" />
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
     <ShareReportDialog
