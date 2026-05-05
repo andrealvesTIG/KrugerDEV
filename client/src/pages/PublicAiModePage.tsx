@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, KeyboardEvent } from "react";
 import { Helmet } from "react-helmet-async";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Square, Lock, Sparkles, X } from "lucide-react";
+import { Send, Square, Lock, Sparkles, X, Mic, MicOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -14,10 +14,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { trackEvent } from "@/lib/analytics";
 import { useAuth } from "@/hooks/use-auth";
 import { setAiMode } from "@/hooks/use-ai-mode";
+import { useSpeechRecognition } from "@/hooks/use-speech";
 import {
   MessageBubble,
   OnboardingPrompts,
@@ -208,6 +214,7 @@ export default function PublicAiModePage() {
   // ------------------------------ guest chat state
   const [messages, setMessages] = useState<JarvisMessage[]>([]);
   const [input, setInput] = useState("");
+  const [interimText, setInterimText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [questionsUsed, setQuestionsUsed] = useState(0);
   // Live cap pulled from the server (super admin-controlled). Seeded
@@ -269,6 +276,49 @@ export default function PublicAiModePage() {
   }, []);
 
   const remaining = Math.max(0, questionLimit - questionsUsed);
+
+  // ------------------------------ voice dictation
+  // Mirrors the authenticated AiModePage: final transcripts append to
+  // the textarea so the user can edit before sending; interim text is
+  // shown live in the textarea via composedTextareaValue; errors flow
+  // through the existing errorBanner with a short auto-dismiss.
+  const handleVoiceResult = useCallback((transcript: string) => {
+    setInterimText("");
+    if (!transcript.trim()) return;
+    setInput(prev => (prev ? prev + " " : "") + transcript.trim());
+  }, []);
+
+  const handleInterimResult = useCallback((transcript: string) => {
+    setInterimText(transcript);
+  }, []);
+
+  const handleSpeechError = useCallback((message: string) => {
+    setErrorBanner(message);
+    setTimeout(() => {
+      setErrorBanner(prev => (prev === message ? null : prev));
+    }, 6000);
+  }, []);
+
+  const {
+    isListening,
+    isSupported: micSupported,
+    startListening,
+    stopListening,
+  } = useSpeechRecognition({
+    onResult: handleVoiceResult,
+    onInterimResult: handleInterimResult,
+    onError: handleSpeechError,
+  });
+
+  const handleMicToggle = useCallback(() => {
+    if (isListening) stopListening();
+    else startListening();
+  }, [isListening, startListening, stopListening]);
+
+  const composedTextareaValue =
+    isListening && interimText
+      ? input + (input ? " " : "") + interimText
+      : input;
 
   const goToAuth = useCallback(
     (mode: "login" | "register") => {
@@ -516,15 +566,17 @@ export default function PublicAiModePage() {
       >
         <Textarea
           ref={hero ? undefined : textareaRef}
-          value={input}
+          value={composedTextareaValue}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={
-            remaining > 0
-              ? hero
-                ? "Try Friday — type a project management question to get started…"
-                : "Message Friday…"
-              : "Sign in to keep chatting with Friday."
+            isListening
+              ? "Listening… speak now"
+              : remaining > 0
+                ? hero
+                  ? "Try Friday — type a project management question to get started…"
+                  : "Message Friday…"
+                : "Sign in to keep chatting with Friday."
           }
           className={cn(
             "flex-1 resize-y border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 shadow-none",
@@ -535,7 +587,35 @@ export default function PublicAiModePage() {
           rows={hero ? 5 : 4}
           data-testid={hero ? "input-public-ai-hero" : "input-public-ai"}
           autoFocus={hero}
+          disabled={isListening}
         />
+        {micSupported && remaining > 0 && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={handleMicToggle}
+                className={cn(
+                  "rounded-full flex-shrink-0 transition-colors",
+                  hero ? "h-11 w-11" : "h-9 w-9",
+                  isListening
+                    ? "bg-destructive/15 text-destructive hover:bg-destructive/25 ring-2 ring-destructive/40"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                aria-label={isListening ? "Stop dictation" : "Dictate"}
+                data-testid={hero ? "button-public-ai-mic-hero" : "button-public-ai-mic"}
+              >
+                {isListening
+                  ? <MicOff className={hero ? "h-5 w-5" : "h-4 w-4"} />
+                  : <Mic className={hero ? "h-5 w-5" : "h-4 w-4"} />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p className="text-xs">{isListening ? "Stop dictation" : "Dictate (push to talk)"}</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
         {isLoading ? (
           <Button
             size="icon"
