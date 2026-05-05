@@ -79,7 +79,7 @@ const BUILTIN_AGENTS: Array<{
     key: "onboarding",
     name: "Onboarding Agent",
     description:
-      "Greets first-time users and guests on /ai, asks which capital-projects focus area they're in (Capital Projects / Project Controls / Industrial Automation / Construction), and offers to seed a demo workspace. Runs as an addendum to Friday — disable to fall back to plain Friday for new workspaces.",
+      "Greets unauthenticated visitors on the public /ai preview AND first-time signed-in users with empty workspaces. Asks which focus area they're in (Capital Projects / Project Controls / Industrial Automation / Construction) and offers to seed a demo workspace. Guest conversations are migrated into the user's account on sign-in/sign-up so the chat continues seamlessly. Editing the prompt below changes the voice for both surfaces. The enabled toggle only suppresses the post-signin directive — the public preview always stays available.",
     defaultPrompt: ONBOARDING_DEFAULT_PROMPT,
     // Onboarding rides on top of Friday at runtime, so the model
     // override is informational only — the field is hidden in the UI.

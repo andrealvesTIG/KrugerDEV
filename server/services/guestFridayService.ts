@@ -1,5 +1,6 @@
 import OpenAI, { AzureOpenAI } from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
+import { getBuiltinAgentPromptOverride } from "../storage/builtinAgentSettingsStorage";
 
 // Lightweight, dependency-free guest LLM client. Mirrors the platform-default
 // resolution path used by the authenticated jarvisService but skips all org
@@ -42,6 +43,17 @@ const guestClient = createGuestOpenAIClient();
 // visitor to feel exactly what they'd get after signing up: a warm,
 // product-aware Friday who understands capital projects + project
 // controls and can help them decide whether to create an account.
+//
+// This is the *default*. The voice/body portion is super-admin
+// overridable via the "onboarding" key in builtin_agent_settings —
+// the same knob that controls the post-signin onboarding directive,
+// so admins edit the onboarding voice in one place and it affects
+// both the public preview and the in-app first-time experience. The
+// "enabled" toggle on the onboarding agent intentionally does NOT
+// disable the public preview — guests are the entry point of the
+// whole onboarding funnel, and an accidental admin click shouldn't
+// take down the landing page. The toggle only suppresses the post-
+// adoption directive (see jarvisService.ts).
 export const FRIDAY_GUEST_SYSTEM_PROMPT = `You are Friday Report — the Onboarding Agent for FridayReport.AI, a Capital Projects PPM purpose-built for owners, EPCs, project controls teams, industrial automation / OT engineers, and construction GCs. Your name is "Friday Report" or simply "Friday." You are warm, professional, and genuinely excited to help.
 
 You are talking to a visitor who has NOT signed in yet. They are trying out a free public preview to see what FridayReport.AI feels like before creating an account.
@@ -85,14 +97,26 @@ export interface StreamGuestResponseOptions {
 // Streams a single assistant turn from the platform-default LLM. Pure
 // Q&A — no tool loop, no per-org config, no token-usage metering. The
 // route caps history length BEFORE calling us so we trust the caller.
+//
+// System prompt resolution: super-admin override on the "onboarding"
+// built-in agent (Super Admin → Agents → Built-in agents → Onboarding
+// Agent → Default system prompt override) wins over the baked-in
+// FRIDAY_GUEST_SYSTEM_PROMPT. Cached for 5s by
+// builtinAgentSettingsStorage, so per-message lookup is effectively
+// free.
 export async function streamGuestFridayResponse({
   history,
   onToken,
   onDone,
   onError,
 }: StreamGuestResponseOptions): Promise<void> {
+  // Pull the admin override (if any) before opening the stream. We
+  // resolve once per turn so prompt edits show up on the next message
+  // rather than requiring a redeploy.
+  const promptOverride = await getBuiltinAgentPromptOverride("onboarding").catch(() => null);
+  const systemPrompt = promptOverride ?? FRIDAY_GUEST_SYSTEM_PROMPT;
   const messages: ChatCompletionMessageParam[] = [
-    { role: "system", content: FRIDAY_GUEST_SYSTEM_PROMPT },
+    { role: "system", content: systemPrompt },
     ...history.map((m) => ({ role: m.role, content: m.content })),
   ];
 
