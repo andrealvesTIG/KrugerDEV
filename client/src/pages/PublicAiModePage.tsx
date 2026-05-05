@@ -645,14 +645,13 @@ export default function PublicAiModePage() {
           </Button>
         )}
       </div>
-      <p
-        className={cn(
-          "text-muted-foreground dark:text-slate-400 text-center tracking-wide",
-          hero ? "mt-3 text-[11px]" : "mt-2 text-[10px]",
-        )}
-      >
-        Free preview — {remaining} of {questionLimit} questions left.{" "}
-        {remaining === 0 && (
+      {remaining === 0 && (
+        <p
+          className={cn(
+            "text-muted-foreground dark:text-slate-400 text-center tracking-wide",
+            hero ? "mt-3 text-[11px]" : "mt-2 text-[10px]",
+          )}
+        >
           <button
             type="button"
             onClick={() => openLoginWall(input.trim() || null)}
@@ -661,8 +660,8 @@ export default function PublicAiModePage() {
           >
             Sign in to keep going.
           </button>
-        )}
-      </p>
+        </p>
+      )}
     </div>
   );
 
