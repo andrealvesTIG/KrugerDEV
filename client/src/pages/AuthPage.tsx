@@ -44,6 +44,11 @@ export default function AuthPage() {
 
   const sourceParam = new URLSearchParams(search).get("source");
   const effectiveSource = sourceParam || "auth-page";
+  // Optional `?return=/path` so callers (e.g. the public /ai preview)
+  // can bring users back to where they were after signin/signup. Only
+  // same-origin relative paths are honored to avoid open-redirect bugs.
+  const returnParam = new URLSearchParams(search).get("return");
+  const safeReturnPath = returnParam && returnParam.startsWith("/") && !returnParam.startsWith("//") ? returnParam : null;
 
   useEffect(() => {
     const params = new URLSearchParams(search);
@@ -52,11 +57,18 @@ export default function AuthPage() {
       toast({ title: "Authentication Error", description: error, variant: "destructive" });
       window.history.replaceState({}, "", "/auth");
     }
-    
+
     const ref = params.get("ref");
     if (ref) {
       setReferralCode(ref);
       setMode("register");
+    }
+
+    // Honor `?mode=register` so the public preview can deep-link straight
+    // into the create-account variant of the page.
+    const modeParam = params.get("mode");
+    if (modeParam === "register" || modeParam === "login" || modeParam === "magic-link") {
+      setMode(modeParam);
     }
   }, [search, toast]);
 
@@ -78,7 +90,7 @@ export default function AuthPage() {
       queryClient.setQueryData(["/api/auth/user"], user);
       queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
       queryClient.invalidateQueries({ queryKey: ['/api/users', user.id, 'organizations'] });
-      setLocation("/");
+      setLocation(safeReturnPath ?? "/");
     },
     onError: (error: Error) => {
       toast({ title: "Login Failed", description: error.message, variant: "destructive" });
@@ -104,8 +116,13 @@ export default function AuthPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/organizations'] });
       queryClient.invalidateQueries({ queryKey: ['/api/users', result.id, 'organizations'] });
       
-      // If a new organization was created, redirect to onboarding
-      if (result.organizationCreated && result.organizationId && result.organizationName) {
+      // If a new organization was created, redirect to onboarding —
+      // unless the caller explicitly passed `?return=` (e.g. the
+      // public /ai preview), in which case honor it so the guest
+      // transcript adoption can run before any onboarding nudge.
+      if (safeReturnPath) {
+        setLocation(safeReturnPath);
+      } else if (result.organizationCreated && result.organizationId && result.organizationName) {
         setLocation(`/onboarding?orgId=${result.organizationId}&orgName=${encodeURIComponent(result.organizationName)}`);
       } else {
         setLocation("/");

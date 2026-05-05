@@ -2116,6 +2116,43 @@ export const fridayMessages = pgTable("friday_messages", {
 export type FridayConversation = typeof fridayConversations.$inferSelect;
 export type FridayMessage = typeof fridayMessages.$inferSelect;
 
+// Friday Guest Conversations - lightweight transcript store for visitors
+// who land on the public /ai route without signing in. Holds at most a few
+// messages per session and is reaped after the guest signs in (the
+// transcript is migrated into a real `friday_conversations` row owned by
+// the new user's org). No PII expected — guests are anonymous until they
+// sign in. Indexed by `guestSessionId` (a random opaque token the client
+// generates and stores in localStorage so the same browser keeps its
+// transcript across refreshes).
+export const fridayGuestConversations = pgTable("friday_guest_conversations", {
+  id: serial("id").primaryKey(),
+  guestSessionId: varchar("guest_session_id", { length: 64 }).notNull().unique(),
+  // Total user messages this guest has sent — drives the 2-question cap
+  // server-side. Incremented atomically before each model call so
+  // concurrent requests can't slip past the limit.
+  questionCount: integer("question_count").notNull().default(0),
+  // Hashed IP + raw user agent are kept only for abuse triage; never
+  // surfaced to clients. Hash so we don't store the raw IP.
+  ipHash: varchar("ip_hash", { length: 64 }),
+  userAgent: text("user_agent"),
+  // Full transcript ({role, content, createdAt}[]) so the adoption endpoint
+  // can replay it into friday_messages when the guest signs in.
+  messages: jsonb("messages").$type<Array<{ role: "user" | "assistant"; content: string; createdAt: string }>>().notNull().default(sql`'[]'::jsonb`),
+  // The 3rd question the guest tried to send AFTER the cap fired —
+  // stashed so we can auto-send it as the first authenticated message.
+  pendingQuestion: text("pending_question"),
+  adoptedAt: timestamp("adopted_at"),
+  adoptedByUserId: varchar("adopted_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  adoptedConversationId: integer("adopted_conversation_id").references(() => fridayConversations.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  index("friday_guest_conv_session_idx").on(table.guestSessionId),
+  index("friday_guest_conv_created_idx").on(table.createdAt),
+]);
+
+export type FridayGuestConversation = typeof fridayGuestConversations.$inferSelect;
+
 // Friday Saved Reports - persisted rich HTML reports the user explicitly
 // saved from a Friday report card. Scoped to the organization so any member
 // can re-open a report shared with the team.

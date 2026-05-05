@@ -155,6 +155,42 @@ export default function AiModePage() {
     }
   }, [conversations.length, conversationsLoading]);
 
+  // Replay a pending question stashed by the public /ai preview after
+  // the post-signin adoption flow. The PublicAiModePage writes the 3rd
+  // (over-cap) question to sessionStorage and forces AI Mode on; we
+  // pick it up here once the conversation has hydrated and fire it as
+  // the user's first authenticated message. Guarded by a one-shot ref
+  // so React-strict-mode double-invocation doesn't double-send.
+  const pendingReplayRef = useRef(false);
+  useEffect(() => {
+    if (pendingReplayRef.current) return;
+    if (isLoading) return;
+    let pending: string | null = null;
+    let adoptFlag: string | null = null;
+    try {
+      pending = sessionStorage.getItem("friday_pending_user_message");
+      adoptFlag = sessionStorage.getItem("friday_pending_guest_adopt");
+    } catch {
+      pending = null;
+      adoptFlag = null;
+    }
+    if (!pending) return;
+    // Only auto-send while the post-adoption flag is present so we
+    // never accidentally replay an old question on a fresh session.
+    if (!adoptFlag) {
+      try { sessionStorage.removeItem("friday_pending_user_message"); } catch { /* ignore */ }
+      return;
+    }
+    pendingReplayRef.current = true;
+    try {
+      sessionStorage.removeItem("friday_pending_user_message");
+      sessionStorage.removeItem("friday_pending_guest_adopt");
+    } catch {
+      // ignore
+    }
+    sendMessage(pending);
+  }, [isLoading, sendMessage]);
+
   // Stop listening when leaving the page
   useEffect(() => {
     return () => {
