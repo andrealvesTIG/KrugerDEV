@@ -68,9 +68,14 @@ export const ONBOARDING_GOAL_OPTIONS: Array<{
 interface OnboardingPromptsProps {
   variant?: "panel" | "page";
   onPick: (message: string) => void;
+  // When true, omit the internal greeting headline and the trailing
+  // "Or just type your own message below." footnote so the parent shell
+  // (e.g. AI Mode's standard hero) can own the headline/subtitle and the
+  // composer is the obvious next step on its own.
+  hideGreeting?: boolean;
 }
 
-export function OnboardingPrompts({ variant = "page", onPick }: OnboardingPromptsProps) {
+export function OnboardingPrompts({ variant = "page", onPick, hideGreeting = false }: OnboardingPromptsProps) {
   const isPanel = variant === "panel";
 
   const sectionLabelClass = isPanel
@@ -99,12 +104,14 @@ export function OnboardingPrompts({ variant = "page", onPick }: OnboardingPrompt
 
   return (
     <div className={isPanel ? "w-full max-w-xs px-2" : "w-full max-w-2xl mx-auto"}>
-      <div className={isPanel ? "text-center" : "text-center"}>
-        <p className={greetingTitle}>Welcome — let's set up your workspace</p>
-        <p className={greetingSubtitle}>
-          FridayReport.AI is built for capital projects, project controls, industrial automation, and construction. Pick the focus that fits best and I'll seed portfolios, projects, milestones, risks, and starter resources tuned to it.
-        </p>
-      </div>
+      {!hideGreeting && (
+        <div className={isPanel ? "text-center" : "text-center"}>
+          <p className={greetingTitle}>Welcome — let's set up your workspace</p>
+          <p className={greetingSubtitle}>
+            FridayReport.AI is built for capital projects, project controls, industrial automation, and construction. Pick the focus that fits best and I'll seed portfolios, projects, milestones, risks, and starter resources tuned to it.
+          </p>
+        </div>
+      )}
 
       <div className={isPanel ? "mb-3" : "mb-6"}>
         <p className={sectionLabelClass}>Pick your industry</p>
@@ -152,12 +159,14 @@ export function OnboardingPrompts({ variant = "page", onPick }: OnboardingPrompt
         </div>
       </div>
 
-      <p className={cn(
-        "mt-4 text-center",
-        isPanel ? "text-[10px] text-cyan-400/70" : "text-xs text-muted-foreground",
-      )}>
-        Or just type your own message below.
-      </p>
+      {!hideGreeting && (
+        <p className={cn(
+          "mt-4 text-center",
+          isPanel ? "text-[10px] text-cyan-400/70" : "text-xs text-muted-foreground",
+        )}>
+          Or just type your own message below.
+        </p>
+      )}
     </div>
   );
 }

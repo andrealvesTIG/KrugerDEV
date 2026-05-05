@@ -615,57 +615,76 @@ export default function AiModePage() {
                   className="hidden dark:block h-14 md:h-16 w-auto max-w-full object-contain mx-auto"
                 />
               </div>
-              <p
-                className="text-xs font-semibold tracking-[0.25em] text-primary uppercase mb-2"
-                style={{ fontFamily: "'Outfit', sans-serif" }}
-                data-testid="text-ai-active-agent"
-              >
-                {activeAgentName}
-              </p>
-              {showOnboarding ? (
-                <>
-                  <OnboardingPrompts
-                    variant="page"
-                    onPick={(message) => sendMessage(message)}
-                  />
-                  <div className="mt-8">
-                    {renderComposer(true)}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground dark:text-white mb-2">
-                    How can Friday help today?
-                  </h1>
-                  <p className="text-sm text-muted-foreground dark:text-slate-300 mb-6">
-                    Ask anything about your portfolios, projects, risks, or resources.
-                  </p>
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: 0.1 }}
-                    className="mb-8"
-                  >
-                    {renderComposer(true)}
-                  </motion.div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {suggestedPrompts.map((prompt, idx) => (
-                      <motion.button
-                        key={prompt}
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3, delay: 0.2 + idx * 0.05 }}
-                        onClick={() => sendMessage(prompt)}
-                        className="group flex items-start gap-3 text-left p-4 rounded-xl border border-border dark:border-slate-700 bg-card dark:bg-slate-900 hover:bg-accent hover:border-primary/40 dark:hover:bg-slate-800 dark:hover:border-primary/60 transition-all shadow-sm dark:shadow-none"
-                        data-testid={`button-ai-suggested-${idx}`}
-                      >
-                        <ArrowRight className="h-4 w-4 mt-0.5 text-muted-foreground dark:text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 transition-all flex-shrink-0" />
-                        <span className="text-sm text-foreground dark:text-slate-100">{prompt}</span>
-                      </motion.button>
-                    ))}
-                  </div>
-                </>
-              )}
+              {/* Eyebrow, headline, and subtitle are derived once so every
+                  agent in AgentPicker (built-in Friday, the Onboarding agent,
+                  and any custom agent) gets the same hero shell. The eyebrow
+                  shows the agent's full name; the headline strips a trailing
+                  " Agent" so it reads naturally ("How can Friday help…" vs
+                  "How can Friday Agent help…"). The Onboarding agent gets a
+                  setup-themed headline + subtitle and shows the industry/goal
+                  cards in place of the suggested-prompts grid below. */}
+              {(() => {
+                const eyebrowText = showOnboarding ? "Onboarding Agent" : activeAgentName;
+                const headlineName =
+                  (showOnboarding ? "Friday" : activeAgentName)
+                    .replace(/\s+Agent$/i, "")
+                    .trim() || "Friday";
+                const headline = showOnboarding
+                  ? "Welcome — let's set up your workspace"
+                  : `How can ${headlineName} help today?`;
+                const subtitle = showOnboarding
+                  ? "Pick a focus that fits your work and I'll seed portfolios, projects, milestones, risks, and starter resources tuned to it."
+                  : "Ask anything about your portfolios, projects, risks, or resources.";
+                return (
+                  <>
+                    <p
+                      className="text-xs font-semibold tracking-[0.25em] text-primary uppercase mb-2"
+                      style={{ fontFamily: "'Outfit', sans-serif" }}
+                      data-testid="text-ai-active-agent"
+                    >
+                      {eyebrowText}
+                    </p>
+                    <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground dark:text-white mb-2">
+                      {headline}
+                    </h1>
+                    <p className="text-sm text-muted-foreground dark:text-slate-300 mb-6">
+                      {subtitle}
+                    </p>
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, delay: 0.1 }}
+                      className="mb-8"
+                    >
+                      {renderComposer(true)}
+                    </motion.div>
+                    {showOnboarding ? (
+                      <OnboardingPrompts
+                        variant="page"
+                        hideGreeting
+                        onPick={(message) => sendMessage(message)}
+                      />
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {suggestedPrompts.map((prompt, idx) => (
+                          <motion.button
+                            key={prompt}
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.3, delay: 0.2 + idx * 0.05 }}
+                            onClick={() => sendMessage(prompt)}
+                            className="group flex items-start gap-3 text-left p-4 rounded-xl border border-border dark:border-slate-700 bg-card dark:bg-slate-900 hover:bg-accent hover:border-primary/40 dark:hover:bg-slate-800 dark:hover:border-primary/60 transition-all shadow-sm dark:shadow-none"
+                            data-testid={`button-ai-suggested-${idx}`}
+                          >
+                            <ArrowRight className="h-4 w-4 mt-0.5 text-muted-foreground dark:text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+                            <span className="text-sm text-foreground dark:text-slate-100">{prompt}</span>
+                          </motion.button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </motion.div>
           </div>
         ) : (
