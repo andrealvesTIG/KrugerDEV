@@ -1,9 +1,11 @@
 import { useMemo, useState, useRef, useCallback } from "react";
 import DOMPurify from "dompurify";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useOrganization } from "@/hooks/use-organization";
+import { setAiMode } from "@/hooks/use-ai-mode";
 import { apiRequest } from "@/lib/queryClient";
 import {
   FileText,
@@ -643,12 +645,34 @@ export function FridayReportCard({ report, variant = "panel" }: FridayReportCard
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
   const [savedReportId, setSavedReportId] = useState<number | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [openingFull, setOpeningFull] = useState(false);
   const bodyRef = useRef<HTMLDivElement | null>(null);
+
+  // Internal links inside the server-rendered report HTML (e.g. project rows
+  // linking to "/projects/123") would otherwise trigger a full browser
+  // navigation. That reload re-enters AI Mode (the default landing experience),
+  // making it look like the click "redirects back to AI mode". Intercept those
+  // clicks: exit AI mode and route through wouter so the SPA stays mounted and
+  // the destination page actually renders.
+  const handleBodyClickCapture = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.defaultPrevented) return;
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const anchor = (e.target as HTMLElement | null)?.closest("a");
+    if (!anchor) return;
+    if (anchor.target && anchor.target !== "" && anchor.target !== "_self") return;
+    const href = anchor.getAttribute("href") || "";
+    if (!href.startsWith("/")) return;
+    if (href.startsWith("/api/")) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setAiMode(false);
+    setTimeout(() => setLocation(href), 0);
+  }, [setLocation]);
 
   const sanitized = useMemo(() => sanitizeReportHtml(report.html || ""), [report.html]);
   const renderFailed = sanitized.trim().length === 0 && (report.html || "").trim().length > 0;
@@ -926,6 +950,7 @@ export function FridayReportCard({ report, variant = "panel" }: FridayReportCard
           maxHeight: expanded || !overflowing ? undefined : COLLAPSED_MAX_PX,
           overflow: expanded || !overflowing ? "visible" : "hidden",
         }}
+        onClickCapture={handleBodyClickCapture}
       >
         <div
           ref={measureRef}

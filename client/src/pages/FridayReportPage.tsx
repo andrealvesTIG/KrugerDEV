@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Printer, Download, FileDown, Copy, CalendarClock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { setAiMode } from "@/hooks/use-ai-mode";
 import {
   readReportForFullView,
   sanitizeReportHtml,
@@ -88,6 +89,25 @@ export default function FridayReportPage() {
   const [report, setReport] = useState<FridayReportData | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+
+  // Internal links inside the server-rendered report HTML would otherwise
+  // trigger a full browser navigation. Since AI Mode is the default landing
+  // experience, the reload would re-enter AI Mode instead of showing the
+  // destination page. Intercept and route through wouter.
+  const handleBodyClickCapture = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.defaultPrevented) return;
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const anchor = (e.target as HTMLElement | null)?.closest("a");
+    if (!anchor) return;
+    if (anchor.target && anchor.target !== "" && anchor.target !== "_self") return;
+    const href = anchor.getAttribute("href") || "";
+    if (!href.startsWith("/")) return;
+    if (href.startsWith("/api/")) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setAiMode(false);
+    setTimeout(() => setLocation(href), 0);
+  }, [setLocation]);
 
   useEffect(() => {
     const id = params?.id;
@@ -266,6 +286,7 @@ export default function FridayReportPage() {
           </div>
           <div
             className="friday-report-fullview-body"
+            onClickCapture={handleBodyClickCapture}
             dangerouslySetInnerHTML={{ __html: sanitized }}
           />
         </div>
