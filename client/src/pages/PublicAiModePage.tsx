@@ -680,7 +680,6 @@ export default function PublicAiModePage() {
         />
         <link rel="canonical" href="https://fridayreport.ai/ai" />
       </Helmet>
-
       {/* Slim public header */}
       <header className="flex h-12 items-center justify-between border-b border-border dark:border-slate-700 bg-background/95 dark:bg-slate-900/95 px-3 md:px-4 backdrop-blur-sm flex-shrink-0">
         <button
@@ -729,7 +728,6 @@ export default function PublicAiModePage() {
           </Button>
         </div>
       </header>
-
       {/* Conversation surface */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto">
         {!hasMessages ? (
@@ -755,9 +753,7 @@ export default function PublicAiModePage() {
               <p
                 className="text-xs font-semibold tracking-[0.25em] text-primary uppercase mb-2"
                 style={{ fontFamily: "'Outfit', sans-serif" }}
-              >
-                Onboarding Agent — free preview
-              </p>
+              >Project Agent — free preview</p>
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground dark:text-white mb-2">
                 Welcome, project professionals — how can Friday help?
               </h1>
@@ -862,7 +858,6 @@ export default function PublicAiModePage() {
         )}
         <LandingFooter />
       </div>
-
       {/* Login wall — fired when the user tries to ask a 3rd question. */}
       <AnimatePresence>
         {showLoginWall && (
