@@ -8,6 +8,7 @@ import {
   LineChart,
   Bot,
   HardHat,
+  Zap,
   Sparkles,
   Compass,
   AlertTriangle,
@@ -50,6 +51,7 @@ export const ONBOARDING_INDUSTRY_OPTIONS: Array<{
   { key: "Project Controls", label: "Project Controls", message: "I work in Project Controls (cost, schedule, EVM) — I'd like to set up the workspace.", icon: LineChart },
   { key: "Industrial Automation", label: "Industrial Automation", message: "I work in Industrial Automation (PLC / SCADA / OT) — I'd like to set up the workspace.", icon: Bot },
   { key: "Construction", label: "Construction", message: "I work in Construction (GC / sub / owner) — I'd like to set up the workspace.", icon: HardHat },
+  { key: "Energy & Utilities", label: "Energy & Utilities", message: "I work in Energy & Utilities (power, oil & gas, midstream, utilities) — I'd like to set up the workspace.", icon: Zap },
   { key: "Other", label: "Something else", message: "My industry isn't listed — can you ask me a few questions to help set things up?", icon: Sparkles },
 ];
 
@@ -110,7 +112,7 @@ export function OnboardingPrompts({ variant = "page", onPick, hideGreeting = fal
         <div className={isPanel ? "text-center" : "text-center"}>
           <p className={greetingTitle}>Welcome — let's set up your workspace</p>
           <p className={greetingSubtitle}>
-            FridayReport.AI is built for capital projects, project controls, industrial automation, and construction. Pick the focus that fits best and I'll seed portfolios, projects, milestones, risks, and starter resources tuned to it.
+            FridayReport.AI is built for capital projects, project controls, industrial automation, construction, and energy & utilities. Pick the focus that fits best and I'll seed portfolios, projects, milestones, risks, and starter resources tuned to it.
           </p>
         </div>
       )}

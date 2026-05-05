@@ -173,6 +173,54 @@ const industryTemplates: Record<string, IndustryTemplateData> = {
       },
     ],
   },
+  "Energy & Utilities": {
+    portfolioName: "Energy & Utilities Portfolio",
+    portfolioDescription: "Power, transmission, oil & gas, midstream, and utilities operations across generation and delivery",
+    projects: [
+      {
+        name: "230kV Substation & Transmission Line Build",
+        description: "New 230kV substation with associated transmission line: routing, environmental permitting, ROW acquisition, foundations, structures, stringing, energization, and SCADA integration.",
+        status: "Execution",
+        priority: "High",
+        health: "Yellow",
+        milestones: [
+          { title: "Routing & ROW Secured", description: "Final transmission corridor approved and right-of-way easements executed" },
+          { title: "Environmental Permits Issued", description: "USACE, state, and wildlife permits in hand for construction start" },
+          { title: "Foundations & Structures Complete", description: "Tower foundations poured and lattice / monopole structures erected" },
+          { title: "Energization & In-Service", description: "Substation energized, line in-service, and SCADA points verified" },
+        ],
+        risks: [
+          { title: "Permit / Stakeholder Delays", description: "Environmental review or landowner opposition could push energization past summer peak", probability: "Medium", impact: "High" },
+          { title: "Major Equipment Lead Times", description: "Power transformer and breaker lead times stretching 18+ months", probability: "High", impact: "High" },
+          { title: "Outage Window Coordination", description: "ISO / RTO outage windows for tie-in are constrained and could slip schedule", probability: "Medium", impact: "Medium" },
+        ],
+        issues: [
+          { title: "Wetlands Crossing Redesign", description: "Field survey identified additional wetlands — alignment needs minor reroute and re-permit", priority: "High", type: "Task" },
+        ],
+      },
+      {
+        name: "Oil & Gas Pipeline Integrity & Compressor Station Operations",
+        description: "Midstream operations program: in-line inspection (ILI) runs, dig program, compressor station overhaul, methane leak detection (LDAR), and PHMSA compliance reporting.",
+        status: "Execution",
+        priority: "Critical",
+        health: "Green",
+        milestones: [
+          { title: "Annual ILI Run Complete", description: "Smart pig run executed across mainline segments and data delivered to integrity team" },
+          { title: "Dig Program Closed", description: "Priority anomaly digs investigated, repaired, and PHMSA-reportable items filed" },
+          { title: "Compressor Unit Overhaul", description: "Major overhaul on Unit 2 turbine compressor complete and back in service" },
+          { title: "LDAR Survey Cycle Complete", description: "Quarterly methane leak detection and repair survey closed across station footprint" },
+        ],
+        risks: [
+          { title: "PHMSA Reportable Anomaly", description: "ILI may surface immediate-condition anomaly requiring 5-day pressure reduction", probability: "Medium", impact: "Critical" },
+          { title: "Compressor Unavailability", description: "Extended overhaul could reduce throughput capacity during peak winter demand", probability: "Medium", impact: "High" },
+          { title: "Methane Emissions Exceedance", description: "Tightening EPA methane rules could trigger new reporting and capex", probability: "Medium", impact: "Medium" },
+        ],
+        issues: [
+          { title: "Overdue Cathodic Protection Survey", description: "Annual CP survey on Segment 14 past due — compliance risk if not closed this quarter", priority: "High", type: "Task" },
+        ],
+      },
+    ],
+  },
   Construction: {
     portfolioName: "Construction Delivery Program",
     portfolioDescription: "Owner / GC delivery of vertical and horizontal construction across CSI MasterFormat divisions",
@@ -681,6 +729,7 @@ export const SUPPORTED_ONBOARDING_INDUSTRIES = [
   "Project Controls",
   "Industrial Automation",
   "Construction",
+  "Energy & Utilities",
 ] as const;
 
 export type SupportedOnboardingIndustry = typeof SUPPORTED_ONBOARDING_INDUSTRIES[number];
