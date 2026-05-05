@@ -10,6 +10,7 @@ import {
   users,
   BUILTIN_AGENT_KEYS,
   builtinAgentProviderConfigSchema,
+  DEFAULT_GUEST_QUESTION_LIMIT,
   type BuiltinAgentKey,
   type InsertCustomAgent,
 } from "@shared/schema";
@@ -98,6 +99,10 @@ const upsertBuiltinSchema = z.object({
   defaultSystemPrompt: z.string().max(20000).nullable().optional(),
   defaultModel: z.string().max(120).nullable().optional(),
   providerConfig: builtinAgentProviderConfigSchema.nullable().optional(),
+  // Friday-only: per-session free-question cap for /ai. Other built-in
+  // agents accept the field but ignore it. NULL clears the override and
+  // falls back to DEFAULT_GUEST_QUESTION_LIMIT.
+  guestQuestionLimit: z.number().int().min(0).max(100).nullable().optional(),
 });
 
 // Strip provider-config secrets when surfacing settings to the UI: the
@@ -540,6 +545,9 @@ export function registerSuperAdminAgentRoutes(app: Express) {
         defaultSystemPrompt: s?.defaultSystemPrompt ?? null,
         defaultModel: s?.defaultModel ?? null,
         providerConfig: redactProviderConfig(s?.providerConfig ?? null),
+        // Surfaced for the Friday card; null on the others.
+        guestQuestionLimit: a.key === "friday" ? (s?.guestQuestionLimit ?? null) : null,
+        builtinDefaultGuestQuestionLimit: a.key === "friday" ? DEFAULT_GUEST_QUESTION_LIMIT : null,
         updatedAt: s?.updatedAt ?? null,
         updatedBy: s?.updatedBy ?? null,
       };
@@ -592,11 +600,18 @@ export function registerSuperAdminAgentRoutes(app: Express) {
       }
     }
 
+    // The guest-question-limit field is Friday-only; silently ignore
+    // it for the other built-in keys so a stray patch can't pollute
+    // their row with a meaningless setting.
+    const guestQuestionLimit =
+      key === "friday" ? parsed.data.guestQuestionLimit : undefined;
+
     const updated = await upsertBuiltinAgentSetting(key, {
       enabled: parsed.data.enabled,
       defaultSystemPrompt: parsed.data.defaultSystemPrompt,
       defaultModel: parsed.data.defaultModel,
       providerConfig: nextProviderConfig,
+      guestQuestionLimit,
       updatedBy: userId,
     });
     await logUserActivity(userId, "super_admin_builtin_agent_update", "builtin_agent", undefined, {
@@ -606,6 +621,7 @@ export function registerSuperAdminAgentRoutes(app: Express) {
         defaultSystemPrompt: parsed.data.defaultSystemPrompt !== undefined,
         defaultModel: parsed.data.defaultModel !== undefined,
         providerConfig: parsed.data.providerConfig !== undefined,
+        guestQuestionLimit: guestQuestionLimit !== undefined,
       },
     }, req);
     res.json({

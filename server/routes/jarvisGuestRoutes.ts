@@ -22,22 +22,28 @@ import {
 } from "../storage/fridayGuestConversationStorage";
 import { addMessage as fcAddMessage, createConversation as fcCreate } from "../storage/fridayConversationStorage";
 import { streamGuestFridayResponse } from "../services/guestFridayService";
+import { getGuestQuestionLimit } from "../storage/builtinAgentSettingsStorage";
+import { DEFAULT_GUEST_QUESTION_LIMIT } from "@shared/schema";
 
-// Hard limits matched to the public route's contract. The 2-question cap
-// is the product rule — everything else is a safety belt so abuse can't
-// turn the public endpoint into a free chatbot host.
-const GUEST_QUESTION_LIMIT = 2;
+// Hard safety limits unrelated to the per-session question cap. The
+// per-session cap is configurable by super admins via the Agents tab
+// (see getGuestQuestionLimit() — defaults to DEFAULT_GUEST_QUESTION_LIMIT).
+// Everything below is a safety belt so abuse can't turn the public
+// endpoint into a free chatbot host.
 const MAX_GUEST_HISTORY = 10;
 const MAX_GUEST_MESSAGE_LEN = 4000;
 const GUEST_SESSION_RE = /^[A-Za-z0-9_-]{8,64}$/;
 
 // Defense-in-depth cap applied per source IP across all guest sessions
-// in a 24-hour window. A legit visitor on a single browser is bounded
-// by GUEST_QUESTION_LIMIT (=2). The IP cap (=8) leaves room for a few
-// people sharing a NAT'd egress while making it pointless to clear
-// localStorage and mint fresh `guestSessionId`s to keep going.
-const GUEST_IP_QUESTION_LIMIT = 8;
+// in a 24-hour window. Scales with the configured per-session limit so
+// a few people sharing a NAT'd egress aren't all locked out by one
+// heavy user, while still making it pointless to clear localStorage
+// and mint fresh `guestSessionId`s to keep going. The minimum floor of
+// 8 preserves the historical default for low per-session limits.
 const GUEST_IP_WINDOW_MINUTES = 24 * 60;
+function ipQuestionLimitFor(perSession: number): number {
+  return Math.max(8, perSession * 4);
+}
 
 // Per-IP throttle for chat. Rate limit is intentionally tight because
 // each request triggers an LLM call. The session-based 2-question cap
@@ -299,10 +305,16 @@ export function registerJarvisGuestRoutes(app: Express): void {
     // we couldn't compute an ipHash (proxy issues, local-dev request
     // without X-Forwarded-For, etc.) so we never fail-closed on a
     // missing header.
+    // Resolve the per-session question cap from the admin-controlled
+    // setting. Cached for ~5s by the storage layer so this is a cheap
+    // lookup per chat request. The IP cap scales off the same value.
+    const questionLimit = await getGuestQuestionLimit();
+    const ipQuestionLimit = ipQuestionLimitFor(questionLimit);
+
     if (ipHash) {
       try {
         const ipTotal = await getGuestQuestionCountByIp(ipHash, GUEST_IP_WINDOW_MINUTES);
-        if (ipTotal >= GUEST_IP_QUESTION_LIMIT) {
+        if (ipTotal >= ipQuestionLimit) {
           setGuestPendingQuestion(guestSessionId, lastUser.content).catch(() => {
             // best effort — ignore
           });
@@ -319,16 +331,16 @@ export function registerJarvisGuestRoutes(app: Express): void {
     }
 
     // Atomic reservation: this is the source of truth for the
-    // 2-question cap. A conditional UPDATE bumps question_count only
-    // when it is still < limit AND the row hasn't been adopted, so two
-    // concurrent requests racing on the same session can't both pass.
-    // The loser sees `null` and gets the same 402 a sequential 3rd
-    // request would have seen.
+    // per-session question cap. A conditional UPDATE bumps
+    // question_count only when it is still < limit AND the row hasn't
+    // been adopted, so two concurrent requests racing on the same
+    // session can't both pass. The loser sees `null` and gets the same
+    // 402 a sequential over-cap request would have seen.
     let reserved;
     try {
       reserved = await reserveGuestQuestionSlot({
         guestSessionId,
-        questionLimit: GUEST_QUESTION_LIMIT,
+        questionLimit,
       });
     } catch (err) {
       console.error("[friday-guest] reserveGuestQuestionSlot failed:", (err as Error).message);
@@ -344,9 +356,9 @@ export function registerJarvisGuestRoutes(app: Express): void {
       });
       return res.status(402).json({
         code: "login_required",
-        message: "You've used your 2 free questions. Sign in or sign up to keep chatting with Friday.",
-        questionsUsed: GUEST_QUESTION_LIMIT,
-        questionLimit: GUEST_QUESTION_LIMIT,
+        message: `You've used your ${questionLimit} free question${questionLimit === 1 ? "" : "s"}. Sign in or sign up to keep chatting with Friday.`,
+        questionsUsed: questionLimit,
+        questionLimit,
       });
     }
 
@@ -354,7 +366,7 @@ export function registerJarvisGuestRoutes(app: Express): void {
     sseSend(res, {
       guestSessionId,
       questionsUsed: reserved.questionCount,
-      questionLimit: GUEST_QUESTION_LIMIT,
+      questionLimit,
     });
 
     let assistantText = "";
@@ -366,11 +378,11 @@ export function registerJarvisGuestRoutes(app: Express): void {
         sseSend(res, { content: token });
       },
       onDone: async () => {
-        const remaining = Math.max(0, GUEST_QUESTION_LIMIT - reserved.questionCount);
+        const remaining = Math.max(0, questionLimit - reserved.questionCount);
         sseSend(res, {
           done: true,
           questionsUsed: reserved.questionCount,
-          questionLimit: GUEST_QUESTION_LIMIT,
+          questionLimit,
           questionsRemaining: remaining,
         });
         res.end();
@@ -555,10 +567,11 @@ export function registerJarvisGuestRoutes(app: Express): void {
   // on first visit when localStorage is unavailable. Not strictly
   // required (the client generates one too), but having it avoids a
   // round-trip to the chat endpoint just to discover the cap counter.
-  app.get("/api/jarvis/guest/session", (req, res) => {
+  app.get("/api/jarvis/guest/session", async (req, res) => {
     if (rejectIfNonHumanRequest(req, res, { checkOrigin: false, checkHoneypot: false })) return;
     const idParam = typeof req.query.id === "string" ? req.query.id : null;
     const id = idParam && GUEST_SESSION_RE.test(idParam) ? idParam : crypto.randomUUID().replace(/-/g, "");
-    res.json({ guestSessionId: id, questionLimit: GUEST_QUESTION_LIMIT });
+    const questionLimit = await getGuestQuestionLimit().catch(() => DEFAULT_GUEST_QUESTION_LIMIT);
+    res.json({ guestSessionId: id, questionLimit });
   });
 }

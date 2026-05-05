@@ -5594,12 +5594,23 @@ export const builtinAgentProviderConfigSchema = z.object({
 
 export type BuiltinAgentProviderConfig = z.infer<typeof builtinAgentProviderConfigSchema>;
 
+// Default number of free questions a guest visitor on /ai gets before
+// being asked to sign in. Used as the fallback when the per-agent
+// override below is null. Kept in sync with the value advertised on the
+// public landing page copy.
+export const DEFAULT_GUEST_QUESTION_LIMIT = 5;
+
 export const builtinAgentSettings = pgTable("builtin_agent_settings", {
   agentKey: text("agent_key").primaryKey(),
   enabled: boolean("enabled").notNull().default(true),
   defaultSystemPrompt: text("default_system_prompt"),
   defaultModel: text("default_model"),
   providerConfig: jsonb("provider_config").$type<BuiltinAgentProviderConfig>(),
+  // Friday-only: number of free questions a guest visitor gets per
+  // session on /ai before being asked to sign in. NULL = use the
+  // platform default (DEFAULT_GUEST_QUESTION_LIMIT). Ignored for the
+  // other built-in agent keys.
+  guestQuestionLimit: integer("guest_question_limit"),
   updatedBy: varchar("updated_by").references(() => users.id),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

@@ -121,6 +121,10 @@ interface BuiltinAgentRow {
   defaultSystemPrompt: string | null;
   defaultModel: string | null;
   providerConfig: BuiltinProviderRedacted | null;
+  // Friday-only: per-session free-question cap for /ai. Null on the
+  // other built-in agents (the field is meaningless there).
+  guestQuestionLimit: number | null;
+  builtinDefaultGuestQuestionLimit: number | null;
   updatedAt: string | null;
   updatedBy: string | null;
 }
@@ -784,6 +788,11 @@ function BuiltinAgentCard({ agent }: { agent: BuiltinAgentRow }) {
   const [enabled, setEnabled] = useState(agent.enabled);
   const [prompt, setPrompt] = useState(agent.defaultSystemPrompt ?? "");
   const [model, setModel] = useState(agent.defaultModel ?? "");
+  // Friday-only: free guest-question cap on /ai. Empty string means
+  // "use platform default" — that maps to NULL in the DB.
+  const [guestQuestionLimit, setGuestQuestionLimit] = useState<string>(
+    agent.guestQuestionLimit != null ? String(agent.guestQuestionLimit) : "",
+  );
   const [showDefault, setShowDefault] = useState(false);
   const [showProvider, setShowProvider] = useState(false);
 
@@ -813,11 +822,29 @@ function BuiltinAgentCard({ agent }: { agent: BuiltinAgentRow }) {
   });
 
   const handleSavePromptModel = () => {
-    saveMut.mutate({
+    const patch: Record<string, unknown> = {
       enabled,
       defaultSystemPrompt: prompt.trim() === "" ? null : prompt,
       defaultModel: model.trim() === "" ? null : model,
-    });
+    };
+    if (agent.key === "friday") {
+      const trimmed = guestQuestionLimit.trim();
+      if (trimmed === "") {
+        patch.guestQuestionLimit = null;
+      } else {
+        const n = Number(trimmed);
+        if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0 || n > 100) {
+          toast({
+            title: "Invalid free-question limit",
+            description: "Enter a whole number between 0 and 100, or leave blank for the default.",
+            variant: "destructive",
+          });
+          return;
+        }
+        patch.guestQuestionLimit = n;
+      }
+    }
+    saveMut.mutate(patch);
   };
 
   const handleSaveProvider = () => {
@@ -935,10 +962,36 @@ function BuiltinAgentCard({ agent }: { agent: BuiltinAgentRow }) {
           </div>
         </div>
 
+        {agent.key === "friday" && (
+          <div className="rounded-md border bg-muted/30 p-3">
+            <Label htmlFor={`guest-limit-${agent.key}`}>
+              Free guest questions on /ai (per session)
+            </Label>
+            <Input
+              id={`guest-limit-${agent.key}`}
+              type="number"
+              min={0}
+              max={100}
+              step={1}
+              value={guestQuestionLimit}
+              onChange={(e) => setGuestQuestionLimit(e.target.value)}
+              placeholder={String(agent.builtinDefaultGuestQuestionLimit ?? 5)}
+              className="mt-1 w-32 font-mono text-sm"
+              data-testid={`input-guest-limit-${agent.key}`}
+            />
+            <div className="mt-1 text-xs text-muted-foreground">
+              How many questions a non-signed-in visitor can ask Friday before being
+              prompted to sign up. Leave blank for the platform default
+              (<span className="font-mono">{agent.builtinDefaultGuestQuestionLimit ?? 5}</span>).
+              Hard maximum: 100.
+            </div>
+          </div>
+        )}
+
         <div className="flex justify-end">
           <Button onClick={handleSavePromptModel} disabled={saveMut.isPending} data-testid={`button-save-${agent.key}`}>
             {saveMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Save prompt &amp; model
+            Save settings
           </Button>
         </div>
 

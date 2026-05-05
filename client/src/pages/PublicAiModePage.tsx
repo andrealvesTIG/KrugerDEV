@@ -66,7 +66,12 @@ function clearGuestSession(): void {
   }
 }
 
-const QUESTION_LIMIT = 2;
+// Default free-question cap shown before the server has had a chance
+// to tell us the configured value (via /api/jarvis/guest/session or the
+// first SSE frame). Kept in sync with the server's
+// DEFAULT_GUEST_QUESTION_LIMIT — super admins can override the live
+// value from Super Admin → Agents → Friday.
+const DEFAULT_QUESTION_LIMIT = 5;
 
 interface AdoptResponse {
   adopted: boolean;
@@ -186,6 +191,10 @@ export default function PublicAiModePage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [questionsUsed, setQuestionsUsed] = useState(0);
+  // Live cap pulled from the server (super admin-controlled). Seeded
+  // with DEFAULT_QUESTION_LIMIT until the first /session or chat SSE
+  // frame fills it in.
+  const [questionLimit, setQuestionLimit] = useState<number>(DEFAULT_QUESTION_LIMIT);
   const [showLoginWall, setShowLoginWall] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
 
@@ -197,10 +206,31 @@ export default function PublicAiModePage() {
 
   // Land event + lazy session id init. Skipped when the user is logged
   // in (we're going to redirect them through the adoption flow above).
+  // Also fetches the current free-question cap so the UI shows the
+  // admin-configured value (rather than the build-time default) before
+  // the first chat call.
   useEffect(() => {
     if (authLoading || user) return;
-    guestSessionIdRef.current = loadGuestSessionId();
+    const id = loadGuestSessionId();
+    guestSessionIdRef.current = id;
     trackEvent("guest_landed", "friday-public");
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/jarvis/guest/session?id=${encodeURIComponent(id)}`,
+          { credentials: "include" },
+        );
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as { questionLimit?: number };
+        if (!cancelled && typeof data.questionLimit === "number" && data.questionLimit >= 0) {
+          setQuestionLimit(data.questionLimit);
+        }
+      } catch {
+        // Best-effort — keep the default if the ping fails.
+      }
+    })();
+    return () => { cancelled = true; };
   }, [authLoading, user]);
 
   // Auto-scroll on new messages.
@@ -219,7 +249,7 @@ export default function PublicAiModePage() {
     };
   }, []);
 
-  const remaining = Math.max(0, QUESTION_LIMIT - questionsUsed);
+  const remaining = Math.max(0, questionLimit - questionsUsed);
 
   const goToAuth = useCallback(
     (mode: "login" | "register") => {
@@ -258,7 +288,7 @@ export default function PublicAiModePage() {
 
       // Hard guard before any network call: if the user already used
       // both free questions, the next ask is the login-wall trigger.
-      if (questionsUsed >= QUESTION_LIMIT) {
+      if (questionsUsed >= questionLimit) {
         openLoginWall(trimmed);
         return;
       }
@@ -306,8 +336,20 @@ export default function PublicAiModePage() {
         if (res.status === 402) {
           // Cap reached — server stashed the pending question already.
           // Roll back the optimistic bubbles and open the login wall.
+          // Refresh the local cap from the server response so the wall
+          // copy reflects any admin-side change made mid-session.
+          let serverLimit = questionLimit;
+          try {
+            const j = await res.json();
+            if (typeof j?.questionLimit === "number" && j.questionLimit >= 0) {
+              serverLimit = j.questionLimit;
+              setQuestionLimit(j.questionLimit);
+            }
+          } catch {
+            // ignore — fall back to local state
+          }
           setMessages((prev) => prev.slice(0, -2));
-          setQuestionsUsed(QUESTION_LIMIT);
+          setQuestionsUsed(serverLimit);
           openLoginWall(trimmed);
           return;
         }
@@ -375,8 +417,11 @@ export default function PublicAiModePage() {
             if (typeof payload.questionsUsed === "number") {
               setQuestionsUsed(payload.questionsUsed);
             }
+            if (typeof payload.questionLimit === "number" && payload.questionLimit >= 0) {
+              setQuestionLimit(payload.questionLimit);
+            }
             if (payload.done) {
-              if (typeof payload.questionsUsed === "number" && payload.questionsUsed >= QUESTION_LIMIT) {
+              if (typeof payload.questionsUsed === "number" && typeof payload.questionLimit === "number" && payload.questionsUsed >= payload.questionLimit) {
                 // Cap reached on the way out — keep the reply visible
                 // but require the login wall on the next interaction.
                 trackEvent("guest_cap_reached", "friday-public");
@@ -395,7 +440,7 @@ export default function PublicAiModePage() {
         setTimeout(() => textareaRef.current?.focus(), 50);
       }
     },
-    [messages, questionsUsed, isLoading, openLoginWall],
+    [messages, questionsUsed, questionLimit, isLoading, openLoginWall],
   );
 
   const handleSend = useCallback(() => {
@@ -507,7 +552,7 @@ export default function PublicAiModePage() {
           hero ? "mt-3 text-[11px]" : "mt-2 text-[10px]",
         )}
       >
-        Free preview — {remaining} of {QUESTION_LIMIT} questions left.{" "}
+        Free preview — {remaining} of {questionLimit} questions left.{" "}
         {remaining === 0 && (
           <button
             type="button"
@@ -528,12 +573,12 @@ export default function PublicAiModePage() {
         <title>Try Friday AI — Free Project Management Assistant | FridayReport.AI</title>
         <meta
           name="description"
-          content="Try Friday, FridayReport.AI's AI assistant for project portfolio management — free, no sign-up required for the first 2 questions. Get help with risks, schedules, status reports, and more."
+          content="Try Friday, FridayReport.AI's AI assistant for project portfolio management — free, no sign-up required for your first few questions. Get help with risks, schedules, status reports, and more."
         />
         <meta property="og:title" content="Try Friday AI — Free Project Management Assistant" />
         <meta
           property="og:description"
-          content="Ask Friday anything about projects, portfolios, risks, or resources. Free preview — 2 questions, no sign-up."
+          content="Ask Friday anything about projects, portfolios, risks, or resources. Free preview — no sign-up required to get started."
         />
         <link rel="canonical" href="https://fridayreport.ai/ai" />
       </Helmet>
@@ -619,7 +664,7 @@ export default function PublicAiModePage() {
                 Welcome — let's see how Friday can help
               </h1>
               <p className="text-sm text-muted-foreground dark:text-slate-300 mb-6">
-                FridayReport.AI is built for capital projects, project controls, industrial automation, and construction. Pick the focus that fits your work — or ask Friday anything. {QUESTION_LIMIT} free questions, no sign-up required.
+                FridayReport.AI is built for capital projects, project controls, industrial automation, and construction. Pick the focus that fits your work — or ask Friday anything. {questionLimit} free questions, no sign-up required.
               </p>
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
@@ -674,7 +719,7 @@ export default function PublicAiModePage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="text-sm font-semibold text-foreground dark:text-white mb-1">
-                      You've used your {QUESTION_LIMIT} free questions
+                      You've used your {questionLimit} free questions
                     </h3>
                     <p className="text-xs text-muted-foreground dark:text-slate-300 mb-3 leading-relaxed">
                       Sign in or create a free account to keep chatting. Your conversation so far will be saved and Friday will pick up exactly where you left off.
@@ -731,7 +776,7 @@ export default function PublicAiModePage() {
                     <Lock className="h-6 w-6 text-primary" />
                   </div>
                 </div>
-                <DialogTitle className="text-center">You've used your {QUESTION_LIMIT} free questions</DialogTitle>
+                <DialogTitle className="text-center">You've used your {questionLimit} free questions</DialogTitle>
                 <DialogDescription className="text-center">
                   Sign in or create a free account to keep chatting with Friday. Your conversation so far will be saved to your account, and Friday will pick up exactly where you left off.
                 </DialogDescription>

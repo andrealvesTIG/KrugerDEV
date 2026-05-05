@@ -2,6 +2,7 @@ import { db } from "../db";
 import {
   builtinAgentSettings,
   BUILTIN_AGENT_KEYS,
+  DEFAULT_GUEST_QUESTION_LIMIT,
   type BuiltinAgentKey,
   type BuiltinAgentSetting,
   type BuiltinAgentProviderConfig,
@@ -70,6 +71,19 @@ export async function getBuiltinAgentProviderConfig(
   return (row?.providerConfig as BuiltinAgentProviderConfig | null) ?? null;
 }
 
+// Friday-only: how many free questions a guest gets on /ai before being
+// asked to sign in. Falls back to DEFAULT_GUEST_QUESTION_LIMIT when the
+// admin hasn't customized it. Clamps to a sane range so a typo in the
+// admin UI can't accidentally hand out a thousand free LLM calls.
+export async function getGuestQuestionLimit(): Promise<number> {
+  const row = await getBuiltinAgentSetting("friday");
+  const v = row?.guestQuestionLimit;
+  if (typeof v !== "number" || !Number.isFinite(v) || v < 0) {
+    return DEFAULT_GUEST_QUESTION_LIMIT;
+  }
+  return Math.min(100, Math.floor(v));
+}
+
 export async function listAllBuiltinAgentSettings(): Promise<
   Record<BuiltinAgentKey, BuiltinAgentSetting | null>
 > {
@@ -89,6 +103,7 @@ export async function upsertBuiltinAgentSetting(
     defaultSystemPrompt?: string | null;
     defaultModel?: string | null;
     providerConfig?: BuiltinAgentProviderConfig | null;
+    guestQuestionLimit?: number | null;
     updatedBy: string;
   },
 ): Promise<BuiltinAgentSetting> {
@@ -113,6 +128,7 @@ export async function upsertBuiltinAgentSetting(
       defaultSystemPrompt: patch.defaultSystemPrompt ?? null,
       defaultModel: patch.defaultModel ?? null,
       providerConfig: patch.providerConfig ?? null,
+      guestQuestionLimit: patch.guestQuestionLimit ?? null,
       updatedBy: patch.updatedBy,
     })
     .returning();
