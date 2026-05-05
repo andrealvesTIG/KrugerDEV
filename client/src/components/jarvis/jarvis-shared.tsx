@@ -64,9 +64,9 @@ export const ONBOARDING_GOAL_OPTIONS: Array<{
 }> = [
   { key: "portfolio", label: "Manage a capital project portfolio", message: "I want to manage a portfolio of capital projects across my team.", icon: Briefcase },
   { key: "controls", label: "Stand up project controls", message: "I want to stand up project controls — cost, schedule, change, and reporting.", icon: ClipboardList },
-  { key: "explore", label: "Just exploring", message: "I'm just exploring the app for now — show me what it can do.", icon: Compass },
   { key: "evm", label: "Run earned value (EVM / CPI / SPI)", message: "I want to run earned value management with CPI and SPI on my projects.", icon: TrendingUp },
   { key: "risks", label: "Track risks, RFIs, and issues", message: "I want to track risks, RFIs, submittals, and issues across my projects.", icon: AlertTriangle },
+  { key: "explore", label: "Just exploring", message: "I'm just exploring the app for now — show me what it can do.", icon: Compass },
 ];
 
 interface OnboardingPromptsProps {
@@ -145,23 +145,12 @@ export function OnboardingPrompts({ variant = "page", onPick, hideGreeting = fal
         <div className={isPanel ? "grid grid-cols-1 gap-1.5" : "grid grid-cols-1 sm:grid-cols-2 gap-2"}>
           {ONBOARDING_GOAL_OPTIONS.map((opt) => {
             const Icon = opt.icon;
-            // "Just exploring" sits in the middle of the 5-card grid and
-            // we want it visually centered on its own row in the page
-            // variant (2-col grid). Spanning both columns with a
-            // half-width cap and `mx-auto` keeps the card the same size
-            // as its peers while centering it under the rows above and
-            // below. Skipped in the panel variant (single column) where
-            // everything is already centered.
-            const isExplore = opt.key === "explore";
-            const cellClass = !isPanel && isExplore
-              ? "sm:col-span-2 sm:mx-auto sm:w-[calc(50%-0.25rem)]"
-              : "";
             return (
               <button
                 key={opt.key}
                 type="button"
                 onClick={() => onPick(opt.message)}
-                className={cn(buttonClass, cellClass)}
+                className={buttonClass}
                 data-testid={`button-friday-onboard-goal-${opt.key}`}
               >
                 <span className={iconWrapClass}>
