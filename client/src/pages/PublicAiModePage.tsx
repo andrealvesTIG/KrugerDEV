@@ -762,7 +762,7 @@ export default function PublicAiModePage() {
                 Welcome, project professionals — how can Friday help?
               </h1>
               <p className="text-sm text-muted-foreground dark:text-slate-300 mb-6">
-                Purpose-built for capital projects, project controls, industrial automation, and construction — owners, EPCs, controls teams, OT engineers, and GCs. Manage portfolios, schedules, EVM, risks, RFIs, change orders, financials, and status reports in one place. Pick a focus below or ask Friday anything. {questionLimit} free questions, no sign-up required.
+                Purpose-built for capital projects, project controls, industrial automation, and construction — owners, EPCs, controls teams, OT engineers, and GCs. Manage portfolios, schedules, EVM, risks, RFIs, change orders, financials, and status reports in one place. Pick a focus below or ask Friday anything.
               </p>
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
