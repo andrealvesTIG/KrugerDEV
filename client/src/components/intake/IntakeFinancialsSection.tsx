@@ -63,6 +63,10 @@ export function IntakeFinancialsSection({ intakeId, readOnly = false }: Props) {
       toast({ title: "Invalid year", description: "Enter a valid fiscal year.", variant: "destructive" });
       return;
     }
+    if ((rows ?? []).some(r => r.id !== id && r.fiscalYear === editValues.fiscalYear)) {
+      toast({ title: "Duplicate year", description: `An estimate for fiscal year ${editValues.fiscalYear} already exists.`, variant: "destructive" });
+      return;
+    }
     updateMut.mutate(
       {
         id,
@@ -80,6 +84,10 @@ export function IntakeFinancialsSection({ intakeId, readOnly = false }: Props) {
   const handleCreate = () => {
     if (!newRow.fiscalYear || newRow.fiscalYear < 1900) {
       toast({ title: "Invalid year", description: "Enter a valid fiscal year.", variant: "destructive" });
+      return;
+    }
+    if ((rows ?? []).some(r => r.fiscalYear === newRow.fiscalYear)) {
+      toast({ title: "Duplicate year", description: `An estimate for fiscal year ${newRow.fiscalYear} already exists.`, variant: "destructive" });
       return;
     }
     createMut.mutate(

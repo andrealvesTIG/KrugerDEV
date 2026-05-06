@@ -2385,6 +2385,7 @@ export const intakeFinancials = pgTable("intake_financials", {
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
   index("intake_financials_intake_id_idx").on(table.intakeId),
+  uniqueIndex("intake_financials_intake_year_uniq").on(table.intakeId, table.fiscalYear),
 ]);
 
 export const intakeFinancialsRelations = relations(intakeFinancials, ({ one }) => ({

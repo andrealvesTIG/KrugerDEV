@@ -1189,6 +1189,10 @@ export function registerIntakeRoutes(app: Express) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
       const input = api.intakeFinancials.create.input.parse(req.body);
+      const existingRows = await storage.getIntakeFinancials(intakeId);
+      if (existingRows.some(r => r.fiscalYear === input.fiscalYear)) {
+        return res.status(400).json({ message: `An estimate for fiscal year ${input.fiscalYear} already exists for this intake.` });
+      }
       const created = await storage.createIntakeFinancial({ ...input, intakeId });
       res.status(201).json(created);
     } catch (err) {
@@ -1216,6 +1220,12 @@ export function registerIntakeRoutes(app: Express) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
       const updates = api.intakeFinancials.update.input.parse(req.body);
+      if (updates.fiscalYear !== undefined && updates.fiscalYear !== existing.fiscalYear) {
+        const existingRows = await storage.getIntakeFinancials(existing.intakeId);
+        if (existingRows.some(r => r.id !== id && r.fiscalYear === updates.fiscalYear)) {
+          return res.status(400).json({ message: `An estimate for fiscal year ${updates.fiscalYear} already exists for this intake.` });
+        }
+      }
       const updated = await storage.updateIntakeFinancial(id, updates);
       res.json(updated);
     } catch (err) {
