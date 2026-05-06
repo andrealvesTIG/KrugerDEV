@@ -60,6 +60,7 @@ export const DEFAULT_INTAKE_TABS: DefaultIntakeTab[] = [
           { itemType: "field", itemKey: "financialJustification", width: "full"  },
           { itemType: "field", itemKey: "costBenefitAnalysis",    width: "full"  },
           { itemType: "block", itemKey: "financials_grid",        width: "full"  },
+          { itemType: "block", itemKey: "costing_checklist",      width: "full"  },
         ],
       },
     ],
