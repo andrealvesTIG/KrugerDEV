@@ -57,8 +57,28 @@ export interface IntakeFormRendererProps {
   ctx: IntakeFormRendererContext;
 }
 
+function isItemVisibleForCurrentStep(item: IntakeTabLayoutItemFull, ctx: IntakeFormRendererContext): boolean {
+  if (item.itemType !== "block") return true;
+  switch (item.itemKey) {
+    case "financials_grid":         return ctx.showFinancialsForCurrentStep;
+    case "architecture_questions":  return ctx.showArchitectureForCurrentStep;
+    case "cybersecurity_questions": return ctx.showCybersecurityForCurrentStep;
+    case "costing_checklist":       return ctx.showCostingChecklistForCurrentStep;
+    case "pm_approval":             return ctx.canApproveIntakes;
+    default:                        return true;
+  }
+}
+
+const isSectionVisibleForCurrentStep = (section: IntakeTabLayoutSectionFull, ctx: IntakeFormRendererContext) =>
+  section.items.some(item => isItemVisibleForCurrentStep(item, ctx));
+
+const isTabVisibleForCurrentStep = (tab: IntakeTabLayoutTabFull, ctx: IntakeFormRendererContext) =>
+  tab.sections.some(section => isSectionVisibleForCurrentStep(section, ctx));
+
 export function IntakeFormRenderer({ layout, activeTab, onActiveTabChange, ctx }: IntakeFormRendererProps) {
-  const visibleTabs = layout.filter(t => t.isActive);
+  const visibleTabs = layout
+    .filter(t => t.isActive)
+    .filter(t => isTabVisibleForCurrentStep(t, ctx));
   if (visibleTabs.length === 0) {
     return (
       <Card>
@@ -91,7 +111,7 @@ export function IntakeFormRenderer({ layout, activeTab, onActiveTabChange, ctx }
       </TabsList>
       {visibleTabs.map(tab => (
         <TabsContent key={tab.key} value={tab.key} className="space-y-4">
-          {tab.sections.map(section => (
+          {tab.sections.filter(s => isSectionVisibleForCurrentStep(s, ctx)).map(section => (
             <SectionRenderer key={section.id} section={section} ctx={ctx} placedCustomFieldIds={placedIds} />
           ))}
         </TabsContent>
