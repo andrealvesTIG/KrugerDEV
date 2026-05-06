@@ -1074,7 +1074,7 @@ import {
 import { DEFAULT_INTAKE_TABS } from "@shared/intakeTabDefaults";
 
 export interface IntakeTabLayoutItemFull { id: number; itemType: string; itemKey: string; width: string; position: number; }
-export interface IntakeTabLayoutSectionFull { id: number; title: string; description: string | null; position: number; items: IntakeTabLayoutItemFull[]; }
+export interface IntakeTabLayoutSectionFull { id: number; title: string | null; description: string | null; position: number; items: IntakeTabLayoutItemFull[]; }
 export interface IntakeTabLayoutTabFull { id: number; key: string; label: string; icon: string | null; isActive: boolean; position: number; sections: IntakeTabLayoutSectionFull[]; }
 
 export async function getIntakeTabLayout(organizationId: number): Promise<IntakeTabLayoutTabFull[]> {
@@ -1102,7 +1102,7 @@ export async function getIntakeTabLayout(organizationId: number): Promise<Intake
   const sectionsByTab = new Map<number, IntakeTabLayoutSectionFull[]>();
   for (const s of sectionRows) {
     const arr = sectionsByTab.get(s.tabId) ?? [];
-    arr.push({ id: s.id, title: s.title, description: s.description ?? null, position: s.position, items: itemsBySection.get(s.id) ?? [] });
+    arr.push({ id: s.id, title: s.title ?? null, description: s.description ?? null, position: s.position, items: itemsBySection.get(s.id) ?? [] });
     sectionsByTab.set(s.tabId, arr);
   }
   return tabRows.map(t => ({
@@ -1125,7 +1125,7 @@ export async function replaceIntakeTabLayout(organizationId: number, tabs: Intak
       for (let si = 0; si < (t.sections ?? []).length; si++) {
         const s = t.sections[si];
         const [secRow] = await tx.insert(_intakeTabSections).values({
-          tabId: tabRow.id, position: si, title: s.title, description: s.description ?? null,
+          tabId: tabRow.id, position: si, title: s.title ?? null, description: s.description ?? null,
         }).returning();
         const items = s.items ?? [];
         if (items.length > 0) {

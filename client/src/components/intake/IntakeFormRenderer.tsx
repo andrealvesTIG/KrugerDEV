@@ -105,13 +105,16 @@ function SectionRenderer({ section, ctx, placedCustomFieldIds }: { section: Inta
   if (onlyBlock && (onlyBlock.itemKey === "financials_grid" || onlyBlock.itemKey === "architecture_questions" || onlyBlock.itemKey === "cybersecurity_questions" || onlyBlock.itemKey === "source_conversation" || onlyBlock.itemKey === "pm_approval")) {
     return <ItemRenderer item={onlyBlock} ctx={ctx} placedCustomFieldIds={placedCustomFieldIds} bare />;
   }
+  const hasHeader = !!(section.title && section.title.trim()) || !!section.description;
   return (
     <Card data-testid={`intake-section-${section.id}`}>
-      <CardHeader>
-        <CardTitle>{section.title}</CardTitle>
-        {section.description && <CardDescription>{section.description}</CardDescription>}
-      </CardHeader>
-      <CardContent className="space-y-4">
+      {hasHeader && (
+        <CardHeader>
+          {section.title && section.title.trim() && <CardTitle>{section.title}</CardTitle>}
+          {section.description && <CardDescription>{section.description}</CardDescription>}
+        </CardHeader>
+      )}
+      <CardContent className={cn("space-y-4", !hasHeader && "pt-6")}>
         <div className="grid grid-cols-12 gap-4">
           {section.items.map(item => (
             <div key={item.id} className={WIDTH_CLASS[item.width] ?? WIDTH_CLASS.full}>

@@ -3,7 +3,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { IntakeTabLayoutTabDTO } from "@shared/schema";
 
 export interface IntakeTabLayoutItemFull { id: number; itemType: "field" | "custom_field" | "block"; itemKey: string; width: "full" | "half" | "third"; position: number; }
-export interface IntakeTabLayoutSectionFull { id: number; title: string; description: string | null; position: number; items: IntakeTabLayoutItemFull[]; }
+export interface IntakeTabLayoutSectionFull { id: number; title: string | null; description: string | null; position: number; items: IntakeTabLayoutItemFull[]; }
 export interface IntakeTabLayoutTabFull { id: number; key: string; label: string; icon: string | null; isActive: boolean; position: number; sections: IntakeTabLayoutSectionFull[]; }
 
 export function useIntakeTabLayout(organizationId: number | undefined) {

@@ -1430,7 +1430,7 @@ export function registerIntakeRoutes(app: Express) {
       icon: z.string().max(40).nullish(),
       isActive: z.boolean().optional(),
       sections: z.array(z.object({
-        title: z.string().min(1).max(120),
+        title: z.string().max(120).nullish(),
         description: z.string().max(500).nullish(),
         items: z.array(z.object({
           itemType: z.enum(['field', 'custom_field', 'block']),

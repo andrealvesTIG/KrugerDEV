@@ -2448,7 +2448,7 @@ export const intakeTabSections = pgTable("intake_tab_sections", {
   id: serial("id").primaryKey(),
   tabId: integer("tab_id").references(() => intakeTabs.id, { onDelete: "cascade" }).notNull(),
   position: integer("position").notNull(),
-  title: text("title").notNull(),
+  title: text("title"),
   description: text("description"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -2496,7 +2496,7 @@ export interface IntakeTabLayoutItemDTO {
 }
 export interface IntakeTabLayoutSectionDTO {
   id?: number;
-  title: string;
+  title?: string | null;
   description?: string | null;
   items: IntakeTabLayoutItemDTO[];
 }

@@ -24,7 +24,7 @@ import type { CustomFieldDefinition } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
 interface DraftItem { uid: string; itemType: "field" | "custom_field" | "block"; itemKey: string; width: "full" | "half" | "third"; }
-interface DraftSection { uid: string; title: string; description: string | null; items: DraftItem[]; }
+interface DraftSection { uid: string; title: string | null; description: string | null; items: DraftItem[]; }
 interface DraftTab { uid: string; key: string; label: string; icon: string | null; isActive: boolean; sections: DraftSection[]; }
 
 const ICON_OPTIONS = ["Lightbulb", "FileText", "Calculator", "Shield", "MessageSquare", "ListChecks", "ClipboardList", "DollarSign", "Settings", "Gavel"];
@@ -121,7 +121,7 @@ export function IntakeFormLayoutSection({ organizationId }: { organizationId: nu
   };
   const addSection = (tabUid: string) => {
     const tab = draft.find(t => t.uid === tabUid); if (!tab) return;
-    const s: DraftSection = { uid: uid("sec"), title: "New Section", description: null, items: [] };
+    const s: DraftSection = { uid: uid("sec"), title: null, description: null, items: [] };
     updateTab(tabUid, { sections: [...tab.sections, s] });
   };
   const updateSection = (tabUid: string, secUid: string, patch: Partial<DraftSection>) => {
@@ -233,7 +233,7 @@ export function IntakeFormLayoutSection({ organizationId }: { organizationId: nu
         icon: t.icon,
         isActive: t.isActive,
         sections: t.sections.map(s => ({
-          title: s.title.trim() || "Untitled Section",
+          title: s.title?.trim() ? s.title.trim() : null,
           description: s.description,
           items: s.items.map(i => ({ itemType: i.itemType, itemKey: i.itemKey, width: i.width })),
         })),
@@ -468,8 +468,9 @@ function SectionEditor(props: {
           <GripVertical className="h-4 w-4" />
         </button>
         <Input
-          value={section.title}
-          onChange={(e) => props.onUpdateSection({ title: e.target.value })}
+          value={section.title ?? ""}
+          onChange={(e) => props.onUpdateSection({ title: e.target.value || null })}
+          placeholder="Section title (optional)"
           className="font-medium flex-1"
           data-testid={`input-section-title-${section.uid}`}
         />
