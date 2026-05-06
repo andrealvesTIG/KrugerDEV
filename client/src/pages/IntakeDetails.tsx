@@ -21,6 +21,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, Shield, Calculator, Save, Lightbulb, Gavel, ChevronsUpDown, Paperclip, MessageSquare, Image as ImageIcon, Download, User as UserIcon, Bot, Pencil, X, ExternalLink } from "lucide-react";
 import { useCustomFieldDefinitions, useIntakeCustomFieldValues, useUpdateIntakeCustomFieldValue } from "@/hooks/use-custom-fields";
+import { useResources } from "@/hooks/use-resources";
 import type { CustomFieldDefinition } from "@shared/schema";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -1125,6 +1126,7 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked }: { int
   const { data: allDefinitions = [], isLoading: definitionsLoading } = useCustomFieldDefinitions(organizationId);
   const definitions = allDefinitions.filter(d => (d.entityType || 'project') === 'intake');
   const { data: values = [], isLoading: valuesLoading } = useIntakeCustomFieldValues(intakeId);
+  const { data: orgResources = [] } = useResources(organizationId ?? null);
   const updateValue = useUpdateIntakeCustomFieldValue();
   const [editingFieldId, setEditingFieldId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState<string>("");
@@ -1198,6 +1200,19 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked }: { int
             </SelectContent>
           </Select>
         );
+      case "resource":
+        return (
+          <Select value={editValue} onValueChange={setEditValue}>
+            <SelectTrigger data-testid={`select-intake-resource-custom-field-${field.id}`}>
+              <SelectValue placeholder="Select resource..." />
+            </SelectTrigger>
+            <SelectContent>
+              {orgResources.map((r) => (
+                <SelectItem key={r.id} value={String(r.id)}>{r.displayName}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
       case "multiselect": {
         const selectedValues = parseMultiSelectValue(editValue);
         return (
@@ -1255,6 +1270,10 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked }: { int
       }
       case "date":
         return <span className="text-sm" data-testid={`value-intake-date-${field.id}`}>{format(new Date(value), 'MMM d, yyyy')}</span>;
+      case "resource": {
+        const resource = orgResources.find(r => String(r.id) === String(value));
+        return <span className="text-sm" data-testid={`value-intake-resource-${field.id}`}>{resource?.displayName ?? "Unknown resource"}</span>;
+      }
       default:
         return <span className="text-sm" data-testid={`value-intake-text-${field.id}`}>{value}</span>;
     }

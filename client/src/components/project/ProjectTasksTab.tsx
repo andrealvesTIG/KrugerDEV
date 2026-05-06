@@ -167,7 +167,9 @@ function TaskCustomFieldsSection({
   defs: CustomFieldDefinition[];
   readOnly: boolean;
 }) {
+  const { currentOrganization } = useOrganization();
   const { data: values = [] } = useTaskCustomFieldValues(taskId);
+  const { data: orgResources = [] } = useResources(currentOrganization?.id ?? null);
   const updateValue = useUpdateTaskCustomFieldValue();
   const [localValues, setLocalValues] = useState<Record<number, string>>({});
 
@@ -241,6 +243,21 @@ function TaskCustomFieldsSection({
                 <SelectContent>
                   {opts.map(opt => (
                     <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : field.fieldType === "resource" ? (
+              <Select
+                value={value}
+                disabled={readOnly}
+                onValueChange={(v) => { setVal(field.id, v); persist(field.id, v); }}
+              >
+                <SelectTrigger id={fieldId} data-testid={`input-cf-${field.id}`}>
+                  <SelectValue placeholder="Select resource..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {orgResources.map(r => (
+                    <SelectItem key={r.id} value={String(r.id)}>{r.displayName}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

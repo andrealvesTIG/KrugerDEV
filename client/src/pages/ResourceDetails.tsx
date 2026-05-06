@@ -1,6 +1,6 @@
 import { useParams, Link, useLocation } from "wouter";
 import { formatCurrency } from "@/lib/format";
-import { useResource, useUpdateResource, useResourceSkills, useAddResourceSkill, useRemoveResourceSkill } from "@/hooks/use-resources";
+import { useResource, useUpdateResource, useResourceSkills, useAddResourceSkill, useRemoveResourceSkill, useResources } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { useCustomFieldDefinitions, useResourceCustomFieldValues, useUpdateResourceCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useQuery } from "@tanstack/react-query";
@@ -958,6 +958,7 @@ function ResourceCustomFieldsSection({ resourceId, organizationId }: { resourceI
   const { data: allDefinitions = [], isLoading: definitionsLoading } = useCustomFieldDefinitions(organizationId);
   const definitions = useMemo(() => allDefinitions.filter(d => d.entityType === 'resource' && d.isActive !== false), [allDefinitions]);
   const { data: values = [], isLoading: valuesLoading } = useResourceCustomFieldValues(resourceId);
+  const { data: orgResources = [] } = useResources(organizationId);
   const updateValue = useUpdateResourceCustomFieldValue();
   const [editingFieldId, setEditingFieldId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState<string>("");
@@ -1029,6 +1030,19 @@ function ResourceCustomFieldsSection({ resourceId, organizationId }: { resourceI
             <SelectContent>
               {(field.options as string[] || []).map((opt) => (
                 <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      case "resource":
+        return (
+          <Select value={editValue} onValueChange={setEditValue}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select resource..." />
+            </SelectTrigger>
+            <SelectContent>
+              {orgResources.map((r) => (
+                <SelectItem key={r.id} value={String(r.id)}>{r.displayName}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -1111,6 +1125,10 @@ function ResourceCustomFieldsSection({ resourceId, organizationId }: { resourceI
       }
       case "date":
         return <span className="text-sm">{format(new Date(value), 'MMM d, yyyy')}</span>;
+      case "resource": {
+        const resource = orgResources.find(r => String(r.id) === String(value));
+        return <span className="text-sm">{resource?.displayName ?? "Unknown resource"}</span>;
+      }
       default:
         return <span className="text-sm">{value}</span>;
     }

@@ -24,6 +24,7 @@ const FIELD_TYPES = [
   { value: "checkbox", label: "Checkbox" },
   { value: "url", label: "URL" },
   { value: "autonumber", label: "Auto Number" },
+  { value: "resource", label: "Resource" },
 ] as const;
 
 const ENTITY_TYPES = [

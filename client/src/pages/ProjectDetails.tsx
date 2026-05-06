@@ -3334,6 +3334,7 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
     return et === 'project' || et === 'intake';
   }), [allDefinitions]);
   const { data: values = [], isLoading: valuesLoading } = useProjectCustomFieldValues(projectId);
+  const { data: orgResources = [] } = useResources(organizationId ?? null);
   const updateValue = useUpdateProjectCustomFieldValue();
   const [editingFieldId, setEditingFieldId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState<string>("");
@@ -3410,6 +3411,19 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
             <SelectContent>
               {(field.options as string[] || []).map((opt) => (
                 <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      case "resource":
+        return (
+          <Select value={editValue} onValueChange={setEditValue}>
+            <SelectTrigger data-testid={`select-resource-custom-field-${field.id}`}>
+              <SelectValue placeholder="Select resource..." />
+            </SelectTrigger>
+            <SelectContent>
+              {orgResources.map((r) => (
+                <SelectItem key={r.id} value={String(r.id)}>{r.displayName}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -3499,6 +3513,10 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
         );
       case "date":
         return <span className="text-sm" data-testid={`value-date-${field.id}`}>{format(new Date(value), 'MMM d, yyyy')}</span>;
+      case "resource": {
+        const resource = orgResources.find(r => String(r.id) === String(value));
+        return <span className="text-sm" data-testid={`value-resource-${field.id}`}>{resource?.displayName ?? "Unknown resource"}</span>;
+      }
       default:
         return <span className="text-sm" data-testid={`value-text-${field.id}`}>{value}</span>;
     }

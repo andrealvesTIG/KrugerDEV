@@ -2844,6 +2844,9 @@ export function ProjectsGridView({
               displayLabel = raw === "true" ? "Yes" : "No";
             } else if (cfDef?.fieldType === "multiselect") {
               try { displayLabel = JSON.parse(raw).join(", "); } catch { /* use raw */ }
+            } else if (cfDef?.fieldType === "resource") {
+              const resource = (resources || []).find(r => String(r.id) === String(raw));
+              displayLabel = resource?.displayName ?? "Unknown resource";
             }
             return { key: `cf-${defId}-${raw}`, label: displayLabel, sortOrder: 0 };
           }
@@ -3422,6 +3425,10 @@ export function ProjectsGridView({
                 {rawValue}
               </a>
             );
+          }
+          if (cfDef?.fieldType === "resource") {
+            const resource = (resources || []).find(r => String(r.id) === String(rawValue));
+            return <span className="text-sm">{resource?.displayName ?? "Unknown resource"}</span>;
           }
           return <span className="text-sm">{rawValue}</span>;
         }
