@@ -14,6 +14,10 @@ export function useIntakeTabLayout(organizationId: number | undefined) {
       return res.json();
     },
     enabled: !!organizationId,
+    // Layout edits in Settings should be visible on intake pages immediately,
+    // so override the global staleTime: Infinity for this query.
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 }
 
@@ -24,8 +28,10 @@ export function useSaveIntakeTabLayout(organizationId: number | undefined) {
       const res = await apiRequest("PUT", `/api/organizations/${organizationId}/intake-tab-layout`, { tabs });
       return res.json() as Promise<IntakeTabLayoutTabFull[]>;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'intake-tab-layout'] });
+    onSuccess: (data) => {
+      const key = ['/api/organizations', organizationId, 'intake-tab-layout'];
+      queryClient.setQueryData(key, data);
+      queryClient.invalidateQueries({ queryKey: key });
     },
   });
 }
@@ -37,8 +43,10 @@ export function useResetIntakeTabLayout(organizationId: number | undefined) {
       const res = await apiRequest("POST", `/api/organizations/${organizationId}/intake-tab-layout/reset`);
       return res.json() as Promise<IntakeTabLayoutTabFull[]>;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'intake-tab-layout'] });
+    onSuccess: (data) => {
+      const key = ['/api/organizations', organizationId, 'intake-tab-layout'];
+      queryClient.setQueryData(key, data);
+      queryClient.invalidateQueries({ queryKey: key });
     },
   });
 }
