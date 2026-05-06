@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { GripVertical, Plus, Trash2, RotateCcw, Save, Loader2, ChevronUp, ChevronDown, Pencil } from "lucide-react";
+import { GripVertical, Plus, Trash2, RotateCcw, Save, Loader2, ChevronUp, ChevronDown, Pencil, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove, horizontalListSortingStrategy } from "@dnd-kit/sortable";
@@ -585,6 +585,14 @@ function AddItemPicker({ onAdd, customFieldDefs, placedItemKeys }: {
 }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"field" | "custom_field" | "block">("field");
+  const [search, setSearch] = useState("");
+  const q = search.trim().toLowerCase();
+  const matches = (...parts: Array<string | null | undefined>) =>
+    !q || parts.some(p => (p ?? "").toLowerCase().includes(q));
+  const filteredFields = INTAKE_FIELDS.filter(f => matches(f.label, f.key, f.group, f.inputType));
+  const filteredCustomFields = customFieldDefs.filter(d => matches(d.name, d.fieldType));
+  const filteredBlocks = INTAKE_BLOCKS.filter(b => matches(b.label, b.key, b.description));
+  useEffect(() => { if (!open) setSearch(""); }, [open]);
   return (
     <div className="mt-2 flex justify-end">
       <Dialog open={open} onOpenChange={setOpen}>
@@ -597,12 +605,31 @@ function AddItemPicker({ onAdd, customFieldDefs, placedItemKeys }: {
             <DialogDescription>Pick a built-in field, an individual custom field, or a composite block to add to this section.</DialogDescription>
           </DialogHeader>
           <div className="flex gap-2 border-b">
-            <Button size="sm" variant={tab === "field" ? "default" : "ghost"} onClick={() => setTab("field")}>Fields</Button>
-            <Button size="sm" variant={tab === "custom_field" ? "default" : "ghost"} onClick={() => setTab("custom_field")} data-testid="picker-tab-custom-fields">Custom Fields</Button>
-            <Button size="sm" variant={tab === "block" ? "default" : "ghost"} onClick={() => setTab("block")}>Blocks</Button>
+            <Button size="sm" variant={tab === "field" ? "default" : "ghost"} onClick={() => setTab("field")}>
+              Fields {q && <span className="ml-1 text-xs text-muted-foreground">({filteredFields.length})</span>}
+            </Button>
+            <Button size="sm" variant={tab === "custom_field" ? "default" : "ghost"} onClick={() => setTab("custom_field")} data-testid="picker-tab-custom-fields">
+              Custom Fields {q && <span className="ml-1 text-xs text-muted-foreground">({filteredCustomFields.length})</span>}
+            </Button>
+            <Button size="sm" variant={tab === "block" ? "default" : "ghost"} onClick={() => setTab("block")}>
+              Blocks {q && <span className="ml-1 text-xs text-muted-foreground">({filteredBlocks.length})</span>}
+            </Button>
+          </div>
+          <div className="relative pt-2">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 mt-1 h-4 w-4 text-muted-foreground" />
+            <Input
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search items by name…"
+              className="pl-8 h-9"
+              data-testid="input-add-item-search"
+            />
           </div>
           <div className="max-h-[400px] overflow-y-auto space-y-1 pt-2">
-            {tab === "field" && INTAKE_FIELDS.map(f => {
+            {tab === "field" && (filteredFields.length === 0 ? (
+              <div className="text-sm text-muted-foreground italic p-4 text-center">No fields match "{search}".</div>
+            ) : filteredFields.map(f => {
               const placed = placedItemKeys.has(`field:${f.key}`);
               return (
                 <button key={f.key} disabled={placed} className={cn("w-full text-left p-2 rounded flex items-center gap-2", placed ? "opacity-50 cursor-not-allowed" : "hover-elevate")} onClick={() => { onAdd("field", f.key); setOpen(false); }} data-testid={`picker-field-${f.key}`}>
@@ -612,14 +639,16 @@ function AddItemPicker({ onAdd, customFieldDefs, placedItemKeys }: {
                   {placed && <Badge variant="outline" className="ml-auto text-[10px]">Placed</Badge>}
                 </button>
               );
-            })}
+            }))}
             {tab === "custom_field" && (
               customFieldDefs.length === 0 ? (
                 <div className="text-sm text-muted-foreground italic p-4 text-center">
                   No intake custom fields defined yet. Create some in <strong>Settings → Custom Fields</strong> (entity type "Intake").
                 </div>
+              ) : filteredCustomFields.length === 0 ? (
+                <div className="text-sm text-muted-foreground italic p-4 text-center">No custom fields match "{search}".</div>
               ) : (
-                customFieldDefs.map(d => {
+                filteredCustomFields.map(d => {
                   const placed = placedItemKeys.has(`custom_field:${d.id}`);
                   return (
                     <button key={d.id} disabled={placed} className={cn("w-full text-left p-2 rounded flex items-center gap-2", placed ? "opacity-50 cursor-not-allowed" : "hover-elevate")} onClick={() => { onAdd("custom_field", String(d.id)); setOpen(false); }} data-testid={`picker-custom-field-${d.id}`}>
@@ -633,7 +662,9 @@ function AddItemPicker({ onAdd, customFieldDefs, placedItemKeys }: {
                 })
               )
             )}
-            {tab === "block" && INTAKE_BLOCKS.map(b => {
+            {tab === "block" && (filteredBlocks.length === 0 ? (
+              <div className="text-sm text-muted-foreground italic p-4 text-center">No blocks match "{search}".</div>
+            ) : filteredBlocks.map(b => {
               const placed = placedItemKeys.has(`block:${b.key}`);
               return (
                 <button key={b.key} disabled={placed} className={cn("w-full text-left p-2 rounded", placed ? "opacity-50 cursor-not-allowed" : "hover-elevate")} onClick={() => { onAdd("block", b.key); setOpen(false); }} data-testid={`picker-block-${b.key}`}>
@@ -644,7 +675,7 @@ function AddItemPicker({ onAdd, customFieldDefs, placedItemKeys }: {
                   <div className="text-xs text-muted-foreground">{b.description}</div>
                 </button>
               );
-            })}
+            }))}
           </div>
         </DialogContent>
       </Dialog>
