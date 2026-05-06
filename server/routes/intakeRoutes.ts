@@ -1405,4 +1405,94 @@ export function registerIntakeRoutes(app: Express) {
     }
   });
 
+  // ===================== INTAKE TAB LAYOUT (configurable form) =====================
+
+  app.get('/api/organizations/:orgId/intake-tab-layout', async (req: any, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      const organizationId = parseInt(req.params.orgId);
+      if (Number.isNaN(organizationId)) return res.status(400).json({ message: 'Invalid organization id' });
+      if (!await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const layout = await storage.seedDefaultIntakeTabLayoutIfMissing(organizationId);
+      res.json(layout);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error loading intake tab layout' : classified.message });
+    }
+  });
+
+  const tabLayoutSchema = z.object({
+    tabs: z.array(z.object({
+      key: z.string().min(1).max(64),
+      label: z.string().min(1).max(80),
+      icon: z.string().max(40).nullish(),
+      isActive: z.boolean().optional(),
+      sections: z.array(z.object({
+        title: z.string().min(1).max(120),
+        description: z.string().max(500).nullish(),
+        items: z.array(z.object({
+          itemType: z.enum(['field', 'custom_field', 'block']),
+          itemKey: z.string().min(1).max(120),
+          width: z.enum(['full', 'half', 'third']).default('full'),
+        })).default([]),
+      })).default([]),
+    })).min(1, 'At least one tab is required'),
+  });
+
+  app.put('/api/organizations/:orgId/intake-tab-layout', async (req: any, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      const organizationId = parseInt(req.params.orgId);
+      if (Number.isNaN(organizationId)) return res.status(400).json({ message: 'Invalid organization id' });
+      if (!userId || !await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const memberships = await storage.getOrganizationMembers(organizationId);
+      const userMembership = memberships.find((m: any) => m.userId === userId);
+      const isOrgAdmin = !!userMembership && (userMembership.role === 'org_admin' || userMembership.role === 'owner');
+      const user = await storage.getUser(userId);
+      const isSuperAdmin = hasAdminAccess(user);
+      if (!isOrgAdmin && !isSuperAdmin) {
+        return res.status(403).json({ message: 'Only organization admins can modify the intake form layout' });
+      }
+      const parsed = tabLayoutSchema.parse(req.body);
+      // Tab keys must be unique within an org
+      const keys = parsed.tabs.map(t => t.key);
+      if (new Set(keys).size !== keys.length) {
+        return res.status(400).json({ message: 'Tab keys must be unique' });
+      }
+      const layout = await storage.replaceIntakeTabLayout(organizationId, parsed.tabs);
+      res.json(layout);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error saving intake tab layout' : classified.message });
+    }
+  });
+
+  app.post('/api/organizations/:orgId/intake-tab-layout/reset', async (req: any, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      const organizationId = parseInt(req.params.orgId);
+      if (Number.isNaN(organizationId)) return res.status(400).json({ message: 'Invalid organization id' });
+      if (!userId || !await userHasOrgAccess(userId, organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const memberships = await storage.getOrganizationMembers(organizationId);
+      const userMembership = memberships.find((m: any) => m.userId === userId);
+      const isOrgAdmin = !!userMembership && (userMembership.role === 'org_admin' || userMembership.role === 'owner');
+      const user = await storage.getUser(userId);
+      const isSuperAdmin = hasAdminAccess(user);
+      if (!isOrgAdmin && !isSuperAdmin) {
+        return res.status(403).json({ message: 'Only organization admins can reset the intake form layout' });
+      }
+      const layout = await storage.resetIntakeTabLayoutToDefaults(organizationId);
+      res.json(layout);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error resetting intake tab layout' : classified.message });
+    }
+  });
+
 }

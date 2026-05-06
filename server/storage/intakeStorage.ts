@@ -1059,3 +1059,106 @@ export async function ensureDefaultProjectWorkflow(organizationId: number): Prom
   await resetProjectWorkflowToDefaults(organizationId, wf.id);
   return wf;
 }
+
+// =============== INTAKE TAB LAYOUT (configurable form) ===============
+
+import {
+  intakeTabs as _intakeTabs,
+  intakeTabSections as _intakeTabSections,
+  intakeTabItems as _intakeTabItems,
+  type IntakeTab as _IntakeTab,
+  type IntakeTabSection as _IntakeTabSection,
+  type IntakeTabItem as _IntakeTabItem,
+  type IntakeTabLayoutTabDTO,
+} from "@shared/schema";
+import { DEFAULT_INTAKE_TABS } from "@shared/intakeTabDefaults";
+
+export interface IntakeTabLayoutItemFull { id: number; itemType: string; itemKey: string; width: string; position: number; }
+export interface IntakeTabLayoutSectionFull { id: number; title: string; description: string | null; position: number; items: IntakeTabLayoutItemFull[]; }
+export interface IntakeTabLayoutTabFull { id: number; key: string; label: string; icon: string | null; isActive: boolean; position: number; sections: IntakeTabLayoutSectionFull[]; }
+
+export async function getIntakeTabLayout(organizationId: number): Promise<IntakeTabLayoutTabFull[]> {
+  const tabRows = await db.select().from(_intakeTabs)
+    .where(eq(_intakeTabs.organizationId, organizationId))
+    .orderBy(asc(_intakeTabs.position), asc(_intakeTabs.id));
+  if (tabRows.length === 0) return [];
+  const tabIds = tabRows.map(t => t.id);
+  const sectionRows = await db.select().from(_intakeTabSections)
+    .where(sql`${_intakeTabSections.tabId} = ANY(${tabIds})`)
+    .orderBy(asc(_intakeTabSections.tabId), asc(_intakeTabSections.position), asc(_intakeTabSections.id));
+  const sectionIds = sectionRows.map(s => s.id);
+  const itemRows = sectionIds.length === 0
+    ? []
+    : await db.select().from(_intakeTabItems)
+        .where(sql`${_intakeTabItems.sectionId} = ANY(${sectionIds})`)
+        .orderBy(asc(_intakeTabItems.sectionId), asc(_intakeTabItems.position), asc(_intakeTabItems.id));
+
+  const itemsBySection = new Map<number, IntakeTabLayoutItemFull[]>();
+  for (const i of itemRows) {
+    const arr = itemsBySection.get(i.sectionId) ?? [];
+    arr.push({ id: i.id, itemType: i.itemType, itemKey: i.itemKey, width: i.width, position: i.position });
+    itemsBySection.set(i.sectionId, arr);
+  }
+  const sectionsByTab = new Map<number, IntakeTabLayoutSectionFull[]>();
+  for (const s of sectionRows) {
+    const arr = sectionsByTab.get(s.tabId) ?? [];
+    arr.push({ id: s.id, title: s.title, description: s.description ?? null, position: s.position, items: itemsBySection.get(s.id) ?? [] });
+    sectionsByTab.set(s.tabId, arr);
+  }
+  return tabRows.map(t => ({
+    id: t.id, key: t.key, label: t.label, icon: t.icon ?? null,
+    isActive: t.isActive, position: t.position,
+    sections: sectionsByTab.get(t.id) ?? [],
+  }));
+}
+
+export async function replaceIntakeTabLayout(organizationId: number, tabs: IntakeTabLayoutTabDTO[]): Promise<IntakeTabLayoutTabFull[]> {
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(${0x494E544C}, ${organizationId})`);
+    await tx.delete(_intakeTabs).where(eq(_intakeTabs.organizationId, organizationId));
+    for (let ti = 0; ti < tabs.length; ti++) {
+      const t = tabs[ti];
+      const [tabRow] = await tx.insert(_intakeTabs).values({
+        organizationId, position: ti, key: t.key, label: t.label,
+        icon: t.icon ?? null, isActive: t.isActive ?? true,
+      }).returning();
+      for (let si = 0; si < (t.sections ?? []).length; si++) {
+        const s = t.sections[si];
+        const [secRow] = await tx.insert(_intakeTabSections).values({
+          tabId: tabRow.id, position: si, title: s.title, description: s.description ?? null,
+        }).returning();
+        const items = s.items ?? [];
+        if (items.length > 0) {
+          await tx.insert(_intakeTabItems).values(items.map((it, ii) => ({
+            sectionId: secRow.id, position: ii, itemType: it.itemType, itemKey: it.itemKey, width: it.width ?? "full",
+          })));
+        }
+      }
+    }
+  });
+  return await getIntakeTabLayout(organizationId);
+}
+
+export async function seedDefaultIntakeTabLayoutIfMissing(organizationId: number): Promise<IntakeTabLayoutTabFull[]> {
+  const existing = await getIntakeTabLayout(organizationId);
+  if (existing.length > 0) return existing;
+  const dto: IntakeTabLayoutTabDTO[] = DEFAULT_INTAKE_TABS.map(t => ({
+    key: t.key, label: t.label, icon: t.icon, isActive: true,
+    sections: t.sections.map(s => ({
+      title: s.title, description: s.description ?? null,
+      items: s.items.map(i => ({ itemType: i.itemType, itemKey: i.itemKey, width: i.width })),
+    })),
+  }));
+  return await replaceIntakeTabLayout(organizationId, dto);
+}
+
+export async function resetIntakeTabLayoutToDefaults(organizationId: number): Promise<IntakeTabLayoutTabFull[]> {
+  const dto: IntakeTabLayoutTabDTO[] = DEFAULT_INTAKE_TABS.map(t => ({
+    key: t.key, label: t.label, icon: t.icon, isActive: true,
+    sections: t.sections.map(s => ({
+      title: s.title, description: s.description ?? null,
+      items: s.items.map(i => ({ itemType: i.itemType, itemKey: i.itemKey, width: i.width })),
+    })),
+  }));
+  return await replaceIntakeTabLayout(organizationId, dto);
+}

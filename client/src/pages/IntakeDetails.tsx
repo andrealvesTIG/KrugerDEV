@@ -7,6 +7,8 @@ import { useOrganization } from "@/hooks/use-organization";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useIntakeWorkflow, AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useIntakeTabLayout } from "@/hooks/use-intake-tab-layout";
+import { IntakeFormRenderer, type IntakeFormRendererContext } from "@/components/intake/IntakeFormRenderer";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -689,443 +691,31 @@ export default function IntakeDetails() {
         </CardContent>
       </Card>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="flex w-full flex-wrap h-auto gap-1 justify-start">
-          <TabsTrigger value="details" data-testid="tab-details">
-            <Lightbulb className="h-4 w-4 mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Intake </span>Details
-          </TabsTrigger>
-          <TabsTrigger value="business-case" data-testid="tab-business-case">
-            <FileText className="h-4 w-4 mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Business </span>Case
-          </TabsTrigger>
-          <TabsTrigger value="technical" data-testid="tab-technical">
-            <Calculator className="h-4 w-4 mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Technical </span>Eval
-          </TabsTrigger>
-          <TabsTrigger value="governance" data-testid="tab-governance">
-            <Shield className="h-4 w-4 mr-1 sm:mr-2" />
-            Governance
-          </TabsTrigger>
-          <TabsTrigger value="source" data-testid="tab-source">
-            <MessageSquare className="h-4 w-4 mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Source &amp; </span>Conversation
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="details" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Intake Information</CardTitle>
-              <CardDescription>Core details about this intake request. <span className="text-destructive">*</span> Required fields</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Intake Name <span className="text-destructive">*</span></Label>
-                  <Input
-                    value={formData.projectName ?? intake.projectName}
-                    onChange={(e) => handleFieldChange('projectName', e.target.value)}
-                    disabled={isLocked}
-                    placeholder="Enter a descriptive name for this intake"
-                    data-testid="input-intake-name"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Target Portfolio <span className="text-destructive text-xs">(required for Triage)</span></Label>
-                  <Popover open={portfolioOpen} onOpenChange={setPortfolioOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={portfolioOpen}
-                        className="w-full h-9 justify-between font-normal bg-background hover:bg-background active:bg-background [border-color:hsl(var(--input))] shadow-none no-default-hover-elevate no-default-active-elevate"
-                        disabled={isLocked}
-                        data-testid="select-portfolio"
-                      >
-                        <span className={cn("truncate", !(formData.portfolioId ?? intake.portfolioId) && "text-muted-foreground")}>
-                          {(formData.portfolioId ?? intake.portfolioId)
-                            ? portfolios?.find((p: Portfolio) => p.id === (formData.portfolioId ?? intake.portfolioId))?.name ?? "Assign to portfolio"
-                            : "Assign to portfolio"}
-                        </span>
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="w-[300px] p-0"
-                      align="start"
-                      onOpenAutoFocus={(e) => e.preventDefault()}
-                    >
-                      <Command shouldFilter={true}>
-                        <CommandInput placeholder="Search portfolios..." />
-                        <CommandList>
-                          <CommandEmpty>No portfolio found.</CommandEmpty>
-                          <CommandGroup>
-                            {portfolios?.map((p: Portfolio) => (
-                              <CommandItem
-                                key={p.id}
-                                value={p.name ?? String(p.id)}
-                                onSelect={() => {
-                                  handleFieldChange('portfolioId', p.id);
-                                  setPortfolioOpen(false);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    (formData.portfolioId ?? intake.portfolioId) === p.id
-                                      ? "opacity-100"
-                                      : "opacity-0"
-                                  )}
-                                />
-                                <span className="truncate" title={p.name}>{p.name}</span>
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Description / Problem Statement <span className="text-destructive">*</span></Label>
-                <Textarea
-                  value={formData.description ?? intake.description ?? ""}
-                  onChange={(e) => handleFieldChange('description', e.target.value)}
-                  disabled={isLocked}
-                  rows={4}
-                  placeholder="Describe the problem, opportunity, or request..."
-                  data-testid="input-description"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Funding Source <span className="text-destructive text-xs">(required for Triage)</span></Label>
-                  <Select 
-                    value={formData.fundingSource ?? intake.fundingSource ?? ""}
-                    onValueChange={(v) => handleFieldChange('fundingSource', v)}
-                    disabled={isLocked}
-                  >
-                    <SelectTrigger data-testid="select-funding-source">
-                      <SelectValue placeholder="Select funding type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Business Funded">Business Funded</SelectItem>
-                      <SelectItem value="IT Funded">IT Funded</SelectItem>
-                      <SelectItem value="Shared">Shared Funding</SelectItem>
-                      <SelectItem value="Capital">Capital Budget</SelectItem>
-                      <SelectItem value="Operating">Operating Budget</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Requesting Business Unit</Label>
-                  <Select 
-                    value={formData.businessUnit ?? intake.businessUnit ?? ""}
-                    onValueChange={(v) => handleFieldChange('businessUnit', v)}
-                    disabled={isLocked}
-                  >
-                    <SelectTrigger data-testid="select-business-unit">
-                      <SelectValue placeholder="Select BU" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="HO">Head Office</SelectItem>
-                      <SelectItem value="IT">Information Technology</SelectItem>
-                      <SelectItem value="Finance">Finance</SelectItem>
-                      <SelectItem value="Operations">Operations</SelectItem>
-                      <SelectItem value="Sales">Sales</SelectItem>
-                      <SelectItem value="Marketing">Marketing</SelectItem>
-                      <SelectItem value="HR">Human Resources</SelectItem>
-                      <SelectItem value="Legal">Legal</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Related Program</Label>
-                  <Input
-                    value={formData.programName ?? intake.programName ?? ""}
-                    onChange={(e) => handleFieldChange('programName', e.target.value)}
-                    disabled={isLocked}
-                    placeholder="Program name (if applicable)"
-                    data-testid="input-program-name"
-                  />
-                </div>
-              </div>
-
-              <IntakeCustomFieldsSection
-                intakeId={intake.id}
-                organizationId={currentOrganization?.id}
-                isLocked={isLocked}
-              />
-            </CardContent>
-          </Card>
-
-        </TabsContent>
-
-        <TabsContent value="business-case" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Business Case & Financial Justification</CardTitle>
-              <CardDescription>Document the business value, expected benefits, and budget requirements. <span className="text-destructive">*</span> Required for this gate</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Estimated Total Budget <span className="text-destructive">*</span></Label>
-                  <Input
-                    type="number"
-                    value={formData.estimatedBudget ?? intake.estimatedBudget ?? ""}
-                    onChange={(e) => handleFieldChange('estimatedBudget', e.target.value)}
-                    disabled={isLocked}
-                    placeholder="0.00"
-                    data-testid="input-estimated-budget"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Capital Expense (CapEx)</Label>
-                  <Input
-                    type="number"
-                    value={formData.capitalExpense ?? intake.capitalExpense ?? ""}
-                    onChange={(e) => handleFieldChange('capitalExpense', e.target.value)}
-                    disabled={isLocked}
-                    placeholder="0.00"
-                    data-testid="input-capital-expense"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Operating Expense (OpEx)</Label>
-                  <Input
-                    type="number"
-                    value={formData.operatingExpense ?? intake.operatingExpense ?? ""}
-                    onChange={(e) => handleFieldChange('operatingExpense', e.target.value)}
-                    disabled={isLocked}
-                    placeholder="0.00"
-                    data-testid="input-operating-expense"
-                  />
-                </div>
-              </div>
-              {(() => {
-                const budget = parseFloat(String(formData.estimatedBudget ?? intake.estimatedBudget ?? 0)) || 0;
-                const capEx = parseFloat(String(formData.capitalExpense ?? intake.capitalExpense ?? 0)) || 0;
-                const opEx = parseFloat(String(formData.operatingExpense ?? intake.operatingExpense ?? 0)) || 0;
-                const remaining = budget - capEx - opEx;
-                if (budget > 0 && (capEx > 0 || opEx > 0)) {
-                  if (remaining < 0) {
-                    return (
-                      <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20">
-                        <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
-                        <p className="text-sm text-destructive">
-                          CapEx + OpEx exceeds the Estimated Total Budget by {formatCurrency(Math.abs(remaining))}. Please adjust the values before saving.
-                        </p>
-                      </div>
-                    );
-                  }
-                  return (
-                    <p className="text-xs text-muted-foreground">
-                      Remaining budget: {formatCurrency(remaining)}
-                    </p>
-                  );
-                }
-                return null;
-              })()}
-
-              <div className="space-y-2">
-                <Label>Business Justification & Expected Benefits <span className="text-destructive">*</span></Label>
-                <Textarea
-                  value={formData.financialJustification ?? intake.financialJustification ?? ""}
-                  onChange={(e) => handleFieldChange('financialJustification', e.target.value)}
-                  disabled={isLocked}
-                  rows={4}
-                  placeholder="Describe the business case, expected ROI, cost savings, revenue impact, or strategic benefits..."
-                  data-testid="input-financial-justification"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Cost-Benefit Analysis</Label>
-                <Textarea
-                  value={formData.costBenefitAnalysis ?? intake.costBenefitAnalysis ?? ""}
-                  onChange={(e) => handleFieldChange('costBenefitAnalysis', e.target.value)}
-                  disabled={isLocked}
-                  rows={3}
-                  placeholder="Summarize the expected return on investment and payback period..."
-                  data-testid="input-cost-benefit-analysis"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-        </TabsContent>
-
-        <TabsContent value="technical" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Technical Evaluation</CardTitle>
-              <CardDescription>Assess technical feasibility, resource requirements, and implementation approach. <span className="text-destructive">*</span> Required for this gate</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>IT Cost Estimate <span className="text-destructive">*</span></Label>
-                <Input
-                  type="number"
-                  value={formData.itCostEstimate ?? intake.itCostEstimate ?? ""}
-                  onChange={(e) => handleFieldChange('itCostEstimate', e.target.value)}
-                  disabled={isLocked}
-                  placeholder="0.00"
-                  data-testid="input-it-cost-estimate"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Resource Requirements <span className="text-destructive">*</span></Label>
-                <Textarea
-                  value={formData.resourceRequirements ?? intake.resourceRequirements ?? ""}
-                  onChange={(e) => handleFieldChange('resourceRequirements', e.target.value)}
-                  disabled={isLocked}
-                  rows={3}
-                  placeholder="List required team members, skills, equipment, or external resources..."
-                  data-testid="input-resource-requirements"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Implementation Timeline</Label>
-                <Textarea
-                  value={formData.implementationTimeline ?? intake.implementationTimeline ?? ""}
-                  onChange={(e) => handleFieldChange('implementationTimeline', e.target.value)}
-                  disabled={isLocked}
-                  rows={3}
-                  placeholder="Describe estimated phases, key milestones, and expected duration..."
-                  data-testid="input-implementation-timeline"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Architectural Review Notes</Label>
-                <Textarea
-                  value={formData.architecturalReview ?? intake.architecturalReview ?? ""}
-                  onChange={(e) => handleFieldChange('architecturalReview', e.target.value)}
-                  disabled={isLocked}
-                  rows={3}
-                  placeholder="Technical architecture considerations, integration points, infrastructure needs..."
-                  data-testid="input-architectural-review"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-        </TabsContent>
-
-        <TabsContent value="governance" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Governance & Compliance Review</CardTitle>
-              <CardDescription>Security assessment, compliance requirements, and approval tracking. <span className="text-destructive">*</span> Required for this gate</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Cybersecurity Risk Assessment <span className="text-destructive">*</span></Label>
-                <Textarea
-                  value={formData.cyberRiskAssessment ?? intake.cyberRiskAssessment ?? ""}
-                  onChange={(e) => handleFieldChange('cyberRiskAssessment', e.target.value)}
-                  disabled={isLocked}
-                  rows={3}
-                  placeholder="Identify security risks, data sensitivity, access requirements, and mitigation strategies..."
-                  data-testid="input-cyber-risk-assessment"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Compliance Requirements</Label>
-                <Textarea
-                  value={formData.complianceRequirements ?? intake.complianceRequirements ?? ""}
-                  onChange={(e) => handleFieldChange('complianceRequirements', e.target.value)}
-                  disabled={isLocked}
-                  rows={3}
-                  placeholder="Regulatory requirements, data privacy (GDPR, HIPAA), industry standards..."
-                  data-testid="input-compliance-requirements"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 pt-4 pb-2">
-                <Checkbox 
-                  id="securityApproval"
-                  checked={formData.securityApproval ?? intake.securityApproval ?? false}
-                  onCheckedChange={(checked) => handleFieldChange('securityApproval', checked)}
-                  disabled={isLocked}
-                  data-testid="checkbox-security-approval"
-                />
-                <Label htmlFor="securityApproval" className="text-sm cursor-pointer">
-                  Security review completed and approved
-                </Label>
-              </div>
-            </CardContent>
-          </Card>
-
-          {canApproveIntakes && (
-            <Card className="border-primary/20">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Gavel className="h-5 w-5 text-primary" />
-                  PM Approval
-                </CardTitle>
-                <CardDescription>
-                  PM approval is required before this intake can be converted to a project
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-2 p-4 rounded-md bg-muted/50">
-                  <Checkbox 
-                    id="pmoApproved"
-                    checked={formData.pmoApproved ?? intake.pmoApproved ?? false}
-                    onCheckedChange={(checked) => {
-                      handleFieldChange('pmoApproved', checked);
-                      updateIntake.mutate({ pmoApproved: checked as boolean });
-                    }}
-                    disabled={isLocked}
-                    data-testid="checkbox-pmo-approved"
-                  />
-                  <Label htmlFor="pmoApproved" className="text-sm cursor-pointer font-medium">
-                    PM has reviewed and approved this intake for project conversion
-                  </Label>
-                </div>
-                {(formData.pmoApproved ?? intake.pmoApproved) && (
-                  <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-2">
-                    <Check className="h-4 w-4" />
-                    PM approval granted. This intake is ready for conversion by an admin.
-                  </p>
-                )}
-                {!(formData.pmoApproved ?? intake.pmoApproved) && !isLocked && (
-                  <p className="text-sm text-muted-foreground flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-amber-500" />
-                    PM approval is required before the "Approve & Convert" button can be used.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="source" className="space-y-4">
-          <IntakeSourcePanel intakeId={id} />
-        </TabsContent>
-      </Tabs>
-
-      {showFinancialsForCurrentStep && (
-        <IntakeFinancialsSection intakeId={intake.id} readOnly={isLocked} />
-      )}
-
-      {showArchitectureForCurrentStep && (
-        <IntakeGovernanceQuestionsSection intakeId={intake.id} category="architecture" readOnly={isLocked} />
-      )}
-
-      {showCybersecurityForCurrentStep && (
-        <IntakeGovernanceQuestionsSection intakeId={intake.id} category="cybersecurity" readOnly={isLocked} />
-      )}
-
+      <DynamicLayoutWrapper
+        organizationId={currentOrganization?.id}
+        activeTab={activeTab}
+        onActiveTabChange={setActiveTab}
+        ctx={{
+          intake,
+          formData,
+          onFieldChange: handleFieldChange,
+          isLocked,
+          portfolios: portfolios ?? [],
+          organizationId: currentOrganization?.id,
+          canApproveIntakes,
+          onPmoApprovedChange: (v) => {
+            handleFieldChange('pmoApproved', v);
+            updateIntake.mutate({ pmoApproved: v });
+          },
+          showFinancialsForCurrentStep,
+          showArchitectureForCurrentStep,
+          showCybersecurityForCurrentStep,
+          renderSourcePanel: () => <IntakeSourcePanel intakeId={id} />,
+          renderCustomFieldsBlock: () => (
+            <IntakeCustomFieldsSection intakeId={intake.id} organizationId={currentOrganization?.id} isLocked={isLocked} />
+          ),
+        }}
+      />
 
       {isApproved && intake.createdProjectId && (
         <Card className="border-green-500/50 bg-green-500/5">
@@ -1193,6 +783,30 @@ export default function IntakeDetails() {
       </Dialog>
     </div>
   );
+}
+
+function DynamicLayoutWrapper({
+  organizationId,
+  activeTab,
+  onActiveTabChange,
+  ctx,
+}: {
+  organizationId: number | undefined;
+  activeTab: string;
+  onActiveTabChange: (v: string) => void;
+  ctx: IntakeFormRendererContext;
+}) {
+  const { data: layout, isLoading } = useIntakeTabLayout(organizationId);
+  if (isLoading || !layout) {
+    return (
+      <Card>
+        <CardContent className="py-8 flex justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+  return <IntakeFormRenderer layout={layout} activeTab={activeTab} onActiveTabChange={onActiveTabChange} ctx={ctx} />;
 }
 
 function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked }: { intakeId: number; organizationId: number | undefined; isLocked: boolean }) {

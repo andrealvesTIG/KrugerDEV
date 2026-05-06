@@ -2426,6 +2426,89 @@ export const costItemsRelations = relations(costItems, ({ one }) => ({
   }),
 }));
 
+// =============== Configurable intake form tab layout (per organization) ===============
+// Tabs ordered by `position` form the tab strip on the intake page. Each tab
+// owns ordered sections; each section owns ordered items (a field, a custom
+// field, or a composite "block" defined in shared/intakeFormRegistry.ts).
+export const intakeTabs = pgTable("intake_tabs", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id, { onDelete: "cascade" }).notNull(),
+  position: integer("position").notNull(),
+  key: text("key").notNull(),     // stable slug used in URL/state
+  label: text("label").notNull(),
+  icon: text("icon"),             // lucide icon name
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("intake_tabs_org_id_idx").on(table.organizationId),
+]);
+
+export const intakeTabSections = pgTable("intake_tab_sections", {
+  id: serial("id").primaryKey(),
+  tabId: integer("tab_id").references(() => intakeTabs.id, { onDelete: "cascade" }).notNull(),
+  position: integer("position").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("intake_tab_sections_tab_id_idx").on(table.tabId),
+]);
+
+export const intakeTabItems = pgTable("intake_tab_items", {
+  id: serial("id").primaryKey(),
+  sectionId: integer("section_id").references(() => intakeTabSections.id, { onDelete: "cascade" }).notNull(),
+  position: integer("position").notNull(),
+  itemType: text("item_type").notNull(),  // 'field' | 'custom_field' | 'block'
+  itemKey: text("item_key").notNull(),    // field name, custom-field id (string), or block key
+  width: text("width").default("full").notNull(), // 'full' | 'half' | 'third'
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("intake_tab_items_section_id_idx").on(table.sectionId),
+]);
+
+export const intakeTabsRelations = relations(intakeTabs, ({ many }) => ({
+  sections: many(intakeTabSections),
+}));
+export const intakeTabSectionsRelations = relations(intakeTabSections, ({ one, many }) => ({
+  tab: one(intakeTabs, { fields: [intakeTabSections.tabId], references: [intakeTabs.id] }),
+  items: many(intakeTabItems),
+}));
+export const intakeTabItemsRelations = relations(intakeTabItems, ({ one }) => ({
+  section: one(intakeTabSections, { fields: [intakeTabItems.sectionId], references: [intakeTabSections.id] }),
+}));
+
+export type IntakeTab = typeof intakeTabs.$inferSelect;
+export type InsertIntakeTab = typeof intakeTabs.$inferInsert;
+export type IntakeTabSection = typeof intakeTabSections.$inferSelect;
+export type InsertIntakeTabSection = typeof intakeTabSections.$inferInsert;
+export type IntakeTabItem = typeof intakeTabItems.$inferSelect;
+export type InsertIntakeTabItem = typeof intakeTabItems.$inferInsert;
+
+// Nested DTO returned by the layout endpoint and accepted by the save endpoint.
+export interface IntakeTabLayoutItemDTO {
+  id?: number;
+  itemType: "field" | "custom_field" | "block";
+  itemKey: string;
+  width: "full" | "half" | "third";
+}
+export interface IntakeTabLayoutSectionDTO {
+  id?: number;
+  title: string;
+  description?: string | null;
+  items: IntakeTabLayoutItemDTO[];
+}
+export interface IntakeTabLayoutTabDTO {
+  id?: number;
+  key: string;
+  label: string;
+  icon?: string | null;
+  isActive?: boolean;
+  sections: IntakeTabLayoutSectionDTO[];
+}
+
 export const projectIntakesRelations = relations(projectIntakes, ({ one }) => ({
   organization: one(organizations, {
     fields: [projectIntakes.organizationId],

@@ -467,6 +467,10 @@ export interface IIntakeStorage {
   updateIntakeWorkflow(id: number, updates: Partial<InsertIntakeWorkflow>): Promise<IntakeWorkflow>;
   deleteIntakeWorkflow(id: number): Promise<void>;
   ensureDefaultIntakeWorkflow(organizationId: number): Promise<IntakeWorkflow>;
+  getIntakeTabLayout(organizationId: number): Promise<import("./intakeStorage").IntakeTabLayoutTabFull[]>;
+  replaceIntakeTabLayout(organizationId: number, tabs: import("@shared/schema").IntakeTabLayoutTabDTO[]): Promise<import("./intakeStorage").IntakeTabLayoutTabFull[]>;
+  seedDefaultIntakeTabLayoutIfMissing(organizationId: number): Promise<import("./intakeStorage").IntakeTabLayoutTabFull[]>;
+  resetIntakeTabLayoutToDefaults(organizationId: number): Promise<import("./intakeStorage").IntakeTabLayoutTabFull[]>;
   getProjectWorkflows(organizationId: number): Promise<ProjectWorkflow[]>;
   getProjectWorkflow(id: number): Promise<ProjectWorkflow | undefined>;
   createProjectWorkflow(data: InsertProjectWorkflow): Promise<ProjectWorkflow>;
