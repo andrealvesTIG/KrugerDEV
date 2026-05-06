@@ -1423,6 +1423,50 @@ export function registerIntakeRoutes(app: Express) {
     }
   });
 
+  function humanizeIntakeLayoutZodError(err: z.ZodError, body: any): string {
+    const tabs = Array.isArray(body?.tabs) ? body.tabs : [];
+    const issues = err.errors.slice(0, 3).map(e => {
+      const path = e.path;
+      // Walk the path: tabs, <ti>, sections|key|label, <si>, items|title|description, <ii>, itemKey|width|itemType
+      if (path[0] !== 'tabs' || typeof path[1] !== 'number') {
+        return e.message;
+      }
+      const ti = path[1] as number;
+      const tab = tabs[ti] ?? {};
+      const tabLabel = (tab.label && String(tab.label).trim()) || `Tab ${ti + 1}`;
+      const tabPart = `Tab "${tabLabel}"`;
+
+      if (path[2] === 'key' || path[2] === 'label') {
+        const fieldName = path[2] === 'label' ? 'name' : 'key';
+        return `${tabPart} is missing a ${fieldName}.`;
+      }
+      if (path[2] === 'icon' || path[2] === 'isActive') {
+        return `${tabPart}: invalid ${path[2]}.`;
+      }
+      if (path[2] !== 'sections' || typeof path[3] !== 'number') {
+        return `${tabPart}: ${e.message}`;
+      }
+      const si = path[3] as number;
+      const section = (tab.sections ?? [])[si] ?? {};
+      const sectionLabel = (section.title && String(section.title).trim()) || `Section ${si + 1} (unnamed)`;
+      const secPart = `${tabPart} → "${sectionLabel}"`;
+
+      if (path[4] === 'title') return `${secPart}: title is too long (max 120 characters).`;
+      if (path[4] === 'description') return `${secPart}: description is too long (max 500 characters).`;
+      if (path[4] !== 'items' || typeof path[5] !== 'number') {
+        return `${secPart}: ${e.message}`;
+      }
+      const ii = path[5] as number;
+      const itemPart = `${secPart} → item ${ii + 1}`;
+      if (path[6] === 'itemKey') return `${itemPart}: missing or invalid item.`;
+      if (path[6] === 'itemType') return `${itemPart}: invalid item type.`;
+      if (path[6] === 'width') return `${itemPart}: invalid width.`;
+      return `${itemPart}: ${e.message}`;
+    });
+    const more = err.errors.length > 3 ? ` (+${err.errors.length - 3} more issue${err.errors.length - 3 === 1 ? '' : 's'})` : '';
+    return issues.join(' ') + more;
+  }
+
   const tabLayoutSchema = z.object({
     tabs: z.array(z.object({
       key: z.string().min(1).max(64),
@@ -1457,11 +1501,15 @@ export function registerIntakeRoutes(app: Express) {
       if (!isOrgAdmin && !isSuperAdmin) {
         return res.status(403).json({ message: 'Only organization admins can modify the intake form layout' });
       }
-      const parsed = tabLayoutSchema.parse(req.body);
+      const result = tabLayoutSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ message: humanizeIntakeLayoutZodError(result.error, req.body) });
+      }
+      const parsed = result.data;
       // Tab keys must be unique within an org
       const keys = parsed.tabs.map(t => t.key);
       if (new Set(keys).size !== keys.length) {
-        return res.status(400).json({ message: 'Tab keys must be unique' });
+        return res.status(400).json({ message: 'Two tabs end up with the same internal key. Please give each tab a distinct name.' });
       }
       const layout = await storage.replaceIntakeTabLayout(organizationId, parsed.tabs);
       res.json(layout);
