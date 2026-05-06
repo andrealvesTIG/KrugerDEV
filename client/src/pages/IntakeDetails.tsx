@@ -711,8 +711,8 @@ export default function IntakeDetails() {
           showArchitectureForCurrentStep,
           showCybersecurityForCurrentStep,
           renderSourcePanel: () => <IntakeSourcePanel intakeId={id} />,
-          renderCustomFieldsBlock: () => (
-            <IntakeCustomFieldsSection intakeId={intake.id} organizationId={currentOrganization?.id} isLocked={isLocked} />
+          renderCustomFieldsBlock: (excludeIds: number[]) => (
+            <IntakeCustomFieldsSection intakeId={intake.id} organizationId={currentOrganization?.id} isLocked={isLocked} excludeDefinitionIds={excludeIds} />
           ),
         }}
       />
@@ -809,10 +809,11 @@ function DynamicLayoutWrapper({
   return <IntakeFormRenderer layout={layout} activeTab={activeTab} onActiveTabChange={onActiveTabChange} ctx={ctx} />;
 }
 
-function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked }: { intakeId: number; organizationId: number | undefined; isLocked: boolean }) {
+function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked, excludeDefinitionIds = [] }: { intakeId: number; organizationId: number | undefined; isLocked: boolean; excludeDefinitionIds?: number[] }) {
   const { toast } = useToast();
   const { data: allDefinitions = [], isLoading: definitionsLoading } = useCustomFieldDefinitions(organizationId);
-  const definitions = allDefinitions.filter(d => (d.entityType || 'project') === 'intake');
+  const excludeSet = new Set(excludeDefinitionIds);
+  const definitions = allDefinitions.filter(d => (d.entityType || 'project') === 'intake' && !excludeSet.has(d.id));
   const { data: values = [], isLoading: valuesLoading } = useIntakeCustomFieldValues(intakeId);
   const { data: orgResources = [] } = useResources(organizationId ?? null);
   const updateValue = useUpdateIntakeCustomFieldValue();

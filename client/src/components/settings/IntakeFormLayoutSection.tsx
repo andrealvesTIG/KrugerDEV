@@ -19,6 +19,8 @@ import {
   useSaveIntakeTabLayout,
   type IntakeTabLayoutTabFull,
 } from "@/hooks/use-intake-tab-layout";
+import { useCustomFieldDefinitions } from "@/hooks/use-custom-fields";
+import type { CustomFieldDefinition } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
 interface DraftItem { uid: string; itemType: "field" | "custom_field" | "block"; itemKey: string; width: "full" | "half" | "third"; }
@@ -52,6 +54,11 @@ export function IntakeFormLayoutSection({ organizationId }: { organizationId: nu
   const [draft, setDraft] = useState<DraftTab[]>([]);
   const [activeTabUid, setActiveTabUid] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  const { data: allCustomFieldDefs = [] } = useCustomFieldDefinitions(organizationId);
+  const intakeCustomFieldDefs = useMemo(
+    () => allCustomFieldDefs.filter(d => (d.entityType || 'project') === 'intake'),
+    [allCustomFieldDefs],
+  );
 
   useEffect(() => {
     if (layout) {
@@ -190,11 +197,11 @@ export function IntakeFormLayoutSection({ organizationId }: { organizationId: nu
 
   const addItem = (tabUid: string, secUid: string, itemType: DraftItem["itemType"], itemKey: string) => {
     const tab = draft.find(t => t.uid === tabUid); if (!tab) return;
-    // Avoid placing duplicate built-in field/block in the same section
+    // Each built-in field, custom field, or block may only appear once across the form.
     const usedKeys = new Set<string>();
-    draft.forEach(t => t.sections.forEach(s => s.items.forEach(i => { if (i.itemType !== "custom_field") usedKeys.add(`${i.itemType}:${i.itemKey}`); })));
-    if (itemType !== "custom_field" && usedKeys.has(`${itemType}:${itemKey}`)) {
-      toast({ title: "Already placed", description: "This item is already on the form. Each built-in field/block can only appear once.", variant: "destructive" });
+    draft.forEach(t => t.sections.forEach(s => s.items.forEach(i => { usedKeys.add(`${i.itemType}:${i.itemKey}`); })));
+    if (usedKeys.has(`${itemType}:${itemKey}`)) {
+      toast({ title: "Already placed", description: "This item is already on the form. Each item can only appear once.", variant: "destructive" });
       return;
     }
     updateSection(tabUid, secUid, {
@@ -316,6 +323,7 @@ export function IntakeFormLayoutSection({ organizationId }: { organizationId: nu
             onAddItem={(su, t, k) => addItem(activeTab.uid, su, t, k)}
             onUpdateItem={(su, iu, p) => updateItem(activeTab.uid, su, iu, p)}
             onDeleteItem={(su, iu) => deleteItem(activeTab.uid, su, iu)}
+            customFieldDefs={intakeCustomFieldDefs}
             onMoveItemTo={(itemUid, toTabUid, toSecUid) => {
               const fromLoc = findItemLocation(itemUid); if (!fromLoc) return;
               const toTabIdx = draft.findIndex(t => t.uid === toTabUid); if (toTabIdx < 0) return;
@@ -362,10 +370,11 @@ function TabEditor(props: {
   onUpdateItem: (su: string, iu: string, p: Partial<DraftItem>) => void;
   onDeleteItem: (su: string, iu: string) => void;
   onMoveItemTo: (itemUid: string, toTabUid: string, toSecUid: string) => void;
+  customFieldDefs: CustomFieldDefinition[];
   onItemDragOver: (e: DragOverEvent) => void;
   onItemDragEnd: (e: DragEndEvent) => void;
 }) {
-  const { tab, allTabs } = props;
+  const { tab, allTabs, customFieldDefs } = props;
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3 border rounded-md bg-muted/30">
@@ -410,6 +419,8 @@ function TabEditor(props: {
                 section={section}
                 tab={tab}
                 allTabs={allTabs}
+                customFieldDefs={customFieldDefs}
+                placedItemKeys={collectPlacedKeys(allTabs)}
                 onUpdateSection={(p) => props.onUpdateSection(section.uid, p)}
                 onDeleteSection={() => props.onDeleteSection(section.uid)}
                 onAddItem={(t, k) => props.onAddItem(section.uid, t, k)}
@@ -428,10 +439,18 @@ function TabEditor(props: {
   );
 }
 
+function collectPlacedKeys(allTabs: DraftTab[]): Set<string> {
+  const s = new Set<string>();
+  allTabs.forEach(t => t.sections.forEach(sec => sec.items.forEach(i => s.add(`${i.itemType}:${i.itemKey}`))));
+  return s;
+}
+
 function SectionEditor(props: {
   section: DraftSection;
   tab: DraftTab;
   allTabs: DraftTab[];
+  customFieldDefs: CustomFieldDefinition[];
+  placedItemKeys: Set<string>;
   onUpdateSection: (p: Partial<DraftSection>) => void;
   onDeleteSection: () => void;
   onAddItem: (t: DraftItem["itemType"], k: string) => void;
@@ -439,7 +458,7 @@ function SectionEditor(props: {
   onDeleteItem: (iu: string) => void;
   onMoveItemTo: (itemUid: string, toTabUid: string, toSecUid: string) => void;
 }) {
-  const { section, tab, allTabs } = props;
+  const { section, tab, allTabs, customFieldDefs, placedItemKeys } = props;
   const { attributes, listeners, setNodeRef: setSectionNodeRef, transform, transition, isDragging } = useSortable({ id: section.uid });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
   return (
@@ -474,6 +493,7 @@ function SectionEditor(props: {
               currentSectionUid={section.uid}
               currentTabUid={tab.uid}
               allTabs={allTabs}
+              customFieldDefs={customFieldDefs}
               onUpdate={(p) => props.onUpdateItem(item.uid, p)}
               onDelete={() => props.onDeleteItem(item.uid)}
               onMoveTo={(toTabUid, toSecUid) => props.onMoveItemTo(item.uid, toTabUid, toSecUid)}
@@ -482,7 +502,7 @@ function SectionEditor(props: {
         </SectionDropZone>
       </SortableContext>
 
-      <AddItemPicker onAdd={props.onAddItem} />
+      <AddItemPicker onAdd={props.onAddItem} customFieldDefs={customFieldDefs} placedItemKeys={placedItemKeys} />
     </div>
   );
 }
@@ -497,11 +517,12 @@ function SectionDropZone({ sectionUid, isEmpty, children }: { sectionUid: string
   );
 }
 
-function ItemEditor({ item, currentSectionUid, currentTabUid, allTabs, onUpdate, onDelete, onMoveTo }: {
+function ItemEditor({ item, currentSectionUid, currentTabUid, allTabs, customFieldDefs, onUpdate, onDelete, onMoveTo }: {
   item: DraftItem;
   currentSectionUid: string;
   currentTabUid: string;
   allTabs: DraftTab[];
+  customFieldDefs: CustomFieldDefinition[];
   onUpdate: (p: Partial<DraftItem>) => void;
   onDelete: () => void;
   onMoveTo: (toTabUid: string, toSecUid: string) => void;
@@ -510,13 +531,15 @@ function ItemEditor({ item, currentSectionUid, currentTabUid, allTabs, onUpdate,
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
   const fieldDef = item.itemType === "field" ? INTAKE_FIELDS.find(f => f.key === item.itemKey) : undefined;
   const blockDef = item.itemType === "block" ? INTAKE_BLOCKS.find(b => b.key === item.itemKey) : undefined;
-  const label = fieldDef?.label ?? blockDef?.label ?? item.itemKey;
+  const cfDef = item.itemType === "custom_field" ? customFieldDefs.find(d => String(d.id) === item.itemKey) : undefined;
+  const label = fieldDef?.label ?? blockDef?.label ?? cfDef?.name ?? (item.itemType === "custom_field" ? `Custom field #${item.itemKey} (missing)` : item.itemKey);
+  const badgeText = item.itemType === "block" ? "block" : item.itemType === "custom_field" ? "custom" : "field";
   return (
     <div ref={setNodeRef} style={style} className="flex items-center gap-2 p-2 border rounded bg-background" data-testid={`item-editor-${item.uid}`}>
       <button {...attributes} {...listeners} className="cursor-grab text-muted-foreground touch-none" aria-label="Drag item">
         <GripVertical className="h-4 w-4" />
       </button>
-      <Badge variant="outline" className="text-[10px] uppercase">{item.itemType === "block" ? "block" : "field"}</Badge>
+      <Badge variant="outline" className="text-[10px] uppercase">{badgeText}</Badge>
       <span className="text-sm flex-1 truncate">{label}</span>
       <Select value={item.width} onValueChange={(v) => onUpdate({ width: v as DraftItem["width"] })}>
         <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
@@ -555,9 +578,13 @@ function ItemEditor({ item, currentSectionUid, currentTabUid, allTabs, onUpdate,
   );
 }
 
-function AddItemPicker({ onAdd }: { onAdd: (type: DraftItem["itemType"], key: string) => void }) {
+function AddItemPicker({ onAdd, customFieldDefs, placedItemKeys }: {
+  onAdd: (type: DraftItem["itemType"], key: string) => void;
+  customFieldDefs: CustomFieldDefinition[];
+  placedItemKeys: Set<string>;
+}) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"field" | "block">("field");
+  const [tab, setTab] = useState<"field" | "custom_field" | "block">("field");
   return (
     <div className="mt-2 flex justify-end">
       <Dialog open={open} onOpenChange={setOpen}>
@@ -567,26 +594,57 @@ function AddItemPicker({ onAdd }: { onAdd: (type: DraftItem["itemType"], key: st
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Add Item</DialogTitle>
-            <DialogDescription>Pick a built-in field or a composite block to add to this section.</DialogDescription>
+            <DialogDescription>Pick a built-in field, an individual custom field, or a composite block to add to this section.</DialogDescription>
           </DialogHeader>
           <div className="flex gap-2 border-b">
             <Button size="sm" variant={tab === "field" ? "default" : "ghost"} onClick={() => setTab("field")}>Fields</Button>
+            <Button size="sm" variant={tab === "custom_field" ? "default" : "ghost"} onClick={() => setTab("custom_field")} data-testid="picker-tab-custom-fields">Custom Fields</Button>
             <Button size="sm" variant={tab === "block" ? "default" : "ghost"} onClick={() => setTab("block")}>Blocks</Button>
           </div>
           <div className="max-h-[400px] overflow-y-auto space-y-1 pt-2">
-            {tab === "field" && INTAKE_FIELDS.map(f => (
-              <button key={f.key} className="w-full text-left p-2 rounded hover-elevate flex items-center gap-2" onClick={() => { onAdd("field", f.key); setOpen(false); }} data-testid={`picker-field-${f.key}`}>
-                <Badge variant="secondary" className="text-[10px]">{f.group}</Badge>
-                <span className="text-sm font-medium">{f.label}</span>
-                <span className="text-xs text-muted-foreground">({f.inputType})</span>
-              </button>
-            ))}
-            {tab === "block" && INTAKE_BLOCKS.map(b => (
-              <button key={b.key} className="w-full text-left p-2 rounded hover-elevate" onClick={() => { onAdd("block", b.key); setOpen(false); }} data-testid={`picker-block-${b.key}`}>
-                <div className="text-sm font-medium">{b.label}</div>
-                <div className="text-xs text-muted-foreground">{b.description}</div>
-              </button>
-            ))}
+            {tab === "field" && INTAKE_FIELDS.map(f => {
+              const placed = placedItemKeys.has(`field:${f.key}`);
+              return (
+                <button key={f.key} disabled={placed} className={cn("w-full text-left p-2 rounded flex items-center gap-2", placed ? "opacity-50 cursor-not-allowed" : "hover-elevate")} onClick={() => { onAdd("field", f.key); setOpen(false); }} data-testid={`picker-field-${f.key}`}>
+                  <Badge variant="secondary" className="text-[10px]">{f.group}</Badge>
+                  <span className="text-sm font-medium">{f.label}</span>
+                  <span className="text-xs text-muted-foreground">({f.inputType})</span>
+                  {placed && <Badge variant="outline" className="ml-auto text-[10px]">Placed</Badge>}
+                </button>
+              );
+            })}
+            {tab === "custom_field" && (
+              customFieldDefs.length === 0 ? (
+                <div className="text-sm text-muted-foreground italic p-4 text-center">
+                  No intake custom fields defined yet. Create some in <strong>Settings → Custom Fields</strong> (entity type "Intake").
+                </div>
+              ) : (
+                customFieldDefs.map(d => {
+                  const placed = placedItemKeys.has(`custom_field:${d.id}`);
+                  return (
+                    <button key={d.id} disabled={placed} className={cn("w-full text-left p-2 rounded flex items-center gap-2", placed ? "opacity-50 cursor-not-allowed" : "hover-elevate")} onClick={() => { onAdd("custom_field", String(d.id)); setOpen(false); }} data-testid={`picker-custom-field-${d.id}`}>
+                      <Badge variant="secondary" className="text-[10px]">Custom</Badge>
+                      <span className="text-sm font-medium">{d.name}</span>
+                      <span className="text-xs text-muted-foreground">({d.fieldType})</span>
+                      {d.isRequired && <span className="text-xs text-destructive">required</span>}
+                      {placed && <Badge variant="outline" className="ml-auto text-[10px]">Placed</Badge>}
+                    </button>
+                  );
+                })
+              )
+            )}
+            {tab === "block" && INTAKE_BLOCKS.map(b => {
+              const placed = placedItemKeys.has(`block:${b.key}`);
+              return (
+                <button key={b.key} disabled={placed} className={cn("w-full text-left p-2 rounded", placed ? "opacity-50 cursor-not-allowed" : "hover-elevate")} onClick={() => { onAdd("block", b.key); setOpen(false); }} data-testid={`picker-block-${b.key}`}>
+                  <div className="text-sm font-medium flex items-center gap-2">
+                    {b.label}
+                    {placed && <Badge variant="outline" className="text-[10px]">Placed</Badge>}
+                  </div>
+                  <div className="text-xs text-muted-foreground">{b.description}</div>
+                </button>
+              );
+            })}
           </div>
         </DialogContent>
       </Dialog>

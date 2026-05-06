@@ -11,6 +11,7 @@ import type { IntakeTabLayoutTabFull, IntakeTabLayoutSectionFull, IntakeTabLayou
 import { IntakeFieldRenderer } from "./IntakeFieldRenderer";
 import { IntakeFinancialsSection } from "./IntakeFinancialsSection";
 import { IntakeGovernanceQuestionsSection } from "./IntakeGovernanceQuestionsSection";
+import { IntakeSingleCustomField } from "./IntakeSingleCustomField";
 
 const ICONS: Record<string, LucideIcon> = {
   Lightbulb, FileText, Calculator, Shield, MessageSquare, ListChecks, ClipboardList, DollarSign, Settings: SettingsIcon, Gavel,
@@ -44,7 +45,7 @@ export interface IntakeFormRendererContext {
   showCybersecurityForCurrentStep: boolean;
   // Source panel renderer (kept inside parent file for now to avoid moving the component)
   renderSourcePanel: () => ReactNode;
-  renderCustomFieldsBlock: () => ReactNode;
+  renderCustomFieldsBlock: (excludeDefinitionIds: number[]) => ReactNode;
 }
 
 export interface IntakeFormRendererProps {
@@ -66,6 +67,13 @@ export function IntakeFormRenderer({ layout, activeTab, onActiveTabChange, ctx }
     );
   }
   const safeActive = visibleTabs.find(t => t.key === activeTab) ? activeTab : visibleTabs[0].key;
+  const placedIds: number[] = [];
+  for (const t of visibleTabs) for (const s of t.sections) for (const i of s.items) {
+    if (i.itemType === "custom_field") {
+      const n = Number(i.itemKey);
+      if (Number.isFinite(n)) placedIds.push(n);
+    }
+  }
   return (
     <Tabs value={safeActive} onValueChange={onActiveTabChange} className="space-y-4">
       <TabsList className="flex w-full flex-wrap h-auto gap-1 justify-start">
@@ -82,7 +90,7 @@ export function IntakeFormRenderer({ layout, activeTab, onActiveTabChange, ctx }
       {visibleTabs.map(tab => (
         <TabsContent key={tab.key} value={tab.key} className="space-y-4">
           {tab.sections.map(section => (
-            <SectionRenderer key={section.id} section={section} ctx={ctx} />
+            <SectionRenderer key={section.id} section={section} ctx={ctx} placedCustomFieldIds={placedIds} />
           ))}
         </TabsContent>
       ))}
@@ -90,12 +98,12 @@ export function IntakeFormRenderer({ layout, activeTab, onActiveTabChange, ctx }
   );
 }
 
-function SectionRenderer({ section, ctx }: { section: IntakeTabLayoutSectionFull; ctx: IntakeFormRendererContext }) {
+function SectionRenderer({ section, ctx, placedCustomFieldIds }: { section: IntakeTabLayoutSectionFull; ctx: IntakeFormRendererContext; placedCustomFieldIds: number[] }) {
   // If the section contains exactly one block of type "financials_grid" / questionnaire / source_conversation,
   // render the block bare without the surrounding card to preserve existing visuals.
   const onlyBlock = section.items.length === 1 && section.items[0].itemType === "block" ? section.items[0] : null;
   if (onlyBlock && (onlyBlock.itemKey === "financials_grid" || onlyBlock.itemKey === "architecture_questions" || onlyBlock.itemKey === "cybersecurity_questions" || onlyBlock.itemKey === "source_conversation" || onlyBlock.itemKey === "pm_approval")) {
-    return <ItemRenderer item={onlyBlock} ctx={ctx} bare />;
+    return <ItemRenderer item={onlyBlock} ctx={ctx} placedCustomFieldIds={placedCustomFieldIds} bare />;
   }
   return (
     <Card data-testid={`intake-section-${section.id}`}>
@@ -107,7 +115,7 @@ function SectionRenderer({ section, ctx }: { section: IntakeTabLayoutSectionFull
         <div className="grid grid-cols-12 gap-4">
           {section.items.map(item => (
             <div key={item.id} className={WIDTH_CLASS[item.width] ?? WIDTH_CLASS.full}>
-              <ItemRenderer item={item} ctx={ctx} />
+              <ItemRenderer item={item} ctx={ctx} placedCustomFieldIds={placedCustomFieldIds} />
             </div>
           ))}
         </div>
@@ -116,7 +124,7 @@ function SectionRenderer({ section, ctx }: { section: IntakeTabLayoutSectionFull
   );
 }
 
-function ItemRenderer({ item, ctx, bare }: { item: IntakeTabLayoutItemFull; ctx: IntakeFormRendererContext; bare?: boolean }) {
+function ItemRenderer({ item, ctx, placedCustomFieldIds, bare }: { item: IntakeTabLayoutItemFull; ctx: IntakeFormRendererContext; placedCustomFieldIds: number[]; bare?: boolean }) {
   if (item.itemType === "field") {
     return (
       <IntakeFieldRenderer
@@ -131,19 +139,26 @@ function ItemRenderer({ item, ctx, bare }: { item: IntakeTabLayoutItemFull; ctx:
     );
   }
   if (item.itemType === "custom_field") {
+    const defId = Number(item.itemKey);
+    if (!Number.isFinite(defId)) {
+      return <div className="text-xs text-destructive">Invalid custom field reference: {item.itemKey}</div>;
+    }
     return (
-      <div className="text-xs text-muted-foreground italic">
-        Single custom-field placement is not yet supported. Use the “Custom Fields” block instead.
-      </div>
+      <IntakeSingleCustomField
+        intakeId={ctx.intake.id}
+        organizationId={ctx.organizationId}
+        definitionId={defId}
+        isLocked={ctx.isLocked}
+      />
     );
   }
-  return <BlockRenderer blockKey={item.itemKey} ctx={ctx} bare={bare} />;
+  return <BlockRenderer blockKey={item.itemKey} ctx={ctx} placedCustomFieldIds={placedCustomFieldIds} bare={bare} />;
 }
 
-function BlockRenderer({ blockKey, ctx, bare }: { blockKey: string; ctx: IntakeFormRendererContext; bare?: boolean }) {
+function BlockRenderer({ blockKey, ctx, placedCustomFieldIds, bare }: { blockKey: string; ctx: IntakeFormRendererContext; placedCustomFieldIds: number[]; bare?: boolean }) {
   switch (blockKey) {
     case "custom_fields":
-      return <>{ctx.renderCustomFieldsBlock()}</>;
+      return <>{ctx.renderCustomFieldsBlock(placedCustomFieldIds)}</>;
     case "budget_summary": {
       const budget = parseFloat(String(ctx.formData.estimatedBudget ?? ctx.intake.estimatedBudget ?? 0)) || 0;
       const capEx = parseFloat(String(ctx.formData.capitalExpense ?? ctx.intake.capitalExpense ?? 0)) || 0;
