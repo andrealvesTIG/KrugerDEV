@@ -10,6 +10,7 @@ import {
   insertTaskDependencySchema,
   insertProjectFinancialSchema,
   insertIntakeFinancialSchema,
+  insertIntakeGovernanceQuestionSchema,
   portfolios,
   projects,
   milestones,
@@ -20,7 +21,8 @@ import {
   issueChangeLogs,
   taskDependencies,
   projectFinancials,
-  intakeFinancials
+  intakeFinancials,
+  intakeGovernanceQuestions
 } from './schema';
 
 // ============================================
@@ -539,6 +541,44 @@ export const api = {
     delete: {
       method: 'DELETE' as const,
       path: '/api/intake-financials/:id',
+      responses: {
+        204: z.void(),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+  intakeGovernanceQuestions: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/project-intakes/:intakeId/governance-questions',
+      responses: {
+        200: z.array(z.custom<typeof intakeGovernanceQuestions.$inferSelect>()),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/project-intakes/:intakeId/governance-questions',
+      input: insertIntakeGovernanceQuestionSchema.omit({ intakeId: true }),
+      responses: {
+        201: z.custom<typeof intakeGovernanceQuestions.$inferSelect>(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/intake-governance-questions/:id',
+      input: insertIntakeGovernanceQuestionSchema.omit({ intakeId: true }).partial(),
+      responses: {
+        200: z.custom<typeof intakeGovernanceQuestions.$inferSelect>(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/intake-governance-questions/:id',
       responses: {
         204: z.void(),
         404: errorSchemas.notFound,

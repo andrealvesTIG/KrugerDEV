@@ -21,6 +21,7 @@ import {
   mppImports,
   projectFinancials,
   intakeFinancials,
+  intakeGovernanceQuestions,
   costItems,
   projectRiskAssessments,
   customFieldDefinitions,
@@ -721,6 +722,16 @@ export function generateOpenApiSchemas(): Record<string, any> {
         fiscalYear: { description: 'e.g. 2025, 2026' },
         capexAmount: { description: 'Capital expenditure estimate' },
         opexAmount: { description: 'Operating expenditure estimate' },
+      },
+    }),
+
+    IntakeGovernanceQuestion: drizzleTableToOpenApiSchema(intakeGovernanceQuestions, {
+      description: 'Governance questionnaire row (Architecture or Cybersecurity) for an intake.',
+      overrides: {
+        intakeId: { description: 'Parent intake id' },
+        category: { enum: ['architecture', 'cybersecurity'] },
+        question: { description: 'Question text' },
+        answer: { enum: ['yes', 'no'], description: 'Yes/No answer (nullable)' },
       },
     }),
 

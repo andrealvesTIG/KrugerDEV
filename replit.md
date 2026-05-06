@@ -29,6 +29,7 @@ _Populate as you build_
 *   **Fiscal Calendar Logic**: `shared/lib/fiscalCalendar.ts`
 *   **Custom Field Attachment Component**: `client/src/components/custom-fields/AttachmentField.tsx`
 *   **Intake Financials**: `client/src/components/intake/IntakeFinancialsSection.tsx`, `client/src/hooks/use-intake-financials.ts`, `intakeFinancials` table in `shared/schema.ts`, CRUD routes in `server/routes/intakeRoutes.ts` (`/api/project-intakes/:intakeId/financials`, `/api/intake-financials/:id`)
+*   **Intake Governance Questions** (Architecture & Cybersecurity Y/N grids): `client/src/components/intake/IntakeGovernanceQuestionsSection.tsx` (takes `category` prop), `client/src/hooks/use-intake-governance-questions.ts`, `intakeGovernanceQuestions` table in `shared/schema.ts`, CRUD routes in `server/routes/intakeRoutes.ts` (`/api/project-intakes/:intakeId/governance-questions`, `/api/intake-governance-questions/:id`). Per-step visibility toggles `showArchitectureQuestions` / `showCybersecurityQuestions` on `intake_workflow_steps`.
 
 ## Architecture decisions
 

@@ -1,11 +1,12 @@
 import { db } from "../db";
 import {
-  projectFinancials, intakeFinancials, costItems, costItemChangeLogs, financialEntries,
+  projectFinancials, intakeFinancials, intakeGovernanceQuestions, costItems, costItemChangeLogs, financialEntries,
   financialLockdowns,
   projectInvoices, invoiceNotes,
   projects, organizations,
   type ProjectFinancial, type InsertProjectFinancial, type UpdateProjectFinancialRequest,
   type IntakeFinancial, type InsertIntakeFinancial, type UpdateIntakeFinancialRequest,
+  type IntakeGovernanceQuestion, type InsertIntakeGovernanceQuestion, type UpdateIntakeGovernanceQuestionRequest, type IntakeGovernanceCategory,
   type CostItem, type InsertCostItem, type UpdateCostItemRequest,
   type CostItemChangeLog, type InsertCostItemChangeLog,
   type FinancialEntry, type InsertFinancialEntry,
@@ -172,6 +173,40 @@ export async function updateIntakeFinancial(id: number, updates: UpdateIntakeFin
 
 export async function deleteIntakeFinancial(id: number): Promise<void> {
   await db.delete(intakeFinancials).where(eq(intakeFinancials.id, id));
+}
+
+// ===================== INTAKE GOVERNANCE QUESTIONS =====================
+
+export async function getIntakeGovernanceQuestions(intakeId: number, category?: IntakeGovernanceCategory): Promise<IntakeGovernanceQuestion[]> {
+  const where = category
+    ? and(eq(intakeGovernanceQuestions.intakeId, intakeId), eq(intakeGovernanceQuestions.category, category))
+    : eq(intakeGovernanceQuestions.intakeId, intakeId);
+  return await db.select().from(intakeGovernanceQuestions)
+    .where(where)
+    .orderBy(intakeGovernanceQuestions.category, intakeGovernanceQuestions.position, intakeGovernanceQuestions.id);
+}
+
+export async function getIntakeGovernanceQuestion(id: number): Promise<IntakeGovernanceQuestion | undefined> {
+  const [row] = await db.select().from(intakeGovernanceQuestions).where(eq(intakeGovernanceQuestions.id, id));
+  return row;
+}
+
+export async function createIntakeGovernanceQuestion(row: InsertIntakeGovernanceQuestion): Promise<IntakeGovernanceQuestion> {
+  const [created] = await db.insert(intakeGovernanceQuestions).values(row).returning();
+  return created;
+}
+
+export async function updateIntakeGovernanceQuestion(id: number, updates: UpdateIntakeGovernanceQuestionRequest): Promise<IntakeGovernanceQuestion> {
+  const { intakeId: _ignoredIntakeId, ...safeUpdates } = updates as UpdateIntakeGovernanceQuestionRequest & { intakeId?: number };
+  const [updated] = await db.update(intakeGovernanceQuestions)
+    .set({ ...safeUpdates, updatedAt: new Date() })
+    .where(eq(intakeGovernanceQuestions.id, id))
+    .returning();
+  return updated;
+}
+
+export async function deleteIntakeGovernanceQuestion(id: number): Promise<void> {
+  await db.delete(intakeGovernanceQuestions).where(eq(intakeGovernanceQuestions.id, id));
 }
 
 export async function getCostItems(projectId: number, fiscalYear?: number): Promise<CostItem[]> {

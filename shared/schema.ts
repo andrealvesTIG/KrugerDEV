@@ -1907,6 +1907,8 @@ export const intakeWorkflowSteps = pgTable("intake_workflow_steps", {
   notifyOnEntry: text("notify_on_entry").array(), // Email recipients notified when an intake enters this step
   notifyOnExit: text("notify_on_exit").array(), // Email recipients notified when an intake exits this step
   showFinancials: boolean("show_financials").default(false).notNull(), // Whether to render the Intake Estimates (CapEx/OpEx) grid on this step
+  showArchitectureQuestions: boolean("show_architecture_questions").default(false).notNull(), // Whether to render the Architecture questionnaire grid on this step
+  showCybersecurityQuestions: boolean("show_cybersecurity_questions").default(false).notNull(), // Whether to render the Cybersecurity questionnaire grid on this step
   isActive: boolean("is_active").default(true), // Whether step is active
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -2392,6 +2394,30 @@ export const intakeFinancialsRelations = relations(intakeFinancials, ({ one }) =
   }),
 }));
 
+// Intake Governance Questions — Architecture & Cybersecurity questionnaire rows
+// per intake. A single table with a `category` discriminator powers two visually
+// distinct grids ("Questions from Architecture" / "Questions from Cybersecurity").
+export const intakeGovernanceQuestions = pgTable("intake_governance_questions", {
+  id: serial("id").primaryKey(),
+  intakeId: integer("intake_id").references(() => projectIntakes.id, { onDelete: "cascade" }).notNull(),
+  category: text("category").notNull(), // 'architecture' | 'cybersecurity'
+  question: text("question").notNull(),
+  answer: text("answer"), // 'yes' | 'no' | null (unanswered)
+  position: integer("position").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("intake_governance_questions_intake_id_idx").on(table.intakeId),
+  index("intake_governance_questions_intake_category_idx").on(table.intakeId, table.category),
+]);
+
+export const intakeGovernanceQuestionsRelations = relations(intakeGovernanceQuestions, ({ one }) => ({
+  intake: one(projectIntakes, {
+    fields: [intakeGovernanceQuestions.intakeId],
+    references: [projectIntakes.id],
+  }),
+}));
+
 export const costItemsRelations = relations(costItems, ({ one }) => ({
   project: one(projects, {
     fields: [costItems.projectId],
@@ -2597,6 +2623,11 @@ export const insertRiskChangeLogSchema = insertIssueChangeLogSchema;
 export const insertTaskDependencySchema = createInsertSchema(taskDependencies).omit({ id: true, createdAt: true });
 export const insertProjectFinancialSchema = createInsertSchema(projectFinancials).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertIntakeFinancialSchema = createInsertSchema(intakeFinancials).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertIntakeGovernanceQuestionSchema = createInsertSchema(intakeGovernanceQuestions, {
+  category: z.enum(["architecture", "cybersecurity"]),
+  question: z.string().min(1, "Question is required"),
+  answer: z.enum(["yes", "no"]).nullable().optional(),
+}).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertResourceSchema = createInsertSchema(resources).omit({ id: true, createdAt: true });
 export const insertTaskResourceAssignmentSchema = createInsertSchema(taskResourceAssignments).omit({ id: true, createdAt: true });
 export const insertIssueResourceAssignmentSchema = createInsertSchema(issueResourceAssignments).omit({ id: true, createdAt: true });
@@ -2704,6 +2735,10 @@ export type InsertProjectFinancial = z.infer<typeof insertProjectFinancialSchema
 export type IntakeFinancial = typeof intakeFinancials.$inferSelect;
 export type InsertIntakeFinancial = z.infer<typeof insertIntakeFinancialSchema>;
 export type UpdateIntakeFinancialRequest = Partial<InsertIntakeFinancial>;
+export type IntakeGovernanceQuestion = typeof intakeGovernanceQuestions.$inferSelect;
+export type InsertIntakeGovernanceQuestion = z.infer<typeof insertIntakeGovernanceQuestionSchema>;
+export type UpdateIntakeGovernanceQuestionRequest = Partial<InsertIntakeGovernanceQuestion>;
+export type IntakeGovernanceCategory = "architecture" | "cybersecurity";
 
 export type Resource = typeof resources.$inferSelect;
 export type InsertResource = z.infer<typeof insertResourceSchema>;

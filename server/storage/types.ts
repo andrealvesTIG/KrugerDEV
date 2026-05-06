@@ -20,6 +20,7 @@ import type {
   TaskDependency, InsertTaskDependency,
   ProjectFinancial, InsertProjectFinancial, UpdateProjectFinancialRequest,
   IntakeFinancial, InsertIntakeFinancial, UpdateIntakeFinancialRequest,
+  IntakeGovernanceQuestion, InsertIntakeGovernanceQuestion, UpdateIntakeGovernanceQuestionRequest, IntakeGovernanceCategory,
   Resource, InsertResource, UpdateResourceRequest,
   TaskResourceAssignment, InsertTaskResourceAssignment,
   IssueResourceAssignment, InsertIssueResourceAssignment,
@@ -333,6 +334,11 @@ export interface IFinancialStorage {
   createIntakeFinancial(financial: InsertIntakeFinancial): Promise<IntakeFinancial>;
   updateIntakeFinancial(id: number, updates: UpdateIntakeFinancialRequest): Promise<IntakeFinancial>;
   deleteIntakeFinancial(id: number): Promise<void>;
+  getIntakeGovernanceQuestions(intakeId: number, category?: IntakeGovernanceCategory): Promise<IntakeGovernanceQuestion[]>;
+  getIntakeGovernanceQuestion(id: number): Promise<IntakeGovernanceQuestion | undefined>;
+  createIntakeGovernanceQuestion(row: InsertIntakeGovernanceQuestion): Promise<IntakeGovernanceQuestion>;
+  updateIntakeGovernanceQuestion(id: number, updates: UpdateIntakeGovernanceQuestionRequest): Promise<IntakeGovernanceQuestion>;
+  deleteIntakeGovernanceQuestion(id: number): Promise<void>;
   getCostItems(projectId: number, fiscalYear?: number): Promise<CostItem[]>;
   getCostItem(id: number): Promise<CostItem | undefined>;
   createCostItem(costItem: InsertCostItem): Promise<CostItem>;

@@ -57,6 +57,8 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
   const [editNotifyOnEntry, setEditNotifyOnEntry] = useState<string[]>([]);
   const [editNotifyOnExit, setEditNotifyOnExit] = useState<string[]>([]);
   const [editShowFinancials, setEditShowFinancials] = useState(false);
+  const [editShowArchitectureQuestions, setEditShowArchitectureQuestions] = useState(false);
+  const [editShowCybersecurityQuestions, setEditShowCybersecurityQuestions] = useState(false);
   const [entryEmailDraft, setEntryEmailDraft] = useState("");
   const [exitEmailDraft, setExitEmailDraft] = useState("");
   const [entryEmailError, setEntryEmailError] = useState<string | null>(null);
@@ -205,6 +207,8 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     setEditNotifyOnEntry(step.notifyOnEntry || []);
     setEditNotifyOnExit(step.notifyOnExit || []);
     setEditShowFinancials(!!step.showFinancials);
+    setEditShowArchitectureQuestions(!!step.showArchitectureQuestions);
+    setEditShowCybersecurityQuestions(!!step.showCybersecurityQuestions);
     setEntryEmailDraft("");
     setExitEmailDraft("");
     setEntryEmailError(null);
@@ -244,6 +248,8 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     notifyOnEntry: s.notifyOnEntry || [],
     notifyOnExit: s.notifyOnExit || [],
     showFinancials: !!s.showFinancials,
+    showArchitectureQuestions: !!s.showArchitectureQuestions,
+    showCybersecurityQuestions: !!s.showCybersecurityQuestions,
     isActive: s.isActive,
   });
 
@@ -262,6 +268,8 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
           notifyOnEntry: editNotifyOnEntry,
           notifyOnExit: editNotifyOnExit,
           showFinancials: editShowFinancials,
+          showArchitectureQuestions: editShowArchitectureQuestions,
+          showCybersecurityQuestions: editShowCybersecurityQuestions,
           isActive: s.isActive,
         };
       }
@@ -295,6 +303,8 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
       notifyOnEntry: [],
       notifyOnExit: [],
       showFinancials: false,
+      showArchitectureQuestions: false,
+      showCybersecurityQuestions: false,
       isActive: true,
     };
 
@@ -796,7 +806,39 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
                   Show Intake Estimates grid on this step
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Render the per-fiscal-year CapEx / OpEx estimates table on this step's tab. Enable on any step where the team needs to capture or review intake financial estimates.
+                  Render the per-fiscal-year CapEx / OpEx estimates table on this step. Enable on any step where the team needs to capture or review intake financial estimates.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 rounded-md border p-3" data-testid="row-show-architecture">
+              <Switch
+                id="step-show-architecture"
+                checked={editShowArchitectureQuestions}
+                onCheckedChange={setEditShowArchitectureQuestions}
+                data-testid="switch-show-architecture"
+              />
+              <div className="space-y-1">
+                <Label htmlFor="step-show-architecture" className="cursor-pointer">
+                  Show Architecture questionnaire on this step
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Render an editable list of Architecture review questions (Y / N answers) on this step.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 rounded-md border p-3" data-testid="row-show-cybersecurity">
+              <Switch
+                id="step-show-cybersecurity"
+                checked={editShowCybersecurityQuestions}
+                onCheckedChange={setEditShowCybersecurityQuestions}
+                data-testid="switch-show-cybersecurity"
+              />
+              <div className="space-y-1">
+                <Label htmlFor="step-show-cybersecurity" className="cursor-pointer">
+                  Show Cybersecurity questionnaire on this step
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Render an editable list of Cybersecurity review questions (Y / N answers) on this step.
                 </p>
               </div>
             </div>

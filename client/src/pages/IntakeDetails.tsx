@@ -24,6 +24,7 @@ import { useCustomFieldDefinitions, useIntakeCustomFieldValues, useUpdateIntakeC
 import { useResources } from "@/hooks/use-resources";
 import { AttachmentFieldInput, AttachmentFieldDisplay } from "@/components/custom-fields/AttachmentField";
 import { IntakeFinancialsSection } from "@/components/intake/IntakeFinancialsSection";
+import { IntakeGovernanceQuestionsSection } from "@/components/intake/IntakeGovernanceQuestionsSection";
 import type { CustomFieldDefinition } from "@shared/schema";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -482,6 +483,8 @@ export default function IntakeDetails() {
   const anyStepShowsFinancials = workflowSteps.some(s => s.showFinancials === true);
   const showFinancialsForCurrentStep = currentStep?.showFinancials === true
     || (!anyStepShowsFinancials && currentStep?.stepKey === "business_case");
+  const showArchitectureForCurrentStep = currentStep?.showArchitectureQuestions === true;
+  const showCybersecurityForCurrentStep = currentStep?.showCybersecurityQuestions === true;
 
   return (
     <div className="space-y-6">
@@ -1067,6 +1070,14 @@ export default function IntakeDetails() {
 
       {showFinancialsForCurrentStep && (
         <IntakeFinancialsSection intakeId={intake.id} readOnly={isLocked} />
+      )}
+
+      {showArchitectureForCurrentStep && (
+        <IntakeGovernanceQuestionsSection intakeId={intake.id} category="architecture" readOnly={isLocked} />
+      )}
+
+      {showCybersecurityForCurrentStep && (
+        <IntakeGovernanceQuestionsSection intakeId={intake.id} category="cybersecurity" readOnly={isLocked} />
       )}
 
 

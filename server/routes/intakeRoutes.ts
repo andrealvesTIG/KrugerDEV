@@ -679,6 +679,8 @@ export function registerIntakeRoutes(app: Express) {
           const exit = sanitizeEmails(step.notifyOnExit);
           if (exit !== undefined) step.notifyOnExit = exit;
           if (step.showFinancials !== undefined) step.showFinancials = !!step.showFinancials;
+          if ((step as any).showArchitectureQuestions !== undefined) (step as any).showArchitectureQuestions = !!(step as any).showArchitectureQuestions;
+          if ((step as any).showCybersecurityQuestions !== undefined) (step as any).showCybersecurityQuestions = !!(step as any).showCybersecurityQuestions;
         }
       } catch (e: any) {
         return res.status(400).json({ message: e?.message || "Invalid email address" });
@@ -1244,6 +1246,113 @@ export function registerIntakeRoutes(app: Express) {
     } catch (err) {
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Error deleting intake financial' : classified.message });
+    }
+  });
+
+  // ==================== INTAKE GOVERNANCE QUESTIONS ====================
+
+  apiRoute(app, 'get', '/api/project-intakes/:intakeId/governance-questions', {
+    tag: 'Intake Governance Questions',
+    summary: 'List governance questionnaire rows for an intake',
+    parameters: [pathId('intakeId')],
+    responses: { ...r200('Governance questions', arrOf('IntakeGovernanceQuestion')), ...idRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const intakeId = Number(req.params.intakeId);
+      const intake = await storage.getProjectIntake(intakeId);
+      if (!intake) return res.status(404).json({ message: 'Intake not found' });
+      if (!await userHasOrgAccess(userId, intake.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const categoryRaw = typeof req.query.category === 'string' ? req.query.category : undefined;
+      const category = categoryRaw === 'architecture' || categoryRaw === 'cybersecurity' ? categoryRaw : undefined;
+      const rows = await storage.getIntakeGovernanceQuestions(intakeId, category);
+      res.json(rows);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error fetching governance questions' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'post', '/api/project-intakes/:intakeId/governance-questions', {
+    tag: 'Intake Governance Questions',
+    summary: 'Create governance questionnaire row',
+    parameters: [pathId('intakeId')],
+    requestBody: body(ref('IntakeGovernanceQuestion')),
+    responses: { ...r201('Governance question created', ref('IntakeGovernanceQuestion')), ...createRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      const intakeId = Number(req.params.intakeId);
+      const intake = await storage.getProjectIntake(intakeId);
+      if (!intake) return res.status(404).json({ message: 'Intake not found' });
+      if (!await userHasOrgAccess(userId!, intake.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const input = api.intakeGovernanceQuestions.create.input.parse(req.body);
+      const created = await storage.createIntakeGovernanceQuestion({ ...input, intakeId });
+      res.status(201).json(created);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error creating governance question' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'put', '/api/intake-governance-questions/:id', {
+    tag: 'Intake Governance Questions',
+    summary: 'Update governance questionnaire row',
+    parameters: [pathId()],
+    requestBody: body(ref('IntakeGovernanceQuestion'), false),
+    responses: { ...r200('Governance question updated', ref('IntakeGovernanceQuestion')), ...updateRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const existing = await storage.getIntakeGovernanceQuestion(id);
+      if (!existing) return res.status(404).json({ message: 'Governance question not found' });
+      const intake = await storage.getProjectIntake(existing.intakeId);
+      if (!intake || !await userHasOrgAccess(userId, intake.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const updates = api.intakeGovernanceQuestions.update.input.parse(req.body);
+      const updated = await storage.updateIntakeGovernanceQuestion(id, updates);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error updating governance question' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'delete', '/api/intake-governance-questions/:id', {
+    tag: 'Intake Governance Questions',
+    summary: 'Delete governance questionnaire row',
+    parameters: [pathId()],
+    responses: { ...r204('Governance question deleted'), ...fullRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const existing = await storage.getIntakeGovernanceQuestion(id);
+      if (!existing) return res.status(404).json({ message: 'Governance question not found' });
+      const intake = await storage.getProjectIntake(existing.intakeId);
+      if (!intake || !await userHasOrgAccess(userId, intake.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      await storage.deleteIntakeGovernanceQuestion(id);
+      res.status(204).send();
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error deleting governance question' : classified.message });
     }
   });
 
