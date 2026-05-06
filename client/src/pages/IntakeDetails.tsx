@@ -640,10 +640,6 @@ export default function IntakeDetails() {
         </CardContent>
       </Card>
 
-      {showFinancialsForCurrentStep && (
-        <IntakeFinancialsSection intakeId={intake.id} readOnly={isLocked} />
-      )}
-
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="flex w-full flex-wrap h-auto gap-1 justify-start">
           <TabsTrigger value="details" data-testid="tab-details">
@@ -1068,6 +1064,10 @@ export default function IntakeDetails() {
           <IntakeSourcePanel intakeId={id} />
         </TabsContent>
       </Tabs>
+
+      {showFinancialsForCurrentStep && (
+        <IntakeFinancialsSection intakeId={intake.id} readOnly={isLocked} />
+      )}
 
 
       {isApproved && intake.createdProjectId && (
