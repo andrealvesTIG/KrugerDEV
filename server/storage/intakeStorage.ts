@@ -15,7 +15,7 @@ import {
   type ProjectWorkflowStep, type InsertProjectWorkflowStep,
   type Project, type Task,
 } from "@shared/schema";
-import { eq, and, desc, asc, isNull, sql } from "drizzle-orm";
+import { eq, and, desc, asc, isNull, sql, inArray } from "drizzle-orm";
 import { getProject } from "./projectStorage";
 import { getTasks, deleteAllTasksForProject } from "./taskStorage";
 import { createScheduleVersionFromImportTasks } from "./scheduleVersionStorage";
@@ -1084,13 +1084,13 @@ export async function getIntakeTabLayout(organizationId: number): Promise<Intake
   if (tabRows.length === 0) return [];
   const tabIds = tabRows.map(t => t.id);
   const sectionRows = await db.select().from(_intakeTabSections)
-    .where(sql`${_intakeTabSections.tabId} = ANY(${tabIds})`)
+    .where(inArray(_intakeTabSections.tabId, tabIds))
     .orderBy(asc(_intakeTabSections.tabId), asc(_intakeTabSections.position), asc(_intakeTabSections.id));
   const sectionIds = sectionRows.map(s => s.id);
   const itemRows = sectionIds.length === 0
     ? []
     : await db.select().from(_intakeTabItems)
-        .where(sql`${_intakeTabItems.sectionId} = ANY(${sectionIds})`)
+        .where(inArray(_intakeTabItems.sectionId, sectionIds))
         .orderBy(asc(_intakeTabItems.sectionId), asc(_intakeTabItems.position), asc(_intakeTabItems.id));
 
   const itemsBySection = new Map<number, IntakeTabLayoutItemFull[]>();
