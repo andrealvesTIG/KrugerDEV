@@ -170,16 +170,25 @@ export function IntakeCostingChecklistSection({ intakeId, readOnly = false }: Pr
   const renderRowCells = (
     draft: RowDraft,
     set: (d: RowDraft) => void,
+    options: { lockCategoryAndQuestion?: boolean } = {},
   ) => (
     <>
-      <td className="px-2 py-2">{renderCategoryCell(draft.category, (v) => set({ ...draft, category: v }))}</td>
+      <td className="px-2 py-2 font-medium">
+        {options.lockCategoryAndQuestion
+          ? draft.category
+          : renderCategoryCell(draft.category, (v) => set({ ...draft, category: v }))}
+      </td>
       <td className="px-2 py-2">
-        <Input
-          value={draft.question}
-          onChange={(e) => set({ ...draft, question: e.target.value })}
-          className="h-8 min-w-[220px]"
-          placeholder="Question…"
-        />
+        {options.lockCategoryAndQuestion ? (
+          <span>{draft.question}</span>
+        ) : (
+          <Input
+            value={draft.question}
+            onChange={(e) => set({ ...draft, question: e.target.value })}
+            className="h-8 min-w-[220px]"
+            placeholder="Question…"
+          />
+        )}
       </td>
       <td className="px-2 py-2">
         <Input
@@ -313,7 +322,7 @@ export function IntakeCostingChecklistSection({ intakeId, readOnly = false }: Pr
                 return (
                   <tr key={row.id} className="border-b hover:bg-muted/30" data-testid={`row-costing-${row.id}`}>
                     {isEditing ? (
-                      renderRowCells(editValues, setEditValues)
+                      renderRowCells(editValues, setEditValues, { lockCategoryAndQuestion: true })
                     ) : (
                       <>
                         <td className="px-2 py-2 font-medium">{row.category}</td>
