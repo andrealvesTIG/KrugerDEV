@@ -524,15 +524,18 @@ export default function IntakeDetails() {
   const completedSteps = getCompletedSteps(intake);
   const StepIcon = currentStep?.icon || FileText;
 
-  // The Intake Estimates grid is shown when the *current* workflow step
-  // has `showFinancials` enabled. Backward-compat: if no step in the workflow
-  // has the flag set, fall back to showing it on the Business Case step so
-  // existing organizations keep their previous behavior.
+  // The Intake Estimates / Architecture / Cybersecurity grids are shown
+  // cumulatively: once a grid is enabled on any step, it stays visible on
+  // every later step too. Backward-compat for financials: if no step has
+  // `showFinancials` set, fall back to the Business Case step so existing
+  // organizations keep their previous behavior.
+  const stepsUpToCurrent = workflowSteps.slice(0, currentStepIndex + 1);
   const anyStepShowsFinancials = workflowSteps.some(s => s.showFinancials === true);
-  const showFinancialsForCurrentStep = currentStep?.showFinancials === true
+  const financialsEnabledAtOrBefore = stepsUpToCurrent.some(s => s.showFinancials === true);
+  const showFinancialsForCurrentStep = financialsEnabledAtOrBefore
     || (!anyStepShowsFinancials && currentStep?.stepKey === "business_case");
-  const showArchitectureForCurrentStep = currentStep?.showArchitectureQuestions === true;
-  const showCybersecurityForCurrentStep = currentStep?.showCybersecurityQuestions === true;
+  const showArchitectureForCurrentStep = stepsUpToCurrent.some(s => s.showArchitectureQuestions === true);
+  const showCybersecurityForCurrentStep = stepsUpToCurrent.some(s => s.showCybersecurityQuestions === true);
 
   return (
     <div className="space-y-6">
