@@ -475,23 +475,13 @@ export default function IntakeDetails() {
   const completedSteps = getCompletedSteps(intake);
   const StepIcon = currentStep?.icon || FileText;
 
-  // Map of TabsContent value -> canonical workflow step key.
-  const TAB_TO_STEP_KEY: Record<string, string> = {
-    "details": "intake_capture",
-    "business-case": "business_case",
-    "technical": "technical_evaluation",
-    "governance": "governance_review",
-  };
+  // The Intake Estimates grid is shown when the *current* workflow step
+  // has `showFinancials` enabled. Backward-compat: if no step in the workflow
+  // has the flag set, fall back to showing it on the Business Case step so
+  // existing organizations keep their previous behavior.
   const anyStepShowsFinancials = workflowSteps.some(s => s.showFinancials === true);
-  const shouldShowFinancialsOn = (tabValue: string): boolean => {
-    const stepKey = TAB_TO_STEP_KEY[tabValue];
-    if (!stepKey) return false;
-    const step = getStepByKey(stepKey);
-    if (step?.showFinancials === true) return true;
-    // Backward-compat: if no step in this workflow has been configured, default to Business Case.
-    if (!anyStepShowsFinancials && tabValue === "business-case") return true;
-    return false;
-  };
+  const showFinancialsForCurrentStep = currentStep?.showFinancials === true
+    || (!anyStepShowsFinancials && currentStep?.stepKey === "business_case");
 
   return (
     <div className="space-y-6">
@@ -649,6 +639,10 @@ export default function IntakeDetails() {
           )}
         </CardContent>
       </Card>
+
+      {showFinancialsForCurrentStep && (
+        <IntakeFinancialsSection intakeId={intake.id} readOnly={isLocked} />
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="flex w-full flex-wrap h-auto gap-1 justify-start">
@@ -824,9 +818,6 @@ export default function IntakeDetails() {
             </CardContent>
           </Card>
 
-          {shouldShowFinancialsOn("details") && (
-            <IntakeFinancialsSection intakeId={intake.id} readOnly={isLocked} />
-          )}
         </TabsContent>
 
         <TabsContent value="business-case" className="space-y-4">
@@ -922,9 +913,6 @@ export default function IntakeDetails() {
             </CardContent>
           </Card>
 
-          {shouldShowFinancialsOn("business-case") && (
-            <IntakeFinancialsSection intakeId={intake.id} readOnly={isLocked} />
-          )}
         </TabsContent>
 
         <TabsContent value="technical" className="space-y-4">
@@ -984,9 +972,6 @@ export default function IntakeDetails() {
             </CardContent>
           </Card>
 
-          {shouldShowFinancialsOn("technical") && (
-            <IntakeFinancialsSection intakeId={intake.id} readOnly={isLocked} />
-          )}
         </TabsContent>
 
         <TabsContent value="governance" className="space-y-4">
@@ -1034,10 +1019,6 @@ export default function IntakeDetails() {
               </div>
             </CardContent>
           </Card>
-
-          {shouldShowFinancialsOn("governance") && (
-            <IntakeFinancialsSection intakeId={intake.id} readOnly={isLocked} />
-          )}
 
           {canApproveIntakes && (
             <Card className="border-primary/20">
