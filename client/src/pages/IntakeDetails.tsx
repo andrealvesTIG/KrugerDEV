@@ -21,7 +21,6 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, Shield, Calculator, Save, Lightbulb, Gavel, ChevronsUpDown, Paperclip, MessageSquare, Image as ImageIcon, Download, User as UserIcon, Bot, Pencil, X, ExternalLink } from "lucide-react";
 import { useCustomFieldDefinitions, useIntakeCustomFieldValues, useUpdateIntakeCustomFieldValue } from "@/hooks/use-custom-fields";
-import { evaluateFormula } from "@/lib/formula";
 import type { CustomFieldDefinition } from "@shared/schema";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -1141,28 +1140,9 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked }: { int
 
   const handleEdit = (field: CustomFieldDefinition) => {
     if (isLocked) return;
-    if (field.fieldType === "formula") return;
+    if (field.fieldType === "autonumber") return;
     setEditingFieldId(field.id);
     setEditValue(getFieldValue(field.id));
-  };
-
-  const formulaLookup = (name: string, visited: Set<string>): number | undefined => {
-    const target = definitions.find(d => d.name.trim().toLowerCase() === name.trim().toLowerCase());
-    if (!target) return undefined;
-    if (target.fieldType === "formula" && (target as any).formula) {
-      const key = String(target.id);
-      if (visited.has(key)) {
-        throw new Error(`Circular reference: {${target.name}}`);
-      }
-      const next = new Set(visited);
-      next.add(key);
-      const r = evaluateFormula((target as any).formula, formulaLookup, next);
-      return r.ok ? r.value : undefined;
-    }
-    const raw = getFieldValue(target.id);
-    if (raw === "" || raw === null || raw === undefined) return undefined;
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : undefined;
   };
 
   const handleSave = async (fieldId: number) => {
@@ -1246,17 +1226,11 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked }: { int
   };
 
   const renderFieldValue = (field: CustomFieldDefinition) => {
-    if (field.fieldType === "formula") {
-      const expr = (field as any).formula as string | undefined;
-      if (!expr) return <span className="text-muted-foreground text-sm" data-testid={`value-intake-formula-empty-${field.id}`}>No formula</span>;
-      const result = evaluateFormula(expr, formulaLookup);
-      if (!result.ok) {
-        return <span className="text-muted-foreground text-sm italic" title={result.error} data-testid={`value-intake-formula-error-${field.id}`}>—</span>;
-      }
-      const display = Number.isInteger(result.value) ? String(result.value) : result.value.toFixed(2);
-      return <span className="text-sm font-medium" data-testid={`value-intake-formula-${field.id}`}>{display}</span>;
-    }
     const value = getFieldValue(field.id);
+    if (field.fieldType === "autonumber") {
+      if (!value) return <span className="text-muted-foreground text-sm italic" data-testid={`value-intake-autonumber-pending-${field.id}`}>Pending…</span>;
+      return <span className="text-sm font-mono font-medium" data-testid={`value-intake-autonumber-${field.id}`}>{value}</span>;
+    }
     if (!value) return <span className="text-muted-foreground text-sm" data-testid={`value-intake-empty-${field.id}`}>Not set</span>;
 
     switch (field.fieldType) {
@@ -1309,10 +1283,10 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked }: { int
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-            ) : field.fieldType === "formula" ? (
+            ) : field.fieldType === "autonumber" ? (
               <div
                 className="flex items-center justify-between p-2 rounded min-h-[36px] border border-input bg-muted/30"
-                data-testid={`display-intake-formula-field-${field.id}`}
+                data-testid={`display-intake-autonumber-field-${field.id}`}
               >
                 {renderFieldValue(field)}
               </div>

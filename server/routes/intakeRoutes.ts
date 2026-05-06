@@ -185,7 +185,13 @@ export function registerIntakeRoutes(app: Express) {
         status: input.status || 'draft',
         currentStep: input.currentStep || 'intake_capture',
       });
-      
+
+      await storage.assignAutonumberValuesForEntity({
+        organizationId: intake.organizationId,
+        entityType: 'intake',
+        entityId: intake.id,
+      }).catch((e) => console.error('[autonumber] intake assignment failed:', e));
+
       if (userId) {
         const { recordResourceUsage, METER_CODES } = await import("../services/billing");
         await recordResourceUsage(userId, METER_CODES.INTAKES, intake.id, 1, input.organizationId);

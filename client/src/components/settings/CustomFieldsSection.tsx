@@ -23,7 +23,7 @@ const FIELD_TYPES = [
   { value: "multiselect", label: "Multi Select" },
   { value: "checkbox", label: "Checkbox" },
   { value: "url", label: "URL" },
-  { value: "formula", label: "Formula (Calculated)" },
+  { value: "autonumber", label: "Auto Number" },
 ] as const;
 
 const ENTITY_TYPES = [
@@ -51,7 +51,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
   const [description, setDescription] = useState("");
   const [isRequired, setIsRequired] = useState(false);
   const [options, setOptions] = useState("");
-  const [formula, setFormula] = useState("");
+  const [mask, setMask] = useState("");
 
   const filteredFields = useMemo(() =>
     fields.filter(f => (f.entityType || 'project') === activeEntityTab),
@@ -65,7 +65,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
     setDescription("");
     setIsRequired(false);
     setOptions("");
-    setFormula("");
+    setMask("");
     setEditingField(null);
   };
 
@@ -77,7 +77,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
     setDescription(field.description || "");
     setIsRequired(field.isRequired ?? false);
     setOptions(field.options ? (field.options as string[]).join(", ") : "");
-    setFormula((field as any).formula || "");
+    setMask((field as any).mask || "");
     setShowAddDialog(true);
   };
 
@@ -91,12 +91,18 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
       ? options.split(",").map(o => o.trim()).filter(Boolean)
       : null;
 
-    if (fieldType === "formula" && !formula.trim()) {
-      toast({ title: "Error", description: "Formula is required for calculated fields", variant: "destructive" });
-      return;
+    if (fieldType === "autonumber") {
+      if (!mask.trim()) {
+        toast({ title: "Error", description: "Mask is required for auto number fields", variant: "destructive" });
+        return;
+      }
+      if ((mask.match(/#+/g) || []).length > 1) {
+        toast({ title: "Error", description: "Mask may only contain one run of '#' digit placeholders", variant: "destructive" });
+        return;
+      }
     }
 
-    const formulaValue = fieldType === "formula" ? formula.trim() : null;
+    const maskValue = fieldType === "autonumber" ? mask.trim() : null;
 
     try {
       if (editingField) {
@@ -109,7 +115,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
           description: description.trim() || null,
           isRequired,
           options: optionsArray,
-          formula: formulaValue,
+          mask: maskValue,
         } as any);
         toast({ title: "Success", description: "Custom field updated" });
       } else {
@@ -121,7 +127,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
           description: description.trim() || null,
           isRequired,
           options: optionsArray,
-          formula: formulaValue,
+          mask: maskValue,
           displayOrder: filteredFields.length,
         } as any);
         toast({ title: "Success", description: "Custom field created" });
@@ -331,43 +337,33 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
                 />
               </div>
             )}
-            {fieldType === "formula" && (
+            {fieldType === "autonumber" && (
               <div className="space-y-2">
-                <Label htmlFor="field-formula">Formula / Mask *</Label>
+                <Label htmlFor="field-mask">Mask *</Label>
                 <Input
-                  id="field-formula"
-                  value={formula}
-                  onChange={(e) => setFormula(e.target.value)}
-                  placeholder="e.g., {Budget} * 1.1 + {Contingency}"
-                  data-testid="input-field-formula"
+                  id="field-mask"
+                  value={mask}
+                  onChange={(e) => setMask(e.target.value)}
+                  placeholder="e.g., N###  or  PRJ-####"
+                  data-testid="input-field-mask"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Reference other numeric custom fields by name in curly braces. Supports + - * / % and parentheses.
+                  Use <code className="px-1 rounded bg-muted">#</code> as a digit placeholder for the sequence number.
+                  For example, <code className="px-1 rounded bg-muted">N###</code> produces N001, N002, N003.
+                  A new value is assigned automatically when a record is created and never changes after that.
                 </p>
-                {(() => {
-                  const numericFields = fields.filter(f =>
-                    (f.entityType || 'project') === entityType &&
-                    (f.fieldType === 'number' || f.fieldType === 'formula') &&
-                    f.id !== editingField?.id
-                  );
-                  if (numericFields.length === 0) return null;
-                  return (
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      <span className="text-[10px] uppercase tracking-wide text-muted-foreground self-center mr-1">Available:</span>
-                      {numericFields.map(f => (
-                        <Badge
-                          key={f.id}
-                          variant="outline"
-                          className="cursor-pointer text-[11px]"
-                          onClick={() => setFormula(prev => prev + `{${f.name}}`)}
-                          data-testid={`badge-formula-ref-${f.id}`}
-                        >
-                          {`{${f.name}}`}
-                        </Badge>
-                      ))}
-                    </div>
-                  );
-                })()}
+                {mask.trim() && (
+                  <p className="text-xs text-muted-foreground">
+                    Preview: <span className="font-mono font-medium text-foreground">
+                      {(() => {
+                        const m = mask.trim();
+                        const match = m.match(/#+/);
+                        if (!match) return `${m}1`;
+                        return m.replace(/#+/, "1".padStart(match[0].length, "0"));
+                      })()}
+                    </span>
+                  </p>
+                )}
               </div>
             )}
             <div className="space-y-2">

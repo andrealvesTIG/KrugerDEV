@@ -757,12 +757,17 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const organizationId = parseInt(req.params.organizationId);
-      const { name, fieldType, entityType, description, isRequired, options, defaultValue, formula, displayOrder, isActive } = req.body;
+      const { name, fieldType, entityType, description, isRequired, options, defaultValue, mask, displayOrder, isActive } = req.body;
       if (!name || typeof name !== "string" || !name.trim()) {
         return res.status(400).json({ message: "Field name is required" });
       }
-      if (fieldType === 'formula' && (!formula || typeof formula !== 'string' || !formula.trim())) {
-        return res.status(400).json({ message: "Formula is required for calculated fields" });
+      if (fieldType === 'autonumber') {
+        if (!mask || typeof mask !== 'string' || !mask.trim()) {
+          return res.status(400).json({ message: "Mask is required for auto number fields" });
+        }
+        if ((mask.match(/#+/g) || []).length > 1) {
+          return res.status(400).json({ message: "Mask may only contain one run of '#' digit placeholders" });
+        }
       }
       const field = await storage.createCustomFieldDefinition({
         organizationId,
@@ -773,7 +778,7 @@ export async function registerMiscRoutes(app: Express) {
         isRequired,
         options,
         defaultValue,
-        formula: fieldType === 'formula' ? formula.trim() : null,
+        mask: fieldType === 'autonumber' ? mask.trim() : null,
         displayOrder,
         isActive,
       });
@@ -794,7 +799,7 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const id = parseInt(req.params.id);
-      const { name, fieldName, fieldType, fieldLabel, entityType, description, isRequired, options, defaultValue, formula, displayOrder, isActive } = req.body;
+      const { name, fieldName, fieldType, fieldLabel, entityType, description, isRequired, options, defaultValue, mask, displayOrder, isActive } = req.body;
       const safeUpdate: Record<string, any> = {};
       const nameVal = name ?? fieldName;
       if (nameVal !== undefined) safeUpdate.name = nameVal;
@@ -804,22 +809,26 @@ export async function registerMiscRoutes(app: Express) {
       if (isRequired !== undefined) safeUpdate.isRequired = isRequired;
       if (options !== undefined) safeUpdate.options = options;
       if (defaultValue !== undefined) safeUpdate.defaultValue = defaultValue;
-      if (formula !== undefined) safeUpdate.formula = formula;
+      if (mask !== undefined) safeUpdate.mask = mask;
       if (displayOrder !== undefined) safeUpdate.displayOrder = displayOrder;
       if (isActive !== undefined) safeUpdate.isActive = isActive;
       // Determine the effective field type after this update (may be a switch
-      // from another type to 'formula' without `formula` in the payload).
+      // from another type to 'autonumber' without `mask` in the payload).
       const existing = await storage.getCustomFieldDefinition(id);
       const effectiveType = safeUpdate.fieldType ?? existing?.fieldType;
-      if (effectiveType === 'formula') {
-        const effectiveFormula = safeUpdate.formula !== undefined ? safeUpdate.formula : (existing as any)?.formula;
-        if (!effectiveFormula || !String(effectiveFormula).trim()) {
-          return res.status(400).json({ message: "Formula is required for calculated fields" });
+      if (effectiveType === 'autonumber') {
+        const effectiveMask = safeUpdate.mask !== undefined ? safeUpdate.mask : (existing as any)?.mask;
+        if (!effectiveMask || !String(effectiveMask).trim()) {
+          return res.status(400).json({ message: "Mask is required for auto number fields" });
         }
-        safeUpdate.formula = String(effectiveFormula).trim();
-      } else if (safeUpdate.fieldType !== undefined && safeUpdate.fieldType !== 'formula') {
-        // Switching away from formula — clear the stored expression.
-        safeUpdate.formula = null;
+        const trimmedMask = String(effectiveMask).trim();
+        if ((trimmedMask.match(/#+/g) || []).length > 1) {
+          return res.status(400).json({ message: "Mask may only contain one run of '#' digit placeholders" });
+        }
+        safeUpdate.mask = trimmedMask;
+      } else if (safeUpdate.fieldType !== undefined && safeUpdate.fieldType !== 'autonumber') {
+        // Switching away from autonumber — clear the stored mask.
+        safeUpdate.mask = null;
       }
       const field = await storage.updateCustomFieldDefinition(id, safeUpdate);
       res.json(field);
@@ -906,7 +915,12 @@ export async function registerMiscRoutes(app: Express) {
       const projectId = parseInt(req.params.projectId);
       const fieldDefinitionId = parseInt(req.params.fieldDefinitionId);
       const { value } = req.body;
-      
+
+      const def = await storage.getCustomFieldDefinition(fieldDefinitionId);
+      if (def?.fieldType === 'autonumber') {
+        return res.status(400).json({ message: "Auto number fields are read-only and cannot be edited" });
+      }
+
       const fieldValue = await storage.upsertProjectCustomFieldValue({
         projectId,
         fieldDefinitionId,
@@ -930,9 +944,17 @@ export async function registerMiscRoutes(app: Express) {
     try {
       const projectId = parseInt(req.params.projectId);
       const { values } = req.body; // Array of { fieldDefinitionId, value }
-      
+
+      // Auto number fields are server-assigned — reject any bulk write that targets them.
+      const defIds = Array.from(new Set((values as any[]).map(v => v.fieldDefinitionId)));
+      const defs = await Promise.all(defIds.map(id => storage.getCustomFieldDefinition(id)));
+      const autoIds = defs.filter(d => d?.fieldType === 'autonumber').map(d => d!.id);
+      if (autoIds.length > 0) {
+        return res.status(400).json({ message: "Auto number fields are read-only and cannot be edited", fieldDefinitionIds: autoIds });
+      }
+
       const results = await Promise.all(
-        values.map((v: { fieldDefinitionId: number; value: string | null }) => 
+        (values as any[]).map((v: { fieldDefinitionId: number; value: string | null }) =>
           storage.upsertProjectCustomFieldValue({
             projectId,
             fieldDefinitionId: v.fieldDefinitionId,
@@ -958,6 +980,10 @@ export async function registerMiscRoutes(app: Express) {
     try {
       const projectId = parseInt(req.params.projectId);
       const fieldDefinitionId = parseInt(req.params.fieldDefinitionId);
+      const def = await storage.getCustomFieldDefinition(fieldDefinitionId);
+      if (def?.fieldType === 'autonumber') {
+        return res.status(400).json({ message: "Auto number fields are read-only and cannot be deleted" });
+      }
       await storage.deleteProjectCustomFieldValue(projectId, fieldDefinitionId);
       res.status(204).send();
     } catch (error) {
@@ -992,6 +1018,10 @@ export async function registerMiscRoutes(app: Express) {
       const intakeId = parseInt(req.params.intakeId);
       const fieldDefinitionId = parseInt(req.params.fieldDefinitionId);
       const { value } = req.body;
+      const def = await storage.getCustomFieldDefinition(fieldDefinitionId);
+      if (def?.fieldType === 'autonumber') {
+        return res.status(400).json({ message: "Auto number fields are read-only and cannot be edited" });
+      }
       const fieldValue = await storage.upsertIntakeCustomFieldValue({ intakeId, fieldDefinitionId, value });
       res.json(fieldValue);
     } catch (error) {
@@ -1007,6 +1037,12 @@ export async function registerMiscRoutes(app: Express) {
     try {
       const intakeId = parseInt(req.params.intakeId);
       const { values } = req.body;
+      const defIds = Array.from(new Set((values as any[]).map(v => v.fieldDefinitionId)));
+      const defs = await Promise.all(defIds.map(id => storage.getCustomFieldDefinition(id)));
+      const autoIds = defs.filter(d => d?.fieldType === 'autonumber').map(d => d!.id);
+      if (autoIds.length > 0) {
+        return res.status(400).json({ message: "Auto number fields are read-only and cannot be edited", fieldDefinitionIds: autoIds });
+      }
       const results = await Promise.all(
         (values as Array<{ fieldDefinitionId: number; value: string | null }>).map(v =>
           storage.upsertIntakeCustomFieldValue({ intakeId, fieldDefinitionId: v.fieldDefinitionId, value: v.value })
@@ -1026,6 +1062,10 @@ export async function registerMiscRoutes(app: Express) {
     try {
       const intakeId = parseInt(req.params.intakeId);
       const fieldDefinitionId = parseInt(req.params.fieldDefinitionId);
+      const def = await storage.getCustomFieldDefinition(fieldDefinitionId);
+      if (def?.fieldType === 'autonumber') {
+        return res.status(400).json({ message: "Auto number fields are read-only and cannot be deleted" });
+      }
       await storage.deleteIntakeCustomFieldValue(intakeId, fieldDefinitionId);
       res.status(204).send();
     } catch (error) {
@@ -1074,6 +1114,10 @@ export async function registerMiscRoutes(app: Express) {
       const taskId = parseInt(req.params.taskId);
       const fieldDefinitionId = parseInt(req.params.fieldDefinitionId);
       const { value } = req.body;
+      const def = await storage.getCustomFieldDefinition(fieldDefinitionId);
+      if (def?.fieldType === 'autonumber') {
+        return res.status(400).json({ message: "Auto number fields are read-only and cannot be edited" });
+      }
       const fieldValue = await storage.upsertTaskCustomFieldValue({ taskId, fieldDefinitionId, value });
       res.json(fieldValue);
     } catch (error) {
@@ -1089,8 +1133,14 @@ export async function registerMiscRoutes(app: Express) {
     try {
       const taskId = parseInt(req.params.taskId);
       const { values } = req.body;
+      const defIds = Array.from(new Set((values as any[]).map(v => v.fieldDefinitionId)));
+      const defs = await Promise.all(defIds.map(id => storage.getCustomFieldDefinition(id)));
+      const autoIds = defs.filter(d => d?.fieldType === 'autonumber').map(d => d!.id);
+      if (autoIds.length > 0) {
+        return res.status(400).json({ message: "Auto number fields are read-only and cannot be edited", fieldDefinitionIds: autoIds });
+      }
       const results = await Promise.all(
-        values.map((v: { fieldDefinitionId: number; value: string | null }) =>
+        (values as any[]).map((v: { fieldDefinitionId: number; value: string | null }) =>
           storage.upsertTaskCustomFieldValue({ taskId, fieldDefinitionId: v.fieldDefinitionId, value: v.value })
         )
       );
@@ -1108,6 +1158,10 @@ export async function registerMiscRoutes(app: Express) {
     try {
       const taskId = parseInt(req.params.taskId);
       const fieldDefinitionId = parseInt(req.params.fieldDefinitionId);
+      const def = await storage.getCustomFieldDefinition(fieldDefinitionId);
+      if (def?.fieldType === 'autonumber') {
+        return res.status(400).json({ message: "Auto number fields are read-only and cannot be deleted" });
+      }
       await storage.deleteTaskCustomFieldValue(taskId, fieldDefinitionId);
       res.status(204).send();
     } catch (error) {
@@ -1142,6 +1196,10 @@ export async function registerMiscRoutes(app: Express) {
       const resourceId = parseInt(req.params.resourceId);
       const fieldDefinitionId = parseInt(req.params.fieldDefinitionId);
       const { value } = req.body;
+      const def = await storage.getCustomFieldDefinition(fieldDefinitionId);
+      if (def?.fieldType === 'autonumber') {
+        return res.status(400).json({ message: "Auto number fields are read-only and cannot be edited" });
+      }
       const fieldValue = await storage.upsertResourceCustomFieldValue({ resourceId, fieldDefinitionId, value });
       res.json(fieldValue);
     } catch (error) {
@@ -1157,8 +1215,14 @@ export async function registerMiscRoutes(app: Express) {
     try {
       const resourceId = parseInt(req.params.resourceId);
       const { values } = req.body;
+      const defIds = Array.from(new Set((values as any[]).map(v => v.fieldDefinitionId)));
+      const defs = await Promise.all(defIds.map(id => storage.getCustomFieldDefinition(id)));
+      const autoIds = defs.filter(d => d?.fieldType === 'autonumber').map(d => d!.id);
+      if (autoIds.length > 0) {
+        return res.status(400).json({ message: "Auto number fields are read-only and cannot be edited", fieldDefinitionIds: autoIds });
+      }
       const results = await Promise.all(
-        values.map((v: { fieldDefinitionId: number; value: string | null }) =>
+        (values as any[]).map((v: { fieldDefinitionId: number; value: string | null }) =>
           storage.upsertResourceCustomFieldValue({ resourceId, fieldDefinitionId: v.fieldDefinitionId, value: v.value })
         )
       );
@@ -1176,6 +1240,10 @@ export async function registerMiscRoutes(app: Express) {
     try {
       const resourceId = parseInt(req.params.resourceId);
       const fieldDefinitionId = parseInt(req.params.fieldDefinitionId);
+      const def = await storage.getCustomFieldDefinition(fieldDefinitionId);
+      if (def?.fieldType === 'autonumber') {
+        return res.status(400).json({ message: "Auto number fields are read-only and cannot be deleted" });
+      }
       await storage.deleteResourceCustomFieldValue(resourceId, fieldDefinitionId);
       res.status(204).send();
     } catch (error) {

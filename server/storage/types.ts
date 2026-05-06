@@ -547,6 +547,7 @@ export interface IMiscStorage {
   getStatusReportHistory(projectId: number): Promise<StatusReportHistory[]>;
   getStatusReportHistoryByOrg(organizationId: number): Promise<StatusReportHistory[]>;
   createStatusReportHistory(report: InsertStatusReportHistory): Promise<StatusReportHistory>;
+  assignAutonumberValuesForEntity(args: { organizationId: number; entityType: 'project' | 'task' | 'resource' | 'intake'; entityId: number }): Promise<void>;
   getCustomFieldDefinitions(organizationId: number): Promise<CustomFieldDefinition[]>;
   getCustomFieldDefinition(id: number): Promise<CustomFieldDefinition | undefined>;
   createCustomFieldDefinition(field: InsertCustomFieldDefinition): Promise<CustomFieldDefinition>;

@@ -1129,7 +1129,11 @@ function ResourceCustomFieldsSection({ resourceId, organizationId }: { resourceI
               {field.name}
               {field.isRequired && <span className="text-destructive">*</span>}
             </Label>
-            {editingFieldId === field.id ? (
+            {field.fieldType === "autonumber" ? (
+              <div className="flex items-center p-1 min-h-[28px] font-mono text-sm">
+                {getFieldValue(field.id) || <span className="text-muted-foreground">Pending…</span>}
+              </div>
+            ) : editingFieldId === field.id ? (
               <div className="flex items-center gap-2">
                 {renderFieldInput(field)}
                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleSave(field.id)}>

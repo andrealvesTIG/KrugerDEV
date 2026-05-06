@@ -207,7 +207,15 @@ function TaskCustomFieldsSection({
               {field.name}
               {field.isRequired && <span className="text-red-500 ml-1">*</span>}
             </Label>
-            {field.fieldType === "checkbox" ? (
+            {field.fieldType === "autonumber" ? (
+              <div
+                id={fieldId}
+                className="flex h-10 items-center rounded-md border border-input bg-muted/40 px-3 font-mono text-sm text-foreground"
+                data-testid={`input-cf-${field.id}`}
+              >
+                {value || <span className="text-muted-foreground">Pending…</span>}
+              </div>
+            ) : field.fieldType === "checkbox" ? (
               <div className="flex items-center h-10">
                 <Checkbox
                   id={fieldId}

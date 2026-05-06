@@ -1469,7 +1469,21 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
 
       const task = await storage.createTask(input);
-      
+
+      // Assign autonumber custom-field values (looks up org from the parent project).
+      try {
+        const parentProject = await storage.getProject(input.projectId);
+        if (parentProject?.organizationId) {
+          await storage.assignAutonumberValuesForEntity({
+            organizationId: parentProject.organizationId,
+            entityType: 'task',
+            entityId: task.id,
+          });
+        }
+      } catch (e) {
+        console.error('[autonumber] task assignment failed:', e);
+      }
+
       // Recalculate WBS for all tasks in the project
       await recalculateProjectWBS(input.projectId);
       

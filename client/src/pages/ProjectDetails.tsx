@@ -18,7 +18,6 @@ import { useProjectComments, useCreateProjectComment, useDeleteProjectComment } 
 import { useBillableStatusComments, useCreateBillableStatusComment } from "@/hooks/use-billable-status-comments";
 import { useHealthStatusHistory } from "@/hooks/use-health-status-history";
 import { useCustomFieldDefinitions, useProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
-import { evaluateFormula } from "@/lib/formula";
 import { useCustomProjectTabs, useFullCustomTab } from "@/hooks/use-custom-tabs";
 import { PROJECT_STATUSES, PROJECT_STATUSES_EXTENDED, PROJECT_HEALTH_VALUES, PROJECT_PRIORITIES, BILLABLE_STATUSES } from "@shared/schema";
 import type { CustomFieldDefinition, CustomTabField } from "@shared/schema";
@@ -3349,28 +3348,9 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
   };
 
   const handleEdit = (field: CustomFieldDefinition) => {
-    if (field.fieldType === "formula") return;
+    if (field.fieldType === "autonumber") return;
     setEditingFieldId(field.id);
     setEditValue(getFieldValue(field.id));
-  };
-
-  const formulaLookup = (name: string, visited: Set<string>): number | undefined => {
-    const target = definitions.find(d => d.name.trim().toLowerCase() === name.trim().toLowerCase());
-    if (!target) return undefined;
-    if (target.fieldType === "formula" && (target as any).formula) {
-      const key = String(target.id);
-      if (visited.has(key)) {
-        throw new Error(`Circular reference: {${target.name}}`);
-      }
-      const next = new Set(visited);
-      next.add(key);
-      const r = evaluateFormula((target as any).formula, formulaLookup, next);
-      return r.ok ? r.value : undefined;
-    }
-    const raw = getFieldValue(target.id);
-    if (raw === "" || raw === null || raw === undefined) return undefined;
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : undefined;
   };
 
   const handleSave = async (fieldId: number) => {
@@ -3491,17 +3471,11 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
   };
 
   const renderFieldValue = (field: CustomFieldDefinition) => {
-    if (field.fieldType === "formula") {
-      const expr = (field as any).formula as string | undefined;
-      if (!expr) return <span className="text-muted-foreground text-sm" data-testid={`value-formula-empty-${field.id}`}>No formula</span>;
-      const result = evaluateFormula(expr, formulaLookup);
-      if (!result.ok) {
-        return <span className="text-muted-foreground text-sm italic" title={result.error} data-testid={`value-formula-error-${field.id}`}>—</span>;
-      }
-      const display = Number.isInteger(result.value) ? String(result.value) : result.value.toFixed(2);
-      return <span className="text-sm font-medium" data-testid={`value-formula-${field.id}`}>{display}</span>;
-    }
     const value = getFieldValue(field.id);
+    if (field.fieldType === "autonumber") {
+      if (!value) return <span className="text-muted-foreground text-sm italic" data-testid={`value-autonumber-pending-${field.id}`}>Pending…</span>;
+      return <span className="text-sm font-mono font-medium" data-testid={`value-autonumber-${field.id}`}>{value}</span>;
+    }
     if (!value) return <span className="text-muted-foreground text-sm" data-testid={`value-empty-${field.id}`}>Not set</span>;
 
     switch (field.fieldType) {
@@ -3553,10 +3527,10 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-            ) : field.fieldType === "formula" ? (
+            ) : field.fieldType === "autonumber" ? (
               <div
                 className="flex items-center justify-between p-1 rounded min-h-[28px] bg-muted/30"
-                data-testid={`display-formula-field-${field.id}`}
+                data-testid={`display-autonumber-field-${field.id}`}
               >
                 {renderFieldValue(field)}
               </div>

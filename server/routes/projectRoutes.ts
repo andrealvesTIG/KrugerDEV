@@ -172,7 +172,13 @@ export function registerProjectRoutes(app: Express) {
         updatedBy: userId || null,
       };
       const project = await storage.createProject(sanitizedInput);
-      
+
+      await storage.assignAutonumberValuesForEntity({
+        organizationId: project.organizationId,
+        entityType: 'project',
+        entityId: project.id,
+      }).catch((e) => console.error('[autonumber] project assignment failed:', e));
+
       if (userId) {
         await logUserActivity(userId, 'create_project', 'project', project.id, { name: project.name, organizationId: project.organizationId }, req).catch((e) => {
           console.error('[activity] failed to log create_project:', e);

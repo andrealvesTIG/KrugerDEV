@@ -308,6 +308,71 @@ export async function getUserConsentStats(): Promise<{ consentType: string; vers
   return stats;
 }
 
+// Assigns values for any active 'autonumber' custom-field definitions on a
+// newly-created entity. Atomically increments each definition's sequence
+// counter and inserts the rendered value (e.g. "N001") into the appropriate
+// per-entity custom-field-value table. Safe to no-op when no autonumber
+// definitions exist for the org+entityType.
+export async function assignAutonumberValuesForEntity(args: {
+  organizationId: number;
+  entityType: 'project' | 'task' | 'resource' | 'intake';
+  entityId: number;
+}): Promise<void> {
+  const { organizationId, entityType, entityId } = args;
+  const defs = await db.select().from(customFieldDefinitions).where(and(
+    eq(customFieldDefinitions.organizationId, organizationId),
+    eq(customFieldDefinitions.entityType, entityType),
+    eq(customFieldDefinitions.fieldType, 'autonumber'),
+    eq(customFieldDefinitions.isActive, true),
+  ));
+  if (!defs.length) return;
+
+  for (const def of defs) {
+    // Atomically increment the counter and grab the assigned sequence number
+    // in one statement to avoid races between concurrent entity creations.
+    const [updated] = await db.update(customFieldDefinitions)
+      .set({ nextSequence: sql`coalesce(${customFieldDefinitions.nextSequence}, 1) + 1` })
+      .where(eq(customFieldDefinitions.id, def.id))
+      .returning({ assigned: sql<number>`coalesce(${customFieldDefinitions.nextSequence}, 2) - 1` });
+    const seq = updated?.assigned ?? 1;
+    const mask = (def as any).mask ?? '';
+    const match = String(mask).match(/#+/);
+    const rendered = match
+      ? String(mask).replace(/#+/, String(seq).padStart(match[0].length, '0'))
+      : `${mask}${seq}`;
+
+    try {
+      if (entityType === 'project') {
+        await db.insert(projectCustomFieldValues).values({
+          projectId: entityId,
+          fieldDefinitionId: def.id,
+          value: rendered,
+        }).onConflictDoNothing({ target: [projectCustomFieldValues.projectId, projectCustomFieldValues.fieldDefinitionId] });
+      } else if (entityType === 'task') {
+        await db.insert(taskCustomFieldValues).values({
+          taskId: entityId,
+          fieldDefinitionId: def.id,
+          value: rendered,
+        }).onConflictDoNothing({ target: [taskCustomFieldValues.taskId, taskCustomFieldValues.fieldDefinitionId] });
+      } else if (entityType === 'resource') {
+        await db.insert(resourceCustomFieldValues).values({
+          resourceId: entityId,
+          fieldDefinitionId: def.id,
+          value: rendered,
+        }).onConflictDoNothing({ target: [resourceCustomFieldValues.resourceId, resourceCustomFieldValues.fieldDefinitionId] });
+      } else if (entityType === 'intake') {
+        await db.insert(intakeCustomFieldValues).values({
+          intakeId: entityId,
+          fieldDefinitionId: def.id,
+          value: rendered,
+        }).onConflictDoNothing({ target: [intakeCustomFieldValues.intakeId, intakeCustomFieldValues.fieldDefinitionId] });
+      }
+    } catch (e) {
+      console.error(`[autonumber] failed to assign value for definition ${def.id} on ${entityType} ${entityId}:`, e);
+    }
+  }
+}
+
 export async function getCustomFieldDefinitions(organizationId: number): Promise<CustomFieldDefinition[]> {
   return await db.select().from(customFieldDefinitions)
     .where(and(

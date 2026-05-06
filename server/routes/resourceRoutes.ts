@@ -531,9 +531,15 @@ export function registerResourceRoutes(app: Express) {
         skills,
         hourlyRate,
         isActive,
-        notes
+        notes,
       });
-      
+
+      await storage.assignAutonumberValuesForEntity({
+        organizationId,
+        entityType: 'resource',
+        entityId: resource.id,
+      }).catch((e) => console.error('[autonumber] resource assignment failed:', e));
+
       // Record usage after successful creation
       if (userId) {
         const { recordResourceUsage, METER_CODES } = await import("../services/billing");
