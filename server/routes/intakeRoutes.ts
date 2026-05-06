@@ -678,6 +678,7 @@ export function registerIntakeRoutes(app: Express) {
           if (entry !== undefined) step.notifyOnEntry = entry;
           const exit = sanitizeEmails(step.notifyOnExit);
           if (exit !== undefined) step.notifyOnExit = exit;
+          if (step.showFinancials !== undefined) step.showFinancials = !!step.showFinancials;
         }
       } catch (e: any) {
         return res.status(400).json({ message: e?.message || "Invalid email address" });

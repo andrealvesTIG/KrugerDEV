@@ -56,6 +56,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
   const [editRequiredFields, setEditRequiredFields] = useState<string[]>([]);
   const [editNotifyOnEntry, setEditNotifyOnEntry] = useState<string[]>([]);
   const [editNotifyOnExit, setEditNotifyOnExit] = useState<string[]>([]);
+  const [editShowFinancials, setEditShowFinancials] = useState(false);
   const [entryEmailDraft, setEntryEmailDraft] = useState("");
   const [exitEmailDraft, setExitEmailDraft] = useState("");
   const [entryEmailError, setEntryEmailError] = useState<string | null>(null);
@@ -203,6 +204,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     setEditRequiredFields(step.requiredFields || []);
     setEditNotifyOnEntry(step.notifyOnEntry || []);
     setEditNotifyOnExit(step.notifyOnExit || []);
+    setEditShowFinancials(!!step.showFinancials);
     setEntryEmailDraft("");
     setExitEmailDraft("");
     setEntryEmailError(null);
@@ -241,6 +243,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     requiredFields: s.requiredFields,
     notifyOnEntry: s.notifyOnEntry || [],
     notifyOnExit: s.notifyOnExit || [],
+    showFinancials: !!s.showFinancials,
     isActive: s.isActive,
   });
 
@@ -258,6 +261,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
           requiredFields: editRequiredFields,
           notifyOnEntry: editNotifyOnEntry,
           notifyOnExit: editNotifyOnExit,
+          showFinancials: editShowFinancials,
           isActive: s.isActive,
         };
       }
@@ -290,6 +294,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
       requiredFields: [],
       notifyOnEntry: [],
       notifyOnExit: [],
+      showFinancials: false,
       isActive: true,
     };
 
@@ -779,6 +784,22 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
                 </>
               );
             })()}
+            <div className="flex items-start gap-3 rounded-md border p-3" data-testid="row-show-financials">
+              <Switch
+                id="step-show-financials"
+                checked={editShowFinancials}
+                onCheckedChange={setEditShowFinancials}
+                data-testid="switch-show-financials"
+              />
+              <div className="space-y-1">
+                <Label htmlFor="step-show-financials" className="cursor-pointer">
+                  Show Intake Estimates grid on this step
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Render the per-fiscal-year CapEx / OpEx estimates table on this step's tab. Enable on any step where the team needs to capture or review intake financial estimates.
+                </p>
+              </div>
+            </div>
             <div className="space-y-2">
               <Label>Required Fields</Label>
               <p className="text-sm text-muted-foreground mb-2">
