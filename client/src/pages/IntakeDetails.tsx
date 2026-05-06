@@ -22,6 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, Shield, Calculator, Save, Lightbulb, Gavel, ChevronsUpDown, Paperclip, MessageSquare, Image as ImageIcon, Download, User as UserIcon, Bot, Pencil, X, ExternalLink } from "lucide-react";
 import { useCustomFieldDefinitions, useIntakeCustomFieldValues, useUpdateIntakeCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useResources } from "@/hooks/use-resources";
+import { AttachmentFieldInput, AttachmentFieldDisplay } from "@/components/custom-fields/AttachmentField";
 import type { CustomFieldDefinition } from "@shared/schema";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -1213,6 +1214,14 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked }: { int
             </SelectContent>
           </Select>
         );
+      case "attachment":
+        return (
+          <AttachmentFieldInput
+            value={editValue}
+            onChange={setEditValue}
+            testId={`attachment-intake-custom-field-${field.id}`}
+          />
+        );
       case "multiselect": {
         const selectedValues = parseMultiSelectValue(editValue);
         return (
@@ -1245,6 +1254,9 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked }: { int
     if (field.fieldType === "autonumber") {
       if (!value) return <span className="text-muted-foreground text-sm italic" data-testid={`value-intake-autonumber-pending-${field.id}`}>Pending…</span>;
       return <span className="text-sm font-mono font-medium" data-testid={`value-intake-autonumber-${field.id}`}>{value}</span>;
+    }
+    if (field.fieldType === "attachment") {
+      return <AttachmentFieldDisplay value={value} testId={`value-intake-attachment-${field.id}`} />;
     }
     if (!value) return <span className="text-muted-foreground text-sm" data-testid={`value-intake-empty-${field.id}`}>Not set</span>;
 

@@ -27,6 +27,7 @@ _Populate as you build_
 *   **Project Templates**: `client/src/pages/Templates.tsx`
 *   **Financial Grid Export**: `client/src/lib/financialGridExport.ts`
 *   **Fiscal Calendar Logic**: `shared/lib/fiscalCalendar.ts`
+*   **Custom Field Attachment Component**: `client/src/components/custom-fields/AttachmentField.tsx`
 
 ## Architecture decisions
 
@@ -37,6 +38,7 @@ _Populate as you build_
 *   **Page-Based UI**: Enterprise-grade UI inspired by Linear and Asana, utilizing a page-based architecture with reusable components and Tailwind CSS for styling.
 *   **Schema Drift Detection**: Critical schema drift check runs at server boot, aborting dev builds if schema doesn't match the DB, ensuring schema integrity.
 *   **Auto Number Custom Fields**: Definitions with `fieldType='autonumber'` carry a `mask` (e.g. `N###`) and a `nextSequence` counter. Values are server-assigned on entity creation via `assignAutonumberValuesForEntity` (atomic SQL increment) and rejected by all CF value upsert/delete routes — masks are limited to a single `#` run.
+*   **Resource & Attachment Custom Fields**: `fieldType='resource'` stores a resource id as the CF value and renders the resource's `displayName`. `fieldType='attachment'` stores `JSON.stringify({path, name, size, type})` where `path` is an object-storage `/objects/...` URL produced by the existing `useUpload` presigned-URL flow. Both render in ProjectDetails / IntakeDetails / ResourceDetails / TaskCustomFieldsSection and (for `resource`) the Projects grid view.
 
 ## Product
 

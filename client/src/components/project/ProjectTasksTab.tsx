@@ -10,6 +10,7 @@ import { SiOracle } from "react-icons/si";
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, useTaskNotesHistory } from "@/hooks/use-tasks";
 import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useResources, useAllTaskResourceAssignments } from "@/hooks/use-resources";
 import { useCustomFieldDefinitions, useTaskCustomFieldValues, useUpdateTaskCustomFieldValue } from "@/hooks/use-custom-fields";
+import { AttachmentFieldInput } from "@/components/custom-fields/AttachmentField";
 import type { CustomFieldDefinition } from "@shared/schema";
 import { useOrganization } from "@/hooks/use-organization";
 import { useToast } from "@/hooks/use-toast";
@@ -261,6 +262,15 @@ function TaskCustomFieldsSection({
                   ))}
                 </SelectContent>
               </Select>
+            ) : field.fieldType === "attachment" ? (
+              <div id={fieldId}>
+                <AttachmentFieldInput
+                  value={value}
+                  disabled={readOnly}
+                  onChange={(v) => { setVal(field.id, v); persist(field.id, v); }}
+                  testId={`input-cf-${field.id}`}
+                />
+              </div>
             ) : field.fieldType === "multiselect" ? (
               <div className="flex flex-wrap gap-1.5" data-testid={`input-cf-${field.id}`}>
                 {opts.length === 0 ? (

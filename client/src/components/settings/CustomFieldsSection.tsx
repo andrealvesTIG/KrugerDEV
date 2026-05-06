@@ -25,6 +25,7 @@ const FIELD_TYPES = [
   { value: "url", label: "URL" },
   { value: "autonumber", label: "Auto Number" },
   { value: "resource", label: "Resource" },
+  { value: "attachment", label: "Attachment" },
 ] as const;
 
 const ENTITY_TYPES = [

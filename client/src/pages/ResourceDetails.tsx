@@ -3,6 +3,7 @@ import { formatCurrency } from "@/lib/format";
 import { useResource, useUpdateResource, useResourceSkills, useAddResourceSkill, useRemoveResourceSkill, useResources } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { useCustomFieldDefinitions, useResourceCustomFieldValues, useUpdateResourceCustomFieldValue } from "@/hooks/use-custom-fields";
+import { AttachmentFieldInput, AttachmentFieldDisplay } from "@/components/custom-fields/AttachmentField";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect, useMemo } from "react";
 import { format } from "date-fns";
@@ -1047,6 +1048,14 @@ function ResourceCustomFieldsSection({ resourceId, organizationId }: { resourceI
             </SelectContent>
           </Select>
         );
+      case "attachment":
+        return (
+          <AttachmentFieldInput
+            value={editValue}
+            onChange={setEditValue}
+            testId={`attachment-resource-custom-field-${field.id}`}
+          />
+        );
       case "multiselect": {
         const selectedValues = parseMultiSelectValue(editValue);
         return (
@@ -1101,6 +1110,9 @@ function ResourceCustomFieldsSection({ resourceId, organizationId }: { resourceI
 
   const renderFieldValue = (field: CustomFieldDefinition) => {
     const value = getFieldValue(field.id);
+    if (field.fieldType === "attachment") {
+      return <AttachmentFieldDisplay value={value} />;
+    }
     if (!value) return <span className="text-muted-foreground text-sm">Not set</span>;
 
     switch (field.fieldType) {

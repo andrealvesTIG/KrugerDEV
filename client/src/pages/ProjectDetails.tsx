@@ -23,6 +23,7 @@ import { PROJECT_STATUSES, PROJECT_STATUSES_EXTENDED, PROJECT_HEALTH_VALUES, PRO
 import type { CustomFieldDefinition, CustomTabField } from "@shared/schema";
 import { useProjectFinancials } from "@/hooks/use-project-financials";
 import { useResources, useProjectTaskAssignments } from "@/hooks/use-resources";
+import { AttachmentFieldInput, AttachmentFieldDisplay } from "@/components/custom-fields/AttachmentField";
 import { useOrganization } from "@/hooks/use-organization";
 import { useProjectTabSettings } from "@/hooks/use-project-tab-settings";
 import {
@@ -3428,6 +3429,14 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
             </SelectContent>
           </Select>
         );
+      case "attachment":
+        return (
+          <AttachmentFieldInput
+            value={editValue}
+            onChange={setEditValue}
+            testId={`attachment-custom-field-${field.id}`}
+          />
+        );
       case "multiselect":
         const selectedValues = parseMultiSelectValue(editValue);
         return (
@@ -3489,6 +3498,9 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
     if (field.fieldType === "autonumber") {
       if (!value) return <span className="text-muted-foreground text-sm italic" data-testid={`value-autonumber-pending-${field.id}`}>Pending…</span>;
       return <span className="text-sm font-mono font-medium" data-testid={`value-autonumber-${field.id}`}>{value}</span>;
+    }
+    if (field.fieldType === "attachment") {
+      return <AttachmentFieldDisplay value={value} testId={`value-attachment-${field.id}`} />;
     }
     if (!value) return <span className="text-muted-foreground text-sm" data-testid={`value-empty-${field.id}`}>Not set</span>;
 
