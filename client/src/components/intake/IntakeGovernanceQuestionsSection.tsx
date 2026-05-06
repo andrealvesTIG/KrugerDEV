@@ -43,15 +43,15 @@ export function IntakeGovernanceQuestionsSection({ intakeId, category, readOnly 
   const deleteMut = useDeleteIntakeGovernanceQuestion(intakeId);
 
   const [adding, setAdding] = useState(false);
-  const [newRow, setNewRow] = useState<{ question: string; answer: "yes" | "no" | "" }>({ question: "", answer: "" });
+  const [newRow, setNewRow] = useState<{ question: string; answer: "yes" | "no" }>({ question: "", answer: "yes" });
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editValues, setEditValues] = useState<{ question: string; answer: "yes" | "no" | "" }>({ question: "", answer: "" });
+  const [editValues, setEditValues] = useState<{ question: string; answer: "yes" | "no" }>({ question: "", answer: "yes" });
 
   const startEdit = (row: IntakeGovernanceQuestion) => {
     setEditingId(row.id);
     setEditValues({
       question: row.question,
-      answer: (row.answer as "yes" | "no" | null) ?? "",
+      answer: (row.answer === "no" ? "no" : "yes"),
     });
   };
 
@@ -66,12 +66,21 @@ export function IntakeGovernanceQuestionsSection({ intakeId, category, readOnly 
       {
         id,
         question: editValues.question.trim(),
-        answer: editValues.answer === "" ? null : editValues.answer,
+        answer: editValues.answer,
       },
       {
         onSuccess: () => setEditingId(null),
         onError: (err: any) => toast({ title: "Failed to save", description: err?.message ?? String(err), variant: "destructive" }),
       },
+    );
+  };
+
+  const setAnswerInline = (row: IntakeGovernanceQuestion, value: "yes" | "no") => {
+    if (readOnly) return;
+    if (row.answer === value) return;
+    updateMut.mutate(
+      { id: row.id, answer: value },
+      { onError: (err: any) => toast({ title: "Failed to save", description: err?.message ?? String(err), variant: "destructive" }) },
     );
   };
 
@@ -85,23 +94,17 @@ export function IntakeGovernanceQuestionsSection({ intakeId, category, readOnly 
       {
         category,
         question: newRow.question.trim(),
-        answer: newRow.answer === "" ? null : newRow.answer,
+        answer: newRow.answer,
         position: nextPosition,
       },
       {
         onSuccess: () => {
           setAdding(false);
-          setNewRow({ question: "", answer: "" });
+          setNewRow({ question: "", answer: "yes" });
         },
         onError: (err: any) => toast({ title: "Failed to add", description: err?.message ?? String(err), variant: "destructive" }),
       },
     );
-  };
-
-  const renderAnswerLabel = (answer: string | null) => {
-    if (answer === "yes") return "Yes";
-    if (answer === "no") return "No";
-    return <span className="text-muted-foreground">---</span>;
   };
 
   return (
@@ -168,22 +171,34 @@ export function IntakeGovernanceQuestionsSection({ intakeId, category, readOnly 
                     <td className="px-3 py-2">
                       {isEditing ? (
                         <Select
-                          value={editValues.answer || "__none__"}
-                          onValueChange={(v) =>
-                            setEditValues({ ...editValues, answer: v === "__none__" ? "" : (v as "yes" | "no") })
-                          }
+                          value={editValues.answer}
+                          onValueChange={(v) => setEditValues({ ...editValues, answer: v as "yes" | "no" })}
                         >
                           <SelectTrigger className="h-8 w-24" data-testid={`select-edit-answer-${row.id}`}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="__none__">---</SelectItem>
                             <SelectItem value="yes">Yes</SelectItem>
                             <SelectItem value="no">No</SelectItem>
                           </SelectContent>
                         </Select>
                       ) : (
-                        renderAnswerLabel(row.answer)
+                        <Select
+                          value={row.answer === "yes" || row.answer === "no" ? row.answer : ""}
+                          onValueChange={(v) => setAnswerInline(row, v as "yes" | "no")}
+                          disabled={readOnly || updateMut.isPending}
+                        >
+                          <SelectTrigger
+                            className={`h-8 w-24 ${row.answer ? "" : "border-destructive text-destructive"}`}
+                            data-testid={`select-answer-${row.id}`}
+                          >
+                            <SelectValue placeholder="Select…" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="yes">Yes</SelectItem>
+                            <SelectItem value="no">No</SelectItem>
+                          </SelectContent>
+                        </Select>
                       )}
                     </td>
                     <td className="px-2 py-2">
@@ -226,14 +241,13 @@ export function IntakeGovernanceQuestionsSection({ intakeId, category, readOnly 
                   </td>
                   <td className="px-3 py-2">
                     <Select
-                      value={newRow.answer || "__none__"}
-                      onValueChange={(v) => setNewRow({ ...newRow, answer: v === "__none__" ? "" : (v as "yes" | "no") })}
+                      value={newRow.answer}
+                      onValueChange={(v) => setNewRow({ ...newRow, answer: v as "yes" | "no" })}
                     >
                       <SelectTrigger className="h-8 w-24" data-testid="select-new-answer">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="__none__">---</SelectItem>
                         <SelectItem value="yes">Yes</SelectItem>
                         <SelectItem value="no">No</SelectItem>
                       </SelectContent>

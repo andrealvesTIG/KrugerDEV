@@ -25,6 +25,7 @@ import { useResources } from "@/hooks/use-resources";
 import { AttachmentFieldInput, AttachmentFieldDisplay } from "@/components/custom-fields/AttachmentField";
 import { IntakeFinancialsSection } from "@/components/intake/IntakeFinancialsSection";
 import { IntakeGovernanceQuestionsSection } from "@/components/intake/IntakeGovernanceQuestionsSection";
+import { useIntakeGovernanceQuestions } from "@/hooks/use-intake-governance-questions";
 import type { CustomFieldDefinition } from "@shared/schema";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -410,6 +411,40 @@ export default function IntakeDetails() {
       });
       return;
     }
+
+    // Governance questionnaires shown on this step must be fully answered
+    // (every row must be Yes or No) before the user can advance to the next gate.
+    // We also refuse to advance if the question lists are still loading or failed
+    // to load, otherwise an empty/missing list would silently bypass the gate.
+    const governanceErrors: string[] = [];
+    if (showArchitectureForCurrentStep) {
+      if (architectureQuestionsLoading || architectureQuestionsError || !architectureQuestions) {
+        governanceErrors.push("Architecture questions could not be verified — please retry");
+      } else {
+        const unanswered = architectureQuestions.filter(q => q.answer !== "yes" && q.answer !== "no").length;
+        if (unanswered > 0) {
+          governanceErrors.push(`${unanswered} Architecture question${unanswered === 1 ? "" : "s"} unanswered`);
+        }
+      }
+    }
+    if (showCybersecurityForCurrentStep) {
+      if (cybersecurityQuestionsLoading || cybersecurityQuestionsError || !cybersecurityQuestions) {
+        governanceErrors.push("Cybersecurity questions could not be verified — please retry");
+      } else {
+        const unanswered = cybersecurityQuestions.filter(q => q.answer !== "yes" && q.answer !== "no").length;
+        if (unanswered > 0) {
+          governanceErrors.push(`${unanswered} Cybersecurity question${unanswered === 1 ? "" : "s"} unanswered`);
+        }
+      }
+    }
+    if (governanceErrors.length > 0) {
+      toast({
+        title: "Gate Requirements Not Met",
+        description: `All questions must be answered Yes or No before advancing. ${governanceErrors.join("; ")}.`,
+        variant: "destructive",
+      });
+      return;
+    }
     
     if (currentIndex < workflowSteps.length - 1) {
       const nextStep = workflowSteps[currentIndex + 1].stepKey;
@@ -444,6 +479,17 @@ export default function IntakeDetails() {
   const handleFieldChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  const {
+    data: architectureQuestions,
+    isLoading: architectureQuestionsLoading,
+    isError: architectureQuestionsError,
+  } = useIntakeGovernanceQuestions(id, "architecture");
+  const {
+    data: cybersecurityQuestions,
+    isLoading: cybersecurityQuestionsLoading,
+    isError: cybersecurityQuestionsError,
+  } = useIntakeGovernanceQuestions(id, "cybersecurity");
 
   if (isLoading || workflowLoading) {
     return (

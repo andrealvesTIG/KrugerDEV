@@ -1,8 +1,9 @@
 import type { Express } from "express";
 import { storage } from "../storage";
-import { and, eq, asc } from "drizzle-orm";
+import { and, eq, asc, sql } from "drizzle-orm";
 import { db } from "../db";
-import { resources, insertProjectIntakeSchema, powerbiIntakeRequests, powerbiAgentConversations, powerbiAgentMessages, type InsertIntakeWorkflow, type InsertProjectWorkflow, type IntakeWorkflow } from "@shared/schema";
+import { resources, insertProjectIntakeSchema, powerbiIntakeRequests, powerbiAgentConversations, powerbiAgentMessages, intakeGovernanceQuestions, type InsertIntakeWorkflow, type InsertProjectWorkflow, type IntakeWorkflow } from "@shared/schema";
+import { DEFAULT_GOVERNANCE_QUESTIONS } from "@shared/intakeGovernanceDefaults";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import {
@@ -1277,8 +1278,46 @@ export function registerIntakeRoutes(app: Express) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
       const categoryRaw = typeof req.query.category === 'string' ? req.query.category : undefined;
-      const category = categoryRaw === 'architecture' || categoryRaw === 'cybersecurity' ? categoryRaw : undefined;
-      const rows = await storage.getIntakeGovernanceQuestions(intakeId, category);
+      const category: 'architecture' | 'cybersecurity' | undefined =
+        categoryRaw === 'architecture' || categoryRaw === 'cybersecurity' ? categoryRaw : undefined;
+      let rows = await storage.getIntakeGovernanceQuestions(intakeId, category);
+
+      // Lazy-seed defaults the first time a category is fetched. We use a
+      // per-intake transaction-scoped Postgres advisory lock to serialize
+      // concurrent fetches for the same intake, so two simultaneous requests
+      // can't both observe an empty table and double-insert defaults. The
+      // namespace constant (0x494E544B = "INTK") just keeps the lock space
+      // separate from other advisory locks elsewhere in the app.
+      const allCategories = ['architecture', 'cybersecurity'] as const;
+      const needsSeedCheck = category
+        ? rows.length === 0
+        : allCategories.some(c => !rows.some(r => r.category === c));
+      if (needsSeedCheck) {
+        await db.transaction(async (tx) => {
+          await tx.execute(sql`SELECT pg_advisory_xact_lock(${0x494E544B}, ${intakeId})`);
+          // Re-read inside the lock to handle the race where another request
+          // already seeded between our initial read and acquiring the lock.
+          const fresh = await tx.select().from(intakeGovernanceQuestions)
+            .where(eq(intakeGovernanceQuestions.intakeId, intakeId));
+          const seedTargets: Array<'architecture' | 'cybersecurity'> = category
+            ? (fresh.some(r => r.category === category) ? [] : [category])
+            : allCategories.filter(c => !fresh.some(r => r.category === c));
+          for (const cat of seedTargets) {
+            const defaults = DEFAULT_GOVERNANCE_QUESTIONS[cat];
+            await tx.insert(intakeGovernanceQuestions).values(
+              defaults.map((question: string, idx: number) => ({
+                intakeId,
+                category: cat,
+                question,
+                answer: null,
+                position: idx,
+              })),
+            );
+          }
+        });
+        rows = await storage.getIntakeGovernanceQuestions(intakeId, category);
+      }
+
       res.json(rows);
     } catch (err) {
       const classified = classifyError(err);
