@@ -220,6 +220,21 @@ export function IntakeFormLayoutSection({ organizationId }: { organizationId: nu
   };
 
   const handleSave = async () => {
+    // Validate: no empty sections (a section must have at least one item)
+    for (const t of draft) {
+      for (const s of t.sections) {
+        if (s.items.length === 0) {
+          const tabName = t.label.trim() || "Untitled";
+          const sectionName = s.title?.trim() ? `"${s.title.trim()}"` : "an unnamed section";
+          toast({
+            title: "Empty section",
+            description: `Tab "${tabName}" has ${sectionName} with no items. Add at least one item or delete the section before saving.`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
     // Validate: each tab gets a unique key
     const seenKeys = new Set<string>();
     const tabsPayload = draft.map(t => {
