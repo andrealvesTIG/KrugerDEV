@@ -20,6 +20,7 @@ import {
   helpTickets,
   mppImports,
   projectFinancials,
+  intakeFinancials,
   costItems,
   projectRiskAssessments,
   customFieldDefinitions,
@@ -710,6 +711,16 @@ export function generateOpenApiSchemas(): Record<string, any> {
         budgetAmount: { description: 'Original budget/plan' },
         plannedAmount: { description: 'Current planned amount (may differ from original budget)' },
         actualAmount: { description: 'Actual spent' },
+      },
+    }),
+
+    IntakeFinancial: drizzleTableToOpenApiSchema(intakeFinancials, {
+      description: 'Intake financial estimate (CapEx and OpEx) per fiscal year.',
+      overrides: {
+        intakeId: { description: 'Parent intake id' },
+        fiscalYear: { description: 'e.g. 2025, 2026' },
+        capexAmount: { description: 'Capital expenditure estimate' },
+        opexAmount: { description: 'Operating expenditure estimate' },
       },
     }),
 

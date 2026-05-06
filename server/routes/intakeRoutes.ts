@@ -3,6 +3,8 @@ import { storage } from "../storage";
 import { and, eq, asc } from "drizzle-orm";
 import { db } from "../db";
 import { resources, insertProjectIntakeSchema, powerbiIntakeRequests, powerbiAgentConversations, powerbiAgentMessages, type InsertIntakeWorkflow, type InsertProjectWorkflow, type IntakeWorkflow } from "@shared/schema";
+import { api } from "@shared/routes";
+import { z } from "zod";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -10,6 +12,7 @@ import {
   userHasOrgAccess,
   getUserOrgIds,
   requireEmailVerified,
+  formatZodErrors,
 } from "./helpers";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400 } from "../route-registry";
 
@@ -1135,6 +1138,111 @@ export function registerIntakeRoutes(app: Express) {
       console.error("Error deleting project workflow:", err);
       const classified = classifyError(err);
       res.status(classified.status).json({ message: err instanceof Error ? err.message : classified.message });
+    }
+  });
+
+  // ==================== INTAKE FINANCIALS ====================
+
+  apiRoute(app, 'get', '/api/project-intakes/:intakeId/financials', {
+    tag: 'Intake Financials',
+    summary: 'List financial estimates for an intake',
+    parameters: [pathId('intakeId')],
+    responses: { ...r200('Intake financials', arrOf('IntakeFinancial')), ...idRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const intakeId = Number(req.params.intakeId);
+      const intake = await storage.getProjectIntake(intakeId);
+      if (!intake) return res.status(404).json({ message: 'Intake not found' });
+      if (!await userHasOrgAccess(userId, intake.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const rows = await storage.getIntakeFinancials(intakeId);
+      res.json(rows);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error fetching intake financials' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'post', '/api/project-intakes/:intakeId/financials', {
+    tag: 'Intake Financials',
+    summary: 'Create financial estimate for intake',
+    parameters: [pathId('intakeId')],
+    requestBody: body(ref('IntakeFinancial')),
+    responses: { ...r201('Intake financial created', ref('IntakeFinancial')), ...createRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      const intakeId = Number(req.params.intakeId);
+      const intake = await storage.getProjectIntake(intakeId);
+      if (!intake) return res.status(404).json({ message: 'Intake not found' });
+      if (!await userHasOrgAccess(userId!, intake.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const input = api.intakeFinancials.create.input.parse(req.body);
+      const created = await storage.createIntakeFinancial({ ...input, intakeId });
+      res.status(201).json(created);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error creating intake financial' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'put', '/api/intake-financials/:id', {
+    tag: 'Intake Financials',
+    summary: 'Update intake financial estimate',
+    parameters: [pathId()],
+    requestBody: body(ref('IntakeFinancial'), false),
+    responses: { ...r200('Intake financial updated', ref('IntakeFinancial')), ...updateRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const existing = await storage.getIntakeFinancial(id);
+      if (!existing) return res.status(404).json({ message: 'Intake financial not found' });
+      const intake = await storage.getProjectIntake(existing.intakeId);
+      if (!intake || !await userHasOrgAccess(userId, intake.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const updates = api.intakeFinancials.update.input.parse(req.body);
+      const updated = await storage.updateIntakeFinancial(id, updates);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error updating intake financial' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'delete', '/api/intake-financials/:id', {
+    tag: 'Intake Financials',
+    summary: 'Delete intake financial estimate',
+    parameters: [pathId()],
+    responses: { ...r204('Intake financial deleted'), ...fullRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const existing = await storage.getIntakeFinancial(id);
+      if (!existing) return res.status(404).json({ message: 'Intake financial not found' });
+      const intake = await storage.getProjectIntake(existing.intakeId);
+      if (!intake || !await userHasOrgAccess(userId, intake.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      await storage.deleteIntakeFinancial(id);
+      res.status(204).send();
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error deleting intake financial' : classified.message });
     }
   });
 

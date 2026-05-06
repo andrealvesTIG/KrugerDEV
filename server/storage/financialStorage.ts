@@ -1,10 +1,11 @@
 import { db } from "../db";
 import {
-  projectFinancials, costItems, costItemChangeLogs, financialEntries,
+  projectFinancials, intakeFinancials, costItems, costItemChangeLogs, financialEntries,
   financialLockdowns,
   projectInvoices, invoiceNotes,
   projects, organizations,
   type ProjectFinancial, type InsertProjectFinancial, type UpdateProjectFinancialRequest,
+  type IntakeFinancial, type InsertIntakeFinancial, type UpdateIntakeFinancialRequest,
   type CostItem, type InsertCostItem, type UpdateCostItemRequest,
   type CostItemChangeLog, type InsertCostItemChangeLog,
   type FinancialEntry, type InsertFinancialEntry,
@@ -140,6 +141,37 @@ export async function updateProjectFinancial(id: number, updates: UpdateProjectF
 
 export async function deleteProjectFinancial(id: number): Promise<void> {
   await db.delete(projectFinancials).where(eq(projectFinancials.id, id));
+}
+
+// ===================== INTAKE FINANCIALS =====================
+
+export async function getIntakeFinancials(intakeId: number): Promise<IntakeFinancial[]> {
+  return await db.select().from(intakeFinancials)
+    .where(eq(intakeFinancials.intakeId, intakeId))
+    .orderBy(intakeFinancials.fiscalYear);
+}
+
+export async function getIntakeFinancial(id: number): Promise<IntakeFinancial | undefined> {
+  const [row] = await db.select().from(intakeFinancials).where(eq(intakeFinancials.id, id));
+  return row;
+}
+
+export async function createIntakeFinancial(financial: InsertIntakeFinancial): Promise<IntakeFinancial> {
+  const [row] = await db.insert(intakeFinancials).values(financial).returning();
+  return row;
+}
+
+export async function updateIntakeFinancial(id: number, updates: UpdateIntakeFinancialRequest): Promise<IntakeFinancial> {
+  const { intakeId: _ignoredIntakeId, ...safeUpdates } = updates as UpdateIntakeFinancialRequest & { intakeId?: number };
+  const [row] = await db.update(intakeFinancials)
+    .set({ ...safeUpdates, updatedAt: new Date() })
+    .where(eq(intakeFinancials.id, id))
+    .returning();
+  return row;
+}
+
+export async function deleteIntakeFinancial(id: number): Promise<void> {
+  await db.delete(intakeFinancials).where(eq(intakeFinancials.id, id));
 }
 
 export async function getCostItems(projectId: number, fiscalYear?: number): Promise<CostItem[]> {

@@ -9,6 +9,7 @@ import {
   insertTaskChangeLogSchema,
   insertTaskDependencySchema,
   insertProjectFinancialSchema,
+  insertIntakeFinancialSchema,
   portfolios,
   projects,
   milestones,
@@ -18,7 +19,8 @@ import {
   projectChangeLogs,
   issueChangeLogs,
   taskDependencies,
-  projectFinancials
+  projectFinancials,
+  intakeFinancials
 } from './schema';
 
 // ============================================
@@ -499,6 +501,44 @@ export const api = {
     delete: {
       method: 'DELETE' as const,
       path: '/api/project-financials/:id',
+      responses: {
+        204: z.void(),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+  intakeFinancials: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/project-intakes/:intakeId/financials',
+      responses: {
+        200: z.array(z.custom<typeof intakeFinancials.$inferSelect>()),
+        404: errorSchemas.notFound,
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/project-intakes/:intakeId/financials',
+      input: insertIntakeFinancialSchema.omit({ intakeId: true }),
+      responses: {
+        201: z.custom<typeof intakeFinancials.$inferSelect>(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/intake-financials/:id',
+      input: insertIntakeFinancialSchema.omit({ intakeId: true }).partial(),
+      responses: {
+        200: z.custom<typeof intakeFinancials.$inferSelect>(),
+        400: errorSchemas.validation,
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/intake-financials/:id',
       responses: {
         204: z.void(),
         404: errorSchemas.notFound,

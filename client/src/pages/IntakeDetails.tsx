@@ -23,6 +23,7 @@ import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, File
 import { useCustomFieldDefinitions, useIntakeCustomFieldValues, useUpdateIntakeCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useResources } from "@/hooks/use-resources";
 import { AttachmentFieldInput, AttachmentFieldDisplay } from "@/components/custom-fields/AttachmentField";
+import { IntakeFinancialsSection } from "@/components/intake/IntakeFinancialsSection";
 import type { CustomFieldDefinition } from "@shared/schema";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -898,6 +899,8 @@ export default function IntakeDetails() {
               </div>
             </CardContent>
           </Card>
+
+          <IntakeFinancialsSection intakeId={intake.id} readOnly={isLocked} />
         </TabsContent>
 
         <TabsContent value="technical" className="space-y-4">

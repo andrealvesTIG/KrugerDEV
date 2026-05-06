@@ -28,6 +28,7 @@ _Populate as you build_
 *   **Financial Grid Export**: `client/src/lib/financialGridExport.ts`
 *   **Fiscal Calendar Logic**: `shared/lib/fiscalCalendar.ts`
 *   **Custom Field Attachment Component**: `client/src/components/custom-fields/AttachmentField.tsx`
+*   **Intake Financials**: `client/src/components/intake/IntakeFinancialsSection.tsx`, `client/src/hooks/use-intake-financials.ts`, `intakeFinancials` table in `shared/schema.ts`, CRUD routes in `server/routes/intakeRoutes.ts` (`/api/project-intakes/:intakeId/financials`, `/api/intake-financials/:id`)
 
 ## Architecture decisions
 

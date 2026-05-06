@@ -19,6 +19,7 @@ import type {
   IssueChangeLog, InsertIssueChangeLog,
   TaskDependency, InsertTaskDependency,
   ProjectFinancial, InsertProjectFinancial, UpdateProjectFinancialRequest,
+  IntakeFinancial, InsertIntakeFinancial, UpdateIntakeFinancialRequest,
   Resource, InsertResource, UpdateResourceRequest,
   TaskResourceAssignment, InsertTaskResourceAssignment,
   IssueResourceAssignment, InsertIssueResourceAssignment,
@@ -327,6 +328,11 @@ export interface IFinancialStorage {
   createProjectFinancial(financial: InsertProjectFinancial): Promise<ProjectFinancial>;
   updateProjectFinancial(id: number, updates: UpdateProjectFinancialRequest): Promise<ProjectFinancial>;
   deleteProjectFinancial(id: number): Promise<void>;
+  getIntakeFinancials(intakeId: number): Promise<IntakeFinancial[]>;
+  getIntakeFinancial(id: number): Promise<IntakeFinancial | undefined>;
+  createIntakeFinancial(financial: InsertIntakeFinancial): Promise<IntakeFinancial>;
+  updateIntakeFinancial(id: number, updates: UpdateIntakeFinancialRequest): Promise<IntakeFinancial>;
+  deleteIntakeFinancial(id: number): Promise<void>;
   getCostItems(projectId: number, fiscalYear?: number): Promise<CostItem[]>;
   getCostItem(id: number): Promise<CostItem | undefined>;
   createCostItem(costItem: InsertCostItem): Promise<CostItem>;

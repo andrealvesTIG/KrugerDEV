@@ -2371,6 +2371,26 @@ export const projectFinancialsRelations = relations(projectFinancials, ({ one })
   }),
 }));
 
+export const intakeFinancials = pgTable("intake_financials", {
+  id: serial("id").primaryKey(),
+  intakeId: integer("intake_id").references(() => projectIntakes.id, { onDelete: "cascade" }).notNull(),
+  fiscalYear: integer("fiscal_year").notNull(),
+  capexAmount: numeric("capex_amount").default(0).notNull(),
+  opexAmount: numeric("opex_amount").default(0).notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("intake_financials_intake_id_idx").on(table.intakeId),
+]);
+
+export const intakeFinancialsRelations = relations(intakeFinancials, ({ one }) => ({
+  intake: one(projectIntakes, {
+    fields: [intakeFinancials.intakeId],
+    references: [projectIntakes.id],
+  }),
+}));
+
 export const costItemsRelations = relations(costItems, ({ one }) => ({
   project: one(projects, {
     fields: [costItems.projectId],
@@ -2575,6 +2595,7 @@ export const insertIssueChangeLogSchema = createInsertSchema(issueChangeLogs).om
 export const insertRiskChangeLogSchema = insertIssueChangeLogSchema;
 export const insertTaskDependencySchema = createInsertSchema(taskDependencies).omit({ id: true, createdAt: true });
 export const insertProjectFinancialSchema = createInsertSchema(projectFinancials).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertIntakeFinancialSchema = createInsertSchema(intakeFinancials).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertResourceSchema = createInsertSchema(resources).omit({ id: true, createdAt: true });
 export const insertTaskResourceAssignmentSchema = createInsertSchema(taskResourceAssignments).omit({ id: true, createdAt: true });
 export const insertIssueResourceAssignmentSchema = createInsertSchema(issueResourceAssignments).omit({ id: true, createdAt: true });
@@ -2678,6 +2699,10 @@ export type InsertTaskDependency = z.infer<typeof insertTaskDependencySchema>;
 
 export type ProjectFinancial = typeof projectFinancials.$inferSelect;
 export type InsertProjectFinancial = z.infer<typeof insertProjectFinancialSchema>;
+
+export type IntakeFinancial = typeof intakeFinancials.$inferSelect;
+export type InsertIntakeFinancial = z.infer<typeof insertIntakeFinancialSchema>;
+export type UpdateIntakeFinancialRequest = Partial<InsertIntakeFinancial>;
 
 export type Resource = typeof resources.$inferSelect;
 export type InsertResource = z.infer<typeof insertResourceSchema>;
