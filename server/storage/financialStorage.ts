@@ -1,12 +1,13 @@
 import { db } from "../db";
 import {
-  projectFinancials, intakeFinancials, intakeGovernanceQuestions, costItems, costItemChangeLogs, financialEntries,
+  projectFinancials, intakeFinancials, intakeGovernanceQuestions, intakeCostingChecklist, costItems, costItemChangeLogs, financialEntries,
   financialLockdowns,
   projectInvoices, invoiceNotes,
   projects, organizations,
   type ProjectFinancial, type InsertProjectFinancial, type UpdateProjectFinancialRequest,
   type IntakeFinancial, type InsertIntakeFinancial, type UpdateIntakeFinancialRequest,
   type IntakeGovernanceQuestion, type InsertIntakeGovernanceQuestion, type UpdateIntakeGovernanceQuestionRequest, type IntakeGovernanceCategory,
+  type IntakeCostingChecklistRow, type InsertIntakeCostingChecklistRow, type UpdateIntakeCostingChecklistRowRequest,
   type CostItem, type InsertCostItem, type UpdateCostItemRequest,
   type CostItemChangeLog, type InsertCostItemChangeLog,
   type FinancialEntry, type InsertFinancialEntry,
@@ -207,6 +208,37 @@ export async function updateIntakeGovernanceQuestion(id: number, updates: Update
 
 export async function deleteIntakeGovernanceQuestion(id: number): Promise<void> {
   await db.delete(intakeGovernanceQuestions).where(eq(intakeGovernanceQuestions.id, id));
+}
+
+// ===================== INTAKE COSTING CHECKLIST =====================
+
+export async function getIntakeCostingChecklist(intakeId: number): Promise<IntakeCostingChecklistRow[]> {
+  return await db.select().from(intakeCostingChecklist)
+    .where(eq(intakeCostingChecklist.intakeId, intakeId))
+    .orderBy(intakeCostingChecklist.position, intakeCostingChecklist.id);
+}
+
+export async function getIntakeCostingChecklistRow(id: number): Promise<IntakeCostingChecklistRow | undefined> {
+  const [row] = await db.select().from(intakeCostingChecklist).where(eq(intakeCostingChecklist.id, id));
+  return row;
+}
+
+export async function createIntakeCostingChecklistRow(row: InsertIntakeCostingChecklistRow): Promise<IntakeCostingChecklistRow> {
+  const [created] = await db.insert(intakeCostingChecklist).values(row as any).returning();
+  return created;
+}
+
+export async function updateIntakeCostingChecklistRow(id: number, updates: UpdateIntakeCostingChecklistRowRequest): Promise<IntakeCostingChecklistRow> {
+  const { intakeId: _ignoredIntakeId, ...safeUpdates } = updates as UpdateIntakeCostingChecklistRowRequest & { intakeId?: number };
+  const [updated] = await db.update(intakeCostingChecklist)
+    .set({ ...(safeUpdates as any), updatedAt: new Date() })
+    .where(eq(intakeCostingChecklist.id, id))
+    .returning();
+  return updated;
+}
+
+export async function deleteIntakeCostingChecklistRow(id: number): Promise<void> {
+  await db.delete(intakeCostingChecklist).where(eq(intakeCostingChecklist.id, id));
 }
 
 export async function getCostItems(projectId: number, fiscalYear?: number): Promise<CostItem[]> {

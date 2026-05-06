@@ -59,6 +59,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
   const [editShowFinancials, setEditShowFinancials] = useState(false);
   const [editShowArchitectureQuestions, setEditShowArchitectureQuestions] = useState(false);
   const [editShowCybersecurityQuestions, setEditShowCybersecurityQuestions] = useState(false);
+  const [editShowCostingChecklist, setEditShowCostingChecklist] = useState(false);
   const [entryEmailDraft, setEntryEmailDraft] = useState("");
   const [exitEmailDraft, setExitEmailDraft] = useState("");
   const [entryEmailError, setEntryEmailError] = useState<string | null>(null);
@@ -209,6 +210,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     setEditShowFinancials(!!step.showFinancials);
     setEditShowArchitectureQuestions(!!step.showArchitectureQuestions);
     setEditShowCybersecurityQuestions(!!step.showCybersecurityQuestions);
+    setEditShowCostingChecklist(!!(step as any).showCostingChecklist);
     setEntryEmailDraft("");
     setExitEmailDraft("");
     setEntryEmailError(null);
@@ -250,6 +252,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     showFinancials: !!s.showFinancials,
     showArchitectureQuestions: !!s.showArchitectureQuestions,
     showCybersecurityQuestions: !!s.showCybersecurityQuestions,
+    showCostingChecklist: !!(s as any).showCostingChecklist,
     isActive: s.isActive,
   });
 
@@ -270,6 +273,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
           showFinancials: editShowFinancials,
           showArchitectureQuestions: editShowArchitectureQuestions,
           showCybersecurityQuestions: editShowCybersecurityQuestions,
+          showCostingChecklist: editShowCostingChecklist,
           isActive: s.isActive,
         };
       }
@@ -305,6 +309,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
       showFinancials: false,
       showArchitectureQuestions: false,
       showCybersecurityQuestions: false,
+      showCostingChecklist: false,
       isActive: true,
     };
 
@@ -839,6 +844,22 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
                 </Label>
                 <p className="text-xs text-muted-foreground">
                   Render an editable list of Cybersecurity review questions (Y / N answers) on this step.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 rounded-md border p-3" data-testid="row-show-costing-checklist">
+              <Switch
+                id="step-show-costing-checklist"
+                checked={editShowCostingChecklist}
+                onCheckedChange={setEditShowCostingChecklist}
+                data-testid="switch-show-costing-checklist"
+              />
+              <div className="space-y-1">
+                <Label htmlFor="step-show-costing-checklist" className="cursor-pointer">
+                  Show Costing Checklist on this step
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Render the bottom-up Costing Checklist grid (FTE permanent / consultant days × rate, plus Project / VT cost) on this step.
                 </p>
               </div>
             </div>

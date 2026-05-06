@@ -11,6 +11,7 @@ import type { IntakeTabLayoutTabFull, IntakeTabLayoutSectionFull, IntakeTabLayou
 import { IntakeFieldRenderer } from "./IntakeFieldRenderer";
 import { IntakeFinancialsSection } from "./IntakeFinancialsSection";
 import { IntakeGovernanceQuestionsSection } from "./IntakeGovernanceQuestionsSection";
+import { IntakeCostingChecklistSection } from "./IntakeCostingChecklistSection";
 import { IntakeSingleCustomField } from "./IntakeSingleCustomField";
 
 const ICONS: Record<string, LucideIcon> = {
@@ -43,6 +44,7 @@ export interface IntakeFormRendererContext {
   showFinancialsForCurrentStep: boolean;
   showArchitectureForCurrentStep: boolean;
   showCybersecurityForCurrentStep: boolean;
+  showCostingChecklistForCurrentStep: boolean;
   // Source panel renderer (kept inside parent file for now to avoid moving the component)
   renderSourcePanel: () => ReactNode;
   renderCustomFieldsBlock: (excludeDefinitionIds: number[]) => ReactNode;
@@ -102,7 +104,7 @@ function SectionRenderer({ section, ctx, placedCustomFieldIds }: { section: Inta
   // If the section contains exactly one block of type "financials_grid" / questionnaire / source_conversation,
   // render the block bare without the surrounding card to preserve existing visuals.
   const onlyBlock = section.items.length === 1 && section.items[0].itemType === "block" ? section.items[0] : null;
-  if (onlyBlock && (onlyBlock.itemKey === "financials_grid" || onlyBlock.itemKey === "architecture_questions" || onlyBlock.itemKey === "cybersecurity_questions" || onlyBlock.itemKey === "source_conversation" || onlyBlock.itemKey === "pm_approval")) {
+  if (onlyBlock && (onlyBlock.itemKey === "financials_grid" || onlyBlock.itemKey === "architecture_questions" || onlyBlock.itemKey === "cybersecurity_questions" || onlyBlock.itemKey === "costing_checklist" || onlyBlock.itemKey === "source_conversation" || onlyBlock.itemKey === "pm_approval")) {
     return <ItemRenderer item={onlyBlock} ctx={ctx} placedCustomFieldIds={placedCustomFieldIds} bare />;
   }
   const hasHeader = !!(section.title && section.title.trim()) || !!section.description;
@@ -189,6 +191,9 @@ function BlockRenderer({ blockKey, ctx, placedCustomFieldIds, bare }: { blockKey
     case "cybersecurity_questions":
       if (!ctx.showCybersecurityForCurrentStep) return null;
       return <IntakeGovernanceQuestionsSection intakeId={ctx.intake.id} category="cybersecurity" readOnly={ctx.isLocked} />;
+    case "costing_checklist":
+      if (!ctx.showCostingChecklistForCurrentStep) return null;
+      return <IntakeCostingChecklistSection intakeId={ctx.intake.id} readOnly={ctx.isLocked} />;
     case "source_conversation":
       return <>{ctx.renderSourcePanel()}</>;
     case "pm_approval":

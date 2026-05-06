@@ -21,6 +21,7 @@ import type {
   ProjectFinancial, InsertProjectFinancial, UpdateProjectFinancialRequest,
   IntakeFinancial, InsertIntakeFinancial, UpdateIntakeFinancialRequest,
   IntakeGovernanceQuestion, InsertIntakeGovernanceQuestion, UpdateIntakeGovernanceQuestionRequest, IntakeGovernanceCategory,
+  IntakeCostingChecklistRow, InsertIntakeCostingChecklistRow, UpdateIntakeCostingChecklistRowRequest,
   Resource, InsertResource, UpdateResourceRequest,
   TaskResourceAssignment, InsertTaskResourceAssignment,
   IssueResourceAssignment, InsertIssueResourceAssignment,
@@ -339,6 +340,11 @@ export interface IFinancialStorage {
   createIntakeGovernanceQuestion(row: InsertIntakeGovernanceQuestion): Promise<IntakeGovernanceQuestion>;
   updateIntakeGovernanceQuestion(id: number, updates: UpdateIntakeGovernanceQuestionRequest): Promise<IntakeGovernanceQuestion>;
   deleteIntakeGovernanceQuestion(id: number): Promise<void>;
+  getIntakeCostingChecklist(intakeId: number): Promise<IntakeCostingChecklistRow[]>;
+  getIntakeCostingChecklistRow(id: number): Promise<IntakeCostingChecklistRow | undefined>;
+  createIntakeCostingChecklistRow(row: InsertIntakeCostingChecklistRow): Promise<IntakeCostingChecklistRow>;
+  updateIntakeCostingChecklistRow(id: number, updates: UpdateIntakeCostingChecklistRowRequest): Promise<IntakeCostingChecklistRow>;
+  deleteIntakeCostingChecklistRow(id: number): Promise<void>;
   getCostItems(projectId: number, fiscalYear?: number): Promise<CostItem[]>;
   getCostItem(id: number): Promise<CostItem | undefined>;
   createCostItem(costItem: InsertCostItem): Promise<CostItem>;

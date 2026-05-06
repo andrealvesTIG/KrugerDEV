@@ -1909,6 +1909,7 @@ export const intakeWorkflowSteps = pgTable("intake_workflow_steps", {
   showFinancials: boolean("show_financials").default(false).notNull(), // Whether to render the Intake Estimates (CapEx/OpEx) grid on this step
   showArchitectureQuestions: boolean("show_architecture_questions").default(false).notNull(), // Whether to render the Architecture questionnaire grid on this step
   showCybersecurityQuestions: boolean("show_cybersecurity_questions").default(false).notNull(), // Whether to render the Cybersecurity questionnaire grid on this step
+  showCostingChecklist: boolean("show_costing_checklist").default(false).notNull(), // Whether to render the Costing Checklist grid on this step
   isActive: boolean("is_active").default(true), // Whether step is active
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -2419,6 +2420,35 @@ export const intakeGovernanceQuestionsRelations = relations(intakeGovernanceQues
   }),
 }));
 
+// Intake Costing Checklist — one row per costing question per intake. Captures
+// effort (FTE permanent / consultant days), external Project / VT cost, and
+// supporting metadata so the team can build up a bottom-up cost view directly
+// inside an intake.
+export const intakeCostingChecklist = pgTable("intake_costing_checklist", {
+  id: serial("id").primaryKey(),
+  intakeId: integer("intake_id").references(() => projectIntakes.id, { onDelete: "cascade" }).notNull(),
+  category: text("category").notNull(), // e.g. PROCESS, DATA, APPLICATIONS, ...
+  question: text("question").notNull(),
+  resourceName: text("resource_name"),
+  costType: text("cost_type"), // 'opex' | 'capex' | null
+  ftePermanentDays: numeric("fte_permanent_days", { precision: 10, scale: 2 }),
+  fteConsultantDays: numeric("fte_consultant_days", { precision: 10, scale: 2 }),
+  projectCost: numeric("project_cost", { precision: 14, scale: 2 }),
+  comments: text("comments"),
+  position: integer("position").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("intake_costing_checklist_intake_id_idx").on(table.intakeId),
+]);
+
+export const intakeCostingChecklistRelations = relations(intakeCostingChecklist, ({ one }) => ({
+  intake: one(projectIntakes, {
+    fields: [intakeCostingChecklist.intakeId],
+    references: [projectIntakes.id],
+  }),
+}));
+
 export const costItemsRelations = relations(costItems, ({ one }) => ({
   project: one(projects, {
     fields: [costItems.projectId],
@@ -2712,6 +2742,16 @@ export const insertIntakeGovernanceQuestionSchema = createInsertSchema(intakeGov
   question: z.string().min(1, "Question is required"),
   answer: z.enum(["yes", "no"]).nullable().optional(),
 }).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertIntakeCostingChecklistSchema = createInsertSchema(intakeCostingChecklist, {
+  category: z.string().min(1, "Category is required"),
+  question: z.string().min(1, "Question is required"),
+  resourceName: z.string().nullable().optional(),
+  costType: z.enum(["opex", "capex"]).nullable().optional(),
+  ftePermanentDays: z.union([z.string(), z.number()]).nullable().optional(),
+  fteConsultantDays: z.union([z.string(), z.number()]).nullable().optional(),
+  projectCost: z.union([z.string(), z.number()]).nullable().optional(),
+  comments: z.string().nullable().optional(),
+}).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertResourceSchema = createInsertSchema(resources).omit({ id: true, createdAt: true });
 export const insertTaskResourceAssignmentSchema = createInsertSchema(taskResourceAssignments).omit({ id: true, createdAt: true });
 export const insertIssueResourceAssignmentSchema = createInsertSchema(issueResourceAssignments).omit({ id: true, createdAt: true });
@@ -2823,6 +2863,9 @@ export type IntakeGovernanceQuestion = typeof intakeGovernanceQuestions.$inferSe
 export type InsertIntakeGovernanceQuestion = z.infer<typeof insertIntakeGovernanceQuestionSchema>;
 export type UpdateIntakeGovernanceQuestionRequest = Partial<InsertIntakeGovernanceQuestion>;
 export type IntakeGovernanceCategory = "architecture" | "cybersecurity";
+export type IntakeCostingChecklistRow = typeof intakeCostingChecklist.$inferSelect;
+export type InsertIntakeCostingChecklistRow = z.infer<typeof insertIntakeCostingChecklistSchema>;
+export type UpdateIntakeCostingChecklistRowRequest = Partial<InsertIntakeCostingChecklistRow>;
 
 export type Resource = typeof resources.$inferSelect;
 export type InsertResource = z.infer<typeof insertResourceSchema>;

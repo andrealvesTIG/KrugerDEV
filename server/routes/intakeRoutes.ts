@@ -2,8 +2,9 @@ import type { Express } from "express";
 import { storage } from "../storage";
 import { and, eq, asc, sql } from "drizzle-orm";
 import { db } from "../db";
-import { resources, insertProjectIntakeSchema, powerbiIntakeRequests, powerbiAgentConversations, powerbiAgentMessages, intakeGovernanceQuestions, type InsertIntakeWorkflow, type InsertProjectWorkflow, type IntakeWorkflow } from "@shared/schema";
+import { resources, insertProjectIntakeSchema, powerbiIntakeRequests, powerbiAgentConversations, powerbiAgentMessages, intakeGovernanceQuestions, intakeCostingChecklist, type InsertIntakeWorkflow, type InsertProjectWorkflow, type IntakeWorkflow } from "@shared/schema";
 import { DEFAULT_GOVERNANCE_QUESTIONS } from "@shared/intakeGovernanceDefaults";
+import { DEFAULT_COSTING_CHECKLIST } from "@shared/intakeCostingDefaults";
 import { api } from "@shared/routes";
 import { z } from "zod";
 import {
@@ -682,6 +683,7 @@ export function registerIntakeRoutes(app: Express) {
           if (step.showFinancials !== undefined) step.showFinancials = !!step.showFinancials;
           if ((step as any).showArchitectureQuestions !== undefined) (step as any).showArchitectureQuestions = !!(step as any).showArchitectureQuestions;
           if ((step as any).showCybersecurityQuestions !== undefined) (step as any).showCybersecurityQuestions = !!(step as any).showCybersecurityQuestions;
+          if ((step as any).showCostingChecklist !== undefined) (step as any).showCostingChecklist = !!(step as any).showCostingChecklist;
         }
       } catch (e: any) {
         return res.status(400).json({ message: e?.message || "Invalid email address" });
@@ -1402,6 +1404,134 @@ export function registerIntakeRoutes(app: Express) {
     } catch (err) {
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Error deleting governance question' : classified.message });
+    }
+  });
+
+  // ==================== INTAKE COSTING CHECKLIST ====================
+
+  apiRoute(app, 'get', '/api/project-intakes/:intakeId/costing-checklist', {
+    tag: 'Intake Costing Checklist',
+    summary: 'List costing checklist rows for an intake',
+    parameters: [pathId('intakeId')],
+    responses: { ...r200('Costing checklist rows', arrOf('IntakeCostingChecklistRow')), ...idRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const intakeId = Number(req.params.intakeId);
+      const intake = await storage.getProjectIntake(intakeId);
+      if (!intake) return res.status(404).json({ message: 'Intake not found' });
+      if (!await userHasOrgAccess(userId, intake.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      let rows = await storage.getIntakeCostingChecklist(intakeId);
+
+      // Lazy-seed defaults the first time the checklist is fetched. Use a
+      // per-intake advisory lock (namespace 0x494E544D / "INTM") so concurrent
+      // requests can't both seed defaults.
+      if (rows.length === 0) {
+        await db.transaction(async (tx) => {
+          await tx.execute(sql`SELECT pg_advisory_xact_lock(${0x494E544D}, ${intakeId})`);
+          const fresh = await tx.select().from(intakeCostingChecklist)
+            .where(eq(intakeCostingChecklist.intakeId, intakeId));
+          if (fresh.length === 0) {
+            await tx.insert(intakeCostingChecklist).values(
+              DEFAULT_COSTING_CHECKLIST.map((row, idx) => ({
+                intakeId,
+                category: row.category,
+                question: row.question,
+                position: idx,
+              })),
+            );
+          }
+        });
+        rows = await storage.getIntakeCostingChecklist(intakeId);
+      }
+
+      res.json(rows);
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error fetching costing checklist' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'post', '/api/project-intakes/:intakeId/costing-checklist', {
+    tag: 'Intake Costing Checklist',
+    summary: 'Create costing checklist row',
+    parameters: [pathId('intakeId')],
+    requestBody: body(ref('IntakeCostingChecklistRow')),
+    responses: { ...r201('Costing row created', ref('IntakeCostingChecklistRow')), ...createRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      const emailCheck = await requireEmailVerified(userId);
+      if (!emailCheck.verified) {
+        return res.status(403).json({ message: emailCheck.error, emailVerificationRequired: true });
+      }
+      const intakeId = Number(req.params.intakeId);
+      const intake = await storage.getProjectIntake(intakeId);
+      if (!intake) return res.status(404).json({ message: 'Intake not found' });
+      if (!await userHasOrgAccess(userId!, intake.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const input = api.intakeCostingChecklist.create.input.parse(req.body);
+      const created = await storage.createIntakeCostingChecklistRow({ ...input, intakeId } as any);
+      res.status(201).json(created);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error creating costing row' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'put', '/api/intake-costing-checklist/:id', {
+    tag: 'Intake Costing Checklist',
+    summary: 'Update costing checklist row',
+    parameters: [pathId()],
+    requestBody: body(ref('IntakeCostingChecklistRow'), false),
+    responses: { ...r200('Costing row updated', ref('IntakeCostingChecklistRow')), ...updateRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const existing = await storage.getIntakeCostingChecklistRow(id);
+      if (!existing) return res.status(404).json({ message: 'Costing row not found' });
+      const intake = await storage.getProjectIntake(existing.intakeId);
+      if (!intake || !await userHasOrgAccess(userId, intake.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      const updates = api.intakeCostingChecklist.update.input.parse(req.body);
+      const updated = await storage.updateIntakeCostingChecklistRow(id, updates);
+      res.json(updated);
+    } catch (err) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: formatZodErrors(err) });
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error updating costing row' : classified.message });
+    }
+  });
+
+  apiRoute(app, 'delete', '/api/intake-costing-checklist/:id', {
+    tag: 'Intake Costing Checklist',
+    summary: 'Delete costing checklist row',
+    parameters: [pathId()],
+    responses: { ...r204('Costing row deleted'), ...fullRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const id = Number(req.params.id);
+      const existing = await storage.getIntakeCostingChecklistRow(id);
+      if (!existing) return res.status(404).json({ message: 'Costing row not found' });
+      const intake = await storage.getProjectIntake(existing.intakeId);
+      if (!intake || !await userHasOrgAccess(userId, intake.organizationId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+      await storage.deleteIntakeCostingChecklistRow(id);
+      res.status(204).send();
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error deleting costing row' : classified.message });
     }
   });
 

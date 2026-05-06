@@ -536,6 +536,7 @@ export default function IntakeDetails() {
     || (!anyStepShowsFinancials && currentStep?.stepKey === "business_case");
   const showArchitectureForCurrentStep = stepsUpToCurrent.some(s => s.showArchitectureQuestions === true);
   const showCybersecurityForCurrentStep = stepsUpToCurrent.some(s => s.showCybersecurityQuestions === true);
+  const showCostingChecklistForCurrentStep = stepsUpToCurrent.some(s => s.showCostingChecklist === true);
 
   return (
     <div className="space-y-6">
@@ -713,6 +714,7 @@ export default function IntakeDetails() {
           showFinancialsForCurrentStep,
           showArchitectureForCurrentStep,
           showCybersecurityForCurrentStep,
+          showCostingChecklistForCurrentStep,
           renderSourcePanel: () => <IntakeSourcePanel intakeId={id} />,
           renderCustomFieldsBlock: (excludeIds: number[]) => (
             <IntakeCustomFieldsSection intakeId={intake.id} organizationId={currentOrganization?.id} isLocked={isLocked} excludeDefinitionIds={excludeIds} />
