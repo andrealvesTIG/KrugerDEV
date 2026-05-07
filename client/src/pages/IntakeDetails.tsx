@@ -818,7 +818,10 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked, exclude
   const { toast } = useToast();
   const { data: allDefinitions = [], isLoading: definitionsLoading } = useCustomFieldDefinitions(organizationId);
   const excludeSet = new Set(excludeDefinitionIds);
-  const definitions = allDefinitions.filter(d => (d.entityType || 'project') === 'intake' && !excludeSet.has(d.id));
+  const definitions = allDefinitions.filter(d => {
+    const et = d.entityType || 'project';
+    return (et === 'intake' || et === 'project') && !excludeSet.has(d.id);
+  });
   const { data: values = [], isLoading: valuesLoading } = useIntakeCustomFieldValues(intakeId);
   const { data: orgResources = [] } = useResources(organizationId ?? null);
   const updateValue = useUpdateIntakeCustomFieldValue();

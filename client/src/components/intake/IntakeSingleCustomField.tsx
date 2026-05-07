@@ -41,10 +41,11 @@ export function IntakeSingleCustomField({
       </div>
     );
   }
-  if ((field.entityType || 'project') !== 'intake') {
+  const fieldEntity = field.entityType || 'project';
+  if (fieldEntity !== 'intake' && fieldEntity !== 'project') {
     return (
       <div className="text-xs text-destructive" data-testid={`custom-field-wrong-entity-${definitionId}`}>
-        "{field.name}" is not an intake custom field — remove it from the intake form layout.
+        "{field.name}" is not an intake or project custom field — remove it from the intake form layout.
       </div>
     );
   }

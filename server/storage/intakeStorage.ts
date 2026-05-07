@@ -19,6 +19,7 @@ import { eq, and, desc, asc, isNull, sql, inArray } from "drizzle-orm";
 import { getProject } from "./projectStorage";
 import { getTasks, deleteAllTasksForProject } from "./taskStorage";
 import { createScheduleVersionFromImportTasks } from "./scheduleVersionStorage";
+import { assignAutonumberValuesForEntity } from "./miscStorage";
 
 export async function getProjectIntakes(organizationId: number): Promise<ProjectIntake[]> {
   return await db.select().from(projectIntakes)
@@ -118,6 +119,25 @@ export async function approveProjectIntake(id: number, approvedBy: string): Prom
       })
       .where(eq(projectIntakes.id, id));
 
+    return newProject;
+  }).then(async (newProject) => {
+    // After the conversion transaction commits, assign any project-typed
+    // autonumber custom field values for the brand-new project. (The intake
+    // captures intake-typed autonumbers; project-typed ones are issued on
+    // first existence of the project, mirroring the regular project-create
+    // route's behavior.)
+    try {
+      await assignAutonumberValuesForEntity({
+        organizationId: newProject.organizationId,
+        entityType: 'project',
+        entityId: newProject.id,
+      });
+    } catch (err) {
+      // Don't fail the whole conversion if autonumber assignment hits an issue;
+      // the project already exists and downstream UI will surface missing
+      // autonumber values.
+      console.error('Failed to assign project autonumber values during intake conversion:', err);
+    }
     return newProject;
   });
 }
