@@ -84,6 +84,7 @@ export async function approveProjectIntake(id: number, approvedBy: string): Prom
       programId: intake.programId,
       name: intake.projectName,
       description: intake.description,
+      businessUnit: intake.businessUnit,
       budget: intake.estimatedBudget ?? 0,
       status: "Initiation",
       priority: "Medium",

@@ -689,6 +689,7 @@ export const projects = pgTable("projects", {
   assumptions: text("assumptions"), // Project assumptions
   dependencies: text("dependencies"), // External dependencies
   department: text("department"), // Primary department
+  businessUnit: text("business_unit"), // Requesting business unit (mirrors intake field)
   category: text("category"), // Project category (IT, Marketing, Operations, etc.)
   businessValue: text("business_value"), // Expected business value/ROI
   riskLevel: text("risk_level"), // Low, Medium, High - overall risk assessment
