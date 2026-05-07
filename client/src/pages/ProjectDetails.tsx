@@ -8,6 +8,7 @@ import { useRoute, Link } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory, useProjects, useDeleteProject } from "@/hooks/use-projects";
 import { useProjectWorkflows } from "@/hooks/use-project-workflows";
 import { usePortfolios, useCreatePortfolio } from "@/hooks/use-portfolios";
+import { usePrograms } from "@/hooks/use-programs";
 import { useRisks } from "@/hooks/use-risks";
 import { useIssues } from "@/hooks/use-issues";
 import { useTasks } from "@/hooks/use-tasks";
@@ -4518,6 +4519,7 @@ function ProjectFormSummary({
 }) {
   const { data: layout, isLoading } = useProjectFormLayout(organizationId);
   const { data: resources = [] } = useResources(organizationId ?? null);
+  const { data: programs = [] } = usePrograms(organizationId ?? null);
   const { data: allCustomFieldDefs = [] } = useCustomFieldDefinitions(organizationId);
   const projectCustomFieldDefs = useMemo(
     () => allCustomFieldDefs.filter(d => (d.entityType || 'project') === 'project'),
@@ -4572,6 +4574,7 @@ function ProjectFormSummary({
         organizationId,
         isLocked,
         portfolios,
+        programs,
         resources,
         onFieldChange: handleFieldChange,
         renderCustomFieldsBlock,

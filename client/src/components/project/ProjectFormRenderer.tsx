@@ -7,7 +7,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Portfolio, Resource } from "@shared/schema";
+import type { Portfolio, Program, Resource } from "@shared/schema";
 import type { ProjectFormLayoutTabFull, ProjectFormLayoutSectionFull, ProjectFormLayoutItemFull } from "@/hooks/use-project-form-layout";
 import { ProjectFieldRenderer } from "./ProjectFieldRenderer";
 import { ProjectSingleCustomField } from "./ProjectSingleCustomField";
@@ -28,6 +28,7 @@ export interface ProjectFormRendererContext {
   organizationId: number | undefined;
   isLocked: boolean;
   portfolios: Portfolio[];
+  programs: Program[];
   resources: Resource[];
   onFieldChange: (field: string, value: any) => void;
   renderCustomFieldsBlock: (excludeDefinitionIds: number[]) => ReactNode;
@@ -120,6 +121,7 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds }: { item: ProjectFormLa
         onChange={ctx.onFieldChange}
         isLocked={ctx.isLocked}
         portfolios={ctx.portfolios}
+        programs={ctx.programs}
         resources={ctx.resources}
       />
     );

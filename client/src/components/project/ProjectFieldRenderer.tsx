@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PROJECT_FORM_FIELD_BY_KEY, type ProjectFieldDefinition } from "@shared/projectFormRegistry";
-import type { Portfolio, Resource } from "@shared/schema";
+import type { Portfolio, Program, Resource } from "@shared/schema";
 
 export interface ProjectFieldRendererProps {
   fieldKey: string;
@@ -18,6 +18,7 @@ export interface ProjectFieldRendererProps {
   onChange: (field: string, value: any) => void;
   isLocked: boolean;
   portfolios?: Portfolio[];
+  programs?: Program[];
   resources?: Resource[];
 }
 
@@ -31,7 +32,7 @@ function toDateInput(v: any): string {
   } catch { return ""; }
 }
 
-export function ProjectFieldRenderer({ fieldKey, project, onChange, isLocked, portfolios, resources }: ProjectFieldRendererProps) {
+export function ProjectFieldRenderer({ fieldKey, project, onChange, isLocked, portfolios, programs, resources }: ProjectFieldRendererProps) {
   const def = PROJECT_FORM_FIELD_BY_KEY[fieldKey];
   if (!def) {
     return (
@@ -61,12 +62,12 @@ export function ProjectFieldRenderer({ fieldKey, project, onChange, isLocked, po
   return (
     <div className="space-y-2">
       <Label className="text-sm">{def.label}</Label>
-      <FieldInput def={def} value={current} disabled={isLocked} onChange={(v) => onChange(def.key, v)} portfolios={portfolios ?? []} resources={resources ?? []} />
+      <FieldInput def={def} value={current} disabled={isLocked} onChange={(v) => onChange(def.key, v)} portfolios={portfolios ?? []} programs={programs ?? []} resources={resources ?? []} />
     </div>
   );
 }
 
-function FieldInput({ def, value, disabled, onChange, portfolios, resources }: { def: ProjectFieldDefinition; value: any; disabled: boolean; onChange: (v: any) => void; portfolios: Portfolio[]; resources: Resource[]; }) {
+function FieldInput({ def, value, disabled, onChange, portfolios, programs, resources }: { def: ProjectFieldDefinition; value: any; disabled: boolean; onChange: (v: any) => void; portfolios: Portfolio[]; programs: Program[]; resources: Resource[]; }) {
   // Local "draft" buffer so typing isn't laggy and we only persist on blur.
   const [draft, setDraft] = useState<string>("");
   const [focused, setFocused] = useState(false);
@@ -150,6 +151,17 @@ function FieldInput({ def, value, disabled, onChange, portfolios, resources }: {
       disabled={disabled}
       options={portfolios.map(p => ({ id: p.id, label: p.name ?? `Portfolio #${p.id}` }))}
       placeholder="Assign to portfolio"
+      onChange={(id) => onChange(id)}
+      testId={`select-project-${def.key}`}
+    />;
+  }
+  if (def.inputType === "program") {
+    return <PickerCombo
+      label="program"
+      value={value}
+      disabled={disabled}
+      options={programs.map(p => ({ id: p.id, label: p.name ?? `Program #${p.id}` }))}
+      placeholder="Assign to program"
       onChange={(id) => onChange(id)}
       testId={`select-project-${def.key}`}
     />;

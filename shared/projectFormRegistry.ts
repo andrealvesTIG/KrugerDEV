@@ -13,6 +13,7 @@ export type ProjectFieldInputType =
   | "select"
   | "checkbox"
   | "portfolio"
+  | "program"
   | "resource";
 
 export interface ProjectFieldDefinition {
@@ -92,6 +93,7 @@ export const PROJECT_FORM_FIELDS: ProjectFieldDefinition[] = [
   // People
   { key: "managerResourceId", label: "Project Manager", group: "People", inputType: "resource" },
   { key: "portfolioId",       label: "Portfolio",       group: "People", inputType: "portfolio" },
+  { key: "programId",         label: "Program",         group: "People", inputType: "program" },
 
   // Scope & narrative
   { key: "scope",            label: "Scope",            group: "Scope & Narrative", inputType: "textarea", rows: 3 },
