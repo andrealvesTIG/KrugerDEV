@@ -36,6 +36,9 @@ import {
 } from "@shared/projectTabs";
 import { useAuth } from "@/hooks/use-auth";
 import { ResourceSelector } from "@/components/ResourceSelector";
+import { useProjectFormLayout } from "@/hooks/use-project-form-layout";
+import { ProjectFormRenderer } from "@/components/project/ProjectFormRenderer";
+import { ProjectSingleCustomField } from "@/components/project/ProjectSingleCustomField";
 import { StatusReportDialog } from "@/components/StatusReportDialog";
 import { CrossProjectReferences } from "@/components/CrossProjectReferences";
 import { ChangeWorkflowDialog } from "@/components/ChangeWorkflowDialog";
@@ -2026,7 +2029,13 @@ export default function ProjectDetails() {
               }}
             />
 
-            <ProjectSummaryTab project={project} onUpdate={updateProject} tasks={projectTasks || []} readOnly={isProjectLocked} />
+            <ProjectFormSummary
+              project={project}
+              organizationId={currentOrganization?.id}
+              portfolios={portfolios ?? []}
+              isLocked={isProjectLocked}
+              onUpdate={updateProject}
+            />
           </TabsContent>
           <TabsContent value="tasks" className="relative">
             <TasksTab projectId={project.id} projectName={project.name} projectStartDate={project.startDate} projectEndDate={project.endDate} projectSource={project.source} plannerPlanId={project.plannerPlanId} sourceFileName={project.sourceFileName} sourceFileUrl={project.sourceFileUrl} dataverseOrgId={project.dataverseOrgId} dataverseTenantId={project.dataverseTenantId} urlTaskId={urlTaskId} readOnly={isProjectLocked} projectUpdatedAt={project.updatedAt} />
@@ -4491,6 +4500,83 @@ function ProjectTeamTab({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function ProjectFormSummary({
+  project,
+  organizationId,
+  portfolios,
+  isLocked,
+  onUpdate,
+}: {
+  project: any;
+  organizationId: number | undefined;
+  portfolios: any[];
+  isLocked: boolean;
+  onUpdate: (patch: any) => any;
+}) {
+  const { data: layout, isLoading } = useProjectFormLayout(organizationId);
+  const { data: resources = [] } = useResources(organizationId ?? null);
+  const { data: allCustomFieldDefs = [] } = useCustomFieldDefinitions(organizationId);
+  const projectCustomFieldDefs = useMemo(
+    () => allCustomFieldDefs.filter(d => (d.entityType || 'project') === 'project'),
+    [allCustomFieldDefs],
+  );
+  const [activeFormTab, setActiveFormTab] = useState<string>("");
+
+  const handleFieldChange = (field: string, value: any) => {
+    if (isLocked) return;
+    onUpdate({ id: project.id, [field]: value });
+  };
+
+  const renderCustomFieldsBlock = (excludeIds: number[]) => {
+    const remaining = projectCustomFieldDefs.filter(d => !excludeIds.includes(d.id));
+    if (remaining.length === 0) {
+      return (
+        <div className="text-sm text-muted-foreground italic" data-testid="project-form-no-custom-fields">
+          No custom fields defined for projects yet. Add some in Settings → Custom Fields.
+        </div>
+      );
+    }
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4" data-testid="project-form-custom-fields-block">
+        {remaining.map(def => (
+          <ProjectSingleCustomField
+            key={def.id}
+            projectId={project.id}
+            organizationId={organizationId}
+            definitionId={def.id}
+            isLocked={isLocked}
+          />
+        ))}
+      </div>
+    );
+  };
+
+  if (isLoading || !layout) {
+    return (
+      <div className="py-8 flex justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <ProjectFormRenderer
+      layout={layout}
+      activeTab={activeFormTab}
+      onActiveTabChange={setActiveFormTab}
+      ctx={{
+        project,
+        organizationId,
+        isLocked,
+        portfolios,
+        resources,
+        onFieldChange: handleFieldChange,
+        renderCustomFieldsBlock,
+      }}
+    />
   );
 }
 

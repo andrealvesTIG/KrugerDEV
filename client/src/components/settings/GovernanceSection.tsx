@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { IntakeWorkflowSection } from "./IntakeWorkflowSection";
 import { IntakeFormLayoutSection } from "./IntakeFormLayoutSection";
+import { ProjectFormLayoutSection } from "./ProjectFormLayoutSection";
 import { ProjectWorkflowSection } from "./ProjectWorkflowSection";
-import { GitBranch, FolderKanban, Layout } from "lucide-react";
+import { GitBranch, FolderKanban, Layout, LayoutGrid } from "lucide-react";
 
 export function GovernanceSection({ organizationId }: { organizationId: number }) {
   const [activeTab, setActiveTab] = useState("intake");
@@ -31,6 +32,10 @@ export function GovernanceSection({ organizationId }: { organizationId: number }
             <FolderKanban className="h-4 w-4" />
             Project
           </TabsTrigger>
+          <TabsTrigger value="project-form" className="gap-2" data-testid="tab-project-form-layout">
+            <LayoutGrid className="h-4 w-4" />
+            Project Form
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="intake" className="mt-4">
@@ -43,6 +48,10 @@ export function GovernanceSection({ organizationId }: { organizationId: number }
 
         <TabsContent value="project" className="mt-4">
           <ProjectWorkflowSection organizationId={organizationId} />
+        </TabsContent>
+
+        <TabsContent value="project-form" className="mt-4">
+          <ProjectFormLayoutSection organizationId={organizationId} />
         </TabsContent>
       </Tabs>
     </div>

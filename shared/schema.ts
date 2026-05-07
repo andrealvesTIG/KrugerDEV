@@ -2539,6 +2539,88 @@ export interface IntakeTabLayoutTabDTO {
   sections: IntakeTabLayoutSectionDTO[];
 }
 
+// =============== Configurable PROJECT form tab layout (per organization) ===============
+// Mirrors the intake form layout system but targets the projects table.
+// Used by Settings → Governance → Project Form to drive the configurable
+// portion of the project Summary tab on ProjectDetails.
+export const projectFormTabs = pgTable("project_form_tabs", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id, { onDelete: "cascade" }).notNull(),
+  position: integer("position").notNull(),
+  key: text("key").notNull(),
+  label: text("label").notNull(),
+  icon: text("icon"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("project_form_tabs_org_id_idx").on(table.organizationId),
+]);
+
+export const projectFormTabSections = pgTable("project_form_tab_sections", {
+  id: serial("id").primaryKey(),
+  tabId: integer("tab_id").references(() => projectFormTabs.id, { onDelete: "cascade" }).notNull(),
+  position: integer("position").notNull(),
+  title: text("title"),
+  description: text("description"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("project_form_tab_sections_tab_id_idx").on(table.tabId),
+]);
+
+export const projectFormTabItems = pgTable("project_form_tab_items", {
+  id: serial("id").primaryKey(),
+  sectionId: integer("section_id").references(() => projectFormTabSections.id, { onDelete: "cascade" }).notNull(),
+  position: integer("position").notNull(),
+  itemType: text("item_type").notNull(),  // 'field' | 'custom_field' | 'block'
+  itemKey: text("item_key").notNull(),
+  width: text("width").default("full").notNull(), // 'full' | 'half' | 'third'
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("project_form_tab_items_section_id_idx").on(table.sectionId),
+]);
+
+export const projectFormTabsRelations = relations(projectFormTabs, ({ many }) => ({
+  sections: many(projectFormTabSections),
+}));
+export const projectFormTabSectionsRelations = relations(projectFormTabSections, ({ one, many }) => ({
+  tab: one(projectFormTabs, { fields: [projectFormTabSections.tabId], references: [projectFormTabs.id] }),
+  items: many(projectFormTabItems),
+}));
+export const projectFormTabItemsRelations = relations(projectFormTabItems, ({ one }) => ({
+  section: one(projectFormTabSections, { fields: [projectFormTabItems.sectionId], references: [projectFormTabSections.id] }),
+}));
+
+export type ProjectFormTab = typeof projectFormTabs.$inferSelect;
+export type InsertProjectFormTab = typeof projectFormTabs.$inferInsert;
+export type ProjectFormTabSection = typeof projectFormTabSections.$inferSelect;
+export type InsertProjectFormTabSection = typeof projectFormTabSections.$inferInsert;
+export type ProjectFormTabItem = typeof projectFormTabItems.$inferSelect;
+export type InsertProjectFormTabItem = typeof projectFormTabItems.$inferInsert;
+
+export interface ProjectFormLayoutItemDTO {
+  id?: number;
+  itemType: "field" | "custom_field" | "block";
+  itemKey: string;
+  width: "full" | "half" | "third";
+}
+export interface ProjectFormLayoutSectionDTO {
+  id?: number;
+  title?: string | null;
+  description?: string | null;
+  items: ProjectFormLayoutItemDTO[];
+}
+export interface ProjectFormLayoutTabDTO {
+  id?: number;
+  key: string;
+  label: string;
+  icon?: string | null;
+  isActive?: boolean;
+  sections: ProjectFormLayoutSectionDTO[];
+}
+
 export const projectIntakesRelations = relations(projectIntakes, ({ one }) => ({
   organization: one(organizations, {
     fields: [projectIntakes.organizationId],

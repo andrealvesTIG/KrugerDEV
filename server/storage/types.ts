@@ -477,6 +477,10 @@ export interface IIntakeStorage {
   replaceIntakeTabLayout(organizationId: number, tabs: import("@shared/schema").IntakeTabLayoutTabDTO[]): Promise<import("./intakeStorage").IntakeTabLayoutTabFull[]>;
   seedDefaultIntakeTabLayoutIfMissing(organizationId: number): Promise<import("./intakeStorage").IntakeTabLayoutTabFull[]>;
   resetIntakeTabLayoutToDefaults(organizationId: number): Promise<import("./intakeStorage").IntakeTabLayoutTabFull[]>;
+  getProjectFormLayout(organizationId: number): Promise<import("./projectFormLayoutStorage").ProjectFormLayoutTabFull[]>;
+  replaceProjectFormLayout(organizationId: number, tabs: import("@shared/schema").ProjectFormLayoutTabDTO[]): Promise<import("./projectFormLayoutStorage").ProjectFormLayoutTabFull[]>;
+  seedDefaultProjectFormLayoutIfMissing(organizationId: number): Promise<import("./projectFormLayoutStorage").ProjectFormLayoutTabFull[]>;
+  resetProjectFormLayoutToDefaults(organizationId: number): Promise<import("./projectFormLayoutStorage").ProjectFormLayoutTabFull[]>;
   getProjectWorkflows(organizationId: number): Promise<ProjectWorkflow[]>;
   getProjectWorkflow(id: number): Promise<ProjectWorkflow | undefined>;
   createProjectWorkflow(data: InsertProjectWorkflow): Promise<ProjectWorkflow>;
