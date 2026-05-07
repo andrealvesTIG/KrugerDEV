@@ -73,10 +73,14 @@ export function ProjectFormRenderer({ layout, activeTab, onActiveTabChange, ctx 
         })}
       </TabsList>
       {visibleTabs.map(tab => (
-        <TabsContent key={tab.key} value={tab.key} className="space-y-4">
-          {tab.sections.map(section => (
-            <SectionRenderer key={section.id} section={section} ctx={ctx} placedCustomFieldIds={placedIds} />
-          ))}
+        <TabsContent key={tab.key} value={tab.key}>
+          <div className="grid grid-cols-12 gap-4 items-start">
+            {tab.sections.map(section => (
+              <div key={section.id} className={WIDTH_CLASS[section.width] ?? WIDTH_CLASS.full}>
+                <SectionRenderer section={section} ctx={ctx} placedCustomFieldIds={placedIds} />
+              </div>
+            ))}
+          </div>
         </TabsContent>
       ))}
     </Tabs>

@@ -3,7 +3,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { ProjectFormLayoutTabDTO } from "@shared/schema";
 
 export interface ProjectFormLayoutItemFull { id: number; itemType: "field" | "custom_field" | "block"; itemKey: string; width: "full" | "half" | "third"; position: number; }
-export interface ProjectFormLayoutSectionFull { id: number; title: string | null; description: string | null; position: number; items: ProjectFormLayoutItemFull[]; }
+export interface ProjectFormLayoutSectionFull { id: number; title: string | null; description: string | null; width: "full" | "half" | "third"; position: number; items: ProjectFormLayoutItemFull[]; }
 export interface ProjectFormLayoutTabFull { id: number; key: string; label: string; icon: string | null; isActive: boolean; position: number; sections: ProjectFormLayoutSectionFull[]; }
 
 export function useProjectFormLayout(organizationId: number | undefined) {

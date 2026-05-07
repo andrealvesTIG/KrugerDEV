@@ -2563,6 +2563,7 @@ export const projectFormTabSections = pgTable("project_form_tab_sections", {
   position: integer("position").notNull(),
   title: text("title"),
   description: text("description"),
+  width: text("width").default("full").notNull(), // 'full' | 'half' | 'third'
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -2610,6 +2611,7 @@ export interface ProjectFormLayoutSectionDTO {
   id?: number;
   title?: string | null;
   description?: string | null;
+  width?: "full" | "half" | "third";
   items: ProjectFormLayoutItemDTO[];
 }
 export interface ProjectFormLayoutTabDTO {

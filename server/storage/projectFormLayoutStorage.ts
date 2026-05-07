@@ -9,7 +9,7 @@ import {
 import { DEFAULT_PROJECT_FORM_TABS } from "@shared/projectFormTabDefaults";
 
 export interface ProjectFormLayoutItemFull { id: number; itemType: string; itemKey: string; width: string; position: number; }
-export interface ProjectFormLayoutSectionFull { id: number; title: string | null; description: string | null; position: number; items: ProjectFormLayoutItemFull[]; }
+export interface ProjectFormLayoutSectionFull { id: number; title: string | null; description: string | null; width: string; position: number; items: ProjectFormLayoutItemFull[]; }
 export interface ProjectFormLayoutTabFull { id: number; key: string; label: string; icon: string | null; isActive: boolean; position: number; sections: ProjectFormLayoutSectionFull[]; }
 
 export async function getProjectFormLayout(organizationId: number): Promise<ProjectFormLayoutTabFull[]> {
@@ -37,7 +37,7 @@ export async function getProjectFormLayout(organizationId: number): Promise<Proj
   const sectionsByTab = new Map<number, ProjectFormLayoutSectionFull[]>();
   for (const s of sectionRows) {
     const arr = sectionsByTab.get(s.tabId) ?? [];
-    arr.push({ id: s.id, title: s.title ?? null, description: s.description ?? null, position: s.position, items: itemsBySection.get(s.id) ?? [] });
+    arr.push({ id: s.id, title: s.title ?? null, description: s.description ?? null, width: s.width ?? "full", position: s.position, items: itemsBySection.get(s.id) ?? [] });
     sectionsByTab.set(s.tabId, arr);
   }
   return tabRows.map(t => ({
@@ -61,7 +61,7 @@ export async function replaceProjectFormLayout(organizationId: number, tabs: Pro
       for (let si = 0; si < (t.sections ?? []).length; si++) {
         const s = t.sections[si];
         const [secRow] = await tx.insert(_sections).values({
-          tabId: tabRow.id, position: si, title: s.title ?? null, description: s.description ?? null,
+          tabId: tabRow.id, position: si, title: s.title ?? null, description: s.description ?? null, width: s.width ?? "full",
         }).returning();
         const items = s.items ?? [];
         if (items.length > 0) {
@@ -79,7 +79,7 @@ function defaultsToDto(): ProjectFormLayoutTabDTO[] {
   return DEFAULT_PROJECT_FORM_TABS.map(t => ({
     key: t.key, label: t.label, icon: t.icon, isActive: true,
     sections: t.sections.map(s => ({
-      title: s.title, description: s.description ?? null,
+      title: s.title, description: s.description ?? null, width: s.width ?? "full",
       items: s.items.map(i => ({ itemType: i.itemType, itemKey: i.itemKey, width: i.width })),
     })),
   }));

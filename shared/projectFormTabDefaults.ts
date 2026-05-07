@@ -11,6 +11,7 @@ export interface DefaultProjectFormItem {
 export interface DefaultProjectFormSection {
   title: string;
   description?: string;
+  width?: "full" | "half" | "third";
   items: DefaultProjectFormItem[];
 }
 

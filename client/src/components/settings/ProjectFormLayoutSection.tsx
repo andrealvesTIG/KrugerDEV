@@ -24,10 +24,16 @@ import type { CustomFieldDefinition } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
 interface DraftItem { uid: string; itemType: "field" | "custom_field" | "block"; itemKey: string; width: "full" | "half" | "third"; }
-interface DraftSection { uid: string; title: string | null; description: string | null; items: DraftItem[]; }
+interface DraftSection { uid: string; title: string | null; description: string | null; width: "full" | "half" | "third"; items: DraftItem[]; }
 interface DraftTab { uid: string; key: string; label: string; icon: string | null; isActive: boolean; sections: DraftSection[]; }
 
 const ICON_OPTIONS = ["FileText", "ClipboardList", "DollarSign", "CalendarDays", "Users", "Lightbulb", "Calculator", "Shield", "MessageSquare", "ListChecks", "Settings", "Gavel"];
+
+const SECTION_WIDTH_CLASS: Record<string, string> = {
+  full: "col-span-12",
+  half: "col-span-12 md:col-span-6",
+  third: "col-span-12 md:col-span-4",
+};
 
 function uid(prefix: string) { return `${prefix}-${Math.random().toString(36).slice(2, 10)}`; }
 
@@ -35,7 +41,7 @@ function toDraft(layout: ProjectFormLayoutTabFull[]): DraftTab[] {
   return layout.map(t => ({
     uid: uid("tab"), key: t.key, label: t.label, icon: t.icon, isActive: t.isActive,
     sections: t.sections.map(s => ({
-      uid: uid("sec"), title: s.title, description: s.description,
+      uid: uid("sec"), title: s.title, description: s.description, width: (s.width ?? "full") as DraftSection["width"],
       items: s.items.map(i => ({ uid: uid("itm"), itemType: i.itemType as any, itemKey: i.itemKey, width: i.width as any })),
     })),
   }));
@@ -121,7 +127,7 @@ export function ProjectFormLayoutSection({ organizationId }: { organizationId: n
   };
   const addSection = (tabUid: string) => {
     const tab = draft.find(t => t.uid === tabUid); if (!tab) return;
-    const s: DraftSection = { uid: uid("sec"), title: null, description: null, items: [] };
+    const s: DraftSection = { uid: uid("sec"), title: null, description: null, width: "full", items: [] };
     updateTab(tabUid, { sections: [...tab.sections, s] });
   };
   const updateSection = (tabUid: string, secUid: string, patch: Partial<DraftSection>) => {
@@ -250,6 +256,7 @@ export function ProjectFormLayoutSection({ organizationId }: { organizationId: n
         sections: t.sections.map(s => ({
           title: s.title?.trim() ? s.title.trim() : null,
           description: s.description,
+          width: s.width,
           items: s.items.map(i => ({ itemType: i.itemType, itemKey: i.itemKey, width: i.width })),
         })),
       };
@@ -427,26 +434,29 @@ function TabEditor(props: {
         props.onItemDragEnd(e);
       }}>
         <SortableContext items={tab.sections.map(s => s.uid)} strategy={verticalListSortingStrategy}>
-          <div className="space-y-3">
+          <div className="grid grid-cols-12 gap-3 items-start">
             {tab.sections.map(section => (
-              <SectionEditor
-                key={section.uid}
-                section={section}
-                tab={tab}
-                allTabs={allTabs}
-                customFieldDefs={customFieldDefs}
-                placedItemKeys={collectPlacedKeys(allTabs)}
-                onUpdateSection={(p) => props.onUpdateSection(section.uid, p)}
-                onDeleteSection={() => props.onDeleteSection(section.uid)}
-                onAddItem={(t, k) => props.onAddItem(section.uid, t, k)}
-                onUpdateItem={(iu, p) => props.onUpdateItem(section.uid, iu, p)}
-                onDeleteItem={(iu) => props.onDeleteItem(section.uid, iu)}
-                onMoveItemTo={(itemUid, toTabUid, toSecUid) => props.onMoveItemTo(itemUid, toTabUid, toSecUid)}
-              />
+              <div key={section.uid} className={SECTION_WIDTH_CLASS[section.width] ?? SECTION_WIDTH_CLASS.full}>
+                <SectionEditor
+                  section={section}
+                  tab={tab}
+                  allTabs={allTabs}
+                  customFieldDefs={customFieldDefs}
+                  placedItemKeys={collectPlacedKeys(allTabs)}
+                  onUpdateSection={(p) => props.onUpdateSection(section.uid, p)}
+                  onDeleteSection={() => props.onDeleteSection(section.uid)}
+                  onAddItem={(t, k) => props.onAddItem(section.uid, t, k)}
+                  onUpdateItem={(iu, p) => props.onUpdateItem(section.uid, iu, p)}
+                  onDeleteItem={(iu) => props.onDeleteItem(section.uid, iu)}
+                  onMoveItemTo={(itemUid, toTabUid, toSecUid) => props.onMoveItemTo(itemUid, toTabUid, toSecUid)}
+                />
+              </div>
             ))}
-            <Button variant="outline" size="sm" onClick={props.onAddSection} data-testid="button-add-section">
-              <Plus className="h-4 w-4 mr-1" /> Add Section
-            </Button>
+            <div className="col-span-12">
+              <Button variant="outline" size="sm" onClick={props.onAddSection} data-testid="button-add-section">
+                <Plus className="h-4 w-4 mr-1" /> Add Section
+              </Button>
+            </div>
           </div>
         </SortableContext>
       </DndContext>
@@ -477,8 +487,8 @@ function SectionEditor(props: {
   const { attributes, listeners, setNodeRef: setSectionNodeRef, transform, transition, isDragging } = useSortable({ id: section.uid });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
   return (
-    <div ref={setSectionNodeRef} style={style} className="border rounded-md p-3 bg-card" data-testid={`section-editor-${section.uid}`}>
-      <div className="flex items-center gap-2 mb-3">
+    <div ref={setSectionNodeRef} style={style} className="border rounded-md p-3 bg-card h-full" data-testid={`section-editor-${section.uid}`}>
+      <div className="flex items-center gap-2 mb-2">
         <button {...attributes} {...listeners} className="cursor-grab text-muted-foreground touch-none" aria-label="Drag section">
           <GripVertical className="h-4 w-4" />
         </button>
@@ -489,16 +499,24 @@ function SectionEditor(props: {
           className="font-medium flex-1"
           data-testid={`input-section-title-${section.uid}`}
         />
-        <Input
-          value={section.description ?? ""}
-          onChange={(e) => props.onUpdateSection({ description: e.target.value || null })}
-          placeholder="Description (optional)"
-          className="flex-1 text-sm"
-        />
+        <Select value={section.width} onValueChange={(v) => props.onUpdateSection({ width: v as DraftSection["width"] })}>
+          <SelectTrigger className="h-8 w-[110px] text-xs" data-testid={`select-section-width-${section.uid}`}><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="full">Full width</SelectItem>
+            <SelectItem value="half">Half</SelectItem>
+            <SelectItem value="third">Third</SelectItem>
+          </SelectContent>
+        </Select>
         <Button size="icon" variant="ghost" onClick={props.onDeleteSection} className="text-destructive" data-testid={`button-delete-section-${section.uid}`}>
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
+      <Input
+        value={section.description ?? ""}
+        onChange={(e) => props.onUpdateSection({ description: e.target.value || null })}
+        placeholder="Description (optional)"
+        className="text-sm mb-3"
+      />
 
       <SortableContext items={section.items.map(i => i.uid)} strategy={verticalListSortingStrategy}>
         <SectionDropZone sectionUid={section.uid} isEmpty={section.items.length === 0}>
