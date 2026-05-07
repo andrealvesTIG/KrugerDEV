@@ -15,6 +15,7 @@ import { registerUserRoutes } from "./routes/userRoutes";
 import { registerOrganizationRoutes } from "./routes/organizationRoutes";
 import { registerOrgMemberRoutes } from "./routes/orgMemberRoutes";
 import { registerPortfolioRoutes } from "./routes/portfolioRoutes";
+import { registerProgramRoutes } from "./routes/programRoutes";
 import { registerProjectRoutes } from "./routes/projectRoutes";
 import { registerProjectFeatureRoutes } from "./routes/projectFeatureRoutes";
 import { registerFinancialsRoutes } from "./routes/financialsRoutes";
@@ -121,6 +122,7 @@ export async function registerRoutes(
   registerOrganizationRoutes(app);
   registerOrgMemberRoutes(app);
   registerPortfolioRoutes(app);
+  registerProgramRoutes(app);
   registerProjectRoutes(app);
   registerProjectFeatureRoutes(app);
   registerFinancialsRoutes(app);

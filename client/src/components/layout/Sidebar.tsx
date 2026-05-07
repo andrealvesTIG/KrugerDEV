@@ -1,6 +1,6 @@
 import { useState, createContext, useContext, ReactNode, useEffect, useMemo } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate, ClipboardList, MessageSquare, FileCheck, PenSquare, ClipboardCheck, Shield, Gavel, FileSignature, CalendarDays, MailOpen, Newspaper, BarChart3, Check, Search, ChevronsUpDown, Bot } from "lucide-react";
+import { LayoutDashboard, Briefcase, FolderKanban, LogOut, Calendar, CircleDot, ChevronLeft, ChevronRight, CheckSquare, Crown, Settings, Building2, ChevronDown, User, BookOpen, HelpCircle, Users, Menu, X, FileInput, CreditCard, ExternalLink, Clock, Lightbulb, Receipt, PlayCircle, Mail, Home, Radar, GraduationCap, LayoutTemplate, ClipboardList, MessageSquare, FileCheck, PenSquare, ClipboardCheck, Shield, Gavel, FileSignature, CalendarDays, MailOpen, Newspaper, BarChart3, Check, Search, ChevronsUpDown, Bot, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logoBlack from "@assets/FridayReportAI_logo_black_1770231034490.png";
 import logoWhite from "@assets/FridayReportAI_logo_white_1770231063709.png";
@@ -85,6 +85,7 @@ const moduleDefinitions: Record<string, { name: string; href: string; icon: Reac
   home: { name: "Home", href: "/", icon: Home },
   dashboard: { name: "Dashboard", href: "/dashboards", icon: LayoutDashboard },
   portfolios: { name: "Portfolios", href: "/portfolios", icon: Briefcase },
+  programs: { name: "Programs", href: "/programs", icon: Layers },
   projects: { name: "Projects", href: "/projects", icon: FolderKanban },
   intakes: { name: "Intakes", href: "/intakes", icon: FileInput },
   tasks: { name: "Tasks", href: "/tasks", icon: CheckSquare },
@@ -120,6 +121,7 @@ const navigation = [
   { name: "Home", href: "/", icon: Home, key: "home" },
   { name: "Dashboard", href: "/dashboards", icon: LayoutDashboard, key: "dashboard" },
   { name: "Portfolios", href: "/portfolios", icon: Briefcase, key: "portfolios" },
+  { name: "Programs", href: "/programs", icon: Layers, key: "programs" },
   { name: "Projects", href: "/projects", icon: FolderKanban, key: "projects" },
   { name: "Intakes", href: "/intakes", icon: FileInput, key: "intakes" },
   { name: "Tasks", href: "/tasks", icon: CheckSquare, key: "tasks" },
@@ -148,6 +150,7 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
     ]},
     { id: "portfolio", name: "Portfolio", hidden: false, collapsedByDefault: false, items: [
       { type: "module" as const, key: "portfolios", hidden: false },
+      { type: "module" as const, key: "programs", hidden: false },
       { type: "module" as const, key: "projects", hidden: false },
       { type: "module" as const, key: "intakes", hidden: false },
       { type: "module" as const, key: "issues", hidden: false },
@@ -206,6 +209,7 @@ function migrateOldFlatStructure(structure: SidebarStructure): SidebarStructure 
     ]},
     { id: "portfolio", name: "Portfolio", hidden: false, collapsedByDefault: false, items: [
       { type: "module" as const, key: "portfolios", hidden: getItemHidden("portfolios") },
+      { type: "module" as const, key: "programs", hidden: getItemHidden("programs") },
       { type: "module" as const, key: "projects", hidden: getItemHidden("projects") },
       { type: "module" as const, key: "intakes", hidden: getItemHidden("intakes") },
       { type: "module" as const, key: "issues", hidden: getItemHidden("issues") },

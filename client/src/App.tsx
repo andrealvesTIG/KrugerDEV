@@ -25,6 +25,8 @@ import { useAuth } from "@/hooks/use-auth";
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Portfolios = lazy(() => import("@/pages/Portfolios"));
 const PortfolioDetails = lazy(() => import("@/pages/PortfolioDetails"));
+const Programs = lazy(() => import("@/pages/Programs"));
+const ProgramDetails = lazy(() => import("@/pages/ProgramDetails"));
 const Projects = lazy(() => import("@/pages/Projects"));
 const ProjectDetails = lazy(() => import("@/pages/ProjectDetails"));
 const ProjectBurndown = lazy(() => import("@/pages/ProjectBurndown"));
@@ -227,6 +229,10 @@ function Router() {
             <ModuleGuard moduleKey="portfolios"><PortfolioDetails /></ModuleGuard>
           </Route>
           <GuardedRoute path="/portfolios" component={Portfolios} moduleKey="portfolios" />
+          <Route path="/programs/:id">
+            <ModuleGuard moduleKey="programs"><ProgramDetails /></ModuleGuard>
+          </Route>
+          <GuardedRoute path="/programs" component={Programs} moduleKey="programs" />
           <Route path="/projects/:id/burndown">
             <ModuleGuard moduleKey="projects"><ProjectBurndown /></ModuleGuard>
           </Route>

@@ -81,6 +81,7 @@ export async function approveProjectIntake(id: number, approvedBy: string): Prom
     const [newProject] = await tx.insert(projects).values({
       organizationId: intake.organizationId,
       portfolioId: intake.portfolioId,
+      programId: intake.programId,
       name: intake.projectName,
       description: intake.description,
       budget: intake.estimatedBudget ?? 0,

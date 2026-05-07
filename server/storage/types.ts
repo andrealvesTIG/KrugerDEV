@@ -6,6 +6,7 @@ import type {
   OrganizationAccessRequest, InsertOrganizationAccessRequest,
   ExternalShare, InsertExternalShare,
   Portfolio, InsertPortfolio, UpdatePortfolioRequest,
+  Program, InsertProgram, UpdateProgramRequest,
   Project, InsertProject, UpdateProjectRequest,
   Risk, InsertRisk, UpdateRiskRequest,
   Milestone, InsertMilestone, UpdateMilestoneRequest,
@@ -178,6 +179,18 @@ export interface IPortfolioStorage {
   getPortfolioMilestones(portfolioId: number): Promise<(Milestone & { projectName: string })[]>;
   addProjectToCustomPortfolio(portfolioId: number, projectId: number, addedBy?: string): Promise<void>;
   removeProjectFromCustomPortfolio(portfolioId: number, projectId: number): Promise<void>; 
+}
+
+export interface IProgramStorage {
+  getPrograms(organizationId?: number): Promise<Program[]>;
+  getProgram(id: number): Promise<Program | undefined>;
+  createProgram(program: InsertProgram): Promise<Program>;
+  updateProgram(id: number, updates: UpdateProgramRequest): Promise<Program>;
+  deleteProgram(id: number, deletedBy?: string): Promise<void>;
+  getProgramProjects(programId: number): Promise<Project[]>;
+  setProgramProjects(programId: number, projectIds: number[]): Promise<void>;
+  addProjectToProgram(programId: number, projectId: number): Promise<void>;
+  removeProjectFromProgram(projectId: number): Promise<void>;
 }
 
 export interface IProjectStorage {
@@ -646,6 +659,7 @@ export interface IStorage extends
   IUserStorage,
   IOrganizationStorage,
   IPortfolioStorage,
+  IProgramStorage,
   IProjectStorage,
   ITaskStorage,
   IResourceStorage,

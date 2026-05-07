@@ -609,6 +609,29 @@ export const portfolioKeyDates = pgTable("portfolio_key_dates", {
   index("portfolio_key_dates_organization_id_idx").on(table.organizationId),
 ]);
 
+// Programs - groupings of related projects (e.g. "2024 Completed Projects")
+export const programs = pgTable("programs", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  status: text("status").default("Active"), // Active, On Hold, Closed, Archived
+  description: text("description"),
+  businessCase: text("business_case"),
+  ownerId: varchar("owner_id").references(() => users.id).notNull(),
+  budget: numeric("budget"),
+  benefit: numeric("benefit"),
+  roi: numeric("roi"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+  isDemo: boolean("is_demo").default(false),
+}, (table) => [
+  index("programs_organization_id_idx").on(table.organizationId),
+  index("programs_owner_id_idx").on(table.ownerId),
+]);
+
 // Custom Portfolio Projects - junction table for custom portfolios
 export const customPortfolioProjects = pgTable("custom_portfolio_projects", {
   id: serial("id").primaryKey(),
@@ -625,6 +648,7 @@ export const projects = pgTable("projects", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   portfolioId: integer("portfolio_id").references(() => portfolios.id),
+  programId: integer("program_id").references(() => programs.id),
   workflowId: integer("workflow_id"), // FK to project_workflows.id (nullable; assigned when org has multiple workflows)
   name: text("name").notNull(),
   projectCode: text("project_code"), // Unique project identifier (e.g., "PRJ-2025-001")
@@ -1812,7 +1836,7 @@ export const projectIntakes = pgTable("project_intakes", {
   fundingSource: text("funding_source"), // "Business Funded", "IT Funded", "Shared", etc.
   portfolioId: integer("portfolio_id").references(() => portfolios.id),
   businessUnit: text("business_unit"), // BU field
-  programId: integer("program_id"), // Reference to program (can be added later)
+  programId: integer("program_id").references(() => programs.id),
   programName: text("program_name"), // Stored program name for display
   
   // Workflow state
@@ -2347,6 +2371,19 @@ export const portfoliosRelations = relations(portfolios, ({ one, many }) => ({
   projects: many(projects),
 }));
 
+export const programsRelations = relations(programs, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [programs.organizationId],
+    references: [organizations.id],
+  }),
+  owner: one(users, {
+    fields: [programs.ownerId],
+    references: [users.id],
+    relationName: "programOwner"
+  }),
+  projects: many(projects),
+}));
+
 export const projectsRelations = relations(projects, ({ one, many }) => ({
   organization: one(organizations, {
     fields: [projects.organizationId],
@@ -2355,6 +2392,10 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   portfolio: one(portfolios, {
     fields: [projects.portfolioId],
     references: [portfolios.id],
+  }),
+  program: one(programs, {
+    fields: [projects.programId],
+    references: [programs.id],
   }),
   manager: one(users, {
     fields: [projects.managerId],
@@ -2756,6 +2797,14 @@ export const insertExternalShareSchema = createInsertSchema(externalShares).omit
 export const insertPortfolioSchema = createInsertSchema(portfolios).omit({ id: true, createdAt: true }).extend({
   name: z.string().min(1, "Portfolio name is required"),
 });
+export const insertProgramSchema = createInsertSchema(programs).omit({ id: true, createdAt: true, updatedAt: true }).extend({
+  name: z.string().min(1, "Program name is required"),
+  ownerId: z.string().min(1, "Owner is required"),
+  budget: z.union([z.string(), z.number(), z.null()]).optional(),
+  benefit: z.union([z.string(), z.number(), z.null()]).optional(),
+  roi: z.union([z.string(), z.number(), z.null()]).optional(),
+});
+export const updateProgramSchema = insertProgramSchema.partial();
 export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true, updatedAt: true, updatedBy: true, createdBy: true });
 // Risk schema is now an alias for Issue schema with itemType="risk"
 // Extend to handle date strings for escalatedAt field
@@ -2895,6 +2944,10 @@ export type Portfolio = typeof portfolios.$inferSelect;
 export type InsertPortfolio = z.infer<typeof insertPortfolioSchema>;
 
 export type CustomPortfolioProject = typeof customPortfolioProjects.$inferSelect;
+
+export type Program = typeof programs.$inferSelect;
+export type InsertProgram = z.infer<typeof insertProgramSchema>;
+export type UpdateProgramRequest = z.infer<typeof updateProgramSchema>;
 
 export type Project = typeof projects.$inferSelect;
 export type InsertProject = z.infer<typeof insertProjectSchema>;
