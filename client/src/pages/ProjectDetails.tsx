@@ -4522,7 +4522,10 @@ function ProjectFormSummary({
   const { data: programs = [] } = usePrograms(organizationId ?? null);
   const { data: allCustomFieldDefs = [] } = useCustomFieldDefinitions(organizationId);
   const projectCustomFieldDefs = useMemo(
-    () => allCustomFieldDefs.filter(d => (d.entityType || 'project') === 'project'),
+    () => allCustomFieldDefs.filter(d => {
+      const e = d.entityType || 'project';
+      return e === 'project' || e === 'intake';
+    }),
     [allCustomFieldDefs],
   );
   const [activeFormTab, setActiveFormTab] = useState<string>("");

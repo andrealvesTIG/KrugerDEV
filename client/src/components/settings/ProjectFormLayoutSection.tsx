@@ -62,7 +62,10 @@ export function ProjectFormLayoutSection({ organizationId }: { organizationId: n
   const [dirty, setDirty] = useState(false);
   const { data: allCustomFieldDefs = [] } = useCustomFieldDefinitions(organizationId);
   const projectCustomFieldDefs = useMemo(
-    () => allCustomFieldDefs.filter(d => (d.entityType || 'project') === 'project'),
+    () => allCustomFieldDefs.filter(d => {
+      const e = d.entityType || 'project';
+      return e === 'project' || e === 'intake';
+    }),
     [allCustomFieldDefs],
   );
 
@@ -677,18 +680,20 @@ function AddItemPicker({ onAdd, customFieldDefs, placedItemKeys }: {
             {tab === "custom_field" && (
               customFieldDefs.length === 0 ? (
                 <div className="text-sm text-muted-foreground italic p-4 text-center">
-                  No project custom fields defined yet. Create some in <strong>Settings → Custom Fields</strong> (entity type "Project").
+                  No project or intake custom fields defined yet. Create some in <strong>Settings → Custom Fields</strong>.
                 </div>
               ) : filteredCustomFields.length === 0 ? (
                 <div className="text-sm text-muted-foreground italic p-4 text-center">No custom fields match "{search}".</div>
               ) : (
                 filteredCustomFields.map(d => {
                   const placed = placedItemKeys.has(`custom_field:${d.id}`);
+                  const ent = (d.entityType || 'project') as 'project' | 'intake';
                   return (
                     <button key={d.id} disabled={placed} className={cn("w-full text-left p-2 rounded flex items-center gap-2", placed ? "opacity-50 cursor-not-allowed" : "hover-elevate")} onClick={() => { onAdd("custom_field", String(d.id)); setOpen(false); }} data-testid={`picker-custom-field-${d.id}`}>
-                      <Badge variant="secondary" className="text-[10px]">Custom</Badge>
+                      <Badge variant={ent === 'intake' ? 'outline' : 'secondary'} className="text-[10px]">{ent === 'intake' ? 'Intake' : 'Project'}</Badge>
                       <span className="text-sm font-medium">{d.name}</span>
                       <span className="text-xs text-muted-foreground">({d.fieldType})</span>
+                      {ent === 'intake' && <span className="text-[10px] text-muted-foreground italic">carries from intake</span>}
                       {d.isRequired && <span className="text-xs text-destructive">required</span>}
                       {placed && <Badge variant="outline" className="ml-auto text-[10px]">Placed</Badge>}
                     </button>
