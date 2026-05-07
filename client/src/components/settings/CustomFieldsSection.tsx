@@ -55,8 +55,19 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
   const [options, setOptions] = useState("");
   const [mask, setMask] = useState("");
 
+  // Intake and project share their custom-field pool: a definition typed
+  // 'intake' shows on both intake forms and projects (it's carried forward at
+  // conversion), and a definition typed 'project' is also editable on the
+  // intake form so the value is captured before conversion. Mirror that here
+  // by listing both under the Project and Intake tabs.
+  const matchesEntityTab = (f: CustomFieldDefinition, tab: string) => {
+    const et = f.entityType || 'project';
+    if (tab === 'project' || tab === 'intake') return et === 'project' || et === 'intake';
+    return et === tab;
+  };
+
   const filteredFields = useMemo(() =>
-    fields.filter(f => (f.entityType || 'project') === activeEntityTab),
+    fields.filter(f => matchesEntityTab(f, activeEntityTab)),
     [fields, activeEntityTab]
   );
 
@@ -192,7 +203,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
           <TabsList className="mb-4">
             {ENTITY_TYPES.map((et) => {
               const Icon = et.icon;
-              const count = fields.filter(f => (f.entityType || 'project') === et.value).length;
+              const count = fields.filter(f => matchesEntityTab(f, et.value)).length;
               return (
                 <TabsTrigger key={et.value} value={et.value} className="gap-1.5">
                   <Icon className="h-4 w-4" />
