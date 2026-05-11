@@ -160,6 +160,7 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds, bare }: { item: IntakeT
         isLocked={ctx.isLocked}
         portfolios={ctx.portfolios}
         isRequired={REQUIRED_FIELD_KEYS.has(item.itemKey)}
+        labelOverride={item.displayName}
       />
     );
   }
@@ -174,6 +175,7 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds, bare }: { item: IntakeT
         organizationId={ctx.organizationId}
         definitionId={defId}
         isLocked={ctx.isLocked}
+        labelOverride={item.displayName}
       />
     );
   }

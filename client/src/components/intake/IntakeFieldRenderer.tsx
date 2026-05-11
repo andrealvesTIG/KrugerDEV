@@ -20,9 +20,10 @@ export interface IntakeFieldRendererProps {
   isLocked: boolean;
   portfolios?: Portfolio[];
   isRequired?: boolean;
+  labelOverride?: string | null;
 }
 
-export function IntakeFieldRenderer({ fieldKey, intake, formData, onChange, isLocked, portfolios, isRequired }: IntakeFieldRendererProps) {
+export function IntakeFieldRenderer({ fieldKey, intake, formData, onChange, isLocked, portfolios, isRequired, labelOverride }: IntakeFieldRendererProps) {
   const def = INTAKE_FIELD_BY_KEY[fieldKey];
   if (!def) {
     return (
@@ -32,6 +33,8 @@ export function IntakeFieldRenderer({ fieldKey, intake, formData, onChange, isLo
     );
   }
   const current = (formData as any)[def.key] ?? (intake as any)[def.key] ?? (def.inputType === "checkbox" ? false : "");
+  const hasOverride = !!(labelOverride && labelOverride.trim());
+  const effectiveLabel = hasOverride ? labelOverride!.trim() : def.label;
 
   if (def.inputType === "checkbox") {
     return (
@@ -44,7 +47,7 @@ export function IntakeFieldRenderer({ fieldKey, intake, formData, onChange, isLo
           data-testid={`checkbox-${def.key}`}
         />
         <Label htmlFor={def.key} className="text-sm cursor-pointer">
-          {def.helpText || def.label}
+          {hasOverride ? effectiveLabel : (def.helpText || def.label)}
           {isRequired && <span className="text-destructive ml-1">*</span>}
         </Label>
       </div>
@@ -54,7 +57,7 @@ export function IntakeFieldRenderer({ fieldKey, intake, formData, onChange, isLo
   return (
     <div className="space-y-2">
       <Label>
-        {def.label}
+        {effectiveLabel}
         {isRequired && <span className="text-destructive ml-1">*</span>}
       </Label>
       <FieldInput def={def} value={current} disabled={isLocked} onChange={(v) => onChange(def.key, v)} portfolios={portfolios} />

@@ -8,7 +8,7 @@ import {
 } from "@shared/schema";
 import { DEFAULT_PROJECT_FORM_TABS } from "@shared/projectFormTabDefaults";
 
-export interface ProjectFormLayoutItemFull { id: number; itemType: string; itemKey: string; width: string; position: number; }
+export interface ProjectFormLayoutItemFull { id: number; itemType: string; itemKey: string; width: string; position: number; displayName: string | null; }
 export interface ProjectFormLayoutSectionFull { id: number; title: string | null; description: string | null; width: string; position: number; items: ProjectFormLayoutItemFull[]; }
 export interface ProjectFormLayoutTabFull { id: number; key: string; label: string; icon: string | null; isActive: boolean; position: number; sections: ProjectFormLayoutSectionFull[]; }
 
@@ -31,7 +31,7 @@ export async function getProjectFormLayout(organizationId: number): Promise<Proj
   const itemsBySection = new Map<number, ProjectFormLayoutItemFull[]>();
   for (const i of itemRows) {
     const arr = itemsBySection.get(i.sectionId) ?? [];
-    arr.push({ id: i.id, itemType: i.itemType, itemKey: i.itemKey, width: i.width, position: i.position });
+    arr.push({ id: i.id, itemType: i.itemType, itemKey: i.itemKey, width: i.width, position: i.position, displayName: i.displayName ?? null });
     itemsBySection.set(i.sectionId, arr);
   }
   const sectionsByTab = new Map<number, ProjectFormLayoutSectionFull[]>();
@@ -67,6 +67,7 @@ export async function replaceProjectFormLayout(organizationId: number, tabs: Pro
         if (items.length > 0) {
           await tx.insert(_items).values(items.map((it, ii) => ({
             sectionId: secRow.id, position: ii, itemType: it.itemType, itemKey: it.itemKey, width: it.width ?? "full",
+            displayName: it.displayName?.trim() ? it.displayName.trim() : null,
           })));
         }
       }

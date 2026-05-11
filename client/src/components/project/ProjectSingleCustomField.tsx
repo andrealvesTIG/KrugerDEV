@@ -19,12 +19,14 @@ export function ProjectSingleCustomField({
   definitionId,
   isLocked,
   project,
+  labelOverride,
 }: {
   projectId: number;
   organizationId: number | undefined;
   definitionId: number;
   isLocked: boolean;
   project?: { createdAt?: string | Date | null; updatedAt?: string | Date | null } | null;
+  labelOverride?: string | null;
 }) {
   const { toast } = useToast();
   const { data: allDefinitions = [], isLoading: defsLoading } = useCustomFieldDefinitions(organizationId);
@@ -222,7 +224,7 @@ export function ProjectSingleCustomField({
   return (
     <div className="space-y-2" data-testid={`project-single-cf-${field.id}`}>
       <Label className="text-sm flex items-center gap-1">
-        {field.name}
+        {labelOverride && labelOverride.trim() ? labelOverride.trim() : field.name}
         {field.isRequired && <span className="text-destructive">*</span>}
       </Label>
       {isEditing ? (

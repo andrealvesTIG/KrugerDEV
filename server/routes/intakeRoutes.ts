@@ -1610,6 +1610,7 @@ export function registerIntakeRoutes(app: Express) {
           itemType: z.enum(['field', 'custom_field', 'block']),
           itemKey: z.string().min(1).max(120),
           width: z.enum(['full', 'half', 'third']).default('full'),
+          displayName: z.string().max(120).nullish(),
         })).default([]),
       })).default([]),
     })).min(1, 'At least one tab is required'),

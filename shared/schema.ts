@@ -2608,6 +2608,7 @@ export const intakeTabItems = pgTable("intake_tab_items", {
   itemType: text("item_type").notNull(),  // 'field' | 'custom_field' | 'block'
   itemKey: text("item_key").notNull(),    // field name, custom-field id (string), or block key
   width: text("width").default("full").notNull(), // 'full' | 'half' | 'third'
+  displayName: text("display_name"),      // optional on-screen label override (DB column unchanged)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -2638,6 +2639,7 @@ export interface IntakeTabLayoutItemDTO {
   itemType: "field" | "custom_field" | "block";
   itemKey: string;
   width: "full" | "half" | "third";
+  displayName?: string | null;
 }
 export interface IntakeTabLayoutSectionDTO {
   id?: number;
@@ -2692,6 +2694,7 @@ export const projectFormTabItems = pgTable("project_form_tab_items", {
   itemType: text("item_type").notNull(),  // 'field' | 'custom_field' | 'block'
   itemKey: text("item_key").notNull(),
   width: text("width").default("full").notNull(), // 'full' | 'half' | 'third'
+  displayName: text("display_name"),      // optional on-screen label override (DB column unchanged)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -2721,6 +2724,7 @@ export interface ProjectFormLayoutItemDTO {
   itemType: "field" | "custom_field" | "block";
   itemKey: string;
   width: "full" | "half" | "third";
+  displayName?: string | null;
 }
 export interface ProjectFormLayoutSectionDTO {
   id?: number;

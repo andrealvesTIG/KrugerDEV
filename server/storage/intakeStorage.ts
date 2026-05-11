@@ -1095,7 +1095,7 @@ import {
 } from "@shared/schema";
 import { DEFAULT_INTAKE_TABS } from "@shared/intakeTabDefaults";
 
-export interface IntakeTabLayoutItemFull { id: number; itemType: string; itemKey: string; width: string; position: number; }
+export interface IntakeTabLayoutItemFull { id: number; itemType: string; itemKey: string; width: string; position: number; displayName: string | null; }
 export interface IntakeTabLayoutSectionFull { id: number; title: string | null; description: string | null; position: number; items: IntakeTabLayoutItemFull[]; }
 export interface IntakeTabLayoutTabFull { id: number; key: string; label: string; icon: string | null; isActive: boolean; position: number; sections: IntakeTabLayoutSectionFull[]; }
 
@@ -1118,7 +1118,7 @@ export async function getIntakeTabLayout(organizationId: number): Promise<Intake
   const itemsBySection = new Map<number, IntakeTabLayoutItemFull[]>();
   for (const i of itemRows) {
     const arr = itemsBySection.get(i.sectionId) ?? [];
-    arr.push({ id: i.id, itemType: i.itemType, itemKey: i.itemKey, width: i.width, position: i.position });
+    arr.push({ id: i.id, itemType: i.itemType, itemKey: i.itemKey, width: i.width, position: i.position, displayName: i.displayName ?? null });
     itemsBySection.set(i.sectionId, arr);
   }
   const sectionsByTab = new Map<number, IntakeTabLayoutSectionFull[]>();
@@ -1153,6 +1153,7 @@ export async function replaceIntakeTabLayout(organizationId: number, tabs: Intak
         if (items.length > 0) {
           await tx.insert(_intakeTabItems).values(items.map((it, ii) => ({
             sectionId: secRow.id, position: ii, itemType: it.itemType, itemKey: it.itemKey, width: it.width ?? "full",
+            displayName: it.displayName?.trim() ? it.displayName.trim() : null,
           })));
         }
       }

@@ -126,6 +126,7 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds }: { item: ProjectFormLa
         portfolios={ctx.portfolios}
         programs={ctx.programs}
         resources={ctx.resources}
+        labelOverride={item.displayName}
       />
     );
   }
@@ -141,6 +142,7 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds }: { item: ProjectFormLa
         definitionId={defId}
         isLocked={ctx.isLocked}
         project={ctx.project}
+        labelOverride={item.displayName}
       />
     );
   }
