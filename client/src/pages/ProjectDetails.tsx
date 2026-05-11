@@ -4553,6 +4553,7 @@ function ProjectFormSummary({
             organizationId={organizationId}
             definitionId={def.id}
             isLocked={isLocked}
+            project={project}
           />
         ))}
       </div>

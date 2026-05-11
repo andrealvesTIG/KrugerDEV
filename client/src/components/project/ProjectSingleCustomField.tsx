@@ -17,11 +17,13 @@ export function ProjectSingleCustomField({
   organizationId,
   definitionId,
   isLocked,
+  project,
 }: {
   projectId: number;
   organizationId: number | undefined;
   definitionId: number;
   isLocked: boolean;
+  project?: { createdAt?: string | Date | null; updatedAt?: string | Date | null } | null;
 }) {
   const { toast } = useToast();
   const { data: allDefinitions = [], isLoading: defsLoading } = useCustomFieldDefinitions(organizationId);
@@ -50,10 +52,18 @@ export function ProjectSingleCustomField({
   }
   const value = values.find(v => v.fieldDefinitionId === definitionId)?.value || "";
 
+  const isComputed = field.fieldType === "days_since_updated" || field.fieldType === "days_since_created";
   const startEdit = () => {
-    if (isLocked || field.fieldType === "autonumber") return;
+    if (isLocked || field.fieldType === "autonumber" || isComputed) return;
     setEditValue(value);
     setIsEditing(true);
+  };
+
+  const computeDaysSince = (raw: string | Date | null | undefined): number | null => {
+    if (!raw) return null;
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return null;
+    return Math.max(0, Math.floor((Date.now() - d.getTime()) / 86_400_000));
   };
   const cancelEdit = () => { setIsEditing(false); setEditValue(""); };
   const save = async () => {
@@ -114,6 +124,12 @@ export function ProjectSingleCustomField({
   };
 
   const renderValue = () => {
+    if (field.fieldType === "days_since_updated" || field.fieldType === "days_since_created") {
+      const src = field.fieldType === "days_since_updated" ? project?.updatedAt : project?.createdAt;
+      const days = computeDaysSince(src ?? null);
+      if (days == null) return <span className="text-muted-foreground text-sm" data-testid={`value-project-computed-empty-${field.id}`}>—</span>;
+      return <span className="text-sm" data-testid={`value-project-computed-${field.id}`}>{days} {days === 1 ? "day" : "days"}</span>;
+    }
     if (field.fieldType === "autonumber") {
       if (!value) return <span className="text-muted-foreground text-sm italic" data-testid={`value-project-autonumber-pending-${field.id}`}>Pending…</span>;
       return <span className="text-sm font-mono font-medium" data-testid={`value-project-autonumber-${field.id}`}>{value}</span>;
@@ -163,7 +179,7 @@ export function ProjectSingleCustomField({
       ) : (
         <div className="flex items-center gap-2 group">
           {renderValue()}
-          {!isLocked && field.fieldType !== "autonumber" && (
+          {!isLocked && field.fieldType !== "autonumber" && !isComputed && (
             <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={startEdit} data-testid={`button-edit-project-cf-${field.id}`}>
               <Pencil className="h-3 w-3" />
             </Button>

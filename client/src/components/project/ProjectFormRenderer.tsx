@@ -137,6 +137,7 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds }: { item: ProjectFormLa
         organizationId={ctx.organizationId}
         definitionId={defId}
         isLocked={ctx.isLocked}
+        project={ctx.project}
       />
     );
   }

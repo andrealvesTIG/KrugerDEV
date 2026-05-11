@@ -26,7 +26,11 @@ const FIELD_TYPES = [
   { value: "autonumber", label: "Auto Number" },
   { value: "resource", label: "Resource" },
   { value: "attachment", label: "Attachment" },
+  { value: "days_since_updated", label: "Days Since Last Update (computed)" },
+  { value: "days_since_created", label: "Days Since Creation (computed)" },
 ] as const;
+
+const COMPUTED_FIELD_TYPES = new Set(["days_since_updated", "days_since_created"]);
 
 const ENTITY_TYPES = [
   { value: "project", label: "Project", icon: FolderKanban },
