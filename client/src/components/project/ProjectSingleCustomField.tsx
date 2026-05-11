@@ -108,6 +108,17 @@ export function ProjectSingleCustomField({
         );
       case "attachment":
         return <AttachmentFieldInput value={editValue} onChange={setEditValue} testId={`attachment-project-cf-${field.id}`} />;
+      case "rag":
+        return (
+          <Select value={editValue} onValueChange={setEditValue}>
+            <SelectTrigger data-testid={`select-project-cf-rag-${field.id}`}><SelectValue placeholder="Select status..." /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Green"><span className="inline-flex items-center gap-2"><span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" />Green</span></SelectItem>
+              <SelectItem value="Yellow"><span className="inline-flex items-center gap-2"><span className="inline-block h-2.5 w-2.5 rounded-full bg-yellow-400" />Yellow</span></SelectItem>
+              <SelectItem value="Red"><span className="inline-flex items-center gap-2"><span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />Red</span></SelectItem>
+            </SelectContent>
+          </Select>
+        );
       case "multiselect": {
         const sel = parseMulti(editValue);
         return (
@@ -187,6 +198,20 @@ export function ProjectSingleCustomField({
       case "resource": {
         const r = orgResources.find(r => String(r.id) === String(value));
         return <span className="text-sm">{r?.displayName ?? "Unknown resource"}</span>;
+      }
+      case "rag": {
+        const v = String(value).toLowerCase();
+        const cls = v === "green" ? "bg-green-100 text-green-800 border-green-300 dark:bg-green-900/40 dark:text-green-200"
+          : v === "yellow" ? "bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/40 dark:text-yellow-200"
+          : v === "red" ? "bg-red-100 text-red-800 border-red-300 dark:bg-red-900/40 dark:text-red-200"
+          : "bg-muted text-muted-foreground border-border";
+        const dot = v === "green" ? "bg-green-500" : v === "yellow" ? "bg-yellow-400" : v === "red" ? "bg-red-500" : "bg-muted-foreground";
+        return (
+          <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`} data-testid={`value-project-rag-${field.id}`}>
+            <span className={`inline-block h-2 w-2 rounded-full ${dot}`} />
+            {value}
+          </span>
+        );
       }
       default:
         return <span className="text-sm">{value}</span>;

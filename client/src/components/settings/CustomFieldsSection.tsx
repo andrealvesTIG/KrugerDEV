@@ -26,6 +26,7 @@ const FIELD_TYPES = [
   { value: "autonumber", label: "Auto Number" },
   { value: "resource", label: "Resource" },
   { value: "attachment", label: "Attachment" },
+  { value: "rag", label: "RAG Status (Green / Yellow / Red)" },
   { value: "days_since_updated", label: "Days Since Last Update (computed)" },
   { value: "days_since_created", label: "Days Since Creation (computed)" },
   { value: "effort_completed_hours", label: "Effort Completed in Hours (computed)" },
