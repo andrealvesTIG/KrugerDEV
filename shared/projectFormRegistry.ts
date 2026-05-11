@@ -122,6 +122,11 @@ export const PROJECT_FORM_FIELDS: ProjectFieldDefinition[] = [
   // Audit (read-only)
   { key: "createdAt", label: "Created At",      group: "Audit", inputType: "datetime", helpText: "Date and time the project was created." },
   { key: "updatedAt", label: "Last Updated At", group: "Audit", inputType: "datetime", helpText: "Date and time the project was last modified." },
+
+  // Gates Information Summary
+  { key: "activeGateStartedAt", label: "Active Gate Date Started", group: "Gates", inputType: "date", helpText: "When the current workflow gate began." },
+  { key: "nextGate",            label: "Next Gate",                group: "Gates", inputType: "text", placeholder: "e.g., G2" },
+  { key: "nextGateTargetDate",  label: "Next Gate Target Date",    group: "Gates", inputType: "date" },
 ];
 
 export const PROJECT_FORM_FIELD_BY_KEY: Record<string, ProjectFieldDefinition> = Object.fromEntries(

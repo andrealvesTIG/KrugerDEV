@@ -690,6 +690,10 @@ export const projects = pgTable("projects", {
   dependencies: text("dependencies"), // External dependencies
   department: text("department"), // Primary department
   businessUnit: text("business_unit"), // Requesting business unit (mirrors intake field)
+  // Gates Information Summary
+  activeGateStartedAt: timestamp("active_gate_started_at"), // When the current/active workflow gate began
+  nextGate: text("next_gate"), // Label or key of the next workflow gate (e.g., "G2")
+  nextGateTargetDate: date("next_gate_target_date"), // Planned date to reach the next gate
   category: text("category"), // Project category (IT, Marketing, Operations, etc.)
   businessValue: text("business_value"), // Expected business value/ROI
   riskLevel: text("risk_level"), // Low, Medium, High - overall risk assessment
@@ -2806,7 +2810,10 @@ export const insertProgramSchema = createInsertSchema(programs).omit({ id: true,
   roi: z.union([z.string(), z.number(), z.null()]).optional(),
 });
 export const updateProgramSchema = insertProgramSchema.partial();
-export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true, updatedAt: true, updatedBy: true, createdBy: true });
+export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true, updatedAt: true, updatedBy: true, createdBy: true }).extend({
+  // Coerce date strings (YYYY-MM-DD or ISO) coming from the dynamic project form into Date for the timestamp column
+  activeGateStartedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),
+});
 // Risk schema is now an alias for Issue schema with itemType="risk"
 // Extend to handle date strings for escalatedAt field
 const baseRiskSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
