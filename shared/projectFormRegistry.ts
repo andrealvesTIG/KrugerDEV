@@ -14,7 +14,8 @@ export type ProjectFieldInputType =
   | "checkbox"
   | "portfolio"
   | "program"
-  | "resource";
+  | "resource"
+  | "datetime";
 
 export interface ProjectFieldDefinition {
   key: string;            // matches the projects column name
@@ -117,6 +118,10 @@ export const PROJECT_FORM_FIELDS: ProjectFieldDefinition[] = [
   { key: "dependencies",     label: "Dependencies",     group: "Scope & Narrative", inputType: "textarea", rows: 3 },
   { key: "businessValue",    label: "Business Value",   group: "Scope & Narrative", inputType: "text" },
   { key: "notes",            label: "Notes",            group: "Scope & Narrative", inputType: "textarea", rows: 3 },
+
+  // Audit (read-only)
+  { key: "createdAt", label: "Created At",      group: "Audit", inputType: "datetime", helpText: "Date and time the project was created." },
+  { key: "updatedAt", label: "Last Updated At", group: "Audit", inputType: "datetime", helpText: "Date and time the project was last modified." },
 ];
 
 export const PROJECT_FORM_FIELD_BY_KEY: Record<string, ProjectFieldDefinition> = Object.fromEntries(

@@ -115,6 +115,24 @@ function FieldInput({ def, value, disabled, onChange, portfolios, programs, reso
       </Select>
     );
   }
+  if (def.inputType === "datetime") {
+    let display = "—";
+    if (value) {
+      const d = new Date(value);
+      if (!Number.isNaN(d.getTime())) {
+        display = d.toLocaleString();
+      }
+    }
+    return (
+      <Input
+        type="text"
+        value={display}
+        disabled
+        readOnly
+        data-testid={`input-project-${def.key}`}
+      />
+    );
+  }
   if (def.inputType === "date") {
     return (
       <Input
