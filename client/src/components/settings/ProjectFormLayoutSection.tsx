@@ -124,8 +124,19 @@ export function ProjectFormLayoutSection({ organizationId }: { organizationId: n
     if (!over || active.id === over.id) return;
     const tab = draft.find(t => t.uid === tabUid); if (!tab) return;
     const oldIdx = tab.sections.findIndex(s => s.uid === active.id);
-    const newIdx = tab.sections.findIndex(s => s.uid === over.id);
-    if (oldIdx < 0 || newIdx < 0) return;
+    if (oldIdx < 0) return;
+    // Resolve over.id to a section uid: it may be the section itself, or any
+    // descendant droppable (dropzone:<sec> or an item uid inside a section).
+    const overIdStr = String(over.id);
+    let newIdx = tab.sections.findIndex(s => s.uid === overIdStr);
+    if (newIdx < 0 && overIdStr.startsWith("dropzone:")) {
+      const secUid = overIdStr.slice("dropzone:".length);
+      newIdx = tab.sections.findIndex(s => s.uid === secUid);
+    }
+    if (newIdx < 0) {
+      newIdx = tab.sections.findIndex(s => s.items.some(i => i.uid === overIdStr));
+    }
+    if (newIdx < 0 || newIdx === oldIdx) return;
     updateTab(tabUid, { sections: arrayMove(tab.sections, oldIdx, newIdx) });
   };
   const addSection = (tabUid: string) => {
