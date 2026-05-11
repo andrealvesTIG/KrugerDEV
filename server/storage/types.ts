@@ -655,6 +655,17 @@ export interface IMiscStorage {
   deleteIntakeCustomFieldValue(intakeId: number, fieldDefinitionId: number): Promise<void>;
 }
 
+export interface IExecutiveSummaryStorage {
+  listExecutiveSummariesForOrg(organizationId: number): Promise<any[]>;
+  listExecutiveSummariesForProject(projectId: number): Promise<any[]>;
+  getExecutiveSummary(id: number): Promise<any>;
+  createExecutiveSummaryForProject(projectId: number, data: any, userId: string): Promise<any>;
+  linkExecutiveSummaryToProject(projectId: number, executiveSummaryId: number): Promise<void>;
+  unlinkExecutiveSummaryFromProject(projectId: number, executiveSummaryId: number): Promise<void>;
+  updateExecutiveSummary(id: number, updates: any, userId: string): Promise<any>;
+  deleteExecutiveSummary(id: number): Promise<void>;
+}
+
 export interface IStorage extends
   IUserStorage,
   IOrganizationStorage,
@@ -666,4 +677,5 @@ export interface IStorage extends
   IFinancialStorage,
   ITimesheetStorage,
   IIntakeStorage,
+  IExecutiveSummaryStorage,
   IMiscStorage {}

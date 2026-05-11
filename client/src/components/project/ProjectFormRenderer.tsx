@@ -11,6 +11,7 @@ import type { Portfolio, Program, Resource } from "@shared/schema";
 import type { ProjectFormLayoutTabFull, ProjectFormLayoutSectionFull, ProjectFormLayoutItemFull } from "@/hooks/use-project-form-layout";
 import { ProjectFieldRenderer } from "./ProjectFieldRenderer";
 import { ProjectSingleCustomField } from "./ProjectSingleCustomField";
+import { ProjectExecutiveSummariesBlock } from "./ProjectExecutiveSummariesBlock";
 
 const ICONS: Record<string, LucideIcon> = {
   FileText, ClipboardList, DollarSign, Settings: SettingsIcon, ListChecks, Lightbulb,
@@ -144,6 +145,15 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds }: { item: ProjectFormLa
   // block
   if (item.itemKey === "custom_fields") {
     return <>{ctx.renderCustomFieldsBlock(placedCustomFieldIds)}</>;
+  }
+  if (item.itemKey === "executive_summaries") {
+    return (
+      <ProjectExecutiveSummariesBlock
+        projectId={ctx.project.id}
+        organizationId={ctx.organizationId}
+        isLocked={ctx.isLocked}
+      />
+    );
   }
   return <div className="text-xs text-destructive">Unknown block: {item.itemKey}</div>;
 }

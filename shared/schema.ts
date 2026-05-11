@@ -1980,6 +1980,31 @@ export const projectWorkflowSteps = pgTable("project_workflow_steps", {
   index("project_workflow_steps_workflow_id_idx").on(table.workflowId),
 ]);
 
+// Executive Summaries - Reusable narrative summaries that can be attached to one or many projects
+export const executiveSummaries = pgTable("executive_summaries", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  summary: text("summary"),
+  createdBy: varchar("created_by").references(() => users.id),
+  updatedBy: varchar("updated_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("executive_summaries_org_id_idx").on(table.organizationId),
+]);
+
+// Junction: Project ↔ Executive Summary (many-to-many; enables "Add Existing" reuse across projects)
+export const projectExecutiveSummaries = pgTable("project_executive_summaries", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(),
+  executiveSummaryId: integer("executive_summary_id").references(() => executiveSummaries.id, { onDelete: "cascade" }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("project_exec_summaries_project_id_idx").on(table.projectId),
+  uniqueIndex("project_exec_summaries_unique").on(table.projectId, table.executiveSummaryId),
+]);
+
 // Power BI Intake Requests - Captured via AI chat agent
 export const powerbiIntakeRequests = pgTable("powerbi_intake_requests", {
   id: serial("id").primaryKey(),
@@ -2927,6 +2952,8 @@ export const insertStatusReportHistorySchema = createInsertSchema(statusReportHi
 export const insertIntakeWorkflowStepSchema = createInsertSchema(intakeWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertIntakeWorkflowSchema = createInsertSchema(intakeWorkflows).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProjectWorkflowSchema = createInsertSchema(projectWorkflows).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertExecutiveSummarySchema = createInsertSchema(executiveSummaries).omit({ id: true, createdAt: true, updatedAt: true, createdBy: true, updatedBy: true });
+export const updateExecutiveSummarySchema = insertExecutiveSummarySchema.partial().omit({ organizationId: true });
 export const insertProjectWorkflowStepSchema = createInsertSchema(projectWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
@@ -3088,6 +3115,10 @@ export type InsertStatusReportHistory = z.infer<typeof insertStatusReportHistory
 
 export type IntakeWorkflowStep = typeof intakeWorkflowSteps.$inferSelect;
 export type ProjectWorkflowStep = typeof projectWorkflowSteps.$inferSelect;
+export type ExecutiveSummary = typeof executiveSummaries.$inferSelect;
+export type InsertExecutiveSummary = z.infer<typeof insertExecutiveSummarySchema>;
+export type UpdateExecutiveSummary = z.infer<typeof updateExecutiveSummarySchema>;
+export type ProjectExecutiveSummary = typeof projectExecutiveSummaries.$inferSelect;
 export type InsertIntakeWorkflowStep = z.infer<typeof insertIntakeWorkflowStepSchema>;
 export type IntakeWorkflow = typeof intakeWorkflows.$inferSelect;
 export type InsertIntakeWorkflow = z.infer<typeof insertIntakeWorkflowSchema>;

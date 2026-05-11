@@ -10,6 +10,7 @@ import * as financialFns from "./storage/financialStorage";
 import * as timesheetFns from "./storage/timesheetStorage";
 import * as intakeFns from "./storage/intakeStorage";
 import * as projectFormLayoutFns from "./storage/projectFormLayoutStorage";
+import * as executiveSummaryFns from "./storage/executiveSummaryStorage";
 import * as miscFns from "./storage/miscStorage";
 export * from "./storage/crossProjectReferenceStorage";
 
@@ -28,5 +29,6 @@ export const storage: IStorage = {
   ...timesheetFns,
   ...intakeFns,
   ...projectFormLayoutFns,
+  ...executiveSummaryFns,
   ...miscFns,
 };
