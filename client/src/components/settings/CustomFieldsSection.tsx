@@ -28,9 +28,16 @@ const FIELD_TYPES = [
   { value: "attachment", label: "Attachment" },
   { value: "days_since_updated", label: "Days Since Last Update (computed)" },
   { value: "days_since_created", label: "Days Since Creation (computed)" },
+  { value: "effort_completed_hours", label: "Effort Completed in Hours (computed)" },
+  { value: "effort_remaining_hours", label: "Effort Remaining in Hours (computed)" },
 ] as const;
 
-const COMPUTED_FIELD_TYPES = new Set(["days_since_updated", "days_since_created"]);
+const COMPUTED_FIELD_TYPES = new Set([
+  "days_since_updated",
+  "days_since_created",
+  "effort_completed_hours",
+  "effort_remaining_hours",
+]);
 
 const ENTITY_TYPES = [
   { value: "project", label: "Project", icon: FolderKanban },

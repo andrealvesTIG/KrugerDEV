@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCustomFieldDefinitions, useProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useResources } from "@/hooks/use-resources";
+import { useTasks } from "@/hooks/use-tasks";
 import { AttachmentFieldInput, AttachmentFieldDisplay } from "@/components/custom-fields/AttachmentField";
 import { useToast } from "@/hooks/use-toast";
 
@@ -52,7 +53,12 @@ export function ProjectSingleCustomField({
   }
   const value = values.find(v => v.fieldDefinitionId === definitionId)?.value || "";
 
-  const isComputed = field.fieldType === "days_since_updated" || field.fieldType === "days_since_created";
+  const isComputed = field.fieldType === "days_since_updated"
+    || field.fieldType === "days_since_created"
+    || field.fieldType === "effort_completed_hours"
+    || field.fieldType === "effort_remaining_hours";
+  const needsTasks = field.fieldType === "effort_completed_hours" || field.fieldType === "effort_remaining_hours";
+  const { data: projectTasks = [] } = useTasks(needsTasks ? projectId : 0);
   const startEdit = () => {
     if (isLocked || field.fieldType === "autonumber" || isComputed) return;
     setEditValue(value);
@@ -123,12 +129,39 @@ export function ProjectSingleCustomField({
     }
   };
 
+  const formatHours = (n: number) => {
+    const r = Math.round(n * 10) / 10;
+    return Number.isInteger(r) ? String(r) : r.toFixed(1);
+  };
   const renderValue = () => {
     if (field.fieldType === "days_since_updated" || field.fieldType === "days_since_created") {
       const src = field.fieldType === "days_since_updated" ? project?.updatedAt : project?.createdAt;
       const days = computeDaysSince(src ?? null);
       if (days == null) return <span className="text-muted-foreground text-sm" data-testid={`value-project-computed-empty-${field.id}`}>—</span>;
       return <span className="text-sm" data-testid={`value-project-computed-${field.id}`}>{days} {days === 1 ? "day" : "days"}</span>;
+    }
+    if (field.fieldType === "effort_completed_hours" || field.fieldType === "effort_remaining_hours") {
+      // Sum across leaf tasks only (tasks with no children) to avoid double-
+      // counting parent rollups.
+      const childIds = new Set<number>();
+      projectTasks.forEach(t => { if (t.parentId != null) childIds.add(t.parentId); });
+      const leaves = projectTasks.filter(t => !childIds.has(t.id));
+      const num = (v: any) => {
+        const n = typeof v === "number" ? v : v == null ? NaN : parseFloat(String(v));
+        return Number.isFinite(n) ? n : 0;
+      };
+      let total = 0;
+      if (field.fieldType === "effort_completed_hours") {
+        total = leaves.reduce((sum, t) => sum + num((t as any).actualHours), 0);
+      } else {
+        total = leaves.reduce((sum, t) => {
+          const remaining = (t as any).remainingHours;
+          if (remaining != null && remaining !== "") return sum + Math.max(0, num(remaining));
+          // Fallback: estimated - actual, never negative.
+          return sum + Math.max(0, num((t as any).estimatedHours) - num((t as any).actualHours));
+        }, 0);
+      }
+      return <span className="text-sm" data-testid={`value-project-computed-${field.id}`}>{formatHours(total)} h</span>;
     }
     if (field.fieldType === "autonumber") {
       if (!value) return <span className="text-muted-foreground text-sm italic" data-testid={`value-project-autonumber-pending-${field.id}`}>Pending…</span>;
