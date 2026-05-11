@@ -34,8 +34,11 @@ export function ProjectSingleCustomField({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState<string>("");
 
-  if (defsLoading || valsLoading) return null;
   const field = allDefinitions.find(d => d.id === definitionId);
+  const needsTasks = field?.fieldType === "effort_completed_hours" || field?.fieldType === "effort_remaining_hours";
+  const { data: projectTasks = [] } = useTasks(needsTasks ? projectId : 0);
+
+  if (defsLoading || valsLoading) return null;
   if (!field) {
     return (
       <div className="text-xs text-destructive" data-testid={`project-cf-missing-${definitionId}`}>
@@ -57,8 +60,6 @@ export function ProjectSingleCustomField({
     || field.fieldType === "days_since_created"
     || field.fieldType === "effort_completed_hours"
     || field.fieldType === "effort_remaining_hours";
-  const needsTasks = field.fieldType === "effort_completed_hours" || field.fieldType === "effort_remaining_hours";
-  const { data: projectTasks = [] } = useTasks(needsTasks ? projectId : 0);
   const startEdit = () => {
     if (isLocked || field.fieldType === "autonumber" || isComputed) return;
     setEditValue(value);
