@@ -655,6 +655,14 @@ export interface IMiscStorage {
   deleteIntakeCustomFieldValue(intakeId: number, fieldDefinitionId: number): Promise<void>;
 }
 
+export interface IProjectSoftwareLicenseStorage {
+  listProjectSoftwareLicenses(projectId: number): Promise<any[]>;
+  getProjectSoftwareLicense(id: number): Promise<any>;
+  createProjectSoftwareLicense(data: any, userId: string): Promise<any>;
+  updateProjectSoftwareLicense(id: number, updates: any, userId: string): Promise<any>;
+  deleteProjectSoftwareLicense(id: number): Promise<void>;
+}
+
 export interface IPmoCommentStorage {
   listPmoCommentsForOrg(organizationId: number): Promise<any[]>;
   listPmoCommentsForProject(projectId: number): Promise<any[]>;
@@ -690,4 +698,5 @@ export interface IStorage extends
   IIntakeStorage,
   IExecutiveSummaryStorage,
   IPmoCommentStorage,
+  IProjectSoftwareLicenseStorage,
   IMiscStorage {}

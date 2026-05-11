@@ -144,6 +144,7 @@ export const PROJECT_FORM_BLOCKS: ProjectBlockDefinition[] = [
   { key: "custom_fields", label: "Custom Fields", description: "All custom fields defined for projects (excluding any individually placed above)." },
   { key: "executive_summaries", label: "Executive Summaries", description: "Table of executive summary records linked to this project, with create / add existing / edit / remove actions." },
   { key: "pmo_comments", label: "PMO Comments", description: "Table of PMO comment records linked to this project, with create / add existing / edit / remove actions." },
+  { key: "software_licenses", label: "Software / Licenses", description: "Table of vendor software & licensing records for this project (vendor, software name, opex start date, cost, renewal frequency, type)." },
 ];
 
 export const PROJECT_FORM_BLOCK_BY_KEY: Record<string, ProjectBlockDefinition> = Object.fromEntries(

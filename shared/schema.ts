@@ -2030,6 +2030,25 @@ export const projectPmoComments = pgTable("project_pmo_comments", {
   uniqueIndex("project_pmo_comments_unique").on(table.projectId, table.pmoCommentId),
 ]);
 
+// Software / Licenses - Project-scoped vendor software & license registry
+export const projectSoftwareLicenses = pgTable("project_software_licenses", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  vendor: text("vendor"),
+  softwareName: text("software_name"),
+  opexTrailStartDate: timestamp("opex_trail_start_date"),
+  totalCost: numeric("total_cost"),
+  frequencyOfRenewal: text("frequency_of_renewal"),
+  softwareType: text("software_type"),
+  createdBy: varchar("created_by").references(() => users.id),
+  updatedBy: varchar("updated_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("project_software_licenses_project_id_idx").on(table.projectId),
+]);
+
 // Power BI Intake Requests - Captured via AI chat agent
 export const powerbiIntakeRequests = pgTable("powerbi_intake_requests", {
   id: serial("id").primaryKey(),
@@ -2981,6 +3000,11 @@ export const insertExecutiveSummarySchema = createInsertSchema(executiveSummarie
 export const updateExecutiveSummarySchema = insertExecutiveSummarySchema.partial().omit({ organizationId: true });
 export const insertPmoCommentSchema = createInsertSchema(pmoComments).omit({ id: true, createdAt: true, updatedAt: true, createdBy: true, updatedBy: true });
 export const updatePmoCommentSchema = insertPmoCommentSchema.partial().omit({ organizationId: true });
+export const insertProjectSoftwareLicenseSchema = createInsertSchema(projectSoftwareLicenses, {
+  opexTrailStartDate: z.union([z.string(), z.date()]).nullish().transform(v => (v == null || v === "" ? null : (typeof v === "string" ? new Date(v) : v))),
+  totalCost: z.union([z.string(), z.number()]).nullish().transform(v => v == null || v === "" ? null : String(v)),
+}).omit({ id: true, createdAt: true, updatedAt: true, createdBy: true, updatedBy: true });
+export const updateProjectSoftwareLicenseSchema = insertProjectSoftwareLicenseSchema.partial().omit({ projectId: true, organizationId: true });
 export const insertProjectWorkflowStepSchema = createInsertSchema(projectWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
@@ -3150,6 +3174,9 @@ export type PmoComment = typeof pmoComments.$inferSelect;
 export type InsertPmoComment = z.infer<typeof insertPmoCommentSchema>;
 export type UpdatePmoComment = z.infer<typeof updatePmoCommentSchema>;
 export type ProjectPmoComment = typeof projectPmoComments.$inferSelect;
+export type ProjectSoftwareLicense = typeof projectSoftwareLicenses.$inferSelect;
+export type InsertProjectSoftwareLicense = z.infer<typeof insertProjectSoftwareLicenseSchema>;
+export type UpdateProjectSoftwareLicense = z.infer<typeof updateProjectSoftwareLicenseSchema>;
 export type InsertIntakeWorkflowStep = z.infer<typeof insertIntakeWorkflowStepSchema>;
 export type IntakeWorkflow = typeof intakeWorkflows.$inferSelect;
 export type InsertIntakeWorkflow = z.infer<typeof insertIntakeWorkflowSchema>;

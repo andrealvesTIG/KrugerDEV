@@ -13,6 +13,7 @@ import { ProjectFieldRenderer } from "./ProjectFieldRenderer";
 import { ProjectSingleCustomField } from "./ProjectSingleCustomField";
 import { ProjectExecutiveSummariesBlock } from "./ProjectExecutiveSummariesBlock";
 import { ProjectPmoCommentsBlock } from "./ProjectPmoCommentsBlock";
+import { ProjectSoftwareLicensesBlock } from "./ProjectSoftwareLicensesBlock";
 
 const ICONS: Record<string, LucideIcon> = {
   FileText, ClipboardList, DollarSign, Settings: SettingsIcon, ListChecks, Lightbulb,
@@ -159,6 +160,15 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds }: { item: ProjectFormLa
   if (item.itemKey === "pmo_comments") {
     return (
       <ProjectPmoCommentsBlock
+        projectId={ctx.project.id}
+        organizationId={ctx.organizationId}
+        isLocked={ctx.isLocked}
+      />
+    );
+  }
+  if (item.itemKey === "software_licenses") {
+    return (
+      <ProjectSoftwareLicensesBlock
         projectId={ctx.project.id}
         organizationId={ctx.organizationId}
         isLocked={ctx.isLocked}
