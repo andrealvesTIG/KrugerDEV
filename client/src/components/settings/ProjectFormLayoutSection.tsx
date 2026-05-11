@@ -10,7 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { GripVertical, Plus, Trash2, RotateCcw, Save, Loader2, ChevronUp, ChevronDown, Pencil, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
-import { SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove, horizontalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableContext, useSortable, sortableKeyboardCoordinates, verticalListSortingStrategy, arrayMove, horizontalListSortingStrategy, rectSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { PROJECT_FORM_FIELDS, PROJECT_FORM_BLOCKS } from "@shared/projectFormRegistry";
 import {
@@ -436,24 +436,24 @@ function TabEditor(props: {
         if (isSectionDrag) { props.onSectionDragEnd(e); return; }
         props.onItemDragEnd(e);
       }}>
-        <SortableContext items={tab.sections.map(s => s.uid)} strategy={verticalListSortingStrategy}>
+        <SortableContext items={tab.sections.map(s => s.uid)} strategy={rectSortingStrategy}>
           <div className="grid grid-cols-12 gap-3 items-start">
             {tab.sections.map(section => (
-              <div key={section.uid} className={SECTION_WIDTH_CLASS[section.width] ?? SECTION_WIDTH_CLASS.full}>
-                <SectionEditor
-                  section={section}
-                  tab={tab}
-                  allTabs={allTabs}
-                  customFieldDefs={customFieldDefs}
-                  placedItemKeys={collectPlacedKeys(allTabs)}
-                  onUpdateSection={(p) => props.onUpdateSection(section.uid, p)}
-                  onDeleteSection={() => props.onDeleteSection(section.uid)}
-                  onAddItem={(t, k) => props.onAddItem(section.uid, t, k)}
-                  onUpdateItem={(iu, p) => props.onUpdateItem(section.uid, iu, p)}
-                  onDeleteItem={(iu) => props.onDeleteItem(section.uid, iu)}
-                  onMoveItemTo={(itemUid, toTabUid, toSecUid) => props.onMoveItemTo(itemUid, toTabUid, toSecUid)}
-                />
-              </div>
+              <SectionEditor
+                key={section.uid}
+                section={section}
+                tab={tab}
+                allTabs={allTabs}
+                customFieldDefs={customFieldDefs}
+                placedItemKeys={collectPlacedKeys(allTabs)}
+                widthClass={SECTION_WIDTH_CLASS[section.width] ?? SECTION_WIDTH_CLASS.full}
+                onUpdateSection={(p) => props.onUpdateSection(section.uid, p)}
+                onDeleteSection={() => props.onDeleteSection(section.uid)}
+                onAddItem={(t, k) => props.onAddItem(section.uid, t, k)}
+                onUpdateItem={(iu, p) => props.onUpdateItem(section.uid, iu, p)}
+                onDeleteItem={(iu) => props.onDeleteItem(section.uid, iu)}
+                onMoveItemTo={(itemUid, toTabUid, toSecUid) => props.onMoveItemTo(itemUid, toTabUid, toSecUid)}
+              />
             ))}
             <div className="col-span-12">
               <Button variant="outline" size="sm" onClick={props.onAddSection} data-testid="button-add-section">
@@ -479,6 +479,7 @@ function SectionEditor(props: {
   allTabs: DraftTab[];
   customFieldDefs: CustomFieldDefinition[];
   placedItemKeys: Set<string>;
+  widthClass: string;
   onUpdateSection: (p: Partial<DraftSection>) => void;
   onDeleteSection: () => void;
   onAddItem: (t: DraftItem["itemType"], k: string) => void;
@@ -486,11 +487,11 @@ function SectionEditor(props: {
   onDeleteItem: (iu: string) => void;
   onMoveItemTo: (itemUid: string, toTabUid: string, toSecUid: string) => void;
 }) {
-  const { section, tab, allTabs, customFieldDefs, placedItemKeys } = props;
+  const { section, tab, allTabs, customFieldDefs, placedItemKeys, widthClass } = props;
   const { attributes, listeners, setNodeRef: setSectionNodeRef, transform, transition, isDragging } = useSortable({ id: section.uid });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
   return (
-    <div ref={setSectionNodeRef} style={style} className="border rounded-md p-3 bg-card h-full" data-testid={`section-editor-${section.uid}`}>
+    <div ref={setSectionNodeRef} style={style} className={cn(widthClass, "border rounded-md p-3 bg-card h-full")} data-testid={`section-editor-${section.uid}`}>
       <div className="flex items-center gap-2 mb-2">
         <button {...attributes} {...listeners} className="cursor-grab text-muted-foreground touch-none" aria-label="Drag section">
           <GripVertical className="h-4 w-4" />
