@@ -655,6 +655,17 @@ export interface IMiscStorage {
   deleteIntakeCustomFieldValue(intakeId: number, fieldDefinitionId: number): Promise<void>;
 }
 
+export interface IPmoCommentStorage {
+  listPmoCommentsForOrg(organizationId: number): Promise<any[]>;
+  listPmoCommentsForProject(projectId: number): Promise<any[]>;
+  getPmoComment(id: number): Promise<any>;
+  createPmoCommentForProject(projectId: number, data: any, userId: string): Promise<any>;
+  linkPmoCommentToProject(projectId: number, pmoCommentId: number): Promise<void>;
+  unlinkPmoCommentFromProject(projectId: number, pmoCommentId: number): Promise<void>;
+  updatePmoComment(id: number, updates: any, userId: string): Promise<any>;
+  deletePmoComment(id: number): Promise<void>;
+}
+
 export interface IExecutiveSummaryStorage {
   listExecutiveSummariesForOrg(organizationId: number): Promise<any[]>;
   listExecutiveSummariesForProject(projectId: number): Promise<any[]>;
@@ -678,4 +689,5 @@ export interface IStorage extends
   ITimesheetStorage,
   IIntakeStorage,
   IExecutiveSummaryStorage,
+  IPmoCommentStorage,
   IMiscStorage {}

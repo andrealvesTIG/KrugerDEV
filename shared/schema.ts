@@ -2005,6 +2005,31 @@ export const projectExecutiveSummaries = pgTable("project_executive_summaries", 
   uniqueIndex("project_exec_summaries_unique").on(table.projectId, table.executiveSummaryId),
 ]);
 
+// PMO Comments - Reusable PMO commentary that can be attached to one or many projects
+export const pmoComments = pgTable("pmo_comments", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  comment: text("comment"),
+  createdBy: varchar("created_by").references(() => users.id),
+  updatedBy: varchar("updated_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("pmo_comments_org_id_idx").on(table.organizationId),
+]);
+
+// Junction: Project ↔ PMO Comment (many-to-many; enables "Add Existing" reuse across projects)
+export const projectPmoComments = pgTable("project_pmo_comments", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(),
+  pmoCommentId: integer("pmo_comment_id").references(() => pmoComments.id, { onDelete: "cascade" }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("project_pmo_comments_project_id_idx").on(table.projectId),
+  uniqueIndex("project_pmo_comments_unique").on(table.projectId, table.pmoCommentId),
+]);
+
 // Power BI Intake Requests - Captured via AI chat agent
 export const powerbiIntakeRequests = pgTable("powerbi_intake_requests", {
   id: serial("id").primaryKey(),
@@ -2954,6 +2979,8 @@ export const insertIntakeWorkflowSchema = createInsertSchema(intakeWorkflows).om
 export const insertProjectWorkflowSchema = createInsertSchema(projectWorkflows).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertExecutiveSummarySchema = createInsertSchema(executiveSummaries).omit({ id: true, createdAt: true, updatedAt: true, createdBy: true, updatedBy: true });
 export const updateExecutiveSummarySchema = insertExecutiveSummarySchema.partial().omit({ organizationId: true });
+export const insertPmoCommentSchema = createInsertSchema(pmoComments).omit({ id: true, createdAt: true, updatedAt: true, createdBy: true, updatedBy: true });
+export const updatePmoCommentSchema = insertPmoCommentSchema.partial().omit({ organizationId: true });
 export const insertProjectWorkflowStepSchema = createInsertSchema(projectWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
@@ -3119,6 +3146,10 @@ export type ExecutiveSummary = typeof executiveSummaries.$inferSelect;
 export type InsertExecutiveSummary = z.infer<typeof insertExecutiveSummarySchema>;
 export type UpdateExecutiveSummary = z.infer<typeof updateExecutiveSummarySchema>;
 export type ProjectExecutiveSummary = typeof projectExecutiveSummaries.$inferSelect;
+export type PmoComment = typeof pmoComments.$inferSelect;
+export type InsertPmoComment = z.infer<typeof insertPmoCommentSchema>;
+export type UpdatePmoComment = z.infer<typeof updatePmoCommentSchema>;
+export type ProjectPmoComment = typeof projectPmoComments.$inferSelect;
 export type InsertIntakeWorkflowStep = z.infer<typeof insertIntakeWorkflowStepSchema>;
 export type IntakeWorkflow = typeof intakeWorkflows.$inferSelect;
 export type InsertIntakeWorkflow = z.infer<typeof insertIntakeWorkflowSchema>;

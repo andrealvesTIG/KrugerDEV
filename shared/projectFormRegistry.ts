@@ -143,6 +143,7 @@ export interface ProjectBlockDefinition {
 export const PROJECT_FORM_BLOCKS: ProjectBlockDefinition[] = [
   { key: "custom_fields", label: "Custom Fields", description: "All custom fields defined for projects (excluding any individually placed above)." },
   { key: "executive_summaries", label: "Executive Summaries", description: "Table of executive summary records linked to this project, with create / add existing / edit / remove actions." },
+  { key: "pmo_comments", label: "PMO Comments", description: "Table of PMO comment records linked to this project, with create / add existing / edit / remove actions." },
 ];
 
 export const PROJECT_FORM_BLOCK_BY_KEY: Record<string, ProjectBlockDefinition> = Object.fromEntries(

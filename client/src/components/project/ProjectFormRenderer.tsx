@@ -12,6 +12,7 @@ import type { ProjectFormLayoutTabFull, ProjectFormLayoutSectionFull, ProjectFor
 import { ProjectFieldRenderer } from "./ProjectFieldRenderer";
 import { ProjectSingleCustomField } from "./ProjectSingleCustomField";
 import { ProjectExecutiveSummariesBlock } from "./ProjectExecutiveSummariesBlock";
+import { ProjectPmoCommentsBlock } from "./ProjectPmoCommentsBlock";
 
 const ICONS: Record<string, LucideIcon> = {
   FileText, ClipboardList, DollarSign, Settings: SettingsIcon, ListChecks, Lightbulb,
@@ -149,6 +150,15 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds }: { item: ProjectFormLa
   if (item.itemKey === "executive_summaries") {
     return (
       <ProjectExecutiveSummariesBlock
+        projectId={ctx.project.id}
+        organizationId={ctx.organizationId}
+        isLocked={ctx.isLocked}
+      />
+    );
+  }
+  if (item.itemKey === "pmo_comments") {
+    return (
+      <ProjectPmoCommentsBlock
         projectId={ctx.project.id}
         organizationId={ctx.organizationId}
         isLocked={ctx.isLocked}
