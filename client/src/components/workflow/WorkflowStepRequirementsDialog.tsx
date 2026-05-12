@@ -233,7 +233,7 @@ export function WorkflowStepRequirementsDialog({
   const renderInput = (f: FieldDescriptor) => {
     const v = draft[f.key] ?? "";
     const set = (val: any) => setDraft(prev => ({ ...prev, [f.key]: val }));
-    const disabled = isLocked || isSaving;
+    const disabled = isLocked || isSaving || !isCurrentStep;
 
     if (f.isCustom && f.customDef) {
       const def = f.customDef;
@@ -355,7 +355,7 @@ export function WorkflowStepRequirementsDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving} data-testid="wsd-button-cancel">
             Close
           </Button>
-          {!isLocked && fields.length > 0 && (
+          {!isLocked && fields.length > 0 && isCurrentStep && (
             <Button variant="secondary" onClick={handleSave} disabled={isSaving} data-testid="wsd-button-save">
               {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
               Save
