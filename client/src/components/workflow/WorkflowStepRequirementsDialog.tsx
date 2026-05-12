@@ -86,9 +86,8 @@ export function WorkflowStepRequirementsDialog({
   const { data: allCfDefs = [] } = useCustomFieldDefinitions(organizationId);
   const cfDefs = useMemo(() => allCfDefs.filter(d => {
     const et = d.entityType || 'project';
-    if (entityType === 'project') return et === 'project';
-    return et === 'intake' || et === 'project';
-  }), [allCfDefs, entityType]);
+    return et === 'project' || et === 'intake';
+  }), [allCfDefs]);
 
   const projectCfValuesQ = useProjectCustomFieldValues(entityType === 'project' ? entityId : null);
   const intakeCfValuesQ = useIntakeCustomFieldValues(entityType === 'intake' ? entityId : null);

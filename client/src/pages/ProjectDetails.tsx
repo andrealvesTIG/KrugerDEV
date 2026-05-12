@@ -1986,6 +1986,26 @@ export default function ProjectDetails() {
                       onStepClick={(stage) => setWorkflowDialogStage(stage)}
                       stages={projectStages}
                     />
+                    {!isProjectLocked && (() => {
+                      const currentIdx = projectStages.findIndex(s => s.value === project.status);
+                      const currentStage = currentIdx >= 0 ? projectStages[currentIdx] : null;
+                      const nextStage = currentIdx >= 0 && currentIdx < projectStages.length - 1
+                        ? projectStages[currentIdx + 1]
+                        : null;
+                      if (!currentStage || !nextStage) return null;
+                      return (
+                        <div className="flex justify-end mt-4 pt-4 border-t">
+                          <Button
+                            size="sm"
+                            onClick={() => setWorkflowDialogStage(currentStage)}
+                            data-testid="button-project-next-gate"
+                          >
+                            Next Gate
+                            <ChevronRight className="h-4 w-4 ml-1" />
+                          </Button>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </CollapsibleContent>
               </div>
