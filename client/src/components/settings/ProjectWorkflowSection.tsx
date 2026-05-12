@@ -15,7 +15,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Trash2, Plus, Pencil, RotateCw, GripVertical, LockIcon } from "lucide-react";
 import { useProjectWorkflows } from "@/hooks/use-project-workflows";
-import type { ProjectWorkflow, ProjectWorkflowStep } from "@shared/schema";
+import { useCustomFieldDefinitions } from "@/hooks/use-custom-fields";
+import { PROJECT_FORM_FIELDS, PROJECT_FORM_FIELD_BY_KEY } from "@shared/projectFormRegistry";
+import type { ProjectWorkflow, ProjectWorkflowStep, CustomFieldDefinition } from "@shared/schema";
 
 export function ProjectWorkflowSection({ organizationId }: { organizationId: number }) {
   const { toast } = useToast();
@@ -49,9 +51,25 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
     ? ['/api/organizations', organizationId, 'project-workflow', { workflowId: selectedWorkflowId }]
     : ['/api/organizations', organizationId, 'project-workflow'];
 
+  const { data: allCustomFieldDefs = [] } = useCustomFieldDefinitions(organizationId);
+  const projectCustomFields = useMemo<CustomFieldDefinition[]>(
+    () => allCustomFieldDefs.filter(d => (d.entityType || 'project') === 'project'),
+    [allCustomFieldDefs],
+  );
+  const fieldKeyLabel = (key: string): string => {
+    if (key.startsWith('cf:')) {
+      const id = Number(key.slice(3));
+      const def = projectCustomFields.find(d => d.id === id);
+      return def ? `${def.name} (custom)` : key;
+    }
+    return PROJECT_FORM_FIELD_BY_KEY[key]?.label || key;
+  };
+
   const [editingStep, setEditingStep] = useState<ProjectWorkflowStep | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editHelpText, setEditHelpText] = useState("");
+  const [editRequiredFields, setEditRequiredFields] = useState<string[]>([]);
   const [editIsTerminal, setEditIsTerminal] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showAddStep, setShowAddStep] = useState(false);
@@ -60,6 +78,9 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
   const [newStepDescription, setNewStepDescription] = useState("");
   const [newIsTerminal, setNewIsTerminal] = useState(false);
   const [stepToDelete, setStepToDelete] = useState<ProjectWorkflowStep | null>(null);
+
+  const toggleRequiredField = (k: string) =>
+    setEditRequiredFields(prev => prev.includes(k) ? prev.filter(f => f !== k) : [...prev, k]);
 
   const { data: workflowSteps, isLoading } = useQuery<ProjectWorkflowStep[]>({
     queryKey: wfQueryKey,
@@ -175,6 +196,8 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
       stepKey: s.stepKey,
       label: s.label,
       description: s.description,
+      helpText: (s as any).helpText ?? null,
+      requiredFields: (s as any).requiredFields ?? [],
       position: idx,
       isTerminal: s.isTerminal,
       isActive: s.isActive,
@@ -184,7 +207,7 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
     if (!editingStep || !workflowSteps) return;
     const updatedSteps = workflowSteps.map(s =>
       s.id === editingStep.id
-        ? { ...s, label: editLabel, description: editDescription, isTerminal: editIsTerminal }
+        ? { ...s, label: editLabel, description: editDescription, helpText: editHelpText || null, requiredFields: editRequiredFields, isTerminal: editIsTerminal }
         : s
     );
     updateWorkflowMutation.mutate(stepsForUpdate(updatedSteps));
@@ -199,6 +222,8 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
       stepKey: newStepKey,
       label: newStepLabel,
       description: newStepDescription || null,
+      helpText: null,
+      requiredFields: [],
       position: maxPosition + 1,
       isTerminal: newIsTerminal,
       isActive: true,
@@ -393,6 +418,17 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
                     {step.description && (
                       <p className="text-xs text-muted-foreground mt-0.5">{step.description}</p>
                     )}
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {((step as any).requiredFields || []).length > 0 ? (
+                        ((step as any).requiredFields as string[]).map(f => (
+                          <Badge key={f} variant="secondary" className="text-[10px] px-1.5 py-0">
+                            {fieldKeyLabel(f)}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">No required fields</span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-1">
@@ -404,8 +440,11 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
                         setEditingStep(step);
                         setEditLabel(step.label);
                         setEditDescription(step.description || "");
+                        setEditHelpText((step as any).helpText || "");
+                        setEditRequiredFields(((step as any).requiredFields || []) as string[]);
                         setEditIsTerminal(step.isTerminal ?? false);
                       }}
+                      data-testid={`button-edit-project-step-${step.stepKey}`}
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
@@ -427,10 +466,10 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
       </Card>
 
       <Dialog open={!!editingStep} onOpenChange={(open) => !open && setEditingStep(null)}>
-        <DialogContent>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Workflow Step</DialogTitle>
-            <DialogDescription>Modify the display name, description, and behavior of this step.</DialogDescription>
+            <DialogDescription>Configure the step name, help text, required fields, and behavior.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
@@ -445,6 +484,54 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
             <div>
               <Label>Description</Label>
               <Input value={editDescription} onChange={e => setEditDescription(e.target.value)} className="mt-1" />
+            </div>
+            <div>
+              <Label>Help Text</Label>
+              <Textarea
+                value={editHelpText}
+                onChange={e => setEditHelpText(e.target.value)}
+                placeholder="Additional guidance shown to users when they open this step"
+                className="mt-1 resize-none"
+                data-testid="input-project-step-helptext"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Required Fields</Label>
+              <p className="text-xs text-muted-foreground">
+                Users must complete these fields before advancing past this step.
+              </p>
+              <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto border rounded-md p-3">
+                {PROJECT_FORM_FIELDS.map(field => (
+                  <div key={field.key} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`pf-${field.key}`}
+                      checked={editRequiredFields.includes(field.key)}
+                      onCheckedChange={() => toggleRequiredField(field.key)}
+                      data-testid={`checkbox-project-required-${field.key}`}
+                    />
+                    <label htmlFor={`pf-${field.key}`} className="text-sm cursor-pointer">{field.label}</label>
+                  </div>
+                ))}
+                {projectCustomFields.length > 0 && (
+                  <div className="col-span-2 mt-2 mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground border-t pt-2">
+                    Custom Fields
+                  </div>
+                )}
+                {projectCustomFields.map(def => {
+                  const key = `cf:${def.id}`;
+                  return (
+                    <div key={key} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`pf-${key}`}
+                        checked={editRequiredFields.includes(key)}
+                        onCheckedChange={() => toggleRequiredField(key)}
+                        data-testid={`checkbox-project-required-${key}`}
+                      />
+                      <label htmlFor={`pf-${key}`} className="text-sm cursor-pointer">{def.name}</label>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Switch checked={editIsTerminal} onCheckedChange={setEditIsTerminal} />

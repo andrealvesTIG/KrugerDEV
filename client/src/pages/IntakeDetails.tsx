@@ -9,6 +9,7 @@ import { useIntakeWorkflow, AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-w
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIntakeTabLayout } from "@/hooks/use-intake-tab-layout";
 import { IntakeFormRenderer, type IntakeFormRendererContext } from "@/components/intake/IntakeFormRenderer";
+import { WorkflowStepRequirementsDialog } from "@/components/workflow/WorkflowStepRequirementsDialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -276,6 +277,7 @@ export default function IntakeDetails() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [activeTab, setActiveTab] = useState("details");
   const [portfolioOpen, setPortfolioOpen] = useState(false);
+  const [workflowDialogStepKey, setWorkflowDialogStepKey] = useState<string | null>(null);
 
   // Check if user can approve intakes
   const { data: approvalPermission } = useQuery<{ canApprove: boolean }>({
@@ -609,14 +611,11 @@ export default function IntakeDetails() {
                         aria-label={step.label}
                         data-testid={`detail-step-${step.stepKey}`}
                         onClick={() => {
-                          if (isClickable) {
-                            updateIntake.mutate({ currentStep: step.stepKey });
-                          }
+                          setWorkflowDialogStepKey(step.stepKey);
                         }}
                         className={cn(
-                          "flex flex-col items-center text-center min-w-[40px] sm:min-w-[80px] bg-transparent p-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
-                          isClickable ? "cursor-pointer" : "cursor-default",
-                          isClickable ? "opacity-100" : "opacity-50"
+                          "flex flex-col items-center text-center min-w-[40px] sm:min-w-[80px] bg-transparent p-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 cursor-pointer",
+                          isClickable ? "opacity-100" : "opacity-60"
                         )}
                       >
                         <div
@@ -810,6 +809,34 @@ export default function IntakeDetails() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {workflowDialogStepKey && currentOrganization?.id && (() => {
+        const step = workflowSteps.find(s => s.stepKey === workflowDialogStepKey);
+        if (!step) return null;
+        const currentKey = intake.currentStep || "intake_capture";
+        const isCurrent = step.stepKey === currentKey;
+        const idx = workflowSteps.findIndex(s => s.stepKey === step.stepKey);
+        const next = idx >= 0 && idx < workflowSteps.length - 1 ? workflowSteps[idx + 1] : null;
+        return (
+          <WorkflowStepRequirementsDialog
+            open={!!workflowDialogStepKey}
+            onOpenChange={(o) => !o && setWorkflowDialogStepKey(null)}
+            entityType="intake"
+            entityId={intake.id}
+            organizationId={currentOrganization.id}
+            step={{
+              stepKey: step.stepKey,
+              label: step.label,
+              description: step.description,
+              helpText: step.helpText,
+              requiredFields: step.requiredFields ?? [],
+            }}
+            isCurrentStep={isCurrent}
+            isLocked={isLocked}
+            nextStep={isCurrent && next ? { stepKey: next.stepKey, label: next.label } : null}
+          />
+        );
+      })()}
     </div>
   );
 }

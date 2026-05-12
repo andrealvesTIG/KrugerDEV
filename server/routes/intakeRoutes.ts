@@ -888,7 +888,11 @@ export function registerIntakeRoutes(app: Express) {
         stepKey: String(s.stepKey),
         label: String(s.label),
         description: s.description ?? null,
+        helpText: s.helpText ?? null,
         position: Number(s.position),
+        requiredFields: Array.isArray(s.requiredFields)
+          ? s.requiredFields.map((f: any) => String(f)).filter(Boolean)
+          : [],
         isTerminal: !!s.isTerminal,
         isActive: s.isActive !== false,
       }));

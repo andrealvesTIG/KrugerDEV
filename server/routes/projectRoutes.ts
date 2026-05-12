@@ -3092,6 +3092,66 @@ export function registerProjectRoutes(app: Express) {
       }
       
       const input = api.projects.update.input.parse(req.body);
+
+      // Server-side gate enforcement: when the request advances `status`
+      // forward through the project's workflow, validate that all
+      // `requiredFields` configured on the step being exited are filled in.
+      // Supports both built-in `projects` columns and per-org custom fields
+      // encoded as `cf:<definitionId>`. Mirrors client-side validation in
+      // `ProjectDetails`'s step-requirements dialog so the gate can't be
+      // bypassed via the API.
+      if (
+        existing.organizationId &&
+        typeof (input as any).status === 'string' &&
+        (input as any).status !== existing.status
+      ) {
+        const wfId = (input as any).workflowId ?? existing.workflowId;
+        const resolvedWfId = wfId
+          ?? (await storage.ensureDefaultProjectWorkflow(existing.organizationId)).id;
+        const steps = await storage.getProjectWorkflowSteps(existing.organizationId, resolvedWfId);
+        const fromIdx = steps.findIndex(s => s.stepKey === existing.status);
+        const toIdx = steps.findIndex(s => s.stepKey === (input as any).status);
+        // Only enforce on forward transitions through configured steps; allow
+        // going back to a previous gate or moving to/from steps not in the
+        // workflow (e.g. ad-hoc statuses) without validation.
+        if (fromIdx >= 0 && toIdx > fromIdx) {
+          const fromStep = steps[fromIdx];
+          const requiredFields = (fromStep.requiredFields || []) as string[];
+          if (requiredFields.length > 0) {
+            const merged: any = { ...existing, ...input };
+            const errors: string[] = [];
+            const cfValues = requiredFields.some(f => f.startsWith('cf:'))
+              ? await storage.getProjectCustomFieldValues(projectId)
+              : [];
+            for (const field of requiredFields) {
+              if (field.startsWith('cf:')) {
+                const defId = Number(field.slice(3));
+                const def = await storage.getCustomFieldDefinition(defId);
+                const label = def?.name || field;
+                if (!def) { errors.push(`${label} is required`); continue; }
+                const raw = cfValues.find(v => v.fieldDefinitionId === defId)?.value;
+                const trimmed = (raw ?? '').toString().trim();
+                const isEmpty = trimmed.length === 0
+                  || (def.fieldType === 'checkbox' && trimmed !== 'true')
+                  || (def.fieldType === 'multiselect' && (trimmed === '[]' || trimmed === 'null'));
+                if (isEmpty) errors.push(`${label} is required`);
+                continue;
+              }
+              const v = merged[field];
+              if (typeof v === 'string' && !v.trim()) errors.push(`${field} is required`);
+              else if (typeof v === 'number' && v <= 0) errors.push(`${field} is required`);
+              else if (v === null || v === undefined) errors.push(`${field} is required`);
+            }
+            if (errors.length > 0) {
+              return res.status(400).json({
+                message: `Gate requirements not met: ${errors.join('; ')}`,
+                errors,
+              });
+            }
+          }
+        }
+      }
+
       const sanitizedInput: Record<string, any> = {
         ...input,
         updatedAt: new Date(),

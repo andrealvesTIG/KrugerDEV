@@ -4,6 +4,7 @@ import { formatDuration } from "@/lib/workingDays";
 import { formatCurrency } from "@/lib/format";
 import { CompactCurrency } from "@/components/CompactCurrency";
 import plannerLogoPath from "@/assets/planner-logo.png";
+import { WorkflowStepRequirementsDialog } from "@/components/workflow/WorkflowStepRequirementsDialog";
 import { useRoute, Link } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory, useProjects, useDeleteProject } from "@/hooks/use-projects";
 import { useProjectWorkflows } from "@/hooks/use-project-workflows";
@@ -124,20 +125,26 @@ const DEFAULT_PROJECT_STAGES = [
   { value: "Closed", label: "Closed", description: "Project archived & locked", isTerminal: true },
 ];
 
-type ProjectStage = { value: string; label: string; description: string; isTerminal: boolean };
+type ProjectStage = { value: string; label: string; description: string; isTerminal: boolean; helpText?: string | null; requiredFields?: string[] | null };
 
 function BusinessProcessFlow({ 
   currentStatus, 
   onStatusChange,
+  onStepClick,
   stages,
 }: { 
   currentStatus: string; 
   onStatusChange: (status: string) => void;
+  onStepClick?: (stage: ProjectStage) => void;
   stages?: ProjectStage[];
 }) {
   const PROJECT_STAGES = stages && stages.length > 0 ? stages : DEFAULT_PROJECT_STAGES;
   const currentIndex = PROJECT_STAGES.findIndex(s => s.value === currentStatus);
   const isCurrentlyLocked = PROJECT_STAGES.some(s => s.value === currentStatus && s.isTerminal);
+  const handleClick = (stage: ProjectStage) => {
+    if (onStepClick) onStepClick(stage);
+    else onStatusChange(stage.value);
+  };
   
   return (
     <>
@@ -154,7 +161,7 @@ function BusinessProcessFlow({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
-                      onClick={() => !isClickDisabled && onStatusChange(stage.value)}
+                      onClick={() => !isClickDisabled && handleClick(stage)}
                       disabled={isClickDisabled}
                       className={cn(
                         "flex flex-col items-center gap-1 group transition-all",
@@ -232,7 +239,7 @@ function BusinessProcessFlow({
             return (
               <button
                 key={stage.value}
-                onClick={() => !isClickDisabled && onStatusChange(stage.value)}
+                onClick={() => !isClickDisabled && handleClick(stage)}
                 disabled={isClickDisabled}
                 className={cn(
                   "flex flex-col items-center gap-1 group transition-all rounded-md p-1.5",
@@ -361,7 +368,7 @@ export default function ProjectDetails() {
   const [, setLocation] = useLocation();
 
   const projectWorkflowId = project?.workflowId ?? null;
-  const { data: orgWorkflowSteps } = useQuery<Array<{ id: number; stepKey: string; position: number; label: string; description: string | null; isTerminal: boolean | null; isActive: boolean | null }>>({
+  const { data: orgWorkflowSteps } = useQuery<Array<{ id: number; stepKey: string; position: number; label: string; description: string | null; isTerminal: boolean | null; isActive: boolean | null; helpText?: string | null; requiredFields?: string[] | null }>>({
     queryKey: ['/api/organizations', currentOrganization?.id, 'project-workflow', { workflowId: projectWorkflowId }],
     queryFn: async () => {
       const qs = projectWorkflowId ? `?workflowId=${projectWorkflowId}` : '';
@@ -381,8 +388,12 @@ export default function ProjectDetails() {
         label: s.label,
         description: s.description || "",
         isTerminal: s.isTerminal ?? false,
+        helpText: s.helpText ?? null,
+        requiredFields: s.requiredFields ?? [],
       }));
   }, [orgWorkflowSteps]);
+
+  const [workflowDialogStage, setWorkflowDialogStage] = useState<ProjectStage | null>(null);
 
   const [projectListOpen, setProjectListOpen] = useState(false);
   const { data: allOrgProjects } = useProjects(currentOrganization?.id);
@@ -1969,6 +1980,7 @@ export default function ProjectDetails() {
                     <BusinessProcessFlow 
                       currentStatus={project.status} 
                       onStatusChange={handleStatusChange}
+                      onStepClick={(stage) => setWorkflowDialogStage(stage)}
                       stages={projectStages}
                     />
                   </div>
@@ -2237,6 +2249,32 @@ export default function ProjectDetails() {
           queryClient.invalidateQueries({ queryKey: ['/api/organizations', currentOrganization?.id, 'project-workflow'] });
         }}
       />
+
+      {workflowDialogStage && currentOrganization?.id && (() => {
+        const idx = projectStages.findIndex(s => s.value === workflowDialogStage.value);
+        const currentIdx = projectStages.findIndex(s => s.value === project.status);
+        const isCurrent = workflowDialogStage.value === project.status;
+        const next = idx >= 0 && idx < projectStages.length - 1 ? projectStages[idx + 1] : null;
+        return (
+          <WorkflowStepRequirementsDialog
+            open={!!workflowDialogStage}
+            onOpenChange={(o) => !o && setWorkflowDialogStage(null)}
+            entityType="project"
+            entityId={project.id}
+            organizationId={currentOrganization.id}
+            step={{
+              stepKey: workflowDialogStage.value,
+              label: workflowDialogStage.label,
+              description: workflowDialogStage.description,
+              helpText: workflowDialogStage.helpText,
+              requiredFields: workflowDialogStage.requiredFields ?? [],
+            }}
+            isCurrentStep={isCurrent}
+            isLocked={isProjectLocked}
+            nextStep={isCurrent && next ? { stepKey: next.value, label: next.label } : null}
+          />
+        );
+      })()}
 
         </div>
       </div>

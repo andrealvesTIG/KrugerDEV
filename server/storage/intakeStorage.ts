@@ -967,11 +967,11 @@ export async function ensureDefaultIntakeWorkflow(organizationId: number): Promi
 const DEFAULT_PROJECT_WORKFLOW_NAME = "Standard Project Lifecycle";
 
 const DEFAULT_PROJECT_WORKFLOW_STEPS: Omit<InsertProjectWorkflowStep, "organizationId" | "workflowId">[] = [
-  { stepKey: "Initiation",  position: 0, label: "Initiation",  description: "Project chartered and kicked off",     isTerminal: false, isActive: true },
-  { stepKey: "Planning",    position: 1, label: "Planning",    description: "Scope, schedule, and resources defined", isTerminal: false, isActive: true },
-  { stepKey: "Execution",   position: 2, label: "Execution",   description: "Project work in progress",                isTerminal: false, isActive: true },
-  { stepKey: "Monitoring",  position: 3, label: "Monitoring",  description: "Tracking progress and performance",       isTerminal: false, isActive: true },
-  { stepKey: "Closing",     position: 4, label: "Closing",     description: "Project closed out and lessons captured", isTerminal: true,  isActive: true },
+  { stepKey: "Initiation",  position: 0, label: "Initiation",  description: "Project chartered and kicked off",     helpText: null, requiredFields: [], isTerminal: false, isActive: true },
+  { stepKey: "Planning",    position: 1, label: "Planning",    description: "Scope, schedule, and resources defined", helpText: null, requiredFields: [], isTerminal: false, isActive: true },
+  { stepKey: "Execution",   position: 2, label: "Execution",   description: "Project work in progress",                helpText: null, requiredFields: [], isTerminal: false, isActive: true },
+  { stepKey: "Monitoring",  position: 3, label: "Monitoring",  description: "Tracking progress and performance",       helpText: null, requiredFields: [], isTerminal: false, isActive: true },
+  { stepKey: "Closing",     position: 4, label: "Closing",     description: "Project closed out and lessons captured", helpText: null, requiredFields: [], isTerminal: true,  isActive: true },
 ];
 
 export async function getProjectWorkflows(organizationId: number): Promise<ProjectWorkflow[]> {

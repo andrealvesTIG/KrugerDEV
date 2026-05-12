@@ -1972,6 +1972,12 @@ export const projectWorkflowSteps = pgTable("project_workflow_steps", {
   position: integer("position").notNull(),
   label: text("label").notNull(),
   description: text("description"),
+  helpText: text("help_text"),
+  // Field keys that must be filled in before a project can advance past this
+  // step. Built-in `projects` columns are stored as their bare key (e.g.
+  // `description`); per-org custom fields are stored as `cf:<definitionId>`.
+  // Mirrors the same convention used by `intake_workflow_steps.required_fields`.
+  requiredFields: text("required_fields").array().default(sql`ARRAY[]::text[]`),
   isTerminal: boolean("is_terminal").default(false),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
