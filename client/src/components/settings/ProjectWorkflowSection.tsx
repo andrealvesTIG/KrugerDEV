@@ -53,7 +53,13 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
 
   const { data: allCustomFieldDefs = [] } = useCustomFieldDefinitions(organizationId);
   const projectCustomFields = useMemo<CustomFieldDefinition[]>(
-    () => allCustomFieldDefs.filter(d => (d.entityType || 'project') === 'project'),
+    // Project forms render both project-scoped and intake-scoped custom
+    // fields (intake CFs are carried over after conversion), so both are
+    // valid choices for a project workflow step's required-field list.
+    () => allCustomFieldDefs.filter(d => {
+      const e = d.entityType || 'project';
+      return e === 'project' || e === 'intake';
+    }),
     [allCustomFieldDefs],
   );
   const fieldKeyLabel = (key: string): string => {
