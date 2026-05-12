@@ -434,9 +434,12 @@ export default function IntakeDetails() {
     if (!validation.valid) {
       toast({
         title: "Gate Requirements Not Met",
-        description: validation.errors.join(". "),
+        description: "Opening the step requirements so you can fill in what's missing.",
         variant: "destructive",
       });
+      // Open the requirements dialog on the current step so the user can see
+      // exactly which fields are missing and fill them in directly.
+      setWorkflowDialogStepKey(currentStepId);
       return;
     }
 
