@@ -76,6 +76,7 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
   const [editDescription, setEditDescription] = useState("");
   const [editHelpText, setEditHelpText] = useState("");
   const [editRequiredFields, setEditRequiredFields] = useState<string[]>([]);
+  const [editFieldSearch, setEditFieldSearch] = useState("");
   const [editIsTerminal, setEditIsTerminal] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showAddStep, setShowAddStep] = useState(false);
@@ -448,6 +449,7 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
                         setEditDescription(step.description || "");
                         setEditHelpText((step as any).helpText || "");
                         setEditRequiredFields(((step as any).requiredFields || []) as string[]);
+                        setEditFieldSearch("");
                         setEditIsTerminal(step.isTerminal ?? false);
                       }}
                       data-testid={`button-edit-project-step-${step.stepKey}`}
@@ -506,38 +508,62 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
               <p className="text-xs text-muted-foreground">
                 Users must complete these fields before advancing past this step.
               </p>
-              <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto border rounded-md p-3">
-                {PROJECT_FORM_FIELDS.map(field => (
-                  <div key={field.key} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`pf-${field.key}`}
-                      checked={editRequiredFields.includes(field.key)}
-                      onCheckedChange={() => toggleRequiredField(field.key)}
-                      data-testid={`checkbox-project-required-${field.key}`}
-                    />
-                    <label htmlFor={`pf-${field.key}`} className="text-sm cursor-pointer">{field.label}</label>
+              <Input
+                value={editFieldSearch}
+                onChange={(e) => setEditFieldSearch(e.target.value)}
+                placeholder="Search fields…"
+                className="h-8"
+                data-testid="input-project-required-search"
+              />
+              {(() => {
+                const q = editFieldSearch.trim().toLowerCase();
+                const builtIn = q
+                  ? PROJECT_FORM_FIELDS.filter(f => f.label.toLowerCase().includes(q) || f.key.toLowerCase().includes(q))
+                  : PROJECT_FORM_FIELDS;
+                const customs = q
+                  ? projectCustomFields.filter(d => (d.name || "").toLowerCase().includes(q))
+                  : projectCustomFields;
+                const empty = builtIn.length === 0 && customs.length === 0;
+                return (
+                  <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto border rounded-md p-3">
+                    {empty && (
+                      <div className="col-span-2 text-xs text-muted-foreground italic py-2 text-center">
+                        No fields match "{editFieldSearch}".
+                      </div>
+                    )}
+                    {builtIn.map(field => (
+                      <div key={field.key} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`pf-${field.key}`}
+                          checked={editRequiredFields.includes(field.key)}
+                          onCheckedChange={() => toggleRequiredField(field.key)}
+                          data-testid={`checkbox-project-required-${field.key}`}
+                        />
+                        <label htmlFor={`pf-${field.key}`} className="text-sm cursor-pointer">{field.label}</label>
+                      </div>
+                    ))}
+                    {customs.length > 0 && (
+                      <div className="col-span-2 mt-2 mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground border-t pt-2">
+                        Custom Fields
+                      </div>
+                    )}
+                    {customs.map(def => {
+                      const key = `cf:${def.id}`;
+                      return (
+                        <div key={key} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`pf-${key}`}
+                            checked={editRequiredFields.includes(key)}
+                            onCheckedChange={() => toggleRequiredField(key)}
+                            data-testid={`checkbox-project-required-${key}`}
+                          />
+                          <label htmlFor={`pf-${key}`} className="text-sm cursor-pointer">{def.name}</label>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
-                {projectCustomFields.length > 0 && (
-                  <div className="col-span-2 mt-2 mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground border-t pt-2">
-                    Custom Fields
-                  </div>
-                )}
-                {projectCustomFields.map(def => {
-                  const key = `cf:${def.id}`;
-                  return (
-                    <div key={key} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`pf-${key}`}
-                        checked={editRequiredFields.includes(key)}
-                        onCheckedChange={() => toggleRequiredField(key)}
-                        data-testid={`checkbox-project-required-${key}`}
-                      />
-                      <label htmlFor={`pf-${key}`} className="text-sm cursor-pointer">{def.name}</label>
-                    </div>
-                  );
-                })}
-              </div>
+                );
+              })()}
             </div>
             <div className="flex items-center gap-2">
               <Switch checked={editIsTerminal} onCheckedChange={setEditIsTerminal} />

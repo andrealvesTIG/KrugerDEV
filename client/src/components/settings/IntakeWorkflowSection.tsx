@@ -73,6 +73,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
   const [editDescription, setEditDescription] = useState("");
   const [editHelpText, setEditHelpText] = useState("");
   const [editRequiredFields, setEditRequiredFields] = useState<string[]>([]);
+  const [editFieldSearch, setEditFieldSearch] = useState("");
   const [editNotifyOnEntry, setEditNotifyOnEntry] = useState<string[]>([]);
   const [editNotifyOnExit, setEditNotifyOnExit] = useState<string[]>([]);
   const [editShowFinancials, setEditShowFinancials] = useState(false);
@@ -224,6 +225,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     setEditDescription(step.description || "");
     setEditHelpText(step.helpText || "");
     setEditRequiredFields(step.requiredFields || []);
+    setEditFieldSearch("");
     setEditNotifyOnEntry(step.notifyOnEntry || []);
     setEditNotifyOnExit(step.notifyOnExit || []);
     setEditShowFinancials(!!step.showFinancials);
@@ -884,54 +886,78 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
               <p className="text-sm text-muted-foreground mb-2">
                 Select which fields must be completed before advancing past this step
               </p>
-              <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto border rounded-md p-3">
-                {AVAILABLE_INTAKE_FIELDS.map(field => (
-                  <div 
-                    key={field.key} 
-                    className="flex items-center space-x-2"
-                    data-testid={`checkbox-field-${field.key}`}
-                  >
-                    <Checkbox
-                      id={`field-${field.key}`}
-                      checked={editRequiredFields.includes(field.key)}
-                      onCheckedChange={() => toggleRequiredField(field.key)}
-                    />
-                    <label
-                      htmlFor={`field-${field.key}`}
-                      className="text-sm cursor-pointer"
-                    >
-                      {field.label}
-                    </label>
-                  </div>
-                ))}
-                {intakeCustomFields.length > 0 && (
-                  <div className="col-span-2 mt-2 mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground border-t pt-2">
-                    Custom Fields
-                  </div>
-                )}
-                {intakeCustomFields.map(def => {
-                  const key = `cf:${def.id}`;
-                  return (
-                    <div
-                      key={key}
-                      className="flex items-center space-x-2"
-                      data-testid={`checkbox-field-${key}`}
-                    >
-                      <Checkbox
-                        id={`field-${key}`}
-                        checked={editRequiredFields.includes(key)}
-                        onCheckedChange={() => toggleRequiredField(key)}
-                      />
-                      <label
-                        htmlFor={`field-${key}`}
-                        className="text-sm cursor-pointer"
+              <Input
+                value={editFieldSearch}
+                onChange={(e) => setEditFieldSearch(e.target.value)}
+                placeholder="Search fields…"
+                className="h-8"
+                data-testid="input-intake-required-search"
+              />
+              {(() => {
+                const q = editFieldSearch.trim().toLowerCase();
+                const builtIn = q
+                  ? AVAILABLE_INTAKE_FIELDS.filter(f => f.label.toLowerCase().includes(q) || f.key.toLowerCase().includes(q))
+                  : AVAILABLE_INTAKE_FIELDS;
+                const customs = q
+                  ? intakeCustomFields.filter(d => (d.name || "").toLowerCase().includes(q))
+                  : intakeCustomFields;
+                const empty = builtIn.length === 0 && customs.length === 0;
+                return (
+                  <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto border rounded-md p-3">
+                    {empty && (
+                      <div className="col-span-2 text-xs text-muted-foreground italic py-2 text-center">
+                        No fields match "{editFieldSearch}".
+                      </div>
+                    )}
+                    {builtIn.map(field => (
+                      <div
+                        key={field.key}
+                        className="flex items-center space-x-2"
+                        data-testid={`checkbox-field-${field.key}`}
                       >
-                        {def.name}
-                      </label>
-                    </div>
-                  );
-                })}
-              </div>
+                        <Checkbox
+                          id={`field-${field.key}`}
+                          checked={editRequiredFields.includes(field.key)}
+                          onCheckedChange={() => toggleRequiredField(field.key)}
+                        />
+                        <label
+                          htmlFor={`field-${field.key}`}
+                          className="text-sm cursor-pointer"
+                        >
+                          {field.label}
+                        </label>
+                      </div>
+                    ))}
+                    {customs.length > 0 && (
+                      <div className="col-span-2 mt-2 mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground border-t pt-2">
+                        Custom Fields
+                      </div>
+                    )}
+                    {customs.map(def => {
+                      const key = `cf:${def.id}`;
+                      return (
+                        <div
+                          key={key}
+                          className="flex items-center space-x-2"
+                          data-testid={`checkbox-field-${key}`}
+                        >
+                          <Checkbox
+                            id={`field-${key}`}
+                            checked={editRequiredFields.includes(key)}
+                            onCheckedChange={() => toggleRequiredField(key)}
+                          />
+                          <label
+                            htmlFor={`field-${key}`}
+                            className="text-sm cursor-pointer"
+                          >
+                            {def.name}
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           </div>
           <DialogFooter>
