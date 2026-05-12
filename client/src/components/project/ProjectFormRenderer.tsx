@@ -35,6 +35,10 @@ export interface ProjectFormRendererContext {
   resources: Resource[];
   onFieldChange: (field: string, value: any) => void;
   renderCustomFieldsBlock: (excludeDefinitionIds: number[]) => ReactNode;
+  // Field keys (and `cf:<defId>` for custom fields) that the current workflow
+  // step marks as required. Drives the red-asterisk mandatory indicator on
+  // the form even before the user tries to advance the gate.
+  currentStepRequiredFields?: string[];
 }
 
 export interface ProjectFormRendererProps {
@@ -117,6 +121,7 @@ function SectionRenderer({ section, ctx, placedCustomFieldIds }: { section: Proj
 
 function ItemRenderer({ item, ctx, placedCustomFieldIds }: { item: ProjectFormLayoutItemFull; ctx: ProjectFormRendererContext; placedCustomFieldIds: number[] }) {
   if (item.itemType === "field") {
+    const requiredByStep = ctx.currentStepRequiredFields?.includes(item.itemKey) ?? false;
     return (
       <ProjectFieldRenderer
         fieldKey={item.itemKey}
@@ -127,6 +132,7 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds }: { item: ProjectFormLa
         programs={ctx.programs}
         resources={ctx.resources}
         labelOverride={item.displayName}
+        isRequired={requiredByStep}
       />
     );
   }
@@ -135,6 +141,7 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds }: { item: ProjectFormLa
     if (!Number.isFinite(defId)) {
       return <div className="text-xs text-destructive">Invalid custom field reference: {item.itemKey}</div>;
     }
+    const requiredByStep = ctx.currentStepRequiredFields?.includes(`cf:${defId}`) ?? false;
     return (
       <ProjectSingleCustomField
         projectId={ctx.project.id}
@@ -143,6 +150,7 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds }: { item: ProjectFormLa
         isLocked={ctx.isLocked}
         project={ctx.project}
         labelOverride={item.displayName}
+        isRequiredOverride={requiredByStep}
       />
     );
   }

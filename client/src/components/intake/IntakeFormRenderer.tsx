@@ -48,6 +48,10 @@ export interface IntakeFormRendererContext {
   // Source panel renderer (kept inside parent file for now to avoid moving the component)
   renderSourcePanel: () => ReactNode;
   renderCustomFieldsBlock: (excludeDefinitionIds: number[]) => ReactNode;
+  // Field keys (and `cf:<defId>` for custom fields) that the current workflow
+  // step marks as required. Drives the red-asterisk mandatory indicator on
+  // the form even before the user tries to advance the gate.
+  currentStepRequiredFields?: string[];
 }
 
 export interface IntakeFormRendererProps {
@@ -151,6 +155,7 @@ function SectionRenderer({ section, ctx, placedCustomFieldIds }: { section: Inta
 
 function ItemRenderer({ item, ctx, placedCustomFieldIds, bare }: { item: IntakeTabLayoutItemFull; ctx: IntakeFormRendererContext; placedCustomFieldIds: number[]; bare?: boolean }) {
   if (item.itemType === "field") {
+    const requiredByStep = ctx.currentStepRequiredFields?.includes(item.itemKey) ?? false;
     return (
       <IntakeFieldRenderer
         fieldKey={item.itemKey}
@@ -159,7 +164,7 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds, bare }: { item: IntakeT
         onChange={ctx.onFieldChange}
         isLocked={ctx.isLocked}
         portfolios={ctx.portfolios}
-        isRequired={REQUIRED_FIELD_KEYS.has(item.itemKey)}
+        isRequired={REQUIRED_FIELD_KEYS.has(item.itemKey) || requiredByStep}
         labelOverride={item.displayName}
       />
     );
@@ -169,6 +174,7 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds, bare }: { item: IntakeT
     if (!Number.isFinite(defId)) {
       return <div className="text-xs text-destructive">Invalid custom field reference: {item.itemKey}</div>;
     }
+    const requiredByStep = ctx.currentStepRequiredFields?.includes(`cf:${defId}`) ?? false;
     return (
       <IntakeSingleCustomField
         intakeId={ctx.intake.id}
@@ -176,6 +182,7 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds, bare }: { item: IntakeT
         definitionId={defId}
         isLocked={ctx.isLocked}
         labelOverride={item.displayName}
+        isRequiredOverride={requiredByStep}
       />
     );
   }

@@ -21,6 +21,7 @@ export interface ProjectFieldRendererProps {
   programs?: Program[];
   resources?: Resource[];
   labelOverride?: string | null;
+  isRequired?: boolean;
 }
 
 function toDateInput(v: any): string {
@@ -33,7 +34,7 @@ function toDateInput(v: any): string {
   } catch { return ""; }
 }
 
-export function ProjectFieldRenderer({ fieldKey, project, onChange, isLocked, portfolios, programs, resources, labelOverride }: ProjectFieldRendererProps) {
+export function ProjectFieldRenderer({ fieldKey, project, onChange, isLocked, portfolios, programs, resources, labelOverride, isRequired }: ProjectFieldRendererProps) {
   const def = PROJECT_FORM_FIELD_BY_KEY[fieldKey];
   if (!def) {
     return (
@@ -56,14 +57,20 @@ export function ProjectFieldRenderer({ fieldKey, project, onChange, isLocked, po
           disabled={isLocked}
           data-testid={`checkbox-project-${def.key}`}
         />
-        <Label htmlFor={`pf-${def.key}`} className="text-sm cursor-pointer">{labelOverride && labelOverride.trim() ? effectiveLabel : (def.helpText || def.label)}</Label>
+        <Label htmlFor={`pf-${def.key}`} className="text-sm cursor-pointer">
+          {labelOverride && labelOverride.trim() ? effectiveLabel : (def.helpText || def.label)}
+          {isRequired && <span className="text-destructive ml-1">*</span>}
+        </Label>
       </div>
     );
   }
 
   return (
     <div className="space-y-2">
-      <Label className="text-sm">{effectiveLabel}</Label>
+      <Label className="text-sm">
+        {effectiveLabel}
+        {isRequired && <span className="text-destructive ml-1">*</span>}
+      </Label>
       <FieldInput def={def} value={current} disabled={isLocked} onChange={(v) => onChange(def.key, v)} portfolios={portfolios ?? []} programs={programs ?? []} resources={resources ?? []} />
     </div>
   );

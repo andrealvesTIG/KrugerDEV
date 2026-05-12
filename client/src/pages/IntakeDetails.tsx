@@ -745,6 +745,7 @@ export default function IntakeDetails() {
           renderCustomFieldsBlock: (excludeIds: number[]) => (
             <IntakeCustomFieldsSection intakeId={intake.id} organizationId={currentOrganization?.id} isLocked={isLocked} excludeDefinitionIds={excludeIds} />
           ),
+          currentStepRequiredFields: (workflowSteps.find(s => s.stepKey === (intake.currentStep || "intake_capture"))?.requiredFields ?? []) as string[],
         }}
       />
 

@@ -19,12 +19,14 @@ export function IntakeSingleCustomField({
   definitionId,
   isLocked,
   labelOverride,
+  isRequiredOverride,
 }: {
   intakeId: number;
   organizationId: number | undefined;
   definitionId: number;
   isLocked: boolean;
   labelOverride?: string | null;
+  isRequiredOverride?: boolean;
 }) {
   const { toast } = useToast();
   const { data: allDefinitions = [], isLoading: defsLoading } = useCustomFieldDefinitions(organizationId);
@@ -151,7 +153,7 @@ export function IntakeSingleCustomField({
     <div className="space-y-2" data-testid={`intake-single-cf-${field.id}`}>
       <Label className="text-sm flex items-center gap-1">
         {labelOverride && labelOverride.trim() ? labelOverride.trim() : field.name}
-        {field.isRequired && <span className="text-destructive">*</span>}
+        {(field.isRequired || isRequiredOverride) && <span className="text-destructive">*</span>}
       </Label>
       {isEditing ? (
         <div className="flex items-center gap-2">

@@ -2051,6 +2051,9 @@ export default function ProjectDetails() {
               portfolios={portfolios ?? []}
               isLocked={isProjectLocked}
               onUpdate={updateProject}
+              currentStepRequiredFields={
+                ((orgWorkflowSteps?.find(s => s.stepKey === project.status)?.requiredFields) ?? []) as string[]
+              }
             />
           </TabsContent>
           <TabsContent value="tasks" className="relative">
@@ -4551,12 +4554,14 @@ function ProjectFormSummary({
   portfolios,
   isLocked,
   onUpdate,
+  currentStepRequiredFields,
 }: {
   project: any;
   organizationId: number | undefined;
   portfolios: any[];
   isLocked: boolean;
   onUpdate: (patch: any) => any;
+  currentStepRequiredFields?: string[];
 }) {
   const { data: layout, isLoading } = useProjectFormLayout(organizationId);
   const { data: resources = [] } = useResources(organizationId ?? null);
@@ -4623,6 +4628,7 @@ function ProjectFormSummary({
         resources,
         onFieldChange: handleFieldChange,
         renderCustomFieldsBlock,
+        currentStepRequiredFields,
       }}
     />
   );
