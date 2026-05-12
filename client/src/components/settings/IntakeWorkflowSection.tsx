@@ -16,7 +16,8 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Trash2, GitBranch, Plus, Pencil, RotateCw, X, Mail } from "lucide-react";
 import { AVAILABLE_INTAKE_FIELDS, useIntakeWorkflows } from "@/hooks/use-intake-workflow";
-import type { IntakeWorkflow, IntakeWorkflowStep } from "@shared/schema";
+import { useCustomFieldDefinitions } from "@/hooks/use-custom-fields";
+import type { IntakeWorkflow, IntakeWorkflowStep, CustomFieldDefinition } from "@shared/schema";
 
 export function IntakeWorkflowSection({ organizationId }: { organizationId: number }) {
   const { toast } = useToast();
@@ -44,6 +45,24 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
   }, [workflows, selectedWorkflowId]);
 
   const selectedWorkflow = useMemo(() => workflows.find(w => w.id === selectedWorkflowId) || null, [workflows, selectedWorkflowId]);
+
+  const { data: allCustomFieldDefs = [] } = useCustomFieldDefinitions(organizationId);
+  const intakeCustomFields = useMemo<CustomFieldDefinition[]>(
+    () => allCustomFieldDefs.filter(d => {
+      const et = d.entityType || 'project';
+      return et === 'intake' || et === 'project';
+    }),
+    [allCustomFieldDefs]
+  );
+  const fieldKeyLabel = (key: string): string => {
+    if (key.startsWith('cf:')) {
+      const id = Number(key.slice(3));
+      const def = intakeCustomFields.find(d => d.id === id);
+      return def ? `${def.name} (custom)` : key;
+    }
+    const fieldInfo = AVAILABLE_INTAKE_FIELDS.find(f => f.key === key);
+    return fieldInfo?.label || key;
+  };
   const wfQuery = selectedWorkflowId ? `?workflowId=${selectedWorkflowId}` : '';
   const wfQueryKey: readonly unknown[] = selectedWorkflowId
     ? ['/api/organizations', organizationId, 'intake-workflow', { workflowId: selectedWorkflowId }]
@@ -564,14 +583,11 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
                   </div>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {step.requiredFields && step.requiredFields.length > 0 ? (
-                      step.requiredFields.map(field => {
-                        const fieldInfo = AVAILABLE_INTAKE_FIELDS.find(f => f.key === field);
-                        return (
-                          <Badge key={field} variant="secondary" className="text-xs">
-                            {fieldInfo?.label || field}
-                          </Badge>
-                        );
-                      })
+                      step.requiredFields.map(field => (
+                        <Badge key={field} variant="secondary" className="text-xs">
+                          {fieldKeyLabel(field)}
+                        </Badge>
+                      ))
                     ) : (
                       <span className="text-xs text-muted-foreground">No required fields</span>
                     )}
@@ -868,7 +884,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
               <p className="text-sm text-muted-foreground mb-2">
                 Select which fields must be completed before advancing past this step
               </p>
-              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded-md p-3">
+              <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto border rounded-md p-3">
                 {AVAILABLE_INTAKE_FIELDS.map(field => (
                   <div 
                     key={field.key} 
@@ -888,6 +904,33 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
                     </label>
                   </div>
                 ))}
+                {intakeCustomFields.length > 0 && (
+                  <div className="col-span-2 mt-2 mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground border-t pt-2">
+                    Custom Fields
+                  </div>
+                )}
+                {intakeCustomFields.map(def => {
+                  const key = `cf:${def.id}`;
+                  return (
+                    <div
+                      key={key}
+                      className="flex items-center space-x-2"
+                      data-testid={`checkbox-field-${key}`}
+                    >
+                      <Checkbox
+                        id={`field-${key}`}
+                        checked={editRequiredFields.includes(key)}
+                        onCheckedChange={() => toggleRequiredField(key)}
+                      />
+                      <label
+                        htmlFor={`field-${key}`}
+                        className="text-sm cursor-pointer"
+                      >
+                        {def.name}
+                      </label>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

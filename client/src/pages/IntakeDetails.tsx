@@ -306,6 +306,9 @@ export default function IntakeDetails() {
 
   const { steps: workflowSteps, isLoading: workflowLoading, getStepByKey, getStepIndex, isFieldRequired } = useIntakeWorkflow(intake?.workflowId ?? null);
 
+  const { data: allCustomFieldDefs = [] } = useCustomFieldDefinitions(currentOrganization?.id);
+  const { data: intakeCustomFieldValues = [] } = useIntakeCustomFieldValues(id);
+
   const [formData, setFormData] = useState<Partial<ProjectIntake>>({});
 
   const updateIntake = useMutation({
@@ -380,8 +383,29 @@ export default function IntakeDetails() {
     const step = getStepByKey(gateId);
     const requiredFields = step?.requiredFields || [];
     
-    // Check each required field
+    // Check each required field — supports both built-in entity fields and
+    // custom fields (encoded as `cf:<definitionId>`).
     for (const field of requiredFields) {
+      if (field.startsWith('cf:')) {
+        const defId = Number(field.slice(3));
+        const def = allCustomFieldDefs.find(d => d.id === defId);
+        const label = def?.name || field;
+        if (!def) {
+          // Definition was deleted; treat as missing so the gate stays blocked
+          // until the admin removes it from the workflow.
+          errors.push(`${label} is required`);
+          continue;
+        }
+        const cfValue = intakeCustomFieldValues.find(v => v.fieldDefinitionId === defId)?.value;
+        const trimmed = (cfValue ?? '').toString().trim();
+        const isEmpty = trimmed.length === 0
+          || (def.fieldType === 'checkbox' && trimmed !== 'true')
+          || (def.fieldType === 'multiselect' && (trimmed === '[]' || trimmed === 'null'));
+        if (isEmpty) {
+          errors.push(`${label} is required`);
+        }
+        continue;
+      }
       const value = currentData[field as keyof typeof currentData];
       const fieldInfo = AVAILABLE_INTAKE_FIELDS.find(f => f.key === field);
       const fieldLabel = fieldInfo?.label || field;

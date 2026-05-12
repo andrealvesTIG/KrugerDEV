@@ -259,6 +259,64 @@ export function registerIntakeRoutes(app: Express) {
       }
       
       const previousStep = existing.currentStep;
+
+      // Server-side gate enforcement: when the request advances `currentStep`,
+      // validate that all `requiredFields` configured on the step being exited
+      // are filled in. Supports both built-in entity fields and custom fields
+      // encoded as `cf:<definitionId>`. Mirrors the client-side validation in
+      // `IntakeDetails.validateGate` so the gate can't be bypassed via the API.
+      if (
+        existing.organizationId &&
+        typeof req.body?.currentStep === 'string' &&
+        req.body.currentStep !== previousStep &&
+        previousStep
+      ) {
+        const steps = await storage.getIntakeWorkflowSteps(
+          existing.organizationId,
+          existing.workflowId ?? null,
+        );
+        const fromIdx = steps.findIndex(s => s.stepKey === previousStep);
+        const toIdx = steps.findIndex(s => s.stepKey === req.body.currentStep);
+        // Only enforce on forward transitions; allow going back to a previous
+        // gate without re-validating.
+        if (fromIdx >= 0 && toIdx > fromIdx) {
+          const fromStep = steps[fromIdx];
+          const requiredFields = (fromStep.requiredFields || []) as string[];
+          if (requiredFields.length > 0) {
+            const merged: any = { ...existing, ...req.body };
+            const errors: string[] = [];
+            const cfValues = requiredFields.some(f => f.startsWith('cf:'))
+              ? await storage.getIntakeCustomFieldValues(id)
+              : [];
+            for (const field of requiredFields) {
+              if (field.startsWith('cf:')) {
+                const defId = Number(field.slice(3));
+                const def = await storage.getCustomFieldDefinition(defId);
+                const label = def?.name || field;
+                if (!def) { errors.push(`${label} is required`); continue; }
+                const raw = cfValues.find(v => v.fieldDefinitionId === defId)?.value;
+                const trimmed = (raw ?? '').toString().trim();
+                const isEmpty = trimmed.length === 0
+                  || (def.fieldType === 'checkbox' && trimmed !== 'true')
+                  || (def.fieldType === 'multiselect' && (trimmed === '[]' || trimmed === 'null'));
+                if (isEmpty) errors.push(`${label} is required`);
+                continue;
+              }
+              const v = merged[field];
+              if (typeof v === 'string' && !v.trim()) errors.push(`${field} is required`);
+              else if (typeof v === 'number' && v <= 0) errors.push(`${field} is required`);
+              else if (v === null || v === undefined) errors.push(`${field} is required`);
+            }
+            if (errors.length > 0) {
+              return res.status(400).json({
+                message: `Gate requirements not met: ${errors.join('; ')}`,
+                errors,
+              });
+            }
+          }
+        }
+      }
+
       const updated = await storage.updateProjectIntake(id, req.body);
 
       dispatchIntakeStepTransitionEmails({
