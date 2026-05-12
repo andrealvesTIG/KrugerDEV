@@ -28,14 +28,15 @@ function dispatchIntakeStepTransitionEmails(args: {
   previousStep: string | null;
   nextStep: string | null;
   actorUserId: string | undefined;
+  prefetchedFromSteps?: Array<any> | null;
 }): void {
-  const { intakeId, intakeNumber, projectName, organizationId, previousWorkflowId, nextWorkflowId, previousStep, nextStep, actorUserId } = args;
+  const { intakeId, intakeNumber, projectName, organizationId, previousWorkflowId, nextWorkflowId, previousStep, nextStep, actorUserId, prefetchedFromSteps } = args;
   if (!organizationId) return;
   if (previousStep === nextStep && previousWorkflowId === nextWorkflowId) return;
 
   void (async () => {
     try {
-      const fromSteps = await storage.getIntakeWorkflowSteps(organizationId, previousWorkflowId ?? null);
+      const fromSteps = prefetchedFromSteps ?? await storage.getIntakeWorkflowSteps(organizationId, previousWorkflowId ?? null);
       const toSteps = previousWorkflowId === nextWorkflowId
         ? fromSteps
         : await storage.getIntakeWorkflowSteps(organizationId, nextWorkflowId ?? null);
@@ -265,54 +266,61 @@ export function registerIntakeRoutes(app: Express) {
       // are filled in. Supports both built-in entity fields and custom fields
       // encoded as `cf:<definitionId>`. Mirrors the client-side validation in
       // `IntakeDetails.validateGate` so the gate can't be bypassed via the API.
+      let cachedFromSteps: Awaited<ReturnType<typeof storage.getIntakeWorkflowSteps>> | null = null;
       if (
         existing.organizationId &&
         typeof req.body?.currentStep === 'string' &&
         req.body.currentStep !== previousStep &&
         previousStep
       ) {
-        const steps = await storage.getIntakeWorkflowSteps(
+        cachedFromSteps = await storage.getIntakeWorkflowSteps(
           existing.organizationId,
           existing.workflowId ?? null,
         );
+        const steps = cachedFromSteps;
         const fromIdx = steps.findIndex(s => s.stepKey === previousStep);
         const toIdx = steps.findIndex(s => s.stepKey === req.body.currentStep);
         // Only enforce on forward transitions; allow going back to a previous
         // gate without re-validating.
         if (fromIdx >= 0 && toIdx > fromIdx) {
-          const fromStep = steps[fromIdx];
-          const requiredFields = (fromStep.requiredFields || []) as string[];
-          if (requiredFields.length > 0) {
-            const merged: any = { ...existing, ...req.body };
-            const errors: string[] = [];
-            const cfValues = requiredFields.some(f => f.startsWith('cf:'))
-              ? await storage.getIntakeCustomFieldValues(id)
-              : [];
+          // Validate the exiting step AND every intermediate step that would
+          // be skipped, otherwise a multi-gate jump would silently bypass
+          // intermediate required-field gates.
+          const stepsToValidate = steps.slice(fromIdx, toIdx);
+          const merged: any = { ...existing, ...req.body };
+          const errors: string[] = [];
+          const anyCustomFields = stepsToValidate.some(s =>
+            ((s.requiredFields || []) as string[]).some(f => f.startsWith('cf:'))
+          );
+          const cfValues = anyCustomFields ? await storage.getIntakeCustomFieldValues(id) : [];
+          for (const step of stepsToValidate) {
+            const requiredFields = (step.requiredFields || []) as string[];
             for (const field of requiredFields) {
+              const prefix = `${step.label}: `;
               if (field.startsWith('cf:')) {
                 const defId = Number(field.slice(3));
                 const def = await storage.getCustomFieldDefinition(defId);
                 const label = def?.name || field;
-                if (!def) { errors.push(`${label} is required`); continue; }
+                if (!def) { errors.push(`${prefix}${label} is required`); continue; }
                 const raw = cfValues.find(v => v.fieldDefinitionId === defId)?.value;
                 const trimmed = (raw ?? '').toString().trim();
                 const isEmpty = trimmed.length === 0
                   || (def.fieldType === 'checkbox' && trimmed !== 'true')
                   || (def.fieldType === 'multiselect' && (trimmed === '[]' || trimmed === 'null'));
-                if (isEmpty) errors.push(`${label} is required`);
+                if (isEmpty) errors.push(`${prefix}${label} is required`);
                 continue;
               }
               const v = merged[field];
-              if (typeof v === 'string' && !v.trim()) errors.push(`${field} is required`);
-              else if (typeof v === 'number' && v <= 0) errors.push(`${field} is required`);
-              else if (v === null || v === undefined) errors.push(`${field} is required`);
+              if (typeof v === 'string' && !v.trim()) errors.push(`${prefix}${field} is required`);
+              else if (typeof v === 'number' && v <= 0) errors.push(`${prefix}${field} is required`);
+              else if (v === null || v === undefined) errors.push(`${prefix}${field} is required`);
             }
-            if (errors.length > 0) {
-              return res.status(400).json({
-                message: `Gate requirements not met: ${errors.join('; ')}`,
-                errors,
-              });
-            }
+          }
+          if (errors.length > 0) {
+            return res.status(400).json({
+              message: `Gate requirements not met: ${errors.join('; ')}`,
+              errors,
+            });
           }
         }
       }
@@ -329,6 +337,7 @@ export function registerIntakeRoutes(app: Express) {
         previousStep,
         nextStep: updated.currentStep,
         actorUserId: userId,
+        prefetchedFromSteps: cachedFromSteps && (existing.workflowId ?? null) === (updated.workflowId ?? null) ? cachedFromSteps : null,
       });
 
       res.json(updated);
@@ -872,6 +881,9 @@ export function registerIntakeRoutes(app: Express) {
       const orgId = Number(req.params.orgId);
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
+      const memberships = await storage.getUserOrganizations(userId);
+      const isOrgAdmin = memberships.some(m => m.organizationId === orgId && (m.role === 'org_admin' || m.role === 'owner'));
+      if (!isOrgAdmin) return res.status(403).json({ message: "Only organization admins can modify the workflow configuration" });
 
       const { steps } = req.body;
       if (!Array.isArray(steps)) return res.status(400).json({ message: "Steps must be an array" });
@@ -917,6 +929,9 @@ export function registerIntakeRoutes(app: Express) {
       const orgId = Number(req.params.orgId);
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(orgId)) return res.status(403).json({ message: "You don't have access to this organization" });
+      const memberships = await storage.getUserOrganizations(userId);
+      const isOrgAdmin = memberships.some(m => m.organizationId === orgId && (m.role === 'org_admin' || m.role === 'owner'));
+      if (!isOrgAdmin) return res.status(403).json({ message: "Only organization admins can reset the workflow configuration" });
 
       const wfIdResult = await resolveProjectWorkflowId(req, orgId);
       if (typeof wfIdResult === 'object') return res.status(wfIdResult.status).json({ message: wfIdResult.message });

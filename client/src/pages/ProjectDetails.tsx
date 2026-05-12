@@ -154,7 +154,10 @@ function BusinessProcessFlow({
             const isCurrent = index === currentIndex;
             const isUpcoming = index > currentIndex;
             const isTerminalStage = stage.isTerminal;
-            const isClickDisabled = isCurrent;
+            // The current step is still clickable — clicking it opens the
+            // step-requirements dialog so users can review/fill required
+            // fields and Save & Advance to the next gate.
+            const isClickDisabled = onStepClick ? false : isCurrent;
             
             return (
               <div key={stage.value} className="flex items-center flex-1">
@@ -234,7 +237,7 @@ function BusinessProcessFlow({
             const isCurrent = index === currentIndex;
             const isUpcoming = index > currentIndex;
             const isTerminalStage = stage.isTerminal;
-            const isClickDisabled = isCurrent;
+            const isClickDisabled = onStepClick ? false : isCurrent;
             
             return (
               <button

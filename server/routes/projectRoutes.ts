@@ -3105,8 +3105,10 @@ export function registerProjectRoutes(app: Express) {
         typeof (input as any).status === 'string' &&
         (input as any).status !== existing.status
       ) {
-        const wfId = (input as any).workflowId ?? existing.workflowId;
-        const resolvedWfId = wfId
+        // Always resolve the "from" workflow against the project's CURRENT
+        // workflow so a request that simultaneously changes workflowId can't
+        // bypass gate enforcement by jumping to an unrelated workflow.
+        const resolvedWfId = existing.workflowId
           ?? (await storage.ensureDefaultProjectWorkflow(existing.organizationId)).id;
         const steps = await storage.getProjectWorkflowSteps(existing.organizationId, resolvedWfId);
         const fromIdx = steps.findIndex(s => s.stepKey === existing.status);
@@ -3115,39 +3117,45 @@ export function registerProjectRoutes(app: Express) {
         // going back to a previous gate or moving to/from steps not in the
         // workflow (e.g. ad-hoc statuses) without validation.
         if (fromIdx >= 0 && toIdx > fromIdx) {
-          const fromStep = steps[fromIdx];
-          const requiredFields = (fromStep.requiredFields || []) as string[];
-          if (requiredFields.length > 0) {
-            const merged: any = { ...existing, ...input };
-            const errors: string[] = [];
-            const cfValues = requiredFields.some(f => f.startsWith('cf:'))
-              ? await storage.getProjectCustomFieldValues(projectId)
-              : [];
+          // Validate the exiting step AND every intermediate step that would
+          // be skipped. Without this, a multi-step jump (A → D) would only
+          // validate A and silently bypass B and C.
+          const stepsToValidate = steps.slice(fromIdx, toIdx);
+          const merged: any = { ...existing, ...input };
+          const errors: string[] = [];
+          const anyCustomFields = stepsToValidate.some(s =>
+            ((s.requiredFields || []) as string[]).some(f => f.startsWith('cf:'))
+          );
+          const cfValues = anyCustomFields ? await storage.getProjectCustomFieldValues(projectId) : [];
+          for (const step of stepsToValidate) {
+            const requiredFields = (step.requiredFields || []) as string[];
             for (const field of requiredFields) {
               if (field.startsWith('cf:')) {
                 const defId = Number(field.slice(3));
                 const def = await storage.getCustomFieldDefinition(defId);
                 const label = def?.name || field;
-                if (!def) { errors.push(`${label} is required`); continue; }
+                const prefix = `${step.label}: `;
+                if (!def) { errors.push(`${prefix}${label} is required`); continue; }
                 const raw = cfValues.find(v => v.fieldDefinitionId === defId)?.value;
                 const trimmed = (raw ?? '').toString().trim();
                 const isEmpty = trimmed.length === 0
                   || (def.fieldType === 'checkbox' && trimmed !== 'true')
                   || (def.fieldType === 'multiselect' && (trimmed === '[]' || trimmed === 'null'));
-                if (isEmpty) errors.push(`${label} is required`);
+                if (isEmpty) errors.push(`${prefix}${label} is required`);
                 continue;
               }
               const v = merged[field];
-              if (typeof v === 'string' && !v.trim()) errors.push(`${field} is required`);
-              else if (typeof v === 'number' && v <= 0) errors.push(`${field} is required`);
-              else if (v === null || v === undefined) errors.push(`${field} is required`);
+              const prefix = `${step.label}: `;
+              if (typeof v === 'string' && !v.trim()) errors.push(`${prefix}${field} is required`);
+              else if (typeof v === 'number' && v <= 0) errors.push(`${prefix}${field} is required`);
+              else if (v === null || v === undefined) errors.push(`${prefix}${field} is required`);
             }
-            if (errors.length > 0) {
-              return res.status(400).json({
-                message: `Gate requirements not met: ${errors.join('; ')}`,
-                errors,
-              });
-            }
+          }
+          if (errors.length > 0) {
+            return res.status(400).json({
+              message: `Gate requirements not met: ${errors.join('; ')}`,
+              errors,
+            });
           }
         }
       }
