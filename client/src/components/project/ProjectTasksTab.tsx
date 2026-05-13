@@ -2,7 +2,8 @@ import { useState, useMemo, useEffect, useRef, lazy, Suspense } from "react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, parseISO, differenceInDays } from "date-fns";
-import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, parseDurationInput, formatDuration } from "@/lib/workingDays";
+import { calculateEndDateFromWorkingDaysCal, calculateDurationInWorkingDaysCal, parseDurationInput, formatDuration } from "@/lib/workingDays";
+import { useProjectResolvedCalendar } from "@/hooks/use-resolved-calendar";
 import { computeWbsValues } from "@/lib/taskWbs";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import msprojectLogoPath from "@/assets/msproject-logo.png";
@@ -413,6 +414,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
 }) {
   const { currentOrganization } = useOrganization();
   const { data: tasks, isLoading, refetch: refetchTasks } = useTasks(projectId);
+  const { data: projectCalendar } = useProjectResolvedCalendar(projectId);
   // Defer mounting heavy Gantt render for large schedules so the loading
   // progress bar gets a chance to paint before the synchronous render blocks
   // the main thread.
@@ -908,7 +910,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       description: "",
       notes: "",
       startDate: format(new Date(), 'yyyy-MM-dd'),
-      endDate: calculateEndDateFromWorkingDays(format(new Date(), 'yyyy-MM-dd'), 1),
+      endDate: calculateEndDateFromWorkingDaysCal(projectCalendar ?? null, format(new Date(), 'yyyy-MM-dd'), 1),
       durationDays: 1,
       progress: 0,
       status: DEFAULT_TASK_STATUS,
@@ -955,7 +957,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
         form.setValue("endDate", startDate);
         setIsMilestone(true);
       } else {
-        const newEnd = calculateEndDateFromWorkingDays(startDate, durationDays);
+        const newEnd = calculateEndDateFromWorkingDaysCal(projectCalendar ?? null, startDate, durationDays);
         form.setValue("endDate", newEnd);
         setIsMilestone(false);
       }
@@ -981,7 +983,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
   const handleEndDateChange = (newEndDate: string) => {
     form.setValue("endDate", newEndDate);
     if (startDate && newEndDate) {
-      const newDuration = calculateDurationInWorkingDays(startDate, newEndDate);
+      const newDuration = calculateDurationInWorkingDaysCal(projectCalendar ?? null, startDate, newEndDate);
       if (newDuration >= 0) {
         setDurationInput(formatDuration(newDuration));
         form.setValue("durationDays", newDuration);
@@ -995,7 +997,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
     setEditingTask(task);
     setActiveDialogTab(tab);
     const taskDuration = task.durationDays ?? (task.startDate && task.endDate 
-      ? (task.startDate === task.endDate ? 0 : calculateDurationInWorkingDays(task.startDate, task.endDate))
+      ? (task.startDate === task.endDate ? 0 : calculateDurationInWorkingDaysCal(projectCalendar ?? null, task.startDate, task.endDate))
       : 1);
     setDurationInput(formatDuration(taskDuration));
     setIsMilestone(task.isMilestone || false);
@@ -1006,7 +1008,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       description: task.description || "",
       notes: task.notes || "",
       startDate: task.startDate || format(new Date(), 'yyyy-MM-dd'),
-      endDate: task.endDate || calculateEndDateFromWorkingDays(format(new Date(), 'yyyy-MM-dd'), 1),
+      endDate: task.endDate || calculateEndDateFromWorkingDaysCal(projectCalendar ?? null, format(new Date(), 'yyyy-MM-dd'), 1),
       durationDays: taskDuration,
       progress: task.progress || 0,
       status: task.status || DEFAULT_TASK_STATUS,
@@ -1047,7 +1049,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
       description: "",
       notes: "",
       startDate: todayStr,
-      endDate: calculateEndDateFromWorkingDays(todayStr, 1),
+      endDate: calculateEndDateFromWorkingDaysCal(projectCalendar ?? null, todayStr, 1),
       durationDays: 1,
       progress: 0,
       status: DEFAULT_TASK_STATUS,
@@ -2403,7 +2405,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               projectId,
               name,
               startDate: todayStr,
-              endDate: calculateEndDateFromWorkingDays(todayStr, 1),
+              endDate: calculateEndDateFromWorkingDaysCal(projectCalendar ?? null, todayStr, 1),
               durationDays: 1,
               status: DEFAULT_TASK_STATUS,
               progress: 0,
@@ -2431,7 +2433,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
               projectId,
               name,
               startDate: todayStr,
-              endDate: calculateEndDateFromWorkingDays(todayStr, 1),
+              endDate: calculateEndDateFromWorkingDaysCal(projectCalendar ?? null, todayStr, 1),
               durationDays: 1,
               status: DEFAULT_TASK_STATUS,
               progress: 0,

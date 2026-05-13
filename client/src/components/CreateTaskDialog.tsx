@@ -27,7 +27,8 @@ import { useToast } from "@/hooks/use-toast";
 import { applyServerErrorsToForm } from "@/lib/serverErrors";
 import { cn } from "@/lib/utils";
 import { format, differenceInDays, parseISO } from "date-fns";
-import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, parseDurationInput, formatDuration } from "@/lib/workingDays";
+import { calculateEndDateFromWorkingDaysCal, calculateDurationInWorkingDaysCal, parseDurationInput, formatDuration } from "@/lib/workingDays";
+import { useProjectResolvedCalendar } from "@/hooks/use-resolved-calendar";
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -62,7 +63,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
       name: "",
       description: "",
       startDate: todayStr,
-      endDate: calculateEndDateFromWorkingDays(todayStr, 1),
+      endDate: calculateEndDateFromWorkingDaysCal(null, todayStr, 1),
       durationDays: 1,
       progress: 0,
       status: DEFAULT_TASK_STATUS,
@@ -76,6 +77,8 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
   });
 
   const isOngoing = form.watch("isOngoing");
+  const watchedProjectId = form.watch("projectId") as number | undefined;
+  const { data: projectCalendar } = useProjectResolvedCalendar(typeof watchedProjectId === "number" ? watchedProjectId : undefined);
 
   const durationDays = parseDurationInput(durationInput);
 
@@ -84,7 +87,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
       if (newDuration === 0) {
         form.setValue("endDate", newStartDate, { shouldDirty: true, shouldValidate: true });
       } else {
-        const newEnd = calculateEndDateFromWorkingDays(newStartDate, newDuration);
+        const newEnd = calculateEndDateFromWorkingDaysCal(projectCalendar ?? null, newStartDate, newDuration);
         form.setValue("endDate", newEnd, { shouldDirty: true, shouldValidate: true });
       }
       form.setValue("durationDays", newDuration, { shouldDirty: true, shouldValidate: true });
@@ -136,7 +139,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
         name: "",
         description: "",
         startDate: todayStr,
-        endDate: calculateEndDateFromWorkingDays(todayStr, 1),
+        endDate: calculateEndDateFromWorkingDaysCal(projectCalendar ?? null, todayStr, 1),
         durationDays: 1,
         progress: 0,
         status: DEFAULT_TASK_STATUS,
@@ -500,7 +503,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
                                 field.onChange(newEndDate);
                                 if (currentStartDate && newEndDate && newEndDate.length === 10) {
                                   try {
-                                    const newDuration = calculateDurationInWorkingDays(currentStartDate, newEndDate);
+                                    const newDuration = calculateDurationInWorkingDaysCal(projectCalendar ?? null, currentStartDate, newEndDate);
                                     if (newDuration >= 0) {
                                       setDurationInput(formatDuration(newDuration));
                                       form.setValue("durationDays", newDuration, {

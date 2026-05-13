@@ -7,9 +7,10 @@ import { CSS } from "@dnd-kit/utilities";
 import { format, addDays, differenceInDays, parseISO, eachDayOfInterval, startOfMonth, endOfMonth } from "date-fns";
 import { formatCurrency } from "@/lib/format";
 import { CompactCurrency } from "@/components/CompactCurrency";
-import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, calculateStartDateFromEndAndDuration, parseDurationInput, formatDuration } from "@/lib/workingDays";
+import { calculateEndDateFromWorkingDaysCal, calculateDurationInWorkingDaysCal, calculateStartDateFromEndAndDurationCal, parseDurationInput, formatDuration } from "@/lib/workingDays";
 import { calculateCPM, type CPMResult } from "@/lib/cpm";
 import { useProjectResolvedCalendar } from "@/hooks/use-resolved-calendar";
+import type { ResolvedCalendar } from "@shared/lib/calendarEngine";
 import { useUpdateTask, useCreateTask, useDeleteTask, useAddTaskDependency, useRemoveTaskDependency, useReorderTask, useProjectDependencies, useBulkUpdateTasks, useBulkDeleteTasks, useTaskNotesHistory } from "@/hooks/use-tasks";
 import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useProjectTaskAssignments, useResources, useCreateResource } from "@/hooks/use-resources";
 import { useCustomFieldDefinitions, useProjectTaskCustomFieldValues, useUpdateTaskCustomFieldValue, useUpdateCustomFieldDefinition } from "@/hooks/use-custom-fields";
@@ -1189,6 +1190,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   customFieldDefsMap,
   onAddCustomFieldOption,
   onReadOnlyEdit,
+  projectCalendar,
 }: { 
   task: Task;
   rowIndex: number;
@@ -1247,6 +1249,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
   customFieldDefsMap?: Map<number, { fieldType: string; options?: string[] | null }>;
   onAddCustomFieldOption?: (fieldDefId: number, newOption: string) => void;
   onReadOnlyEdit?: () => void;
+  projectCalendar?: ResolvedCalendar | null;
 }) {
   const [isEditingResources, setIsEditingResources] = useState(false);
   const { data: fetchedAssignments, isLoading: assignmentsLoading } = useTaskResourceAssignments(isEditingResources ? task.id : null);
@@ -1302,7 +1305,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
       updates.isOngoing = false;
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       updates.startDate = todayStr;
-      updates.endDate = calculateEndDateFromWorkingDays(todayStr, 1);
+      updates.endDate = calculateEndDateFromWorkingDaysCal(projectCalendar ?? null, todayStr, 1);
       updates.durationDays = 1;
     }
 
@@ -1310,11 +1313,11 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
     if (field === 'startDate') {
       if (value) {
         const currentDuration = task.durationDays ?? (task.startDate && task.endDate
-          ? calculateDurationInWorkingDays(task.startDate, task.endDate) : 1);
+          ? calculateDurationInWorkingDaysCal(projectCalendar ?? null, task.startDate, task.endDate) : 1);
         if (currentDuration === 0) {
           updates.endDate = value as string;
         } else {
-          updates.endDate = calculateEndDateFromWorkingDays(value as string, currentDuration);
+          updates.endDate = calculateEndDateFromWorkingDaysCal(projectCalendar ?? null, value as string, currentDuration);
         }
         updates.durationDays = currentDuration;
         if (task.schedulingMode === 'manual' && !task.startDate) {
@@ -1332,7 +1335,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
         const start = parseISO(task.startDate);
         const end = parseISO(value as string);
         if (end >= start) {
-          const calculatedDuration = calculateDurationInWorkingDays(task.startDate, value as string);
+          const calculatedDuration = calculateDurationInWorkingDaysCal(projectCalendar ?? null, task.startDate, value as string);
           updates.durationDays = calculatedDuration;
         } else {
           toast({
@@ -1347,7 +1350,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
         if (duration === 0) {
           updates.startDate = value as string;
         } else {
-          updates.startDate = calculateStartDateFromEndAndDuration(value as string, duration);
+          updates.startDate = calculateStartDateFromEndAndDurationCal(projectCalendar ?? null, value as string, duration);
         }
         updates.durationDays = duration;
       } else if (!value) {
@@ -1382,7 +1385,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
       } else {
         updates.isMilestone = false;
         if (task.startDate) {
-          updates.endDate = calculateEndDateFromWorkingDays(task.startDate, duration);
+          updates.endDate = calculateEndDateFromWorkingDaysCal(projectCalendar ?? null, task.startDate, duration);
         }
       }
     }
@@ -1847,7 +1850,7 @@ const ProjectGanttTaskRowMeta = memo(function ProjectGanttTaskRowMeta({
               );
             case 'durationDays':
               const calculatedDuration = task.durationDays != null ? task.durationDays : (precomputedDates?.duration ?? ((task.startDate && task.endDate)
-                ? (task.startDate === task.endDate ? 0 : calculateDurationInWorkingDays(task.startDate, task.endDate))
+                ? (task.startDate === task.endDate ? 0 : calculateDurationInWorkingDaysCal(projectCalendar ?? null, task.startDate, task.endDate))
                 : null));
               return (
                 <InlineEditCell {...cellEditProps}
@@ -3839,7 +3842,7 @@ function ProjectGanttView({
           const rowData = newTaskRows[idx];
           const taskName = (rowData.name as string) || 'New Task';
           const startDate = (rowData.startDate as string) || todayStr;
-          const endDate = (rowData.endDate as string) || calculateEndDateFromWorkingDays(startDate, (rowData.durationDays as number) || 1);
+          const endDate = (rowData.endDate as string) || calculateEndDateFromWorkingDaysCal(projectCalendar ?? null, startDate, (rowData.durationDays as number) || 1);
           const durationDays = (rowData.durationDays as number) || 1;
 
           if (pasteCancelledRef.current) break;
@@ -5244,7 +5247,7 @@ function ProjectGanttView({
       actualStartDate: null,
       actualEndDate: null,
       durationDays: earliestStart && latestEnd ? 
-        calculateDurationInWorkingDays(earliestStart, latestEnd) : null,
+        calculateDurationInWorkingDaysCal(projectCalendar ?? null, earliestStart, latestEnd) : null,
       estimatedHours: totalEstimatedHours > 0 ? totalEstimatedHours : null,
       actualHours: totalActualHours > 0 ? totalActualHours : null,
       remainingHours: null,
@@ -5282,7 +5285,7 @@ function ProjectGanttView({
         projectId,
         name: newTaskName.trim(),
         startDate: todayStr,
-        endDate: calculateEndDateFromWorkingDays(todayStr, 1),
+        endDate: calculateEndDateFromWorkingDaysCal(projectCalendar ?? null, todayStr, 1),
         durationDays: 1,
         outlineLevel,
         parentId,
@@ -5313,7 +5316,7 @@ function ProjectGanttView({
       projectId,
       name: 'New Task',
       startDate: todayStr,
-      endDate: calculateEndDateFromWorkingDays(todayStr, 1),
+      endDate: calculateEndDateFromWorkingDaysCal(projectCalendar ?? null, todayStr, 1),
       durationDays: 1,
       outlineLevel: referenceTask.outlineLevel || 1,
       parentId: referenceTask.parentId || null,
@@ -5397,7 +5400,7 @@ function ProjectGanttView({
     } else if (newMode === 'auto' && !task.startDate) {
       const todayStr = format(new Date(), 'yyyy-MM-dd');
       updates.startDate = todayStr;
-      updates.endDate = calculateEndDateFromWorkingDays(todayStr, 1);
+      updates.endDate = calculateEndDateFromWorkingDaysCal(projectCalendar ?? null, todayStr, 1);
       updates.durationDays = 1;
     }
     updateTask.mutate(updates as Parameters<typeof updateTask.mutate>[0], {
@@ -5612,7 +5615,7 @@ function ProjectGanttView({
       const actualStart = t.actualStartDate ? parseISO(t.actualStartDate) : null;
       const actualEnd = t.actualEndDate ? parseISO(t.actualEndDate) : null;
       const constraintDate = t.constraintDate ? parseISO(t.constraintDate) : null;
-      const duration = t.durationDays != null ? t.durationDays : ((start && end) ? (t.startDate === t.endDate ? 0 : calculateDurationInWorkingDays(t.startDate!, t.endDate!)) : null);
+      const duration = t.durationDays != null ? t.durationDays : ((start && end) ? (t.startDate === t.endDate ? 0 : calculateDurationInWorkingDaysCal(projectCalendar ?? null, t.startDate!, t.endDate!)) : null);
       map.set(t.id, {
         start,
         end,
@@ -6522,6 +6525,7 @@ function ProjectGanttView({
                             customFieldDefsMap={customFieldDefsMap}
                             onAddCustomFieldOption={handleAddCustomFieldOption}
                             onReadOnlyEdit={handleReadOnlyEdit}
+                            projectCalendar={projectCalendar}
                           />
                         </div>
                       );
@@ -6583,6 +6587,7 @@ function ProjectGanttView({
                               customFieldDefsMap={customFieldDefsMap}
                               onAddCustomFieldOption={handleAddCustomFieldOption}
                               onReadOnlyEdit={handleReadOnlyEdit}
+                              projectCalendar={projectCalendar}
                             />
                           )}
                         </SortableTaskRow>
