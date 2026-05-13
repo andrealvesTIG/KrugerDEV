@@ -21,6 +21,7 @@ import {
 import { useResources } from "@/hooks/use-resources";
 import { useProjectFormLayout } from "@/hooks/use-project-form-layout";
 import { useIntakeTabLayout } from "@/hooks/use-intake-tab-layout";
+import { useIntakeGovernanceQuestions } from "@/hooks/use-intake-governance-questions";
 import { AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
 import { PROJECT_FORM_FIELD_BY_KEY, type ProjectFieldDefinition } from "@shared/projectFormRegistry";
 import type { CustomFieldDefinition } from "@shared/schema";
@@ -253,9 +254,37 @@ export function WorkflowStepRequirementsDialog({
     return errs;
   }, [entity, entityType, projectLayout, intakeLayout, cfDefs, cfValues, step.requiredFields]);
 
+  // Governance Y/N questionnaires (intake only). Once seeded for an intake,
+  // every row must have answer === 'yes' or 'no' before the user can advance.
+  // If the questionnaire was never seeded (list is empty) we don't enforce —
+  // matches the lazy-seed model in IntakeDetails.
+  const archQuestionsQ = useIntakeGovernanceQuestions(
+    entityType === 'intake' && open ? entityId : 0,
+    'architecture',
+  );
+  const cyberQuestionsQ = useIntakeGovernanceQuestions(
+    entityType === 'intake' && open ? entityId : 0,
+    'cybersecurity',
+  );
+  const governanceValidationErrors = useMemo<string[]>(() => {
+    if (entityType !== 'intake') return [];
+    const errs: string[] = [];
+    const arch = archQuestionsQ.data || [];
+    const cyber = cyberQuestionsQ.data || [];
+    const archUnanswered = arch.filter(q => q.answer !== 'yes' && q.answer !== 'no').length;
+    const cyberUnanswered = cyber.filter(q => q.answer !== 'yes' && q.answer !== 'no').length;
+    if (archUnanswered > 0) {
+      errs.push(`${archUnanswered} Architecture question${archUnanswered === 1 ? '' : 's'} unanswered`);
+    }
+    if (cyberUnanswered > 0) {
+      errs.push(`${cyberUnanswered} Cybersecurity question${cyberUnanswered === 1 ? '' : 's'} unanswered`);
+    }
+    return errs;
+  }, [entityType, archQuestionsQ.data, cyberQuestionsQ.data]);
+
   const allValidationErrors = useMemo(
-    () => [...validationErrors, ...layoutValidationErrors],
-    [validationErrors, layoutValidationErrors],
+    () => [...validationErrors, ...layoutValidationErrors, ...governanceValidationErrors],
+    [validationErrors, layoutValidationErrors, governanceValidationErrors],
   );
 
   const [isSaving, setIsSaving] = useState(false);
