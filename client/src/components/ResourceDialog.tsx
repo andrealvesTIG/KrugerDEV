@@ -15,7 +15,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { UserCircle } from "lucide-react";
+import { UserCircle, CalendarClock } from "lucide-react";
+import { useCalendars } from "@/hooks/use-calendars";
 
 const resourceFormSchema = insertResourceSchema.extend({
   displayName: z.string().min(1, "Name is required"),
@@ -48,11 +49,13 @@ export function ResourceDialog({ open, onOpenChange, organizationId, resource, o
   const updateResource = useUpdateResource();
   const isEditing = !!resource;
   const [selectedUserId, setSelectedUserId] = useState<string | null>(resource?.userId || null);
+  const [selectedCalendarId, setSelectedCalendarId] = useState<number | null>(resource?.calendarId ?? null);
 
   const { data: members = [] } = useQuery<OrgMember[]>({
     queryKey: [`/api/organizations/${organizationId}/members`],
     enabled: !!organizationId && open,
   });
+  const { data: calendars = [] } = useCalendars(organizationId);
 
   const form = useForm<ResourceFormData>({
     resolver: zodResolver(resourceFormSchema),
@@ -89,6 +92,7 @@ export function ResourceDialog({ open, onOpenChange, organizationId, resource, o
         notes: resource?.notes || "",
       });
       setSelectedUserId(resource?.userId || null);
+      setSelectedCalendarId(resource?.calendarId ?? null);
     }
   }, [open, organizationId, resource]);
 
@@ -114,6 +118,7 @@ export function ResourceDialog({ open, onOpenChange, organizationId, resource, o
         timesheetHidden: data.timesheetHidden ?? false,
         notes: data.notes || null,
         userId: selectedUserId,
+        calendarId: selectedCalendarId,
       };
       if (isEditing && resource) {
         await updateResource.mutateAsync({ id: resource.id, updates: resourceData });
@@ -216,6 +221,32 @@ export function ResourceDialog({ open, onOpenChange, organizationId, resource, o
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
                   Link this resource to a user account to enable timesheet logging
+                </p>
+              </div>
+
+              <div>
+                <Label htmlFor="calendarId" className="flex items-center gap-2 mb-1.5">
+                  <CalendarClock className="h-4 w-4" />
+                  Working Calendar
+                </Label>
+                <Select
+                  value={selectedCalendarId == null ? "none" : String(selectedCalendarId)}
+                  onValueChange={(value) => setSelectedCalendarId(value === "none" ? null : Number(value))}
+                >
+                  <SelectTrigger data-testid="select-resource-calendar">
+                    <SelectValue placeholder="Use organization default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Use organization default</SelectItem>
+                    {calendars.map((c: { id: number; name: string; isDefault?: boolean | null }) => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.name}{c.isDefault ? " (default)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Restricts the resource's availability (PTO, alternate work week). The project calendar still drives scheduling.
                 </p>
               </div>
 
