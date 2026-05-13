@@ -173,6 +173,7 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
     ]},
     { id: "resource-management", name: "Resource Management", hidden: false, collapsedByDefault: true, items: [
       { type: "module" as const, key: "resources", hidden: false },
+      { type: "module" as const, key: "calendars", hidden: false },
     ]},
     { id: "finance", name: "Finance", hidden: false, collapsedByDefault: true, items: [
       { type: "module" as const, key: "simulation", hidden: false },
@@ -220,6 +221,7 @@ function migrateOldFlatStructure(structure: SidebarStructure): SidebarStructure 
     ]},
     { id: "resource-management", name: "Resource Management", hidden: false, collapsedByDefault: true, items: [
       { type: "module" as const, key: "resources", hidden: getItemHidden("resources") },
+      { type: "module" as const, key: "calendars", hidden: getItemHidden("calendars") },
     ]},
     { id: "finance", name: "Finance", hidden: false, collapsedByDefault: true, items: [
       { type: "module" as const, key: "simulation", hidden: getItemHidden("simulation") },
@@ -306,6 +308,7 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   ensureModule("correspondence", "portfolio", "meetings", true);
   ensureModule("media", "help", "training");
   ensureModule("agents", "home", "home");
+  ensureModule("calendars", "resource-management", "resources");
 
   // Relocate "agents" to the Home group for any existing user structure
   // where it previously lived under Help (or any other group). Preserves
