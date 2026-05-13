@@ -310,6 +310,7 @@ export default function IntakeDetails() {
 
   const { data: allCustomFieldDefs = [] } = useCustomFieldDefinitions(currentOrganization?.id);
   const { data: intakeCustomFieldValues = [] } = useIntakeCustomFieldValues(id);
+  const { data: intakeFormLayout = [] } = useIntakeTabLayout(currentOrganization?.id);
 
   const [formData, setFormData] = useState<Partial<ProjectIntake>>({});
 
@@ -421,7 +422,57 @@ export default function IntakeDetails() {
         errors.push(`${fieldLabel} is required`);
       }
     }
-    
+
+    // Also enforce per-item Required toggles configured in the Intake Form
+    // layout editor. Mirrors WorkflowStepRequirementsDialog.layoutValidationErrors
+    // so the page-level Next button doesn't bypass layout-required fields.
+    const stepKeys = new Set(requiredFields);
+    const seen = new Set<string>();
+    for (const tab of intakeFormLayout || []) {
+      if (tab.isActive === false) continue;
+      for (const section of tab.sections || []) {
+        for (const item of section.items || []) {
+          if (item.itemType === 'block') continue;
+
+          if (item.itemType === 'custom_field') {
+            const defId = Number(item.itemKey);
+            if (!Number.isFinite(defId)) continue;
+            const def = allCustomFieldDefs.find(d => d.id === defId);
+            if (!def) continue;
+            const required = !!item.isRequired || !!def.isRequired;
+            if (!required) continue;
+            const cfKey = `cf:${defId}`;
+            if (stepKeys.has(cfKey) || seen.has(cfKey)) continue;
+            seen.add(cfKey);
+            const cfValue = intakeCustomFieldValues.find(v => v.fieldDefinitionId === defId)?.value;
+            const trimmed = (cfValue ?? '').toString().trim();
+            const isEmpty = trimmed.length === 0
+              || (def.fieldType === 'checkbox' && trimmed !== 'true')
+              || (def.fieldType === 'multiselect' && (trimmed === '[]' || trimmed === 'null'));
+            if (isEmpty) {
+              errors.push(`${item.displayName || def.name} is required (${tab.label})`);
+            }
+            continue;
+          }
+
+          // itemType === 'field'
+          if (!item.isRequired) continue;
+          const key = item.itemKey;
+          if (stepKeys.has(key) || seen.has(key)) continue;
+          seen.add(key);
+          const value = currentData[key as keyof typeof currentData];
+          const fieldInfo = AVAILABLE_INTAKE_FIELDS.find(f => f.key === key);
+          const label = item.displayName || fieldInfo?.label || key;
+          const isEmpty = value == null
+            || (typeof value === 'string' && !value.trim())
+            || (typeof value === 'number' && value <= 0);
+          if (isEmpty) {
+            errors.push(`${label} is required (${tab.label})`);
+          }
+        }
+      }
+    }
+
     return { valid: errors.length === 0, errors };
   };
 
