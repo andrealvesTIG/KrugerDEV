@@ -19,6 +19,8 @@ import {
   useUpdateIntakeCustomFieldValue,
 } from "@/hooks/use-custom-fields";
 import { useResources } from "@/hooks/use-resources";
+import { useProjectFormLayout } from "@/hooks/use-project-form-layout";
+import { useIntakeTabLayout } from "@/hooks/use-intake-tab-layout";
 import { AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
 import { PROJECT_FORM_FIELD_BY_KEY, type ProjectFieldDefinition } from "@shared/projectFormRegistry";
 import type { CustomFieldDefinition } from "@shared/schema";
@@ -104,6 +106,12 @@ export function WorkflowStepRequirementsDialog({
   // Custom field defs scoped to this entity type. Intake fields share with project.
   const { data: allCfDefs = [] } = useCustomFieldDefinitions(organizationId);
   const { data: orgResources = [] } = useResources(organizationId);
+  const { data: projectLayout = [] } = useProjectFormLayout(
+    open && entityType === 'project' ? organizationId : undefined,
+  );
+  const { data: intakeLayout = [] } = useIntakeTabLayout(
+    open && entityType === 'intake' ? organizationId : undefined,
+  );
   const cfDefs = useMemo(() => allCfDefs.filter(d => {
     const et = d.entityType || 'project';
     return et === 'project' || et === 'intake';
@@ -178,6 +186,72 @@ export function WorkflowStepRequirementsDialog({
     return errs;
   }, [draft, fields]);
 
+  // Validate ALL required fields placed anywhere on the configured form tabs
+  // (project Summary tabs / intake tabs) — not just those listed in this gate's
+  // requiredFields. Required-ness comes from `customFieldDefinitions.isRequired`
+  // for custom fields, and from a small built-in NOT-NULL set for built-ins.
+  const BUILTIN_PROJECT_REQUIRED = new Set(['name']);
+  const BUILTIN_INTAKE_REQUIRED = new Set(['title']);
+  const layoutValidationErrors = useMemo<string[]>(() => {
+    if (!entity) return [];
+    const stepKeys = new Set((step.requiredFields || []) as string[]);
+    const tabs = entityType === 'project' ? projectLayout : intakeLayout;
+    if (!tabs || tabs.length === 0) return [];
+
+    const errs: string[] = [];
+    const seen = new Set<string>();
+
+    for (const tab of tabs) {
+      if (tab.isActive === false) continue;
+      for (const section of tab.sections || []) {
+        for (const item of section.items || []) {
+          if (item.itemType === 'block') continue;
+
+          if (item.itemType === 'custom_field') {
+            const id = Number(item.itemKey);
+            if (!Number.isFinite(id)) continue;
+            const def = cfDefs.find(d => d.id === id);
+            if (!def || !def.isRequired) continue;
+            const cfKey = `cf:${id}`;
+            if (stepKeys.has(cfKey) || seen.has(cfKey)) continue;
+            seen.add(cfKey);
+            const raw = cfValues.find(cv => cv.fieldDefinitionId === id)?.value ?? '';
+            const trimmed = String(raw ?? '').trim();
+            const ft = def.fieldType;
+            const empty = trimmed.length === 0
+              || (ft === 'checkbox' && trimmed !== 'true')
+              || (ft === 'multiselect' && (trimmed === '[]' || trimmed === 'null'));
+            if (empty) {
+              errs.push(`${item.displayName || def.name} is required (${tab.label})`);
+            }
+            continue;
+          }
+
+          // itemType === 'field'
+          const key = item.itemKey;
+          if (stepKeys.has(key) || seen.has(key)) continue;
+          const requiredSet = entityType === 'project' ? BUILTIN_PROJECT_REQUIRED : BUILTIN_INTAKE_REQUIRED;
+          if (!requiredSet.has(key)) continue;
+          seen.add(key);
+          const v = (entity as any)[key];
+          const empty = v == null || (typeof v === 'string' && !v.trim());
+          if (empty) {
+            const label = item.displayName
+              || (entityType === 'project' ? PROJECT_FORM_FIELD_BY_KEY[key]?.label : builtinIntakeField(key)?.label)
+              || key;
+            errs.push(`${label} is required (${tab.label})`);
+          }
+        }
+      }
+    }
+    return errs;
+  }, [entity, entityType, projectLayout, intakeLayout, cfDefs, cfValues, step.requiredFields]);
+
+  const allValidationErrors = useMemo(
+    () => [...validationErrors, ...layoutValidationErrors],
+    [validationErrors, layoutValidationErrors],
+  );
+
   const [isSaving, setIsSaving] = useState(false);
 
   const persist = async (): Promise<boolean> => {
@@ -232,8 +306,8 @@ export function WorkflowStepRequirementsDialog({
   };
 
   const handleSaveAndAdvance = async () => {
-    if (validationErrors.length > 0) {
-      toast({ title: "Gate requirements not met", description: validationErrors.join('; '), variant: "destructive" });
+    if (allValidationErrors.length > 0) {
+      toast({ title: "Gate requirements not met", description: allValidationErrors.join('; '), variant: "destructive" });
       return;
     }
     if (!nextStep) return;
@@ -350,7 +424,7 @@ export function WorkflowStepRequirementsDialog({
       : <Input value={String(v)} onChange={e => set(e.target.value)} disabled={disabled} data-testid={`wsd-input-${f.key}`} />;
   };
 
-  const canAdvance = isCurrentStep && !!nextStep && !isLocked && validationErrors.length === 0;
+  const canAdvance = isCurrentStep && !!nextStep && !isLocked && allValidationErrors.length === 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -384,13 +458,13 @@ export function WorkflowStepRequirementsDialog({
                 {renderInput(f)}
               </div>
             ))}
-            {validationErrors.length > 0 && isCurrentStep && (
+            {allValidationErrors.length > 0 && isCurrentStep && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   <div className="font-medium mb-1">Required before advancing:</div>
                   <ul className="list-disc pl-4 space-y-0.5 text-xs">
-                    {validationErrors.map(e => <li key={e}>{e}</li>)}
+                    {allValidationErrors.map(e => <li key={e}>{e}</li>)}
                   </ul>
                 </AlertDescription>
               </Alert>
@@ -413,7 +487,7 @@ export function WorkflowStepRequirementsDialog({
               onClick={handleSaveAndAdvance}
               disabled={isSaving || !canAdvance}
               data-testid="wsd-button-advance"
-              title={!canAdvance && validationErrors.length > 0 ? "Complete required fields first" : `Save & Advance to ${nextStep.label}`}
+              title={!canAdvance && allValidationErrors.length > 0 ? "Complete required fields first" : `Save & Advance to ${nextStep.label}`}
               className="whitespace-normal text-left h-auto py-2 min-w-0 max-w-full"
             >
               {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-1 shrink-0" />}
