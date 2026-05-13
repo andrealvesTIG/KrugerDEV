@@ -441,16 +441,77 @@ export function enumerateNonWorkingDates(
   return out;
 }
 
+/**
+ * A non-working window may carry an optional `intervals` override:
+ *   - omitted / null / empty → full day off (legacy behaviour)
+ *   - non-empty              → the day IS working but ONLY during these
+ *                              intervals (i.e. residual working time after
+ *                              partial-day PTO has been subtracted upstream).
+ * This is how partial-day PTO (resource_availability.hoursPerDay) is folded
+ * into the engine without losing the resource's residual availability.
+ */
+export type NonWorkingWindow = {
+  startDate: string;
+  endDate: string;
+  intervals?: CalendarInterval[] | null;
+  /** Accepted for back-compat with callers that already pass this; ignored.
+   *  The function decides isWorking based on whether intervals are present. */
+  isWorking?: boolean;
+};
+
 export function withAdditionalNonWorkingWindows(
   base: ResolvedCalendar,
-  windows: Array<{ startDate: string; endDate: string }>,
+  windows: Array<NonWorkingWindow>,
 ): ResolvedCalendar {
   if (!windows.length) return base;
   return {
     ...base,
     exceptions: [
-      ...windows.map(w => ({ startDate: w.startDate, endDate: w.endDate, isWorking: false })),
+      ...windows.map(w => {
+        const ints = w.intervals && w.intervals.length ? w.intervals : null;
+        return ints
+          ? { startDate: w.startDate, endDate: w.endDate, isWorking: true, intervals: ints }
+          : { startDate: w.startDate, endDate: w.endDate, isWorking: false };
+      }),
       ...base.exceptions,
     ],
   };
+}
+
+/**
+ * Subtract `ptoHours` of working time from the END of a day's working
+ * intervals and return the residual intervals the resource is still
+ * available for.
+ *
+ *   - PTO consumes the END of the working day (matches the most common
+ *     half-day PTO pattern: "I'm leaving at 1pm"). If product later wants
+ *     start-of-day or proportional consumption this becomes a strategy arg.
+ *   - If `ptoHours` >= total working hours in the day → returns [] (full
+ *     day off — caller should still emit a non-working exception).
+ *   - If `ptoHours` <= 0 → returns intervals unchanged.
+ *
+ * Pure / no calendar lookup. Caller passes the day's normal intervals
+ * (e.g. from `getWorkingIntervalsForDate`).
+ */
+export function subtractPtoFromIntervals(
+  intervals: CalendarInterval[],
+  ptoHours: number,
+): CalendarInterval[] {
+  if (ptoHours <= 0) return intervals.map(i => ({ ...i }));
+  if (!intervals.length) return [];
+  let remainingPtoMin = ptoHours * 60;
+  // Walk from the LAST interval backward, trimming working minutes until
+  // the PTO budget is consumed. Whatever survives is the residual.
+  const out: CalendarInterval[] = intervals.map(i => ({ ...i }));
+  for (let i = out.length - 1; i >= 0 && remainingPtoMin > 0; i--) {
+    const span = out[i].endMinute - out[i].startMinute;
+    if (span <= remainingPtoMin) {
+      remainingPtoMin -= span;
+      out.splice(i, 1);
+    } else {
+      out[i].endMinute -= remainingPtoMin;
+      remainingPtoMin = 0;
+    }
+  }
+  return out;
 }

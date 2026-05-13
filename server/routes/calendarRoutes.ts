@@ -81,17 +81,60 @@ export function registerCalendarRoutes(app: Express) {
 
       // Fold resource_availability rows (PTO, leave, etc.) in as additional
       // non-working windows so callers see PTO via the engine instead of as
-      // a separate concept. Only `approved` rows count. Partial-day rows
-      // (hoursPerDay set) are still treated as full-day non-working until
-      // Phase 3 adds minute-precision scheduling.
+      // a separate concept. Only `approved` rows count.
+      const engine = await import("@shared/lib/calendarEngine");
       const availabilityRows = (await storage.getResourceAvailability(resourceId))
         .filter((r: any) => (r.status ?? "approved") === "approved");
-      const ptoWindows = availabilityRows.map((r: any) => ({
-        startDate: typeof r.startDate === "string" ? r.startDate : new Date(r.startDate).toISOString().slice(0, 10),
-        endDate: typeof r.endDate === "string" ? r.endDate : new Date(r.endDate).toISOString().slice(0, 10),
-      }));
+      // Local-date YMD (avoids the toISOString() timezone shift that would
+      // bump dates by one day in non-UTC server zones).
+      const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+      const localYmd = (d: Date): string =>
+        `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+      const toYmd = (v: any): string =>
+        typeof v === "string" ? v.slice(0, 10) : localYmd(new Date(v));
+      const parseYmd = (s: string): Date => {
+        const [y, m, d] = s.split("-").map(Number);
+        return new Date(y, m - 1, d);
+      };
 
-      const engine = await import("@shared/lib/calendarEngine");
+      /**
+       * Build PTO windows against a specific "effective base" calendar so
+       * partial-day intervals are intersected with the base day's working
+       * intervals BEFORE being emitted. This preserves the documented rule
+       * "project calendar wins; resource calendar only restricts": if the
+       * base says the day is non-working, partial PTO cannot reopen it.
+       *
+       * Phase 3a: rows with `hoursPerDay` set are expanded into per-date
+       * partial-day windows. For each date we look up the base's working
+       * intervals and subtract `hoursPerDay` of working time from the END
+       * of the day (most common half-day pattern: "I'm leaving at 1pm").
+       * Rows without `hoursPerDay` keep the legacy full-day-off behaviour.
+       */
+      const buildPtoWindows = (baseCal: any) =>
+        availabilityRows.flatMap((r: any) => {
+          const startStr = toYmd(r.startDate);
+          const endStr = toYmd(r.endDate);
+          const hpd = r.hoursPerDay != null ? Number(r.hoursPerDay) : null;
+          // Full-day PTO (no hoursPerDay) → single multi-day window. Safe
+          // even if base is already non-working on some of those dates.
+          if (hpd == null || !isFinite(hpd) || hpd <= 0) {
+            return [{ startDate: startStr, endDate: endStr }];
+          }
+          // Partial-day PTO → expand against the EFFECTIVE base calendar.
+          const lookupCal = baseCal ?? engine.defaultLegacyResolvedCalendar();
+          const out: Array<{ startDate: string; endDate: string; intervals?: any }> = [];
+          const start = parseYmd(startStr);
+          const end = parseYmd(endStr);
+          for (let cur = new Date(start); cur <= end; cur.setDate(cur.getDate() + 1)) {
+            const dayIntervals = engine.getWorkingIntervalsForDate(lookupCal, cur);
+            if (!dayIntervals.length) continue; // base is non-working — PTO is moot
+            const residual = engine.subtractPtoFromIntervals(dayIntervals, hpd);
+            const ymd = localYmd(cur);
+            // residual.length === 0 → PTO consumed the whole day → full-day off.
+            out.push({ startDate: ymd, endDate: ymd, intervals: residual.length ? residual : null });
+          }
+          return out;
+        });
 
       if (projectId != null && !Number.isNaN(projectId)) {
         const project = await storage.getProject(projectId);
@@ -112,12 +155,19 @@ export function registerCalendarRoutes(app: Express) {
           const horizonEnd = new Date();
           horizonEnd.setFullYear(horizonEnd.getFullYear() + 5);
           const overlayWindows = engine.enumerateNonWorkingDates(resourceCal, horizonStart, horizonEnd);
+          // Build PTO against the composed (project + resource overlay)
+          // calendar so partial-day PTO can't reopen days the project
+          // OR resource consider non-working.
+          const composedForLookup = engine.withAdditionalNonWorkingWindows(projCal, overlayWindows);
+          const ptoWindows = buildPtoWindows(composedForLookup);
           return res.json(engine.withAdditionalNonWorkingWindows(projCal, [...overlayWindows, ...ptoWindows]));
         }
         const baseCal = projCal ?? resourceCal;
+        const ptoWindows = buildPtoWindows(baseCal);
         if (baseCal && ptoWindows.length) return res.json(engine.withAdditionalNonWorkingWindows(baseCal, ptoWindows));
         return res.json(baseCal);
       }
+      const ptoWindows = buildPtoWindows(resourceCal);
       if (resourceCal && ptoWindows.length) return res.json(engine.withAdditionalNonWorkingWindows(resourceCal, ptoWindows));
       // Edge case: no resource calendar but PTO exists — fold PTO onto the
       // legacy Mon–Fri 8h fallback so callers don't lose PTO when the
