@@ -650,7 +650,16 @@ export default function IntakeDetails() {
 
           <div className="flex items-center justify-between mb-2 overflow-x-auto pb-2">
             {workflowSteps.map((step, index) => {
-              const isCompleted = completedSteps.includes(step.stepKey) || (isApproved && index <= currentStepIndex);
+              // A step is completed if (a) it's positioned before the current
+              // step in the workflow, (b) the intake is approved and this step
+              // is at or before the current one, or (c) one of the legacy
+              // boolean flags marks it complete. The position-based rule makes
+              // checkmarks work for any workflow — including custom workflows
+              // whose step keys don't match the legacy hardcoded set.
+              const isCompleted =
+                (index < currentStepIndex)
+                || (isApproved && index <= currentStepIndex)
+                || completedSteps.includes(step.stepKey);
               const isCurrent = index === currentStepIndex && !isApproved && !isRejected;
               const isClickable = index <= currentStepIndex && !isLocked;
               const Icon = step.icon;
