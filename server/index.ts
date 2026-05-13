@@ -185,8 +185,8 @@ app.use((req, res, next) => {
     process.exit(1);
   }
 
-  registerObjectStorageRoutes(app);
   await registerRoutes(httpServer, app);
+  registerObjectStorageRoutes(app);
   setupSwagger(app);
 
   // Boot-time seed: ensure every existing organization has at least one
