@@ -271,10 +271,8 @@ function Router() {
           <GuardedRoute path="/meetings" component={Meetings} moduleKey="meetings" />
           <GuardedRoute path="/correspondence" component={Correspondence} moduleKey="correspondence" />
           <GuardedRoute path="/calendar" component={Calendar} moduleKey="calendar" />
-          <Route path="/calendars/:id">
-            <ModuleGuard moduleKey="calendars"><CalendarDetails /></ModuleGuard>
-          </Route>
-          <GuardedRoute path="/calendars" component={Calendars} moduleKey="calendars" />
+          <Route path="/calendars/:id" component={CalendarDetails} />
+          <Route path="/calendars" component={Calendars} />
           <GuardedRoute path="/integrations" component={Integrations} moduleKey="integrations" />
           <Route path="/billing" component={Billing} />
           <Route path="/admin" component={Admin} />

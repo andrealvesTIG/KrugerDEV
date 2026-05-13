@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "wouter";
-import { ArrowLeft, Plus, Trash2, PlayCircle } from "lucide-react";
+import { ArrowLeft, Lock, Plus, Trash2, PlayCircle } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
+import { useAuth } from "@/hooks/use-auth";
 import {
   useCalendar,
   useReplaceWorkingWeek,
@@ -41,10 +42,13 @@ function hhmmToMin(s: string): number {
 export default function CalendarDetails() {
   const params = useParams();
   const id = Number(params.id);
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, memberships } = useOrganization();
+  const { user } = useAuth();
   const orgId = currentOrganization?.id;
+  const userOrgRole = memberships?.find((m) => m.organizationId === orgId)?.role;
+  const isAdminOrOwner = user?.role === "super_admin" || userOrgRole === "org_admin" || userOrgRole === "owner";
   const { toast } = useToast();
-  const { data: cal, isLoading } = useCalendar(id);
+  const { data: cal, isLoading } = useCalendar(isAdminOrOwner ? id : undefined);
 
   const replaceWeek = useReplaceWorkingWeek(id, orgId);
   const createExc = useCreateException(id, orgId);
@@ -167,6 +171,21 @@ export default function CalendarDetails() {
     return out;
   }, [shifts]);
 
+  if (!isAdminOrOwner) {
+    return (
+      <div className="container mx-auto p-6" data-testid="page-calendar-details-no-access">
+        <Card>
+          <CardContent className="py-10 flex flex-col items-center text-center gap-3">
+            <Lock className="h-8 w-8 text-muted-foreground" />
+            <div className="font-medium">Admin access required</div>
+            <div className="text-sm text-muted-foreground max-w-md">
+              Enterprise calendars are configured by organization owners and admins.
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   if (isLoading) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
   if (!cal) return <div className="p-6 text-sm text-muted-foreground">Calendar not found.</div>;
 

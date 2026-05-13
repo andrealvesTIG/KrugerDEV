@@ -97,7 +97,6 @@ const moduleDefinitions: Record<string, { name: string; href: string; icon: Reac
   timesheets: { name: "Timesheets", href: "/timesheets", icon: Clock },
   resources: { name: "Resources", href: "/resources", icon: Users },
   calendar: { name: "Calendar", href: "/calendar", icon: Calendar },
-  calendars: { name: "Calendars", href: "/calendars", icon: Calendar },
   "user-guide": { name: "User Guide", href: "/user-guide", icon: BookOpen },
   training: { name: "Training", href: "/training", icon: GraduationCap },
   templates: { name: "Templates", href: "/templates", icon: LayoutTemplate },
@@ -134,7 +133,6 @@ const navigation = [
   { name: "Timesheets", href: "/timesheets", icon: Clock, key: "timesheets" },
   { name: "Resources", href: "/resources", icon: Users, key: "resources" },
   { name: "Calendar", href: "/calendar", icon: Calendar, key: "calendar" },
-  { name: "Calendars", href: "/calendars", icon: Calendar, key: "calendars" },
   { name: "Media", href: "/media", icon: Newspaper, key: "media" },
 ];
 
@@ -173,7 +171,6 @@ function getDefaultSidebarStructure(hiddenModules?: string[] | null, moduleOrder
     ]},
     { id: "resource-management", name: "Resource Management", hidden: false, collapsedByDefault: true, items: [
       { type: "module" as const, key: "resources", hidden: false },
-      { type: "module" as const, key: "calendars", hidden: false },
     ]},
     { id: "finance", name: "Finance", hidden: false, collapsedByDefault: true, items: [
       { type: "module" as const, key: "simulation", hidden: false },
@@ -221,7 +218,6 @@ function migrateOldFlatStructure(structure: SidebarStructure): SidebarStructure 
     ]},
     { id: "resource-management", name: "Resource Management", hidden: false, collapsedByDefault: true, items: [
       { type: "module" as const, key: "resources", hidden: getItemHidden("resources") },
-      { type: "module" as const, key: "calendars", hidden: getItemHidden("calendars") },
     ]},
     { id: "finance", name: "Finance", hidden: false, collapsedByDefault: true, items: [
       { type: "module" as const, key: "simulation", hidden: getItemHidden("simulation") },
@@ -308,7 +304,13 @@ function ensureStructureHasDefaults(structure: SidebarStructure): SidebarStructu
   ensureModule("correspondence", "portfolio", "meetings", true);
   ensureModule("media", "help", "training");
   ensureModule("agents", "home", "home");
-  ensureModule("calendars", "resource-management", "resources");
+
+  // Calendars are admin-only and live under Settings → Calendars; remove any
+  // legacy sidebar entry that may have been backfilled from a prior version.
+  updatedStructure = updatedStructure.map(g => ({
+    ...g,
+    items: g.items.filter(item => !(item.type === "module" && item.key === "calendars")),
+  }));
 
   // Relocate "agents" to the Home group for any existing user structure
   // where it previously lived under Help (or any other group). Preserves

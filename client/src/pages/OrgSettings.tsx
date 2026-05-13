@@ -31,6 +31,7 @@ import { FinancialLockdownsSection } from "@/components/settings/FinancialLockdo
 import { DeveloperSection } from "@/components/settings/DeveloperSection";
 import { ActAsSection } from "@/components/settings/ActAsSection";
 import { ScoringCriteriaSection } from "@/components/settings/ScoringCriteriaSection";
+import Calendars from "@/pages/Calendars";
 import { ApplyTemplateButton } from "@/components/settings/ApplyTemplateButton";
 
 export default function OrgSettings() {
@@ -97,6 +98,7 @@ const settingsTabs = [
   { value: "general", label: "General", icon: Building2 },
   { value: "billing", label: "Billing", icon: Zap },
   { value: "scheduling", label: "Scheduling", icon: Calendar },
+  { value: "calendars", label: "Calendars", icon: Calendar },
   { value: "financial-types", label: "Financials", icon: DollarSign },
   { value: "modules", label: "Module Visibility", icon: Eye },
   { value: "system-views", label: "System Views", icon: Columns },
@@ -176,6 +178,9 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
       return false;
     }
     if (tab.value === 'agents' && !isAdminOrOwner) {
+      return false;
+    }
+    if (tab.value === 'calendars' && !isAdminOrOwner) {
       return false;
     }
     return true;
@@ -263,6 +268,11 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         <TabsContent value="scheduling" className="mt-0">
           <SchedulingDefaultsSection organizationId={currentOrganization.id} />
         </TabsContent>
+        {isAdminOrOwner && (
+          <TabsContent value="calendars" className="mt-0">
+            <Calendars />
+          </TabsContent>
+        )}
         <TabsContent value="financial-types" className="mt-0">
           <div className="space-y-4">
             <FiscalYearStartSection organization={currentOrganization} />

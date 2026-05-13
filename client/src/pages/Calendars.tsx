@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { Calendar as CalendarIcon, Plus, Star, Trash2 } from "lucide-react";
+import { Calendar as CalendarIcon, Lock, Plus, Star, Trash2 } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
+import { useAuth } from "@/hooks/use-auth";
 import {
   useCalendars,
   useCreateCalendar,
@@ -28,9 +29,27 @@ import {
 } from "@/components/ui/table";
 
 export default function Calendars() {
-  const { currentOrganization } = useOrganization();
+  const { currentOrganization, memberships } = useOrganization();
+  const { user } = useAuth();
   const orgId = currentOrganization?.id;
+  const userOrgRole = memberships?.find((m) => m.organizationId === orgId)?.role;
+  const isAdminOrOwner = user?.role === "super_admin" || userOrgRole === "org_admin" || userOrgRole === "owner";
   const { toast } = useToast();
+  if (!isAdminOrOwner) {
+    return (
+      <div className="container mx-auto p-6" data-testid="page-calendars-no-access">
+        <Card>
+          <CardContent className="py-10 flex flex-col items-center text-center gap-3">
+            <Lock className="h-8 w-8 text-muted-foreground" />
+            <div className="font-medium">Admin access required</div>
+            <div className="text-sm text-muted-foreground max-w-md">
+              Enterprise calendars are configured by organization owners and admins. Ask your admin to open Settings → Calendars.
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   const { data: calendars = [], isLoading } = useCalendars(orgId);
   const createCal = useCreateCalendar(orgId);
   const deleteCal = useDeleteCalendar(orgId);
