@@ -18,6 +18,7 @@ import {
   useBulkUpdateProjectCustomFieldValues,
   useUpdateIntakeCustomFieldValue,
 } from "@/hooks/use-custom-fields";
+import { useResources } from "@/hooks/use-resources";
 import { AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
 import { PROJECT_FORM_FIELD_BY_KEY, type ProjectFieldDefinition } from "@shared/projectFormRegistry";
 import type { CustomFieldDefinition } from "@shared/schema";
@@ -102,6 +103,7 @@ export function WorkflowStepRequirementsDialog({
 
   // Custom field defs scoped to this entity type. Intake fields share with project.
   const { data: allCfDefs = [] } = useCustomFieldDefinitions(organizationId);
+  const { data: orgResources = [] } = useResources(organizationId);
   const cfDefs = useMemo(() => allCfDefs.filter(d => {
     const et = d.entityType || 'project';
     return et === 'project' || et === 'intake';
@@ -286,6 +288,29 @@ export function WorkflowStepRequirementsDialog({
             </Select>
           );
         }
+        case 'resource': {
+          const active = orgResources.filter(r => r.isActive);
+          const current = String(v ?? "");
+          return (
+            <Select
+              value={current || undefined}
+              onValueChange={(val) => set(val === "__clear__" ? "" : val)}
+              disabled={disabled}
+            >
+              <SelectTrigger data-testid={`wsd-input-${f.key}`}>
+                <SelectValue placeholder="Select resource..." />
+              </SelectTrigger>
+              <SelectContent>
+                {current && <SelectItem value="__clear__">Clear selection</SelectItem>}
+                {active.map(r => (
+                  <SelectItem key={r.id} value={String(r.id)}>{r.displayName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          );
+        }
+        case 'autonumber':
+          return <Input value={String(v)} disabled readOnly placeholder="Auto-assigned on save" data-testid={`wsd-input-${f.key}`} />;
         default:
           return <Input value={String(v)} onChange={e => set(e.target.value)} disabled={disabled} data-testid={`wsd-input-${f.key}`} />;
       }
