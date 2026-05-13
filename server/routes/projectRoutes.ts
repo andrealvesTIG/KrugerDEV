@@ -4,7 +4,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { z } from "zod";
 import { eq, and, asc, inArray } from "drizzle-orm";
-import { users, taskResourceAssignments, issues, resources, tasks, projects, plans, timesheetEntries, taskChangeLogs, taskDependencies, notifications, type Task } from "@shared/schema";
+import { users, taskResourceAssignments, issues, resources, tasks, projects, plans, timesheetEntries, taskChangeLogs, taskDependencies, notifications, type Task, dateOrderRefine } from "@shared/schema";
 import type { User } from "@shared/models/auth";
 import {
   classifyError,
@@ -3171,6 +3171,22 @@ export function registerProjectRoutes(app: Express) {
       }
       if ('endDate' in input) {
         sanitizedInput.endDate = input.endDate || null;
+      }
+
+      // Validate the EFFECTIVE start/end pair (existing merged with the
+      // partial update). The contract-level refine on `.partial()` only sees
+      // fields actually present in the body, so a payload that updates only
+      // endDate would otherwise bypass the rule.
+      {
+        const effective = {
+          startDate: 'startDate' in input ? sanitizedInput.startDate : (existing as any).startDate,
+          endDate: 'endDate' in input ? sanitizedInput.endDate : (existing as any).endDate,
+        };
+        const ctxIssues: any[] = [];
+        dateOrderRefine(effective, { addIssue: (i: any) => ctxIssues.push(i) } as any);
+        if (ctxIssues.length > 0) {
+          return res.status(400).json({ message: ctxIssues[0].message, errors: ctxIssues });
+        }
       }
       
       // If healthReason is provided or health changed, update the timestamp and record history

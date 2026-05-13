@@ -42,7 +42,7 @@ import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, parseD
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { insertTaskSchema, type Task, TASK_STATUSES, TASK_STATUS, DEFAULT_TASK_STATUS } from "@shared/schema";
+import { insertTaskSchema, type Task, TASK_STATUSES, TASK_STATUS, DEFAULT_TASK_STATUS, dateOrderRefine } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { applyServerErrorsToForm } from "@/lib/serverErrors";
@@ -281,7 +281,7 @@ export default function Tasks() {
 
   const taskFormSchema = insertTaskSchema.extend({
     name: z.string().min(1, "Task name is required")
-  });
+  }).superRefine(dateOrderRefine);
 
   const form = useForm({
     resolver: zodResolver(taskFormSchema),

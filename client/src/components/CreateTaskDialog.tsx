@@ -22,7 +22,7 @@ import { Loader2, Calendar as CalendarIcon, Milestone as MilestoneIcon, RefreshC
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { insertTaskSchema } from "@shared/schema";
+import { insertTaskSchema, dateOrderRefine } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { applyServerErrorsToForm } from "@/lib/serverErrors";
 import { cn } from "@/lib/utils";
@@ -51,7 +51,7 @@ export function CreateTaskDialog({ open, onOpenChange, organizationId }: CreateT
 
   const taskFormSchema = insertTaskSchema.extend({
     name: z.string().min(1, "Task name is required"),
-  });
+  }).superRefine(dateOrderRefine);
 
   const todayStr = format(new Date(), "yyyy-MM-dd");
 

@@ -25,7 +25,7 @@ import type { ScheduleVersion, ScheduleVersionTask } from "@shared/schema";
 import type { EnrichedScheduleVersion } from "@/components/project/ScheduleVersionsDialog";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { applyServerErrorsToForm } from "@/lib/serverErrors";
-import { insertTaskSchema, TASK_STATUSES, TASK_STATUS, DEFAULT_TASK_STATUS } from "@shared/schema";
+import { insertTaskSchema, TASK_STATUSES, TASK_STATUS, DEFAULT_TASK_STATUS, dateOrderRefine } from "@shared/schema";
 import type { Task, TaskResourceAssignment, Resource } from "@shared/schema";
 import { ResourceAssignment } from "@/components/ResourceAssignment";
 import { TaskDependenciesSection, type TaskDependenciesSectionHandle, type PendingDepChange } from "@/components/TaskDependenciesSection";
@@ -899,7 +899,7 @@ function TasksTab({ projectId, projectName, projectStartDate, projectEndDate, pr
 
   const taskFormSchema = insertTaskSchema.extend({
     name: z.string().min(1, "Task name is required")
-  });
+  }).superRefine(dateOrderRefine);
 
   const form = useForm({
     resolver: zodResolver(taskFormSchema),

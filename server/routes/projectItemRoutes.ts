@@ -5,7 +5,7 @@ import { db } from "../db";
 import { z } from "zod";
 import Papa from "papaparse";
 import { and, desc, asc, eq } from "drizzle-orm";
-import { issues, tasks, projects, portfolios, type Task, type InsertRisk, type UpdateRiskRequest, RISK_TRACKED_FIELDS, TASK_STATUSES, TASK_PRIORITIES } from "@shared/schema";
+import { issues, tasks, projects, portfolios, type Task, type InsertRisk, type UpdateRiskRequest, RISK_TRACKED_FIELDS, TASK_STATUSES, TASK_PRIORITIES, dateOrderRefine } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -1693,6 +1693,20 @@ Format your response as a numbered list with clear, concise strategies. Do not i
             bulkNotesChanged = true;
           }
 
+          // Enforce "Finish Date cannot be before Start Date" on the
+          // effective pair for each item in the bulk update — `bulkUpdateSchema`
+          // does not include the contract-level refine.
+          {
+            const u = perTaskUpdates as any;
+            const effStart = (u.startDate !== undefined ? u.startDate : prev.startDate) || null;
+            const effEnd = (u.endDate !== undefined ? u.endDate : prev.endDate) || null;
+            const ctxIssues: any[] = [];
+            dateOrderRefine({ startDate: effStart, endDate: effEnd }, { addIssue: (i: any) => ctxIssues.push(i) } as any);
+            if (ctxIssues.length > 0) {
+              return res.status(400).json({ message: `Task ${taskId}: ${ctxIssues[0].message}`, errors: ctxIssues });
+            }
+          }
+
           await storage.updateTask(taskId, perTaskUpdates);
 
           if (bulkNotesChanged) {
@@ -1961,6 +1975,19 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         (input as any).notesUpdatedBy = userId;
         (input as any).notesUpdatedByName = noteUserName;
         notesChanged = true;
+      }
+
+      // Enforce "Finish Date cannot be before Start Date" against the EFFECTIVE
+      // pair (existing merged with the partial update + any date math above),
+      // so single-field updates can't bypass the rule.
+      {
+        const effStart = (input.startDate !== undefined ? input.startDate : previousTask.startDate) || null;
+        const effEnd = (input.endDate !== undefined ? input.endDate : previousTask.endDate) || null;
+        const ctxIssues: any[] = [];
+        dateOrderRefine({ startDate: effStart, endDate: effEnd }, { addIssue: (i: any) => ctxIssues.push(i) } as any);
+        if (ctxIssues.length > 0) {
+          return res.status(400).json({ message: ctxIssues[0].message, errors: ctxIssues });
+        }
       }
 
       const updated = await storage.updateTask(taskId, input);

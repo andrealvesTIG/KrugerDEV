@@ -2892,6 +2892,25 @@ export const insertProgramSchema = createInsertSchema(programs).omit({ id: true,
   roi: z.union([z.string(), z.number(), z.null()]).optional(),
 });
 export const updateProgramSchema = insertProgramSchema.partial();
+/**
+ * Reusable Zod refinement: enforces "Finish Date cannot be before Start Date"
+ * on any object that carries optional `startDate` / `endDate` fields (Date or
+ * string, YYYY-MM-DD or ISO). Apply via `.superRefine(dateOrderRefine)` on the
+ * schemas actually used to validate input (server route bodies + client form
+ * resolvers). Kept off the base `insertProjectSchema` / `insertTaskSchema` so
+ * those remain ZodObjects that callers can still `.extend(...)` / `.partial()`.
+ */
+export const dateOrderRefine = (data: any, ctx: z.RefinementCtx) => {
+  const s = data?.startDate;
+  const e = data?.endDate;
+  if (s && e) {
+    const sd = s instanceof Date ? s : new Date(String(s));
+    const ed = e instanceof Date ? e : new Date(String(e));
+    if (!isNaN(sd.getTime()) && !isNaN(ed.getTime()) && ed < sd) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endDate"], message: "Finish Date cannot be before Start Date" });
+    }
+  }
+};
 export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true, updatedAt: true, updatedBy: true, createdBy: true }).extend({
   // Coerce date strings (YYYY-MM-DD or ISO) coming from the dynamic project form into Date for the timestamp column
   activeGateStartedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),

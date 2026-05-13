@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { 
   insertPortfolioSchema, 
-  insertProjectSchema, 
+  insertProjectSchema,
+  dateOrderRefine, 
   insertRiskSchema, 
   insertMilestoneSchema,
   insertIssueSchema,
@@ -130,7 +131,7 @@ export const api = {
     create: {
       method: 'POST' as const,
       path: '/api/projects',
-      input: insertProjectSchema,
+      input: insertProjectSchema.superRefine(dateOrderRefine),
       responses: {
         201: z.custom<typeof projects.$inferSelect>(),
         400: errorSchemas.validation,
@@ -151,7 +152,7 @@ export const api = {
         healthReason: z.union([z.string(), z.null()]).optional(),
         healthReasonUpdatedAt: z.union([z.string(), z.date(), z.null()]).optional(),
         deletedAt: z.union([z.string(), z.date(), z.null()]).optional(),
-      }),
+      }).superRefine(dateOrderRefine),
       responses: {
         200: z.custom<typeof projects.$inferSelect>(),
         400: errorSchemas.validation,
@@ -331,7 +332,7 @@ export const api = {
     create: {
       method: 'POST' as const,
       path: '/api/tasks',
-      input: insertTaskSchema,
+      input: insertTaskSchema.superRefine(dateOrderRefine),
       responses: {
         201: z.custom<typeof tasks.$inferSelect>(),
         400: errorSchemas.validation,
@@ -340,7 +341,7 @@ export const api = {
     update: {
       method: 'PUT' as const,
       path: '/api/tasks/:id',
-      input: insertTaskSchema.partial(),
+      input: insertTaskSchema.partial().superRefine(dateOrderRefine),
       responses: {
         200: z.custom<typeof tasks.$inferSelect>(),
         400: errorSchemas.validation,

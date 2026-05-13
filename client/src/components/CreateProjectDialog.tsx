@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { insertProjectSchema } from "@shared/schema";
+import { insertProjectSchema, dateOrderRefine } from "@shared/schema";
 import { ProjectLocationMediaSection } from "@/components/ProjectLocationMediaSection";
 import type { InsertProject } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -330,15 +330,7 @@ export function CreateProjectDialog({
         startDate: z.string().nullable().optional().transform((v) => v || null),
         endDate: z.string().nullable().optional().transform((v) => v || null),
         budget: z.union([z.string(), z.number()]).nullable().optional().transform((v) => v ? String(v) : "0"),
-      }).refine(
-        (data) => {
-          if (data.startDate && data.endDate) {
-            return new Date(data.endDate) >= new Date(data.startDate);
-          }
-          return true;
-        },
-        { message: "End date cannot be before start date", path: ["endDate"] }
-      )
+      }).superRefine(dateOrderRefine)
     ),
     defaultValues: {
       name: "",
