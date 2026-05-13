@@ -704,7 +704,7 @@ export default function IntakeDetails() {
                   ) : null
                 ) : (
                   <Button size="sm" onClick={handleNextStep} disabled={updateIntake.isPending}>
-                    Next Gate
+                    Next Step
                     <ChevronRight className="h-4 w-4 ml-1" />
                   </Button>
                 )}
@@ -715,7 +715,7 @@ export default function IntakeDetails() {
           {currentStep?.helpText && !isLocked && (
             <div className="mt-4 p-3 bg-muted/50 rounded-md text-xs sm:text-sm text-muted-foreground">
               <StepIcon className="inline h-4 w-4 mr-1 sm:mr-2" />
-              <strong>Gate {currentStepIndex + 1} - {currentStep.label}:</strong> {currentStep.helpText}
+              <strong>Step {currentStepIndex + 1} - {currentStep.label}:</strong> {currentStep.helpText}
             </div>
           )}
         </CardContent>

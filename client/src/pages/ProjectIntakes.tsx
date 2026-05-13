@@ -57,7 +57,7 @@ function WorkflowGateLabel({
   const { steps } = useResolvedWorkflowSteps(workflowId);
   const step = steps.find(s => s.key === currentStep)
     ?? DEFAULT_WORKFLOW_STEPS.find(s => s.key === currentStep);
-  return <>Gate: {step?.label || "Unknown"}</>;
+  return <>Step: {step?.label || "Unknown"}</>;
 }
 
 interface CreateIntakeDialogProps {
