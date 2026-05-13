@@ -1045,13 +1045,16 @@ export default function ProjectIntakes() {
                         {intake.projectName}
                       </h3>
                       {getStatusBadge(intake.status || "draft")}
-                      <span
-                        className="text-xs text-muted-foreground font-mono"
-                        data-testid={`text-intake-id-${intake.id}`}
-                        title="Intake ID"
-                      >
-                        #{intake.id}
-                      </span>
+                      {(intake as any).autoNumberFields?.map((af: { defId: number; name: string; value: string }) => (
+                        <span
+                          key={af.defId}
+                          className="text-xs text-muted-foreground font-mono"
+                          data-testid={`text-intake-cf-${af.defId}-${intake.id}`}
+                          title={af.name}
+                        >
+                          {af.value}
+                        </span>
+                      ))}
                       {intake.intakeNumber && (
                         <span className="text-xs text-muted-foreground font-mono">{intake.intakeNumber}</span>
                       )}

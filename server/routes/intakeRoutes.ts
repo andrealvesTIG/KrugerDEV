@@ -118,7 +118,39 @@ export function registerIntakeRoutes(app: Express) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
       const intakes = await storage.getProjectIntakes(organizationId);
-      res.json(intakes);
+
+      // Enrich each intake with its autonumber custom-field values so the
+      // list page can show "Intake ID" (and any other auto-numbered CFs the
+      // org has configured for intakes) without an N+1 fetch on the client.
+      let autoFieldValuesByIntake: Record<number, Array<{ defId: number; name: string; value: string }>> = {};
+      try {
+        const { customFieldDefinitions, intakeCustomFieldValues } = await import("@shared/schema");
+        const { db } = await import("../db");
+        const { and, eq, inArray } = await import("drizzle-orm");
+        const autoDefs = await db.select().from(customFieldDefinitions).where(and(
+          eq(customFieldDefinitions.organizationId, organizationId),
+          eq(customFieldDefinitions.entityType, 'intake'),
+          eq(customFieldDefinitions.fieldType, 'autonumber'),
+        ));
+        const intakeIds = intakes.map(i => i.id);
+        if (autoDefs.length > 0 && intakeIds.length > 0) {
+          const defIds = autoDefs.map(d => d.id);
+          const values = await db.select().from(intakeCustomFieldValues).where(and(
+            inArray(intakeCustomFieldValues.intakeId, intakeIds),
+            inArray(intakeCustomFieldValues.fieldDefinitionId, defIds),
+          ));
+          const defNameById = new Map(autoDefs.map(d => [d.id, d.name]));
+          for (const v of values) {
+            if (v.value == null || v.value === '') continue;
+            const arr = autoFieldValuesByIntake[v.intakeId] || (autoFieldValuesByIntake[v.intakeId] = []);
+            arr.push({ defId: v.fieldDefinitionId, name: defNameById.get(v.fieldDefinitionId) || '', value: String(v.value) });
+          }
+        }
+      } catch (enrichErr) {
+        console.warn("Could not enrich intakes with autonumber CFs:", enrichErr);
+      }
+
+      res.json(intakes.map(i => ({ ...i, autoNumberFields: autoFieldValuesByIntake[i.id] || [] })));
     } catch (err) {
       console.error("Error fetching project intakes:", err);
       const classified = classifyError(err);
