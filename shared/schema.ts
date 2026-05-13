@@ -496,6 +496,7 @@ export const organizations = pgTable("organizations", {
   fiscalYearStartMonth: integer("fiscal_year_start_month").default(10).notNull(), // 1..12 calendar month that is M1 of the org's fiscal year (default 10 = October)
   projectTabSettings: jsonb("project_tab_settings").$type<{ order: string[]; hidden: string[] }>(), // Org-level default order + visibility for project detail tabs
   defaultTemplateAppliedAt: timestamp("default_template_applied_at"), // One-time backfill marker for default project tab template
+  defaultCalendarId: integer("default_calendar_id"), // FK calendars.id — org-wide default working calendar (FK constraint declared lazily via calendars table)
 });
 
 // Organization Members (Join table for users <-> organizations)
@@ -725,6 +726,7 @@ export const projects = pgTable("projects", {
   latitude: numeric("latitude"),
   longitude: numeric("longitude"),
   images: jsonb("images").$type<Array<{ url: string; alt?: string }>>().default([]),
+  calendarId: integer("calendar_id"), // FK calendars.id — project's working calendar override (FK declared lazily on calendars table)
 }, (table) => [
   index("projects_org_id_idx").on(table.organizationId),
   index("projects_portfolio_id_idx").on(table.portfolioId),
@@ -1071,6 +1073,7 @@ export const resources = pgTable("resources", {
   photoUrl: text("photo_url"), // Profile photo URL
   notes: text("notes"),
   invitedProjectIds: integer("invited_project_ids").array(), // Projects this resource was invited to (for team_member visibility)
+  calendarId: integer("calendar_id"), // FK calendars.id — resource's working calendar override (restricts availability only; project calendar wins for scheduling)
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
   deletedBy: varchar("deleted_by").references(() => users.id),
@@ -6101,3 +6104,147 @@ export const metaMigrations = pgTable("_meta_migrations", {
   key: text("key").primaryKey(),
   appliedAt: timestamp("applied_at").notNull().defaultNow(),
 });
+
+// ---------------------------------------------------------------------------
+// Enterprise Calendars (Phase 1 — schema + engine + admin UI; CPM rewire later)
+// ---------------------------------------------------------------------------
+// Working-time interval represented as minutes since midnight in the
+// calendar's timezone (or local time if none). Persisted as JSONB array on
+// exception/recurring rows; the per-day default work week lives in
+// calendarWorkingShifts as one row per (dayOfWeek, interval).
+export type CalendarInterval = { startMinute: number; endMinute: number };
+
+export const calendars = pgTable("calendars", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  timezone: text("timezone"),                    // IANA tz; null = use org timezone
+  baseCalendarId: integer("base_calendar_id"),   // self-FK for inheritance (one level)
+  isActive: boolean("is_active").notNull().default(true),
+  isDefault: boolean("is_default").notNull().default(false), // org default flag
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: varchar("created_by").references(() => users.id),
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by").references(() => users.id),
+}, (table) => [
+  index("calendars_org_idx").on(table.organizationId),
+]);
+
+// Per-day working intervals. Multiple rows per (calendarId, dayOfWeek) for
+// split shifts / lunch breaks. dayOfWeek 0=Sunday … 6=Saturday.
+export const calendarWorkingShifts = pgTable("calendar_working_shifts", {
+  id: serial("id").primaryKey(),
+  calendarId: integer("calendar_id").references(() => calendars.id, { onDelete: "cascade" }).notNull(),
+  dayOfWeek: integer("day_of_week").notNull(),     // 0..6
+  startMinute: integer("start_minute").notNull(),  // 0..1440
+  endMinute: integer("end_minute").notNull(),      // 0..1440 (>start)
+  position: integer("position").notNull().default(0),
+}, (table) => [
+  index("calendar_working_shifts_cal_idx").on(table.calendarId),
+]);
+
+// One-time exception (holiday, shutdown, special working day). All-day if
+// intervals is null/empty; otherwise a list of working intervals to apply.
+export const calendarExceptions = pgTable("calendar_exceptions", {
+  id: serial("id").primaryKey(),
+  calendarId: integer("calendar_id").references(() => calendars.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  isWorking: boolean("is_working").notNull().default(false), // true = working override on otherwise non-working day
+  intervals: jsonb("intervals").$type<CalendarInterval[]>(), // null/[] = all-day
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("calendar_exceptions_cal_idx").on(table.calendarId),
+  index("calendar_exceptions_range_idx").on(table.calendarId, table.startDate, table.endDate),
+]);
+
+// Recurring exception rules. Three supported recurrence types:
+//   'annual_date'             — month + dayOfMonth (e.g. Jan 1, Dec 25)
+//   'nth_weekday_of_month'    — month + weekOfMonth (1..5 or -1=last) + dayOfWeek (e.g. 1st Mon of Sep)
+//   'annual_range'            — month/dayOfMonth → endMonth/endDayOfMonth (e.g. Dec 24 → Jan 2 shutdown)
+export const calendarRecurringExceptions = pgTable("calendar_recurring_exceptions", {
+  id: serial("id").primaryKey(),
+  calendarId: integer("calendar_id").references(() => calendars.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  recurrenceType: text("recurrence_type").notNull(), // see comment above
+  month: integer("month"),               // 1..12
+  dayOfMonth: integer("day_of_month"),   // 1..31
+  weekOfMonth: integer("week_of_month"), // 1..5 or -1
+  dayOfWeek: integer("day_of_week"),     // 0..6
+  endMonth: integer("end_month"),        // for annual_range
+  endDayOfMonth: integer("end_day_of_month"), // for annual_range
+  isWorking: boolean("is_working").notNull().default(false),
+  intervals: jsonb("intervals").$type<CalendarInterval[]>(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("calendar_recurring_exceptions_cal_idx").on(table.calendarId),
+]);
+
+// ---- Zod schemas / types ---------------------------------------------------
+
+const intervalSchema = z.object({
+  startMinute: z.number().int().min(0).max(1440),
+  endMinute: z.number().int().min(0).max(1440),
+}).refine(v => v.endMinute > v.startMinute, { message: "endMinute must be greater than startMinute" });
+
+export const insertCalendarSchema = createInsertSchema(calendars).omit({
+  id: true, createdAt: true, updatedAt: true, deletedAt: true, deletedBy: true,
+}).extend({
+  name: z.string().trim().min(1).max(120),
+  description: z.string().max(2000).optional().nullable(),
+  timezone: z.string().max(80).optional().nullable(),
+});
+export const updateCalendarSchema = insertCalendarSchema.partial().omit({ organizationId: true });
+
+export const insertCalendarWorkingShiftSchema = createInsertSchema(calendarWorkingShifts).omit({ id: true }).extend({
+  dayOfWeek: z.number().int().min(0).max(6),
+  startMinute: z.number().int().min(0).max(1440),
+  endMinute: z.number().int().min(0).max(1440),
+}).refine(v => v.endMinute > v.startMinute, { message: "endMinute must be greater than startMinute" });
+
+export const replaceWorkingWeekSchema = z.object({
+  shifts: z.array(z.object({
+    dayOfWeek: z.number().int().min(0).max(6),
+    startMinute: z.number().int().min(0).max(1440),
+    endMinute: z.number().int().min(0).max(1440),
+    position: z.number().int().min(0).default(0),
+  }).refine(v => v.endMinute > v.startMinute, { message: "endMinute must be greater than startMinute" })),
+});
+
+export const insertCalendarExceptionSchema = createInsertSchema(calendarExceptions).omit({ id: true, createdAt: true }).extend({
+  name: z.string().trim().min(1).max(200),
+  intervals: z.array(intervalSchema).nullable().optional(),
+});
+export const updateCalendarExceptionSchema = insertCalendarExceptionSchema.partial().omit({ calendarId: true });
+
+export const insertCalendarRecurringExceptionSchema = createInsertSchema(calendarRecurringExceptions).omit({ id: true, createdAt: true }).extend({
+  name: z.string().trim().min(1).max(200),
+  recurrenceType: z.enum(["annual_date", "nth_weekday_of_month", "annual_range"]),
+  intervals: z.array(intervalSchema).nullable().optional(),
+});
+export const updateCalendarRecurringExceptionSchema = insertCalendarRecurringExceptionSchema.partial().omit({ calendarId: true });
+
+export const calendarSimulateSchema = z.object({
+  startDate: z.string().min(1),                   // ISO datetime
+  hours: z.number().positive().optional(),         // for finish-from-start
+  finishDate: z.string().optional(),               // for working-hours-between OR start-from-finish
+  mode: z.enum(["finish_from_start", "start_from_finish", "hours_between", "next_working_moment"]).default("finish_from_start"),
+});
+
+export type Calendar = typeof calendars.$inferSelect;
+export type InsertCalendar = z.infer<typeof insertCalendarSchema>;
+export type UpdateCalendarRequest = z.infer<typeof updateCalendarSchema>;
+export type CalendarWorkingShift = typeof calendarWorkingShifts.$inferSelect;
+export type InsertCalendarWorkingShift = typeof calendarWorkingShifts.$inferInsert;
+export type CalendarException = typeof calendarExceptions.$inferSelect;
+export type InsertCalendarException = z.infer<typeof insertCalendarExceptionSchema>;
+export type UpdateCalendarExceptionRequest = z.infer<typeof updateCalendarExceptionSchema>;
+export type CalendarRecurringException = typeof calendarRecurringExceptions.$inferSelect;
+export type InsertCalendarRecurringException = z.infer<typeof insertCalendarRecurringExceptionSchema>;
+export type UpdateCalendarRecurringExceptionRequest = z.infer<typeof updateCalendarRecurringExceptionSchema>;
+export type CalendarSimulateRequest = z.infer<typeof calendarSimulateSchema>;

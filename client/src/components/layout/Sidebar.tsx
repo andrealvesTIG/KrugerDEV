@@ -97,6 +97,7 @@ const moduleDefinitions: Record<string, { name: string; href: string; icon: Reac
   timesheets: { name: "Timesheets", href: "/timesheets", icon: Clock },
   resources: { name: "Resources", href: "/resources", icon: Users },
   calendar: { name: "Calendar", href: "/calendar", icon: Calendar },
+  calendars: { name: "Calendars", href: "/calendars", icon: Calendar },
   "user-guide": { name: "User Guide", href: "/user-guide", icon: BookOpen },
   training: { name: "Training", href: "/training", icon: GraduationCap },
   templates: { name: "Templates", href: "/templates", icon: LayoutTemplate },
@@ -133,6 +134,7 @@ const navigation = [
   { name: "Timesheets", href: "/timesheets", icon: Clock, key: "timesheets" },
   { name: "Resources", href: "/resources", icon: Users, key: "resources" },
   { name: "Calendar", href: "/calendar", icon: Calendar, key: "calendar" },
+  { name: "Calendars", href: "/calendars", icon: Calendar, key: "calendars" },
   { name: "Media", href: "/media", icon: Newspaper, key: "media" },
 ];
 

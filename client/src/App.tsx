@@ -26,6 +26,8 @@ const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Portfolios = lazy(() => import("@/pages/Portfolios"));
 const PortfolioDetails = lazy(() => import("@/pages/PortfolioDetails"));
 const Programs = lazy(() => import("@/pages/Programs"));
+const Calendars = lazy(() => import("@/pages/Calendars"));
+const CalendarDetails = lazy(() => import("@/pages/CalendarDetails"));
 const ProgramDetails = lazy(() => import("@/pages/ProgramDetails"));
 const Projects = lazy(() => import("@/pages/Projects"));
 const ProjectDetails = lazy(() => import("@/pages/ProjectDetails"));
@@ -269,6 +271,10 @@ function Router() {
           <GuardedRoute path="/meetings" component={Meetings} moduleKey="meetings" />
           <GuardedRoute path="/correspondence" component={Correspondence} moduleKey="correspondence" />
           <GuardedRoute path="/calendar" component={Calendar} moduleKey="calendar" />
+          <Route path="/calendars/:id">
+            <ModuleGuard moduleKey="calendars"><CalendarDetails /></ModuleGuard>
+          </Route>
+          <GuardedRoute path="/calendars" component={Calendars} moduleKey="calendars" />
           <GuardedRoute path="/integrations" component={Integrations} moduleKey="integrations" />
           <Route path="/billing" component={Billing} />
           <Route path="/admin" component={Admin} />

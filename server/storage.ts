@@ -13,6 +13,7 @@ import * as projectFormLayoutFns from "./storage/projectFormLayoutStorage";
 import * as executiveSummaryFns from "./storage/executiveSummaryStorage";
 import * as pmoCommentFns from "./storage/pmoCommentStorage";
 import * as projectSoftwareLicenseFns from "./storage/projectSoftwareLicenseStorage";
+import * as calendarFns from "./storage/calendarStorage";
 import * as miscFns from "./storage/miscStorage";
 export * from "./storage/crossProjectReferenceStorage";
 
@@ -34,5 +35,6 @@ export const storage: IStorage = {
   ...executiveSummaryFns,
   ...pmoCommentFns,
   ...projectSoftwareLicenseFns,
+  ...calendarFns,
   ...miscFns,
 };

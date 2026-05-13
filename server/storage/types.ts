@@ -685,6 +685,27 @@ export interface IExecutiveSummaryStorage {
   deleteExecutiveSummary(id: number): Promise<void>;
 }
 
+export interface ICalendarStorage {
+  listCalendars(organizationId: number, includeInactive?: boolean): Promise<any[]>;
+  getCalendar(id: number): Promise<any>;
+  createCalendar(input: any): Promise<any>;
+  updateCalendar(id: number, updates: any): Promise<any>;
+  deleteCalendar(id: number, deletedBy?: string): Promise<void>;
+  listWorkingShifts(calendarId: number): Promise<any[]>;
+  replaceWorkingWeek(calendarId: number, shifts: Array<{ dayOfWeek: number; startMinute: number; endMinute: number; position?: number }>): Promise<any[]>;
+  listExceptions(calendarId: number): Promise<any[]>;
+  createException(input: any): Promise<any>;
+  updateException(id: number, updates: any): Promise<any>;
+  deleteException(id: number): Promise<void>;
+  listRecurringExceptions(calendarId: number): Promise<any[]>;
+  createRecurringException(input: any): Promise<any>;
+  updateRecurringException(id: number, updates: any): Promise<any>;
+  deleteRecurringException(id: number): Promise<void>;
+  getExceptionParentCalendar(exceptionId: number): Promise<any>;
+  getRecurringExceptionParentCalendar(recurringId: number): Promise<any>;
+  loadResolvedCalendar(calendarId: number): Promise<any>;
+}
+
 export interface IStorage extends
   IUserStorage,
   IOrganizationStorage,
@@ -699,4 +720,5 @@ export interface IStorage extends
   IExecutiveSummaryStorage,
   IPmoCommentStorage,
   IProjectSoftwareLicenseStorage,
+  ICalendarStorage,
   IMiscStorage {}
