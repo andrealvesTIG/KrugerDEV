@@ -687,6 +687,7 @@ export interface IExecutiveSummaryStorage {
 
 export interface ICalendarStorage {
   listCalendars(organizationId: number, includeInactive?: boolean): Promise<any[]>;
+  getDefaultCalendarForOrg(organizationId: number): Promise<any | null>;
   getCalendar(id: number): Promise<any>;
   createCalendar(input: any): Promise<any>;
   updateCalendar(id: number, updates: any): Promise<any>;

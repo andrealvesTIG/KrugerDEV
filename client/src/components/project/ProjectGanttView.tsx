@@ -9,6 +9,7 @@ import { formatCurrency } from "@/lib/format";
 import { CompactCurrency } from "@/components/CompactCurrency";
 import { calculateEndDateFromWorkingDays, calculateDurationInWorkingDays, calculateStartDateFromEndAndDuration, parseDurationInput, formatDuration } from "@/lib/workingDays";
 import { calculateCPM, type CPMResult } from "@/lib/cpm";
+import { useProjectResolvedCalendar } from "@/hooks/use-resolved-calendar";
 import { useUpdateTask, useCreateTask, useDeleteTask, useAddTaskDependency, useRemoveTaskDependency, useReorderTask, useProjectDependencies, useBulkUpdateTasks, useBulkDeleteTasks, useTaskNotesHistory } from "@/hooks/use-tasks";
 import { useTaskResourceAssignments, useUpdateTaskResourceAssignments, useProjectTaskAssignments, useResources, useCreateResource } from "@/hooks/use-resources";
 import { useCustomFieldDefinitions, useProjectTaskCustomFieldValues, useUpdateTaskCustomFieldValue, useUpdateCustomFieldDefinition } from "@/hooks/use-custom-fields";
@@ -2483,6 +2484,7 @@ function ProjectGanttView({
   const createResource = useCreateResource();
   const updateTaskResources = useUpdateTaskResourceAssignments();
   const { data: allResources } = useResources(organizationId);
+  const { data: projectCalendar } = useProjectResolvedCalendar(projectId);
   const { toast } = useToast();
   const readOnlyToastRef = useRef(0);
   const handleReadOnlyEdit = useCallback(() => {
@@ -4379,8 +4381,8 @@ function ProjectGanttView({
       lagDays: d.lagDays,
     }));
     
-    return calculateCPM(cpmTasks, cpmDependencies);
-  }, [tasks, projectDependencies]);
+    return calculateCPM(cpmTasks, cpmDependencies, projectCalendar ?? null);
+  }, [tasks, projectDependencies, projectCalendar]);
   
   // Map of task ID to whether it's on critical path (from CPM calculation)
   const criticalTaskIds = useMemo(() => {

@@ -107,6 +107,22 @@ function mergeIntervals(intervals: CalendarInterval[]): CalendarInterval[] {
 // ---------------------------------------------------------------------------
 
 /** Standard MS-Project-style 8h × 5d working week (Mon–Fri 08:00–12:00, 13:00–17:00). */
+/**
+ * A ResolvedCalendar matching the legacy hardcoded behaviour: Mon–Fri working,
+ * 8h/day (08:00–12:00, 13:00–17:00 from the standard working week). No
+ * holidays or recurring rules. Used as the safe default whenever a caller
+ * doesn't have an explicit project/resource calendar yet.
+ */
+export function defaultLegacyResolvedCalendar(): ResolvedCalendar {
+  return {
+    id: -1,
+    name: "Legacy default (Mon–Fri 9–5)",
+    weeklyShifts: defaultStandardWorkingWeek(),
+    exceptions: [],
+    recurring: [],
+  };
+}
+
 export function defaultStandardWorkingWeek(): CalendarInterval[][] {
   const week: CalendarInterval[][] = [[], [], [], [], [], [], []];
   for (let dow = 1; dow <= 5; dow++) {
@@ -400,6 +416,31 @@ export function buildResolvedCalendar(input: {
  * resource-availability folding). Returns a NEW ResolvedCalendar; the source
  * is not mutated.
  */
+/**
+ * Enumerate every local-date within [from, to] (inclusive) that the calendar
+ * marks as non-working (no working intervals). Returns an array of
+ * `ResolvedException` rows suitable for `withAdditionalNonWorkingWindows`.
+ * Bounded by `to - from`; callers should cap the horizon (e.g. 5 years).
+ */
+export function enumerateNonWorkingDates(
+  cal: ResolvedCalendar,
+  from: Date,
+  to: Date,
+): ResolvedException[] {
+  const out: ResolvedException[] = [];
+  let cur = startOfDay(from);
+  const end = startOfDay(to);
+  for (let safety = 0; safety < 366 * 20; safety++) {
+    if (cur > end) break;
+    if (getWorkingIntervalsForDate(cal, cur).length === 0) {
+      const s = ymd(cur);
+      out.push({ startDate: s, endDate: s, isWorking: false, intervals: null });
+    }
+    cur = addDays(cur, 1);
+  }
+  return out;
+}
+
 export function withAdditionalNonWorkingWindows(
   base: ResolvedCalendar,
   windows: Array<{ startDate: string; endDate: string }>,

@@ -30,6 +30,86 @@ async function requireOrgAdmin(userId: string | undefined, orgId: number): Promi
 }
 
 export function registerCalendarRoutes(app: Express) {
+  // ---- Resolved calendars (engine-ready) ---------------------------------
+  // Returns the project's effective ResolvedCalendar (project.calendarId →
+  // org default → null). Used by the client CPM/Gantt to schedule against
+  // the right working week + holidays.
+  app.get("/api/projects/:projectId/resolved-calendar", async (req: any, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const projectId = Number(req.params.projectId);
+      if (Number.isNaN(projectId)) return res.status(400).json({ message: "Invalid project id" });
+      const project = await storage.getProject(projectId);
+      if (!project) return res.status(404).json({ message: "Project not found" });
+      if (!await userHasOrgAccess(userId, project.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      let calId: number | null = project.calendarId ?? null;
+      if (!calId) {
+        const def = await storage.getDefaultCalendarForOrg(project.organizationId);
+        calId = def?.id ?? null;
+      }
+      if (!calId) return res.json(null);
+      const resolved = await storage.loadResolvedCalendar(calId);
+      res.json(resolved);
+    } catch (err) {
+      const c = classifyError(err);
+      res.status(c.status).json({ message: c.status === 500 ? "Error loading project calendar" : c.message });
+    }
+  });
+
+  // Returns a resource's effective ResolvedCalendar. If `projectId` is
+  // supplied, the resource's calendar is layered on top of the project
+  // calendar as additional non-working windows (resource calendars only
+  // restrict availability — project calendar wins for scheduling).
+  app.get("/api/resources/:resourceId/resolved-calendar", async (req: any, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: "Authentication required" });
+      const resourceId = Number(req.params.resourceId);
+      if (Number.isNaN(resourceId)) return res.status(400).json({ message: "Invalid resource id" });
+      const resource = await storage.getResource(resourceId);
+      if (!resource) return res.status(404).json({ message: "Resource not found" });
+      if (!await userHasOrgAccess(userId, resource.organizationId)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      const projectIdRaw = req.query.projectId;
+      const projectId = projectIdRaw != null ? Number(projectIdRaw) : null;
+      const resourceCalId = resource.calendarId ?? null;
+      const resourceCal = resourceCalId ? await storage.loadResolvedCalendar(resourceCalId) : null;
+
+      if (projectId != null && !Number.isNaN(projectId)) {
+        const project = await storage.getProject(projectId);
+        if (!project) return res.status(404).json({ message: "Project not found" });
+        if (!await userHasOrgAccess(userId, project.organizationId)) {
+          return res.status(403).json({ message: "Access denied" });
+        }
+        const projCalId = project.calendarId ?? (await storage.getDefaultCalendarForOrg(project.organizationId))?.id ?? null;
+        const projCal = projCalId ? await storage.loadResolvedCalendar(projCalId) : null;
+        if (projCal && resourceCal) {
+          const engine = await import("@shared/lib/calendarEngine");
+          // Walk a bounded horizon (today − 30d → today + 5y) and emit one
+          // non-working exception for every date the resource calendar
+          // marks non-working. This honours the resource's weeklyShifts
+          // (e.g. resource doesn't work Fridays), recurring rules, AND
+          // one-time exceptions — anything the engine considers non-working.
+          const horizonStart = new Date();
+          horizonStart.setDate(horizonStart.getDate() - 30);
+          const horizonEnd = new Date();
+          horizonEnd.setFullYear(horizonEnd.getFullYear() + 5);
+          const overlayWindows = engine.enumerateNonWorkingDates(resourceCal, horizonStart, horizonEnd);
+          return res.json(engine.withAdditionalNonWorkingWindows(projCal, overlayWindows));
+        }
+        return res.json(projCal ?? resourceCal);
+      }
+      return res.json(resourceCal);
+    } catch (err) {
+      const c = classifyError(err);
+      res.status(c.status).json({ message: c.status === 500 ? "Error loading resource calendar" : c.message });
+    }
+  });
+
   // ---- Calendars ---------------------------------------------------------
 
   app.get("/api/organizations/:orgId/calendars", async (req: any, res) => {

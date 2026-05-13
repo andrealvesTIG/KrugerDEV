@@ -48,6 +48,20 @@ async function validateBaseCalendarId(baseCalendarId: number, organizationId: nu
 
 // ---- Calendars -----------------------------------------------------------
 
+export async function getDefaultCalendarForOrg(organizationId: number): Promise<Calendar | null> {
+  const rows = await db
+    .select()
+    .from(calendars)
+    .where(and(
+      eq(calendars.organizationId, organizationId),
+      eq(calendars.isDefault, true),
+      eq(calendars.isActive, true),
+      isNull(calendars.deletedAt),
+    ))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function listCalendars(organizationId: number, includeInactive = false): Promise<Calendar[]> {
   const where = includeInactive
     ? and(eq(calendars.organizationId, organizationId), isNull(calendars.deletedAt))

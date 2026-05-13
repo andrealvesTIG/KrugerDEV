@@ -1,5 +1,7 @@
 import { differenceInDays, parseISO, addDays, format } from "date-fns";
 import { addWorkingDays, workingDaysBetween, isWorkingDay } from "./workingDays";
+import { addWorkingDaysCal, workingDaysBetweenCal, isWorkingDayCal } from "./workingDays";
+import type { ResolvedCalendar } from "@shared/lib/calendarEngine";
 
 // Server / DB only persists the long-form values. The shorthand forms ("FS"
 // etc.) are accepted by the CPM engine for input convenience and normalized
@@ -97,26 +99,26 @@ function normalizeDependencyType(type: string | null): "FS" | "SS" | "FF" | "SF"
   return "FS";
 }
 
-function getDurationDays(task: CPMTask): number {
+function getDurationDays(task: CPMTask, cal?: ResolvedCalendar | null): number {
   if (task.isMilestone) return 0;
   if (task.durationDays != null && task.durationDays >= 0) return task.durationDays;
   if (task.startDate && task.endDate) {
     const start = parseISO(task.startDate);
     const end = parseISO(task.endDate);
-    return Math.max(0, workingDaysBetween(start, end));
+    return Math.max(0, workingDaysBetweenCal(cal, start, end));
   }
   return 1; // Default duration
 }
 
-function workingDaysFromProjectStart(projectStart: Date, targetDate: Date): number {
+function workingDaysFromProjectStart(projectStart: Date, targetDate: Date, cal?: ResolvedCalendar | null): number {
   if (targetDate <= projectStart) return 0;
-  const count = workingDaysBetween(projectStart, targetDate);
+  const count = workingDaysBetweenCal(cal, projectStart, targetDate);
   return count > 0 ? count - 1 : 0;
 }
 
-function dateFromWorkingDayOffset(baseDate: Date, offset: number): Date {
+function dateFromWorkingDayOffset(baseDate: Date, offset: number, cal?: ResolvedCalendar | null): Date {
   if (offset === 0) return baseDate;
-  return addWorkingDays(baseDate, offset);
+  return addWorkingDaysCal(cal, baseDate, offset);
 }
 
 interface GraphNode {
@@ -212,7 +214,12 @@ function topologicalSort(nodes: Map<number, GraphNode>): { sorted: number[]; cyc
   return { sorted: result, cycle: null };
 }
 
-export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): CPMCalculationResult {
+export function calculateCPM(
+  tasks: CPMTask[],
+  dependencies: CPMDependency[],
+  calendar?: ResolvedCalendar | null,
+): CPMCalculationResult {
+  const cal = calendar ?? null;
   if (tasks.length === 0) {
     return {
       results: new Map(),
@@ -242,7 +249,7 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
 
   for (const task of validTasks) {
     taskMap.set(task.id, task);
-    const duration = getDurationDays(task);
+    const duration = getDurationDays(task, cal);
     
     let isPinned = false;
     let pinnedStart: number | undefined;
@@ -250,7 +257,7 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
       const constraintDate = parseISO(task.constraintDate);
       if (task.constraintType === "Must Start On" || task.constraintType === "Start No Earlier Than") {
         isPinned = true;
-        pinnedStart = workingDaysFromProjectStart(projectStartDate, constraintDate);
+        pinnedStart = workingDaysFromProjectStart(projectStartDate, constraintDate, cal);
       }
     }
 
@@ -304,7 +311,7 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
     
     if (node.predecessors.length === 0 && !node.isPinned) {
       const task = taskMap.get(taskId)!;
-      node.ES = workingDaysFromProjectStart(projectStartDate, parseISO(task.startDate!));
+      node.ES = workingDaysFromProjectStart(projectStartDate, parseISO(task.startDate!), cal);
     }
     
     for (const pred of node.predecessors) {
@@ -345,7 +352,7 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
     projectFinishDays = Math.max(projectFinishDays, node.EF);
   }
   const projectFinishOffset = projectFinishDays > 0 ? Math.ceil(projectFinishDays) - 1 : 0;
-  const projectFinishDate = dateFromWorkingDayOffset(projectStartDate, projectFinishOffset);
+  const projectFinishDate = dateFromWorkingDayOffset(projectStartDate, projectFinishOffset, cal);
 
   // Backward Pass
   for (const node of allNodes) {
@@ -408,10 +415,10 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
       LF: node.LF,
       TF: node.TF,
       isCritical,
-      esDate: format(dateFromWorkingDayOffset(projectStartDate, Math.floor(node.ES)), "yyyy-MM-dd"),
-      efDate: format(dateFromWorkingDayOffset(projectStartDate, node.duration > 0 ? Math.ceil(node.EF) - 1 : Math.floor(node.EF)), "yyyy-MM-dd"),
-      lsDate: format(dateFromWorkingDayOffset(projectStartDate, Math.floor(node.LS)), "yyyy-MM-dd"),
-      lfDate: format(dateFromWorkingDayOffset(projectStartDate, node.duration > 0 ? Math.ceil(node.LF) - 1 : Math.floor(node.LF)), "yyyy-MM-dd"),
+      esDate: format(dateFromWorkingDayOffset(projectStartDate, Math.floor(node.ES), cal), "yyyy-MM-dd"),
+      efDate: format(dateFromWorkingDayOffset(projectStartDate, node.duration > 0 ? Math.ceil(node.EF) - 1 : Math.floor(node.EF), cal), "yyyy-MM-dd"),
+      lsDate: format(dateFromWorkingDayOffset(projectStartDate, Math.floor(node.LS), cal), "yyyy-MM-dd"),
+      lfDate: format(dateFromWorkingDayOffset(projectStartDate, node.duration > 0 ? Math.ceil(node.LF) - 1 : Math.floor(node.LF), cal), "yyyy-MM-dd"),
     });
   }
 
@@ -439,6 +446,10 @@ export function calculateCPM(tasks: CPMTask[], dependencies: CPMDependency[]): C
   };
 }
 
-export function useCPMResults(tasks: CPMTask[], dependencies: CPMDependency[]): CPMCalculationResult {
-  return calculateCPM(tasks, dependencies);
+export function useCPMResults(
+  tasks: CPMTask[],
+  dependencies: CPMDependency[],
+  calendar?: ResolvedCalendar | null,
+): CPMCalculationResult {
+  return calculateCPM(tasks, dependencies, calendar);
 }
