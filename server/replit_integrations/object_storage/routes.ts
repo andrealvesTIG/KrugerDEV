@@ -3,9 +3,19 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { randomUUID } from "crypto";
+import type { RequestHandler } from "express";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
-import { isAuthenticated } from "../auth/replitAuth";
 import { getUserIdFromRequest } from "../../routes/helpers";
+
+// Unified auth check that works for both Replit OIDC and email/password
+// sessions. The OIDC-only `isAuthenticated` middleware in replitAuth.ts
+// rejects email-auth users (they don't have OIDC tokens), which broke uploads
+// for everyone signed in via email/password.
+const isAuthenticated: RequestHandler = (req, res, next) => {
+  const userId = getUserIdFromRequest(req);
+  if (!userId) return res.status(401).json({ message: "Unauthorized" });
+  next();
+};
 
 // Check if error is a persistent auth/permission issue
 function isAuthError(error: any): boolean {
