@@ -68,6 +68,24 @@ function getEntityQueryKey(t: WorkflowEntityType, id: number) {
   return t === "intake" ? ['/api/project-intakes', id] : ['/api/projects', id];
 }
 
+// Keys to invalidate after a write so all consumers (page, list, badges) refetch.
+function getEntityInvalidationKeys(t: WorkflowEntityType, id: number): unknown[][] {
+  if (t === "intake") {
+    return [
+      ['/api/project-intakes', id],
+      ['/api/project-intakes'],
+    ];
+  }
+  // ProjectDetails uses the api-spec path literal (`/api/projects/:id`) as its
+  // query key prefix, while other places key off `/api/projects`. Invalidate
+  // both so the workflow ribbon refetches after a Save & Advance.
+  return [
+    ['/api/projects/:id', id],
+    ['/api/projects', id],
+    ['/api/projects'],
+  ];
+}
+
 export function WorkflowStepRequirementsDialog({
   open, onOpenChange, entityType, entityId, organizationId,
   step, nextStep, isCurrentStep = false, isLocked = false,
@@ -192,7 +210,9 @@ export function WorkflowStepRequirementsDialog({
         }
       }
     }
-    queryClient.invalidateQueries({ queryKey: getEntityQueryKey(entityType, entityId) });
+    for (const key of getEntityInvalidationKeys(entityType, entityId)) {
+      queryClient.invalidateQueries({ queryKey: key });
+    }
     return true;
   };
 
@@ -220,7 +240,9 @@ export function WorkflowStepRequirementsDialog({
       await persist();
       const advanceField = entityType === 'intake' ? 'currentStep' : 'status';
       await apiRequest('PUT', getEntityEndpoint(entityType, entityId), { [advanceField]: nextStep.stepKey });
-      queryClient.invalidateQueries({ queryKey: getEntityQueryKey(entityType, entityId) });
+      for (const key of getEntityInvalidationKeys(entityType, entityId)) {
+        queryClient.invalidateQueries({ queryKey: key });
+      }
       toast({ title: "Advanced", description: `Moved to ${nextStep.label}.` });
       onOpenChange(false);
     } catch (err: any) {
