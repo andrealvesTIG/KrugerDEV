@@ -1109,7 +1109,7 @@ import {
 } from "@shared/schema";
 import { DEFAULT_INTAKE_TABS } from "@shared/intakeTabDefaults";
 
-export interface IntakeTabLayoutItemFull { id: number; itemType: string; itemKey: string; width: string; position: number; displayName: string | null; }
+export interface IntakeTabLayoutItemFull { id: number; itemType: string; itemKey: string; width: string; position: number; displayName: string | null; isRequired: boolean; }
 export interface IntakeTabLayoutSectionFull { id: number; title: string | null; description: string | null; position: number; items: IntakeTabLayoutItemFull[]; }
 export interface IntakeTabLayoutTabFull { id: number; key: string; label: string; icon: string | null; isActive: boolean; position: number; sections: IntakeTabLayoutSectionFull[]; }
 
@@ -1132,7 +1132,7 @@ export async function getIntakeTabLayout(organizationId: number): Promise<Intake
   const itemsBySection = new Map<number, IntakeTabLayoutItemFull[]>();
   for (const i of itemRows) {
     const arr = itemsBySection.get(i.sectionId) ?? [];
-    arr.push({ id: i.id, itemType: i.itemType, itemKey: i.itemKey, width: i.width, position: i.position, displayName: i.displayName ?? null });
+    arr.push({ id: i.id, itemType: i.itemType, itemKey: i.itemKey, width: i.width, position: i.position, displayName: i.displayName ?? null, isRequired: i.isRequired ?? false });
     itemsBySection.set(i.sectionId, arr);
   }
   const sectionsByTab = new Map<number, IntakeTabLayoutSectionFull[]>();
@@ -1168,6 +1168,7 @@ export async function replaceIntakeTabLayout(organizationId: number, tabs: Intak
           await tx.insert(_intakeTabItems).values(items.map((it, ii) => ({
             sectionId: secRow.id, position: ii, itemType: it.itemType, itemKey: it.itemKey, width: it.width ?? "full",
             displayName: it.displayName?.trim() ? it.displayName.trim() : null,
+            isRequired: !!it.isRequired,
           })));
         }
       }
@@ -1183,10 +1184,33 @@ export async function seedDefaultIntakeTabLayoutIfMissing(organizationId: number
     key: t.key, label: t.label, icon: t.icon, isActive: true,
     sections: t.sections.map(s => ({
       title: s.title, description: s.description ?? null,
-      items: s.items.map(i => ({ itemType: i.itemType, itemKey: i.itemKey, width: i.width })),
+      items: s.items.map(i => ({ itemType: i.itemType, itemKey: i.itemKey, width: i.width, isRequired: !!i.isRequired })),
     })),
   }));
   return await replaceIntakeTabLayout(organizationId, dto);
+}
+
+/**
+ * One-time idempotent backfill: mark `projectName` and `description` as required
+ * on intake form layouts that pre-date the per-item Required toggle (rollout:
+ * 2026-05-13). New/reset layouts already carry these defaults via
+ * DEFAULT_INTAKE_TABS. The cutoff guard ensures admins who intentionally toggle
+ * these fields back to optional after rollout aren't reverted on subsequent
+ * server restarts — `replaceIntakeTabLayout` deletes and re-inserts items, so
+ * any admin save bumps `created_at` past the cutoff.
+ */
+const INTAKE_REQUIRED_BACKFILL_CUTOFF = "2026-05-13 20:00:00";
+export async function backfillIntakeRequiredFlags(): Promise<{ updated: number }> {
+  const result = await db.execute(sql`
+    UPDATE intake_tab_items
+       SET is_required = true
+     WHERE item_type = 'field'
+       AND item_key IN ('projectName', 'description')
+       AND is_required = false
+       AND created_at < ${INTAKE_REQUIRED_BACKFILL_CUTOFF}::timestamp
+  `);
+  const updated = (result as any).rowCount ?? 0;
+  return { updated };
 }
 
 export async function resetIntakeTabLayoutToDefaults(organizationId: number): Promise<IntakeTabLayoutTabFull[]> {
@@ -1194,7 +1218,7 @@ export async function resetIntakeTabLayoutToDefaults(organizationId: number): Pr
     key: t.key, label: t.label, icon: t.icon, isActive: true,
     sections: t.sections.map(s => ({
       title: s.title, description: s.description ?? null,
-      items: s.items.map(i => ({ itemType: i.itemType, itemKey: i.itemKey, width: i.width })),
+      items: s.items.map(i => ({ itemType: i.itemType, itemKey: i.itemKey, width: i.width, isRequired: !!i.isRequired })),
     })),
   }));
   return await replaceIntakeTabLayout(organizationId, dto);

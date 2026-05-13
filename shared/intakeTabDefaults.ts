@@ -8,6 +8,7 @@ export interface DefaultIntakeTabItem {
   itemType: "field" | "custom_field" | "block";
   itemKey: string;
   width: "full" | "half" | "third";
+  isRequired?: boolean;
 }
 
 export interface DefaultIntakeTabSection {
@@ -33,9 +34,9 @@ export const DEFAULT_INTAKE_TABS: DefaultIntakeTab[] = [
         title: "Intake Information",
         description: "Core details about this intake request.",
         items: [
-          { itemType: "field", itemKey: "projectName",     width: "half" },
+          { itemType: "field", itemKey: "projectName",     width: "half", isRequired: true },
           { itemType: "field", itemKey: "portfolioId",     width: "half" },
-          { itemType: "field", itemKey: "description",     width: "full" },
+          { itemType: "field", itemKey: "description",     width: "full", isRequired: true },
           { itemType: "field", itemKey: "fundingSource",   width: "third" },
           { itemType: "field", itemKey: "businessUnit",    width: "third" },
           { itemType: "field", itemKey: "programName",     width: "third" },

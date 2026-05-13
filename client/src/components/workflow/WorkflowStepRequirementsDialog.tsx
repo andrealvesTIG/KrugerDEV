@@ -188,10 +188,9 @@ export function WorkflowStepRequirementsDialog({
 
   // Validate ALL required fields placed anywhere on the configured form tabs
   // (project Summary tabs / intake tabs) — not just those listed in this gate's
-  // requiredFields. Required-ness comes from `customFieldDefinitions.isRequired`
-  // for custom fields, and from a small built-in NOT-NULL set for built-ins.
-  const BUILTIN_PROJECT_REQUIRED = new Set(['name']);
-  const BUILTIN_INTAKE_REQUIRED = new Set(['title']);
+  // requiredFields. Required-ness comes from the per-item `isRequired` toggle
+  // configured in the form layout editor, OR-ed with the custom field
+  // definition's own `isRequired` flag for custom fields.
   const layoutValidationErrors = useMemo<string[]>(() => {
     if (!entity) return [];
     const stepKeys = new Set((step.requiredFields || []) as string[]);
@@ -211,7 +210,9 @@ export function WorkflowStepRequirementsDialog({
             const id = Number(item.itemKey);
             if (!Number.isFinite(id)) continue;
             const def = cfDefs.find(d => d.id === id);
-            if (!def || !def.isRequired) continue;
+            if (!def) continue;
+            const required = !!(item as any).isRequired || !!def.isRequired;
+            if (!required) continue;
             const cfKey = `cf:${id}`;
             if (stepKeys.has(cfKey) || seen.has(cfKey)) continue;
             seen.add(cfKey);
@@ -228,10 +229,15 @@ export function WorkflowStepRequirementsDialog({
           }
 
           // itemType === 'field'
+          // Project layout items don't have a per-item isRequired column yet,
+          // so keep the legacy fallback set so `name` is still enforced. Intake
+          // items use the per-item toggle exclusively.
+          const PROJECT_BUILTIN_REQUIRED = new Set(['name']);
+          const fieldRequired = !!(item as any).isRequired
+            || (entityType === 'project' && PROJECT_BUILTIN_REQUIRED.has(item.itemKey));
+          if (!fieldRequired) continue;
           const key = item.itemKey;
           if (stepKeys.has(key) || seen.has(key)) continue;
-          const requiredSet = entityType === 'project' ? BUILTIN_PROJECT_REQUIRED : BUILTIN_INTAKE_REQUIRED;
-          if (!requiredSet.has(key)) continue;
           seen.add(key);
           const v = (entity as any)[key];
           const empty = v == null || (typeof v === 'string' && !v.trim());

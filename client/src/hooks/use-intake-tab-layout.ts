@@ -2,7 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { IntakeTabLayoutTabDTO } from "@shared/schema";
 
-export interface IntakeTabLayoutItemFull { id: number; itemType: "field" | "custom_field" | "block"; itemKey: string; width: "full" | "half" | "third"; position: number; displayName: string | null; }
+export interface IntakeTabLayoutItemFull { id: number; itemType: "field" | "custom_field" | "block"; itemKey: string; width: "full" | "half" | "third"; position: number; displayName: string | null; isRequired: boolean; }
 export interface IntakeTabLayoutSectionFull { id: number; title: string | null; description: string | null; position: number; items: IntakeTabLayoutItemFull[]; }
 export interface IntakeTabLayoutTabFull { id: number; key: string; label: string; icon: string | null; isActive: boolean; position: number; sections: IntakeTabLayoutSectionFull[]; }
 

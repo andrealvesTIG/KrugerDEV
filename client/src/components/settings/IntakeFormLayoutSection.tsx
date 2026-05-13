@@ -23,7 +23,7 @@ import { useCustomFieldDefinitions } from "@/hooks/use-custom-fields";
 import type { CustomFieldDefinition } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
-interface DraftItem { uid: string; itemType: "field" | "custom_field" | "block"; itemKey: string; width: "full" | "half" | "third"; displayName: string | null; }
+interface DraftItem { uid: string; itemType: "field" | "custom_field" | "block"; itemKey: string; width: "full" | "half" | "third"; displayName: string | null; isRequired: boolean; }
 interface DraftSection { uid: string; title: string | null; description: string | null; items: DraftItem[]; }
 interface DraftTab { uid: string; key: string; label: string; icon: string | null; isActive: boolean; sections: DraftSection[]; }
 
@@ -36,7 +36,7 @@ function toDraft(layout: IntakeTabLayoutTabFull[]): DraftTab[] {
     uid: uid("tab"), key: t.key, label: t.label, icon: t.icon, isActive: t.isActive,
     sections: t.sections.map(s => ({
       uid: uid("sec"), title: s.title, description: s.description,
-      items: s.items.map(i => ({ uid: uid("itm"), itemType: i.itemType as any, itemKey: i.itemKey, width: i.width as any, displayName: i.displayName ?? null })),
+      items: s.items.map(i => ({ uid: uid("itm"), itemType: i.itemType as any, itemKey: i.itemKey, width: i.width as any, displayName: i.displayName ?? null, isRequired: !!i.isRequired })),
     })),
   }));
 }
@@ -205,7 +205,7 @@ export function IntakeFormLayoutSection({ organizationId }: { organizationId: nu
       return;
     }
     updateSection(tabUid, secUid, {
-      items: [...(tab.sections.find(s => s.uid === secUid)?.items ?? []), { uid: uid("itm"), itemType, itemKey, width: "full", displayName: null }],
+      items: [...(tab.sections.find(s => s.uid === secUid)?.items ?? []), { uid: uid("itm"), itemType, itemKey, width: "full", displayName: null, isRequired: false }],
     });
   };
   const updateItem = (tabUid: string, secUid: string, itemUid: string, patch: Partial<DraftItem>) => {
@@ -250,7 +250,7 @@ export function IntakeFormLayoutSection({ organizationId }: { organizationId: nu
         sections: t.sections.map(s => ({
           title: s.title?.trim() ? s.title.trim() : null,
           description: s.description,
-          items: s.items.map(i => ({ itemType: i.itemType, itemKey: i.itemKey, width: i.width, displayName: i.displayName?.trim() ? i.displayName.trim() : null })),
+          items: s.items.map(i => ({ itemType: i.itemType, itemKey: i.itemKey, width: i.width, displayName: i.displayName?.trim() ? i.displayName.trim() : null, isRequired: !!i.isRequired })),
         })),
       };
     });
@@ -551,6 +551,7 @@ function ItemEditor({ item, currentSectionUid, currentTabUid, allTabs, customFie
   const label = fieldDef?.label ?? blockDef?.label ?? cfDef?.name ?? (item.itemType === "custom_field" ? `Custom field #${item.itemKey} (missing)` : item.itemKey);
   const badgeText = item.itemType === "block" ? "block" : item.itemType === "custom_field" ? "custom" : "field";
   const supportsDisplayName = item.itemType !== "block";
+  const supportsRequired = item.itemType !== "block";
   return (
     <div ref={setNodeRef} style={style} className="flex items-center gap-2 p-2 border rounded bg-background" data-testid={`item-editor-${item.uid}`}>
       <button {...attributes} {...listeners} className="cursor-grab text-muted-foreground touch-none" aria-label="Drag item">
@@ -568,6 +569,18 @@ function ItemEditor({ item, currentSectionUid, currentTabUid, allTabs, customFie
         />
       )}
       {!supportsDisplayName && <div className="flex-1" />}
+      {supportsRequired && (
+        <Button
+          size="sm"
+          variant={item.isRequired ? "default" : "outline"}
+          className="h-7 px-2 text-xs"
+          onClick={() => onUpdate({ isRequired: !item.isRequired })}
+          title={item.isRequired ? "Required — click to make optional" : "Optional — click to require"}
+          data-testid={`button-toggle-required-${item.uid}`}
+        >
+          {item.isRequired ? "Required" : "Optional"}
+        </Button>
+      )}
       <Select value={item.width} onValueChange={(v) => onUpdate({ width: v as DraftItem["width"] })}>
         <SelectTrigger className="h-7 w-[100px] text-xs"><SelectValue /></SelectTrigger>
         <SelectContent>

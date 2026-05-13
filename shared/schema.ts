@@ -2619,6 +2619,7 @@ export const intakeTabItems = pgTable("intake_tab_items", {
   itemKey: text("item_key").notNull(),    // field name, custom-field id (string), or block key
   width: text("width").default("full").notNull(), // 'full' | 'half' | 'third'
   displayName: text("display_name"),      // optional on-screen label override (DB column unchanged)
+  isRequired: boolean("is_required").default(false).notNull(), // Whether this item must be filled before advancing past any intake gate
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -2650,6 +2651,7 @@ export interface IntakeTabLayoutItemDTO {
   itemKey: string;
   width: "full" | "half" | "third";
   displayName?: string | null;
+  isRequired?: boolean;
 }
 export interface IntakeTabLayoutSectionDTO {
   id?: number;

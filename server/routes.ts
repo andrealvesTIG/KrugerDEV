@@ -185,6 +185,21 @@ export async function registerRoutes(
     }
   })();
 
+  // One-time idempotent backfill: mark `projectName` and `description` as
+  // required on existing intake form layouts that pre-date the per-item
+  // Required toggle.
+  (async () => {
+    try {
+      const { backfillIntakeRequiredFlags } = await import('./storage/intakeStorage');
+      const { updated } = await backfillIntakeRequiredFlags();
+      if (updated > 0) {
+        console.log(`[migration] Intake required-flags backfill: ${updated} item(s) updated`);
+      }
+    } catch (err) {
+      console.error('[intake-required-backfill] Failed:', err);
+    }
+  })();
+
   // Seed the system project templates library across industries. Each seeder
   // is idempotent — upserts by slug and replaces its items in a transaction.
   (async () => {
