@@ -706,6 +706,7 @@ export interface ICalendarStorage {
   getRecurringExceptionParentCalendar(recurringId: number): Promise<any>;
   loadResolvedCalendar(calendarId: number): Promise<any>;
   getResolvedCalendarForProject(projectId: number): Promise<any | null>;
+  getOrgDefaultResolvedCalendar(organizationId: number): Promise<any | null>;
 }
 
 export interface IStorage extends

@@ -1,5 +1,6 @@
 import { db } from "../db";
-import { calculateEndDate, formatDateStr } from "../lib/workingDays";
+import { calculateEndDateCal, formatDateStr } from "../lib/workingDays";
+import { getResolvedCalendarForProject, getOrgDefaultResolvedCalendar } from "./calendarStorage";
 import {
   projectIntakes, mppImports, mppImportTasks, changeRequests,
   intakeWorkflows, intakeWorkflowSteps, projectWorkflows, projectWorkflowSteps,
@@ -232,10 +233,14 @@ export async function convertMppImportToProject(
   }
 
   const importedTasks = await getMppImportTasks(importId);
-  
+
+  // No project exists yet — fall back to the org's default calendar so MPP
+  // duration math respects org holidays/weekends instead of legacy Mon–Fri.
+  const importCal = await getOrgDefaultResolvedCalendar(projectData.organizationId);
+
   const today = new Date().toISOString().split('T')[0];
   const defaultEndDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-  
+
   let projectStartDate = today;
   let projectEndDate = defaultEndDate;
   
@@ -281,7 +286,7 @@ export async function convertMppImportToProject(
       const startDate = importedTask.startDate || today;
       const endDate = importedTask.finishDate || 
         (importedTask.durationDays 
-          ? formatDateStr(calculateEndDate(new Date(startDate), importedTask.durationDays))
+          ? formatDateStr(calculateEndDateCal(importCal, new Date(startDate), importedTask.durationDays))
           : defaultEndDate);
 
       const isSummary = importedTask.isSummary || false;
@@ -472,7 +477,12 @@ export async function syncMppImportToProject(
 
   const importedTasks = await getMppImportTasks(importId);
   const existingTasks = await getTasks(projectId);
-  
+
+  // Project exists — resolve its calendar (project.calendarId → org default)
+  // so re-sync duration math honours the same holidays/weekends as the rest
+  // of the project's scheduling.
+  const importCal = await getResolvedCalendarForProject(projectId);
+
   const syncMode = options?.syncMode || 'merge';
   let tasksAdded = 0;
   let tasksUpdated = 0;
@@ -507,7 +517,7 @@ export async function syncMppImportToProject(
     const startDate = importedTask.startDate || today;
     const endDate = importedTask.finishDate || 
       (importedTask.durationDays 
-        ? formatDateStr(calculateEndDate(new Date(startDate), importedTask.durationDays))
+        ? formatDateStr(calculateEndDateCal(importCal, new Date(startDate), importedTask.durationDays))
         : defaultEndDate);
 
     const isSummary = importedTask.isSummary || false;

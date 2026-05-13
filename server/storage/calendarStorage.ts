@@ -267,6 +267,17 @@ export async function getResolvedCalendarForProject(projectId: number): Promise<
   return await loadResolvedCalendar(calId);
 }
 
+/**
+ * Resolve the org's default calendar as a ResolvedCalendar, or null if the
+ * org has no default. Use when no project context is available yet (e.g.
+ * MPP/XER import → project conversion math).
+ */
+export async function getOrgDefaultResolvedCalendar(organizationId: number): Promise<ResolvedCalendar | null> {
+  const def = await getDefaultCalendarForOrg(organizationId);
+  if (!def) return null;
+  return await loadResolvedCalendar(def.id);
+}
+
 // ---- Engine resolution ---------------------------------------------------
 
 /**
