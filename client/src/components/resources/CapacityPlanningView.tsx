@@ -1,10 +1,11 @@
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Users, AlertTriangle } from "lucide-react";
+import { Loader2, Users, AlertTriangle, Info } from "lucide-react";
 import { useResourceUtilization, type ResourceUtilizationData } from "@/hooks/use-resources";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format, startOfWeek, addWeeks } from "date-fns";
 
 interface CapacityPlanningViewProps {
@@ -50,12 +51,14 @@ export default function CapacityPlanningView({ organizationId }: CapacityPlannin
 
   const summaryStats = useMemo(() => {
     if (!data?.resources || data.resources.length === 0) {
-      return { totalCapacity: 0, totalAllocated: 0, overallUtilization: 0 };
+      return { totalCapacity: 0, totalAllocated: 0, overallUtilization: 0, totalRangeHours: 0, weeksInRange: 0 };
     }
     const totalCapacity = data.resources.reduce((sum, r) => sum + r.effectiveWeeklyHours, 0);
     const totalAllocated = data.resources.reduce((sum, r) => sum + r.allocatedHoursPerWeek, 0);
     const overallUtilization = totalCapacity > 0 ? Math.round((totalAllocated / totalCapacity) * 100) : 0;
-    return { totalCapacity, totalAllocated, overallUtilization };
+    const totalRangeHours = data.resources.reduce((sum, r) => sum + (r.effectiveHoursInRange ?? 0), 0);
+    const weeksInRange = data.resources[0]?.weeksInRange ?? 0;
+    return { totalCapacity, totalAllocated, overallUtilization, totalRangeHours, weeksInRange };
   }, [data]);
 
   if (isLoading) {
@@ -79,9 +82,22 @@ export default function CapacityPlanningView({ organizationId }: CapacityPlannin
 
   return (
     <div className="space-y-4" data-testid="capacity-planning-view">
+      <TooltipProvider delayDuration={200}>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4 space-y-0 pb-4">
-          <CardTitle className="text-lg">Capacity Planning Timeline</CardTitle>
+          <div className="flex items-center gap-1.5">
+            <CardTitle className="text-lg">Capacity Planning Timeline</CardTitle>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-muted-foreground hover:text-foreground" data-testid="info-effective-capacity" aria-label="About effective capacity">
+                  <Info className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs">
+                Effective capacity reflects each resource's working calendar (org holidays, per-resource calendar) and approved PTO over the selected window — not just <code>weeklyCapacity</code>.
+              </TooltipContent>
+            </Tooltip>
+          </div>
           <div className="flex items-center gap-2 flex-wrap">
             <label className="text-sm text-muted-foreground whitespace-nowrap">From</label>
             <Input
@@ -159,9 +175,16 @@ export default function CapacityPlanningView({ organizationId }: CapacityPlannin
                       )}
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
-                      <span data-testid={`text-capacity-${resource.resourceId}`}>
-                        {resource.effectiveWeeklyHours.toFixed(1)}h capacity
-                      </span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help underline-offset-2 hover:underline" data-testid={`text-capacity-${resource.resourceId}`}>
+                            {resource.effectiveWeeklyHours.toFixed(1)}h capacity
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent className="text-xs">
+                          {(resource.effectiveHoursInRange ?? resource.effectiveWeeklyHours).toFixed(1)}h over {(resource.weeksInRange ?? 1).toFixed(1)} weeks (calendar + approved PTO)
+                        </TooltipContent>
+                      </Tooltip>
                       <span data-testid={`text-allocated-${resource.resourceId}`}>
                         {resource.allocatedHoursPerWeek.toFixed(1)}h allocated
                       </span>
@@ -195,6 +218,7 @@ export default function CapacityPlanningView({ organizationId }: CapacityPlannin
           </div>
         </CardContent>
       </Card>
+      </TooltipProvider>
     </div>
   );
 }

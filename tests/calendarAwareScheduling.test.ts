@@ -504,6 +504,51 @@ describe("Phase 3a: partial-day PTO via withAdditionalNonWorkingWindows + subtra
     expect(availabilityLoaded).toBe(false);
   });
 
+  it("computeEffectiveCapacity — Mon–Fri week with no calendars returns legacy 8h/day × 5 = 40h/week", async () => {
+    const { computeEffectiveCapacity } = await import("../shared/lib/capacityCalc");
+    const result = computeEffectiveCapacity({
+      orgCal: null, resourceCal: null, availabilityRows: [],
+      rangeStart: d("2026-06-01"), rangeEnd: new Date(2026, 5, 5, 23, 59, 59, 999),
+    });
+    expect(result.effectiveHoursInRange).toBe(40);
+    expect(result.effectiveWeeklyHours).toBe(56); // 40h over 5 days = (40 / (5/7)) ≈ 56h normalized to 7d week
+  });
+
+  it("computeEffectiveCapacity — org holiday in the window subtracts 8h from the calendar-aware total", async () => {
+    const { computeEffectiveCapacity } = await import("../shared/lib/capacityCalc");
+    const orgCal: ResolvedCalendar = withAdditionalNonWorkingWindows(
+      defaultLegacyResolvedCalendar(),
+      [{ startDate: "2026-06-03", endDate: "2026-06-03" }], // Wed holiday
+    );
+    const result = computeEffectiveCapacity({
+      orgCal, resourceCal: null, availabilityRows: [],
+      rangeStart: d("2026-06-01"), rangeEnd: new Date(2026, 5, 5, 23, 59, 59, 999),
+    });
+    expect(result.effectiveHoursInRange).toBe(32); // 5 days × 8h − 8h holiday
+  });
+
+  it("computeEffectiveCapacity — partial-day PTO (4h on Wed) subtracts 4h from the range total", async () => {
+    const { computeEffectiveCapacity } = await import("../shared/lib/capacityCalc");
+    const result = computeEffectiveCapacity({
+      orgCal: defaultLegacyResolvedCalendar(),
+      resourceCal: null,
+      availabilityRows: [{ startDate: "2026-06-03", endDate: "2026-06-03", hoursPerDay: 4 }],
+      rangeStart: d("2026-06-01"), rangeEnd: new Date(2026, 5, 5, 23, 59, 59, 999),
+    });
+    expect(result.effectiveHoursInRange).toBe(36); // 40h − 4h PTO
+  });
+
+  it("computeEffectiveCapacity — resource-level availabilityPct multiplies the calendar-aware total", async () => {
+    const { computeEffectiveCapacity } = await import("../shared/lib/capacityCalc");
+    const result = computeEffectiveCapacity({
+      orgCal: defaultLegacyResolvedCalendar(),
+      resourceCal: null, availabilityRows: [],
+      rangeStart: d("2026-06-01"), rangeEnd: new Date(2026, 5, 5, 23, 59, 59, 999),
+      availabilityPct: 50,
+    });
+    expect(result.effectiveHoursInRange).toBe(20); // 50% × 40h
+  });
+
   it("composeResourceEffectiveCalendar — disjoint project/resource intervals collapse to 0h (full-day non-working)", () => {
     // Project: legacy Mon–Fri 8–12 + 13–17. Resource: Mon–Fri 18:00–20:00 (evening shift).
     // Intervals are disjoint → composed day must be 0h, not full project day.

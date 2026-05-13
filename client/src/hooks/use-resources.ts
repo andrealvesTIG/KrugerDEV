@@ -345,6 +345,11 @@ export interface ResourceUtilizationData {
   weeklyCapacity: number;
   availabilityPct: number;
   effectiveWeeklyHours: number;
+  /** Calendar-aware total working hours over the requested [startDate,endDate]
+   *  window (org calendar holidays + per-resource calendar + approved PTO). */
+  effectiveHoursInRange: number;
+  /** Length of the requested window in weeks; useful for UI copy. */
+  weeksInRange: number;
   totalAllocationPct: number;
   allocatedHoursPerWeek: number;
   actualHours: number;

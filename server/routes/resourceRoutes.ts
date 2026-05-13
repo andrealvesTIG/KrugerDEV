@@ -1628,6 +1628,13 @@ export function registerResourceRoutes(app: Express) {
   }, async (req, res) => {
     try {
       const orgId = Number(req.params.orgId);
+      const userId = getUserIdFromRequest(req);
+      if (!userId) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Forbidden' });
+      }
       const { startDate, endDate } = req.query;
       
       const allResources = await storage.getResources(orgId);
@@ -1645,30 +1652,66 @@ export function registerResourceRoutes(app: Express) {
         ? await storage.getAllTimesheetEntriesWithDetails(orgId, startDate as string, endDate as string)
         : [];
       
-      const utilization = activeResources.map(resource => {
+      // Phase 3a Slice 3: capacity is calendar-aware. Resolve the org's
+      // default calendar once + each resource's calendar lazily, then ask
+      // the engine for actual working hours in [rangeStart, rangeEnd] via
+      // the pure helper `computeEffectiveCapacity`. Falls back to today→+4w
+      // when the caller doesn't pin dates so legacy callers still get a
+      // sane "per week" number.
+      const calStorage = await import("../storage/calendarStorage");
+      const { computeEffectiveCapacity } = await import("@shared/lib/capacityCalc");
+      const orgDefaultCal = await calStorage.getOrgDefaultResolvedCalendar(orgId);
+      const resourceCalCache = new Map<number, any>();
+      async function loadResCal(id: number | null) {
+        if (id == null) return null;
+        if (resourceCalCache.has(id)) return resourceCalCache.get(id);
+        const cal = await calStorage.loadResolvedCalendar(id);
+        resourceCalCache.set(id, cal);
+        return cal;
+      }
+      const rangeStart = startDate
+        ? new Date(`${String(startDate).slice(0, 10)}T00:00:00`)
+        : (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
+      const rangeEnd = endDate
+        ? new Date(`${String(endDate).slice(0, 10)}T23:59:59`)
+        : (() => { const d = new Date(rangeStart); d.setDate(d.getDate() + 27); d.setHours(23,59,59,999); return d; })();
+
+      const utilization = await Promise.all(activeResources.map(async resource => {
         const resourceAssignments = assignments.filter(a => a.resourceId === resource.id);
         const resourceAvailabilityEntries = availability.filter(a => a.resourceId === resource.id);
         const resourceTimesheets = timesheetData.filter(t => t.entry.resourceId === resource.id);
-        
+
         const weeklyCapacity = Number(resource.weeklyCapacity) || 40;
-        const availabilityPct = resource.availability || 100;
-        const effectiveWeeklyHours = (weeklyCapacity * availabilityPct) / 100;
-        
+        const availabilityPct = resource.availability ?? 100;
+
+        const resourceCal = await loadResCal(resource.calendarId ?? null);
+        const cap = computeEffectiveCapacity({
+          orgCal: orgDefaultCal,
+          resourceCal,
+          availabilityRows: resourceAvailabilityEntries as any,
+          rangeStart,
+          rangeEnd,
+          availabilityPct,
+        });
+        const effectiveWeeklyHours = cap.effectiveWeeklyHours;
+        const effectiveHoursInRange = cap.effectiveHoursInRange;
+        const weeksInRange = cap.weeksInRange;
+
         const totalAllocationPct = resourceAssignments.reduce((sum, a) => sum + (a.allocationPercentage || 100), 0);
         const allocatedHoursPerWeek = (totalAllocationPct / 100) * weeklyCapacity;
-        
+
         const actualHours = resourceTimesheets.reduce((sum, t) => sum + Number(t.entry.hours), 0);
-        
+
         const timeOffDays = resourceAvailabilityEntries.reduce((sum, entry) => {
           const start = new Date(entry.startDate);
           const end = new Date(entry.endDate);
           const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
           return sum + days;
         }, 0);
-        
+
         const utilizationPct = effectiveWeeklyHours > 0 ? Math.round((allocatedHoursPerWeek / effectiveWeeklyHours) * 100) : 0;
         const isOverAllocated = totalAllocationPct > 100;
-        
+
         return {
           resourceId: resource.id,
           displayName: resource.displayName,
@@ -1677,6 +1720,8 @@ export function registerResourceRoutes(app: Express) {
           weeklyCapacity,
           availabilityPct,
           effectiveWeeklyHours,
+          effectiveHoursInRange,
+          weeksInRange,
           totalAllocationPct,
           allocatedHoursPerWeek,
           actualHours,
@@ -1689,7 +1734,7 @@ export function registerResourceRoutes(app: Express) {
             allocationPercentage: a.allocationPercentage || 100,
           })),
         };
-      });
+      }));
       
       const totalResources = utilization.length;
       const overAllocated = utilization.filter(u => u.isOverAllocated).length;
