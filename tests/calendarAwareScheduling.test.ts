@@ -124,6 +124,29 @@ describe("withAdditionalNonWorkingWindows resource overlay", () => {
     expect(windows.every(w => !w.isWorking)).toBe(true);
   });
 
+  it("PTO/availability windows fold into a resource calendar as non-working dates", () => {
+    // Mirrors what /api/resources/:id/resolved-calendar now does: maps each
+    // approved resource_availability row { startDate, endDate } onto the
+    // engine as an additional non-working window.
+    const cal = defaultLegacyResolvedCalendar();
+    const ptoRows = [
+      { startDate: "2026-03-03", endDate: "2026-03-04" }, // 2-day Tue–Wed PTO
+      { startDate: "2026-03-09", endDate: "2026-03-09" }, // 1-day Mon PTO
+    ];
+    const ptoWindows = ptoRows.map(r => ({
+      startDate: r.startDate, endDate: r.endDate, isWorking: false, intervals: null,
+    }));
+    const withPto = withAdditionalNonWorkingWindows(cal, ptoWindows);
+    expect(isWorkingDayCal(withPto, d("2026-03-02"))).toBe(true);  // Mon — fine
+    expect(isWorkingDayCal(withPto, d("2026-03-03"))).toBe(false); // PTO start
+    expect(isWorkingDayCal(withPto, d("2026-03-04"))).toBe(false); // PTO end
+    expect(isWorkingDayCal(withPto, d("2026-03-05"))).toBe(true);  // Thu — back
+    expect(isWorkingDayCal(withPto, d("2026-03-09"))).toBe(false); // single PTO day
+    // PTO eats into addWorkingDays math: from Mon 03-02, +2 working days now
+    // skips Tue/Wed PTO and lands on Fri 03-06 (Thu is +1, Fri is +2).
+    expect(addWorkingDaysCal(withPto, d("2026-03-02"), 2).toISOString().slice(0, 10)).toBe("2026-03-06");
+  });
+
   it("overlaying enumerated resource non-working dates restricts the project calendar", () => {
     // Resource that ALSO doesn't work Fridays (in addition to weekends).
     const noFridays: ResolvedCalendar = {

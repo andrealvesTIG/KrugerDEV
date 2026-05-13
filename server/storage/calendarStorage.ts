@@ -251,6 +251,22 @@ export async function getRecurringExceptionParentCalendar(recurringId: number): 
   return await getCalendar(row.calendarId);
 }
 
+// ---- Project calendar resolution ----------------------------------------
+
+/**
+ * Resolve a project's effective ResolvedCalendar following the same rule as
+ * the client hook: project.calendarId → org default → null. Returns null if
+ * the project has no calendar and the org has no default (callers should
+ * treat null as "use legacy Mon–Fri" via defaultLegacyResolvedCalendar).
+ */
+export async function getResolvedCalendarForProject(projectId: number): Promise<ResolvedCalendar | null> {
+  const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+  if (!project) return null;
+  const calId = project.calendarId ?? (await getDefaultCalendarForOrg(project.organizationId))?.id ?? null;
+  if (calId == null) return null;
+  return await loadResolvedCalendar(calId);
+}
+
 // ---- Engine resolution ---------------------------------------------------
 
 /**

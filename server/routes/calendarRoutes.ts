@@ -79,6 +79,20 @@ export function registerCalendarRoutes(app: Express) {
       const resourceCalId = resource.calendarId ?? null;
       const resourceCal = resourceCalId ? await storage.loadResolvedCalendar(resourceCalId) : null;
 
+      // Fold resource_availability rows (PTO, leave, etc.) in as additional
+      // non-working windows so callers see PTO via the engine instead of as
+      // a separate concept. Only `approved` rows count. Partial-day rows
+      // (hoursPerDay set) are still treated as full-day non-working until
+      // Phase 3 adds minute-precision scheduling.
+      const availabilityRows = (await storage.getResourceAvailability(resourceId))
+        .filter((r: any) => (r.status ?? "approved") === "approved");
+      const ptoWindows = availabilityRows.map((r: any) => ({
+        startDate: typeof r.startDate === "string" ? r.startDate : new Date(r.startDate).toISOString().slice(0, 10),
+        endDate: typeof r.endDate === "string" ? r.endDate : new Date(r.endDate).toISOString().slice(0, 10),
+      }));
+
+      const engine = await import("@shared/lib/calendarEngine");
+
       if (projectId != null && !Number.isNaN(projectId)) {
         const project = await storage.getProject(projectId);
         if (!project) return res.status(404).json({ message: "Project not found" });
@@ -88,7 +102,6 @@ export function registerCalendarRoutes(app: Express) {
         const projCalId = project.calendarId ?? (await storage.getDefaultCalendarForOrg(project.organizationId))?.id ?? null;
         const projCal = projCalId ? await storage.loadResolvedCalendar(projCalId) : null;
         if (projCal && resourceCal) {
-          const engine = await import("@shared/lib/calendarEngine");
           // Walk a bounded horizon (today − 30d → today + 5y) and emit one
           // non-working exception for every date the resource calendar
           // marks non-working. This honours the resource's weeklyShifts
@@ -99,10 +112,18 @@ export function registerCalendarRoutes(app: Express) {
           const horizonEnd = new Date();
           horizonEnd.setFullYear(horizonEnd.getFullYear() + 5);
           const overlayWindows = engine.enumerateNonWorkingDates(resourceCal, horizonStart, horizonEnd);
-          return res.json(engine.withAdditionalNonWorkingWindows(projCal, overlayWindows));
+          return res.json(engine.withAdditionalNonWorkingWindows(projCal, [...overlayWindows, ...ptoWindows]));
         }
-        return res.json(projCal ?? resourceCal);
+        const baseCal = projCal ?? resourceCal;
+        if (baseCal && ptoWindows.length) return res.json(engine.withAdditionalNonWorkingWindows(baseCal, ptoWindows));
+        return res.json(baseCal);
       }
+      if (resourceCal && ptoWindows.length) return res.json(engine.withAdditionalNonWorkingWindows(resourceCal, ptoWindows));
+      // Edge case: no resource calendar but PTO exists — fold PTO onto the
+      // legacy Mon–Fri 8h fallback so callers don't lose PTO when the
+      // resource has no explicit calendar pinned. (`null` would otherwise
+      // make the client fall back to legacy with no PTO knowledge.)
+      if (!resourceCal && ptoWindows.length) return res.json(engine.withAdditionalNonWorkingWindows(engine.defaultLegacyResolvedCalendar(), ptoWindows));
       return res.json(resourceCal);
     } catch (err) {
       const c = classifyError(err);

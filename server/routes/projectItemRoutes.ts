@@ -23,7 +23,8 @@ import {
 import { createTaskAssignmentNotification, createRiskAssignmentNotification, createTaskFieldChangeNotification } from "../services/notificationEngine";
 import { sendLimitExceeded } from "../services/aiCredits";
 import { invalidateOrganizationContextCache } from "../services/jarvisService";
-import { addWorkingDays, ensureWorkingDay, calculateEndDate, calculateDuration, nextWorkingDay, formatDateStr, workingDaysBetweenExclusive } from "../lib/workingDays";
+import { addWorkingDays, ensureWorkingDay, calculateEndDate, calculateDuration, nextWorkingDay, formatDateStr, workingDaysBetweenExclusive, addWorkingDaysCal, ensureWorkingDayCal, calculateEndDateCal, calculateDurationCal, nextWorkingDayCal, workingDaysBetweenExclusiveCal } from "../lib/workingDays";
+import type { ResolvedCalendar } from "@shared/lib/calendarEngine";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404, p } from "../route-registry";
 
 export function registerProjectItemRoutes(app: Express) {
@@ -2040,27 +2041,28 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (datesChanged && input.startDate && input.startDate !== previousTask.startDate) {
         const predecessorDeps = await storage.getTaskDependencies(taskId);
         if (predecessorDeps.length > 0) {
+          const lagCal: ResolvedCalendar | null = updated.projectId ? await storage.getResolvedCalendarForProject(updated.projectId) : null;
           for (const dep of predecessorDeps) {
             const predTask = await storage.getTask(dep.dependsOnTaskId);
             if (!predTask) continue;
 
             const dtype = (dep.dependencyType || 'finish-to-start').toLowerCase().replace(/[\s_-]/g, '');
-            const newStart = ensureWorkingDay(new Date(updated.startDate + 'T00:00:00'));
-            const newEnd = updated.endDate ? ensureWorkingDay(new Date(updated.endDate + 'T00:00:00')) : newStart;
+            const newStart = ensureWorkingDayCal(lagCal, new Date(updated.startDate + 'T00:00:00'), 1);
+            const newEnd = updated.endDate ? ensureWorkingDayCal(lagCal, new Date(updated.endDate + 'T00:00:00'), 1) : newStart;
             let referenceDate: Date | null = null;
             let targetDate: Date;
 
             if (dtype === 'finishtostart' || dtype === 'fs') {
-              referenceDate = predTask.endDate ? nextWorkingDay(new Date(predTask.endDate + 'T00:00:00')) : null;
+              referenceDate = predTask.endDate ? nextWorkingDayCal(lagCal, new Date(predTask.endDate + 'T00:00:00')) : null;
               targetDate = newStart;
             } else if (dtype === 'starttostart' || dtype === 'ss') {
-              referenceDate = predTask.startDate ? ensureWorkingDay(new Date(predTask.startDate + 'T00:00:00')) : null;
+              referenceDate = predTask.startDate ? ensureWorkingDayCal(lagCal, new Date(predTask.startDate + 'T00:00:00'), 1) : null;
               targetDate = newStart;
             } else if (dtype === 'finishtofinish' || dtype === 'ff') {
-              referenceDate = predTask.endDate ? ensureWorkingDay(new Date(predTask.endDate + 'T00:00:00')) : null;
+              referenceDate = predTask.endDate ? ensureWorkingDayCal(lagCal, new Date(predTask.endDate + 'T00:00:00'), 1) : null;
               targetDate = newEnd;
             } else if (dtype === 'starttofinish' || dtype === 'sf') {
-              referenceDate = predTask.startDate ? ensureWorkingDay(new Date(predTask.startDate + 'T00:00:00')) : null;
+              referenceDate = predTask.startDate ? ensureWorkingDayCal(lagCal, new Date(predTask.startDate + 'T00:00:00'), 1) : null;
               targetDate = newEnd;
             } else {
               continue;
@@ -2069,9 +2071,9 @@ Format your response as a numbered list with clear, concise strategies. Do not i
             if (referenceDate) {
               let newLag = 0;
               if (targetDate > referenceDate) {
-                newLag = workingDaysBetweenExclusive(referenceDate, targetDate);
+                newLag = workingDaysBetweenExclusiveCal(lagCal, referenceDate, targetDate);
               } else if (targetDate < referenceDate) {
-                newLag = -workingDaysBetweenExclusive(targetDate, referenceDate);
+                newLag = -workingDaysBetweenExclusiveCal(lagCal, targetDate, referenceDate);
               }
 
               if (newLag !== (dep.lagDays || 0)) {
@@ -2296,6 +2298,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const dependentTaskForDates = await storage.getTask(taskId);
       
       if (predecessorTaskForDates && dependentTaskForDates) {
+        const depCal: ResolvedCalendar | null = await storage.getResolvedCalendarForProject(dependentTaskForDates.projectId);
         const predStart = predecessorTaskForDates.startDate ? new Date(predecessorTaskForDates.startDate + 'T00:00:00') : null;
         const predEnd = predecessorTaskForDates.endDate ? new Date(predecessorTaskForDates.endDate + 'T00:00:00') : null;
         const depType = (dependencyType || 'finish-to-start').toLowerCase().replace(/[\s_-]/g, '');
@@ -2305,23 +2308,23 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         let requiredEnd: Date | null = null;
         
         if ((depType === 'finishtostart' || depType === 'fs') && predEnd) {
-          const base = nextWorkingDay(predEnd);
-          requiredStart = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
+          const base = nextWorkingDayCal(depCal, predEnd);
+          requiredStart = lag !== 0 ? ensureWorkingDayCal(depCal, addWorkingDaysCal(depCal, base, lag), 1) : base;
         } else if ((depType === 'starttostart' || depType === 'ss') && predStart) {
-          const base = ensureWorkingDay(new Date(predStart));
-          requiredStart = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
+          const base = ensureWorkingDayCal(depCal, new Date(predStart), 1);
+          requiredStart = lag !== 0 ? ensureWorkingDayCal(depCal, addWorkingDaysCal(depCal, base, lag), 1) : base;
         } else if ((depType === 'finishtofinish' || depType === 'ff') && predEnd) {
-          const base = ensureWorkingDay(new Date(predEnd));
-          requiredEnd = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
+          const base = ensureWorkingDayCal(depCal, new Date(predEnd), 1);
+          requiredEnd = lag !== 0 ? ensureWorkingDayCal(depCal, addWorkingDaysCal(depCal, base, lag), 1) : base;
         } else if ((depType === 'starttofinish' || depType === 'sf') && predStart) {
-          const base = ensureWorkingDay(new Date(predStart));
-          requiredEnd = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
+          const base = ensureWorkingDayCal(depCal, new Date(predStart), 1);
+          requiredEnd = lag !== 0 ? ensureWorkingDayCal(depCal, addWorkingDaysCal(depCal, base, lag), 1) : base;
         }
         
         const currentStart = dependentTaskForDates.startDate ? new Date(dependentTaskForDates.startDate + 'T00:00:00') : null;
         const currentEnd = dependentTaskForDates.endDate ? new Date(dependentTaskForDates.endDate + 'T00:00:00') : null;
         const duration = dependentTaskForDates.durationDays ?? (currentStart && currentEnd
-          ? calculateDuration(currentStart, currentEnd) : 1);
+          ? calculateDurationCal(depCal, currentStart, currentEnd) : 1);
         
         if (requiredStart && (!currentStart || currentStart < requiredStart)) {
           newStartDate = formatDateStr(requiredStart);
@@ -2329,7 +2332,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
             newEndDate = newStartDate;
             await storage.updateTask(taskId, { startDate: newStartDate, endDate: newStartDate, durationDays: 0 });
           } else {
-            const newEnd = calculateEndDate(requiredStart, duration);
+            const newEnd = calculateEndDateCal(depCal, requiredStart, duration);
             newEndDate = formatDateStr(newEnd);
             await storage.updateTask(taskId, { startDate: newStartDate, endDate: newEndDate, durationDays: duration });
           }
@@ -2341,7 +2344,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
             await storage.updateTask(taskId, { startDate: newEndDate, endDate: newEndDate, durationDays: 0 });
           } else {
             const calendarSpan = Math.ceil(duration);
-            const newStart = ensureWorkingDay(addWorkingDays(requiredEnd, -(Math.max(0, calendarSpan - 1))));
+            const newStart = ensureWorkingDayCal(depCal, addWorkingDaysCal(depCal, requiredEnd, -(Math.max(0, calendarSpan - 1))), 1);
             newStartDate = formatDateStr(newStart);
             await storage.updateTask(taskId, { startDate: newStartDate, endDate: newEndDate, durationDays: duration });
           }
@@ -2481,6 +2484,10 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     const dependencies = await storage.getProjectDependencies(projectId);
     if (dependencies.length === 0) return [];
 
+    // Resolve the project's calendar once so all date math below honours it
+    // (project calendar wins — same rule as the client-side CPM in Slice A).
+    const cal: ResolvedCalendar | null = await storage.getResolvedCalendarForProject(projectId);
+
     const taskMap = new Map(allTasks.map(t => [t.id, { ...t }]));
     const adjustedTasks: { taskId: number; newStartDate: string; newEndDate: string }[] = [];
     const allTaskIds = new Set(allTasks.map(t => t.id));
@@ -2518,26 +2525,26 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
       if (dtype === 'finishtostart' || dtype === 'fs') {
         if (!predEnd) return { requiredStart: null, requiredEnd: null };
-        const base = nextWorkingDay(predEnd);
-        const adjusted = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
+        const base = nextWorkingDayCal(cal, predEnd);
+        const adjusted = lag !== 0 ? ensureWorkingDayCal(cal, addWorkingDaysCal(cal, base, lag), 1) : base;
         return { requiredStart: adjusted, requiredEnd: null };
       }
       if (dtype === 'starttostart' || dtype === 'ss') {
         if (!predStart) return { requiredStart: null, requiredEnd: null };
-        const base = ensureWorkingDay(new Date(predStart));
-        const adjusted = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
+        const base = ensureWorkingDayCal(cal, new Date(predStart), 1);
+        const adjusted = lag !== 0 ? ensureWorkingDayCal(cal, addWorkingDaysCal(cal, base, lag), 1) : base;
         return { requiredStart: adjusted, requiredEnd: null };
       }
       if (dtype === 'finishtofinish' || dtype === 'ff') {
         if (!predEnd) return { requiredStart: null, requiredEnd: null };
-        const base = ensureWorkingDay(new Date(predEnd));
-        const adjusted = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
+        const base = ensureWorkingDayCal(cal, new Date(predEnd), 1);
+        const adjusted = lag !== 0 ? ensureWorkingDayCal(cal, addWorkingDaysCal(cal, base, lag), 1) : base;
         return { requiredStart: null, requiredEnd: adjusted };
       }
       if (dtype === 'starttofinish' || dtype === 'sf') {
         if (!predStart) return { requiredStart: null, requiredEnd: null };
-        const base = ensureWorkingDay(new Date(predStart));
-        const adjusted = lag !== 0 ? ensureWorkingDay(addWorkingDays(base, lag)) : base;
+        const base = ensureWorkingDayCal(cal, new Date(predStart), 1);
+        const adjusted = lag !== 0 ? ensureWorkingDayCal(cal, addWorkingDaysCal(cal, base, lag), 1) : base;
         return { requiredStart: null, requiredEnd: adjusted };
       }
       return { requiredStart: null, requiredEnd: null };
@@ -2599,14 +2606,14 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const currentStart = successor.startDate ? new Date(successor.startDate + 'T00:00:00') : null;
       const currentEnd = successor.endDate ? new Date(successor.endDate + 'T00:00:00') : null;
       const parsedDuration = successor.durationDays == null ? NaN : Number(successor.durationDays);
-      const duration = Number.isFinite(parsedDuration) ? parsedDuration : (currentStart && currentEnd ? calculateDuration(currentStart, currentEnd) : 1);
+      const duration = Number.isFinite(parsedDuration) ? parsedDuration : (currentStart && currentEnd ? calculateDurationCal(cal, currentStart, currentEnd) : 1);
 
       let newStart: Date | null = null;
       let newEnd: Date | null = null;
 
       if (maxRequiredStart) {
         newStart = maxRequiredStart;
-        newEnd = calculateEndDate(newStart, duration);
+        newEnd = calculateEndDateCal(cal, newStart, duration);
       }
 
       if (maxRequiredEnd) {
@@ -2614,15 +2621,15 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         if (!effectiveEnd || effectiveEnd.getTime() !== maxRequiredEnd.getTime()) {
           newEnd = maxRequiredEnd;
           if (!newStart) {
-            newStart = addWorkingDays(newEnd, -(duration - 1));
-            newStart = ensureWorkingDay(newStart);
+            newStart = addWorkingDaysCal(cal, newEnd, -(duration - 1));
+            newStart = ensureWorkingDayCal(cal, newStart, 1);
           }
         }
       }
 
       if (newStart && newEnd) {
         if (newStart > newEnd) {
-          newEnd = calculateEndDate(newStart, duration);
+          newEnd = calculateEndDateCal(cal, newStart, duration);
         }
 
         const newStartStr = formatDateStr(newStart);
