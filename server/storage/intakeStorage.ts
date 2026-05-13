@@ -236,6 +236,10 @@ export async function convertMppImportToProject(
 
   // No project exists yet — fall back to the org's default calendar so MPP
   // duration math respects org holidays/weekends instead of legacy Mon–Fri.
+  // Note: project-level rollup dates (projectStartDate / projectEndDate
+  // below) come from the explicit imported startDate / finishDate columns
+  // and are intentionally NOT recomputed via the calendar — only per-task
+  // end dates derived from a duration are calendar-aware.
   const importCal = await getOrgDefaultResolvedCalendar(projectData.organizationId);
 
   const today = new Date().toISOString().split('T')[0];
