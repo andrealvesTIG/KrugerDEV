@@ -3,6 +3,7 @@ import { formatCurrency } from "@/lib/format";
 import { useResource, useUpdateResource, useResourceSkills, useAddResourceSkill, useRemoveResourceSkill, useResources } from "@/hooks/use-resources";
 import { useOrganization } from "@/hooks/use-organization";
 import { useCustomFieldDefinitions, useResourceCustomFieldValues, useUpdateResourceCustomFieldValue } from "@/hooks/use-custom-fields";
+import { useCalendars } from "@/hooks/use-calendars";
 import { AttachmentFieldInput, AttachmentFieldDisplay } from "@/components/custom-fields/AttachmentField";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect, useMemo } from "react";
@@ -98,6 +99,7 @@ export default function ResourceDetails() {
   const updateResource = useUpdateResource();
   
   const { data: resourceSkills } = useResourceSkills(currentOrganization?.id ?? null, resource?.id ?? null);
+  const { data: orgCalendars = [] } = useCalendars(currentOrganization?.id);
   const addSkill = useAddResourceSkill();
   const removeSkill = useRemoveResourceSkill();
   const [newSkillName, setNewSkillName] = useState("");
@@ -144,6 +146,7 @@ export default function ResourceDetails() {
         isBillable: resource.isBillable,
         timesheetHidden: resource.timesheetHidden,
         notes: resource.notes,
+        calendarId: resource.calendarId ?? null,
       });
     }
   }, [resource]);
@@ -546,7 +549,38 @@ export default function ResourceDetails() {
                       <Label>Hide from Timesheets</Label>
                     </div>
                   </div>
-                  
+
+                  <div>
+                    <Label>Working Calendar</Label>
+                    {isEditing ? (
+                      <Select
+                        value={editValues.calendarId == null ? "none" : String(editValues.calendarId)}
+                        onValueChange={(v) => setEditValues(prev => ({ ...prev, calendarId: v === "none" ? null : Number(v) }))}
+                      >
+                        <SelectTrigger className="mt-1" data-testid="select-resource-calendar">
+                          <SelectValue placeholder="Use organization default" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Use organization default</SelectItem>
+                          {orgCalendars.map((c: { id: number; name: string; isDefault?: boolean | null }) => (
+                            <SelectItem key={c.id} value={String(c.id)}>
+                              {c.name}{c.isDefault ? " (default)" : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <p className="text-sm mt-1 text-muted-foreground">
+                        {resource.calendarId
+                          ? (orgCalendars.find((c: { id: number }) => c.id === resource.calendarId)?.name || `Calendar #${resource.calendarId}`)
+                          : "Organization default"}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Restricts the resource's availability (PTO, alternate work week). The project calendar drives task scheduling.
+                    </p>
+                  </div>
+
                   <div>
                     <Label>Notes</Label>
                     {isEditing ? (
