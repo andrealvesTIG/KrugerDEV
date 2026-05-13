@@ -234,8 +234,11 @@ export function registerOrganizationRoutes(app: Express) {
         return res.status(403).json({ message: 'Only organization admins can update settings' });
       }
       
-      const { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl, timezone, fiscalYearStartMonth, slug } = req.body;
+      const { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl, timezone, fiscalYearStartMonth, slug, showPowerBiIntake } = req.body;
       const updates: Record<string, unknown> = { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl, timezone };
+      if (showPowerBiIntake !== undefined) {
+        updates.showPowerBiIntake = !!showPowerBiIntake;
+      }
       if (fiscalYearStartMonth !== undefined) {
         const n = Number(fiscalYearStartMonth);
         if (!Number.isInteger(n) || n < 1 || n > 12) {

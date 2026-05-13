@@ -717,6 +717,12 @@ export default function ProjectIntakes() {
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const [deleteIntakeId, setDeleteIntakeId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"project" | "powerbi">("project");
+  const showPowerBiTab = currentOrganization?.showPowerBiIntake ?? true;
+  useEffect(() => {
+    if (!showPowerBiTab && activeTab === "powerbi") {
+      setActiveTab("project");
+    }
+  }, [showPowerBiTab, activeTab]);
 
   const { data: intakes, isLoading } = useQuery<ProjectIntake[]>({
     queryKey: ['/api/project-intakes', currentOrganization?.id],
@@ -844,21 +850,24 @@ export default function ProjectIntakes() {
             <Badge variant="secondary" className="text-xs">{intakesList.length}</Badge>
           </div>
         </button>
-        <button
-          className={cn(
-            "px-4 py-2 rounded-lg text-sm font-medium transition-all",
-            activeTab === "powerbi"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          )}
-          onClick={() => setActiveTab("powerbi")}
-        >
-          <div className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Power BI Requests
-            {pbiTotal > 0 && <Badge variant="secondary" className="text-xs">{pbiTotal}</Badge>}
-          </div>
-        </button>
+        {showPowerBiTab && (
+          <button
+            className={cn(
+              "px-4 py-2 rounded-lg text-sm font-medium transition-all",
+              activeTab === "powerbi"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            onClick={() => setActiveTab("powerbi")}
+            data-testid="tab-powerbi-requests"
+          >
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Power BI Requests
+              {pbiTotal > 0 && <Badge variant="secondary" className="text-xs">{pbiTotal}</Badge>}
+            </div>
+          </button>
+        )}
       </div>
 
       {activeTab === "powerbi" ? (

@@ -485,6 +485,7 @@ export const organizations = pgTable("organizations", {
   dashboardTabOrder: text("dashboard_tab_order").array(), // Array of tab IDs defining dashboard report order
   dashboardHiddenTabs: text("dashboard_hidden_tabs").array(), // Array of tab IDs hidden in overflow menu
   billingHidden: boolean("billing_hidden").default(false),
+  showPowerBiIntake: boolean("show_powerbi_intake").default(true).notNull(), // Whether to show the Power BI Requests tab on the Project Intakes page
   riskAssessmentConfig: jsonb("risk_assessment_config").$type<RiskAssessmentConfig>(),
   schedulingDefaults: jsonb("scheduling_defaults").$type<SchedulingDefaults>(),
   timezone: text("timezone").default("UTC"),
