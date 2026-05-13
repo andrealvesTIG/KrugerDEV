@@ -1045,6 +1045,13 @@ export default function ProjectIntakes() {
                         {intake.projectName}
                       </h3>
                       {getStatusBadge(intake.status || "draft")}
+                      <span
+                        className="text-xs text-muted-foreground font-mono"
+                        data-testid={`text-intake-id-${intake.id}`}
+                        title="Intake ID"
+                      >
+                        #{intake.id}
+                      </span>
                       {intake.intakeNumber && (
                         <span className="text-xs text-muted-foreground font-mono">{intake.intakeNumber}</span>
                       )}
