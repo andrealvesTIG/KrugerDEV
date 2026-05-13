@@ -4,6 +4,9 @@ import {
   buildResolvedCalendar,
   withAdditionalNonWorkingWindows,
   enumerateNonWorkingDates,
+  workingHoursBetween,
+  buildResourceAvailabilityWindows,
+  composeResourceEffectiveCalendar,
   type ResolvedCalendar,
 } from "../shared/lib/calendarEngine";
 import {
@@ -329,6 +332,115 @@ describe("Phase 3a: partial-day PTO via withAdditionalNonWorkingWindows + subtra
     // Composed calendar still treats the day as fully non-working.
     const composed = engine.withAdditionalNonWorkingWindows(projCalWithHoliday, windows);
     expect(engine.isWorkingDay(composed, d("2026-03-03"))).toBe(false);
+  });
+
+  it("composeResourceEffectiveCalendar — project precedence + resource overlay + PTO", () => {
+    // Project: Mon–Fri 8h. Resource: Mon–Thu only (no Friday) — restricts.
+    // PTO: 4h on Wed. Pin the horizon explicitly so the test is independent
+    // of the wall-clock — the resource-overlay enumeration only walks within
+    // the supplied horizon.
+    const projCal = defaultLegacyResolvedCalendar();
+    const resourceCal: ResolvedCalendar = buildResolvedCalendar({
+      id: 1, name: "MonThu",
+      shifts: [1,2,3,4].map(dow => ({ dayOfWeek: dow, startMinute: 9 * 60, endMinute: 17 * 60 })),
+      exceptions: [], recurring: [],
+    });
+    // Legacy project = 8–12 + 13–17 (8h with 1h lunch). Resource shift = 9–17.
+    // Per-day intersection = (9–12)+(13–17) = 7h. PTO 4h on Wed consumes from
+    // END of those 7h → keep 9–12 only = 3h.
+    const composed = composeResourceEffectiveCalendar(
+      projCal, resourceCal,
+      [{ startDate: "2026-06-03", endDate: "2026-06-03", hoursPerDay: 4 }],
+      { start: d("2026-06-01"), end: d("2026-06-30") },
+    )!;
+    // Friday 2026-06-05 — project says working, resource says no → composed: non-working.
+    expect(workingHoursBetween(composed, d("2026-06-05"), new Date(2026, 5, 5, 23, 59, 59, 999))).toBe(0);
+    // Wednesday 2026-06-03 — intersection 7h minus 4h PTO = 3h.
+    expect(workingHoursBetween(composed, d("2026-06-03"), new Date(2026, 5, 3, 23, 59, 59, 999))).toBe(3);
+    // Tuesday 2026-06-02 — intersection 7h (no PTO).
+    expect(workingHoursBetween(composed, d("2026-06-02"), new Date(2026, 5, 2, 23, 59, 59, 999))).toBe(7);
+  });
+
+  it("composeResourceEffectiveCalendar — resource intervals INTERSECT project intervals (part-time on full-time project)", () => {
+    // Project legacy: Mon–Fri 8–12 + 13–17 (8h with lunch).
+    // Resource: Mon–Fri 9–13 only (mornings). Intersection per day = 9–12 = 3h.
+    const projCal = defaultLegacyResolvedCalendar();
+    const resourceCal: ResolvedCalendar = buildResolvedCalendar({
+      id: 1, name: "Mornings",
+      shifts: [1,2,3,4,5].map(dow => ({ dayOfWeek: dow, startMinute: 9 * 60, endMinute: 13 * 60 })),
+      exceptions: [], recurring: [],
+    });
+    const composed = composeResourceEffectiveCalendar(
+      projCal, resourceCal, [],
+      { start: d("2026-06-01"), end: d("2026-06-30") },
+    )!;
+    // Tuesday 2026-06-02 — intersection 3h (vs 8h on project alone).
+    expect(workingHoursBetween(composed, d("2026-06-02"), new Date(2026, 5, 2, 23, 59, 59, 999))).toBe(3);
+    // Whole work week 2026-06-01..05 → 5 × 3h = 15h (vs 40h on project alone).
+    expect(workingHoursBetween(composed, d("2026-06-01"), new Date(2026, 5, 5, 23, 59, 59, 999))).toBe(15);
+  });
+
+  it("composeResourceEffectiveCalendar — disjoint project/resource intervals collapse to 0h (full-day non-working)", () => {
+    // Project: legacy Mon–Fri 8–12 + 13–17. Resource: Mon–Fri 18:00–20:00 (evening shift).
+    // Intervals are disjoint → composed day must be 0h, not full project day.
+    const projCal = defaultLegacyResolvedCalendar();
+    const resourceCal: ResolvedCalendar = buildResolvedCalendar({
+      id: 1, name: "Evenings",
+      shifts: [1,2,3,4,5].map(dow => ({ dayOfWeek: dow, startMinute: 18 * 60, endMinute: 20 * 60 })),
+      exceptions: [], recurring: [],
+    });
+    const composed = composeResourceEffectiveCalendar(
+      projCal, resourceCal, [],
+      { start: d("2026-06-01"), end: d("2026-06-30") },
+    )!;
+    // Tuesday 2026-06-02 — disjoint → 0h composed.
+    expect(workingHoursBetween(composed, d("2026-06-02"), new Date(2026, 5, 2, 23, 59, 59, 999))).toBe(0);
+    // Whole work week — 0h.
+    expect(workingHoursBetween(composed, d("2026-06-01"), new Date(2026, 5, 5, 23, 59, 59, 999))).toBe(0);
+  });
+
+  it("composeResourceEffectiveCalendar — far-future task: resource restrictions still apply when horizon is pinned to task range", () => {
+    // Today is 2026-05-13 → engine default horizon ends ~2031-05-13.
+    // Use a date well past that (2033) to prove the caller-supplied horizon
+    // is what enforces resource restrictions for far-future tasks.
+    const projCal = defaultLegacyResolvedCalendar();
+    const resourceCal: ResolvedCalendar = buildResolvedCalendar({
+      id: 1, name: "MonThu",
+      shifts: [1,2,3,4].map(dow => ({ dayOfWeek: dow, startMinute: 9 * 60, endMinute: 17 * 60 })),
+      exceptions: [], recurring: [],
+    });
+    // Default horizon → resource Friday-off NOT enumerated for 2033 → composed treats Friday as 8h.
+    const defaultComposed = composeResourceEffectiveCalendar(projCal, resourceCal, [])!;
+    expect(workingHoursBetween(defaultComposed, d("2033-06-03"), new Date(2033, 5, 3, 23, 59, 59, 999))).toBe(8);
+    // With explicit horizon covering the task → Friday is correctly non-working.
+    const pinnedComposed = composeResourceEffectiveCalendar(
+      projCal, resourceCal, [],
+      { start: d("2033-06-01"), end: d("2033-06-30") },
+    )!;
+    expect(workingHoursBetween(pinnedComposed, d("2033-06-03"), new Date(2033, 5, 3, 23, 59, 59, 999))).toBe(0);
+  });
+
+  it("composeResourceEffectiveCalendar — null calendars + PTO falls back onto legacy", () => {
+    const composed = composeResourceEffectiveCalendar(null, null, [
+      { startDate: "2026-03-04", endDate: "2026-03-04", hoursPerDay: 2 },
+    ])!;
+    expect(composed).not.toBeNull();
+    // Legacy (Mon–Fri 8h) minus 2h PTO → 6h.
+    expect(workingHoursBetween(composed, d("2026-03-04"), new Date(2026, 2, 4, 23, 59, 59, 999))).toBe(6);
+  });
+
+  it("composeResourceEffectiveCalendar — no calendars and no PTO returns null", () => {
+    expect(composeResourceEffectiveCalendar(null, null, [])).toBeNull();
+  });
+
+  it("buildResourceAvailabilityWindows — non-approved rows are dropped", () => {
+    const windows = buildResourceAvailabilityWindows(defaultLegacyResolvedCalendar(), [
+      { startDate: "2026-03-04", endDate: "2026-03-04", hoursPerDay: 4, status: "pending" },
+      { startDate: "2026-03-05", endDate: "2026-03-05", hoursPerDay: 4, status: "approved" },
+      { startDate: "2026-03-06", endDate: "2026-03-06", hoursPerDay: 4 }, // status defaults to approved
+    ]);
+    // Only the approved + default-approved rows produce windows.
+    expect(windows.map(w => w.startDate).sort()).toEqual(["2026-03-05", "2026-03-06"]);
   });
 
   it("multi-day partial-day PTO is expanded per-date with each day's residual", async () => {

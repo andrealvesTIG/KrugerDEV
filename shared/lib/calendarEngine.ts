@@ -478,6 +478,180 @@ export function withAdditionalNonWorkingWindows(
   };
 }
 
+// ---- Resource availability folding (PTO / partial-day) ------------------
+
+/**
+ * Local YYYY-MM-DD formatter that avoids the toISOString() timezone shift
+ * (which would bump dates by one day in non-UTC server zones).
+ */
+function _localYmdEng(d: Date): string {
+  const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+function _toYmdEng(v: any): string {
+  return typeof v === "string" ? v.slice(0, 10) : _localYmdEng(new Date(v));
+}
+function _parseYmdEng(s: string): Date {
+  const [y, m, d] = s.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/**
+ * Minimal shape needed to fold a resource_availability row into the calendar
+ * engine. Status defaults to "approved" when missing; only approved rows
+ * count. Rows with `hoursPerDay` set are treated as partial-day (residual
+ * working time emitted via `intervals`); rows without `hoursPerDay` are
+ * full-day off.
+ */
+export type ResourceAvailabilityWindowInput = {
+  startDate: string | Date;
+  endDate: string | Date;
+  hoursPerDay?: string | number | null;
+  status?: string | null;
+};
+
+/**
+ * Build PTO windows from raw resource_availability rows, intersecting
+ * partial-day intervals against `baseCal` so partial PTO can never reopen a
+ * day the base calendar (project precedence + resource overlay) considers
+ * non-working.
+ */
+export function buildResourceAvailabilityWindows(
+  baseCal: ResolvedCalendar | null,
+  rows: ResourceAvailabilityWindowInput[],
+): NonWorkingWindow[] {
+  const approved = rows.filter(r => (r.status ?? "approved") === "approved");
+  return approved.flatMap((r): NonWorkingWindow[] => {
+    const startStr = _toYmdEng(r.startDate);
+    const endStr = _toYmdEng(r.endDate);
+    const hpd = r.hoursPerDay != null ? Number(r.hoursPerDay) : null;
+    if (hpd == null || !isFinite(hpd) || hpd <= 0) {
+      return [{ startDate: startStr, endDate: endStr }];
+    }
+    const lookupCal = baseCal ?? defaultLegacyResolvedCalendar();
+    const out: NonWorkingWindow[] = [];
+    const start = _parseYmdEng(startStr);
+    const end = _parseYmdEng(endStr);
+    for (let cur = new Date(start); cur <= end; cur.setDate(cur.getDate() + 1)) {
+      const dayIntervals = getWorkingIntervalsForDate(lookupCal, cur);
+      if (!dayIntervals.length) continue;
+      const residual = subtractPtoFromIntervals(dayIntervals, hpd);
+      const ymd = _localYmdEng(cur);
+      out.push({ startDate: ymd, endDate: ymd, intervals: residual.length ? residual : null });
+    }
+    return out;
+  });
+}
+
+/**
+ * Compose the effective ResolvedCalendar for a resource working on a project,
+ * applying the documented precedence rule: project calendar wins; resource
+ * calendar restricts only; resource_availability (PTO) layered on top.
+ *
+ * Returns null only when there is no project calendar, no resource calendar,
+ * AND no PTO. When PTO exists with no calendars, falls back onto the legacy
+ * default so PTO is still honoured.
+ */
+/**
+ * Intersect two sorted, non-overlapping interval lists (minute-precision).
+ * Returns the time both lists agree is "working".
+ */
+function _intersectIntervals(a: CalendarInterval[], b: CalendarInterval[]): CalendarInterval[] {
+  const out: CalendarInterval[] = [];
+  let i = 0, j = 0;
+  while (i < a.length && j < b.length) {
+    const s = Math.max(a[i].startMinute, b[j].startMinute);
+    const e = Math.min(a[i].endMinute, b[j].endMinute);
+    if (s < e) out.push({ startMinute: s, endMinute: e });
+    if (a[i].endMinute < b[j].endMinute) i++; else j++;
+  }
+  return out;
+}
+
+function _intervalsEqual(a: CalendarInterval[], b: CalendarInterval[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let k = 0; k < a.length; k++) {
+    if (a[k].startMinute !== b[k].startMinute || a[k].endMinute !== b[k].endMinute) return false;
+  }
+  return true;
+}
+
+/**
+ * Walk every working day in `[from, to]` for `projCal` and, when `resourceCal`'s
+ * intervals for that day are stricter (a proper subset of project intervals),
+ * emit a partial-day NonWorkingWindow with the intersected residual. Days the
+ * resource is fully off are NOT emitted here — `enumerateNonWorkingDates` is
+ * still the right primitive for that and is handled by the caller.
+ *
+ * This is what enforces "resource calendar restricts only" at minute precision
+ * (e.g. a part-time resource on a 5-day project gets per-day capacity equal to
+ * the project∩resource intersection, not the full project day).
+ */
+export function enumerateResourceIntervalRestrictions(
+  projCal: ResolvedCalendar,
+  resourceCal: ResolvedCalendar,
+  from: Date,
+  to: Date,
+): NonWorkingWindow[] {
+  const out: NonWorkingWindow[] = [];
+  let cur = startOfDay(from);
+  const end = startOfDay(to);
+  for (let safety = 0; safety < 366 * 20; safety++) {
+    if (cur > end) break;
+    const proj = getWorkingIntervalsForDate(projCal, cur);
+    if (proj.length) {
+      const res = getWorkingIntervalsForDate(resourceCal, cur);
+      if (res.length) {
+        const inter = _intersectIntervals(proj, res);
+        if (!_intervalsEqual(inter, proj)) {
+          const s = ymd(cur);
+          if (inter.length) {
+            out.push({ startDate: s, endDate: s, intervals: inter });
+          } else {
+            // Disjoint intervals (e.g. project 08–17, resource 18–20):
+            // resource is "working" on its own calendar so enumerateNonWorkingDates
+            // won't catch this — emit a full-day non-working window so the
+            // composed day is correctly 0h.
+            out.push({ startDate: s, endDate: s, intervals: null });
+          }
+        }
+      }
+    }
+    cur = addDays(cur, 1);
+  }
+  return out;
+}
+
+export function composeResourceEffectiveCalendar(
+  projCal: ResolvedCalendar | null,
+  resourceCal: ResolvedCalendar | null,
+  availabilityRows: ResourceAvailabilityWindowInput[],
+  horizon?: { start: Date; end: Date },
+): ResolvedCalendar | null {
+  if (projCal && resourceCal) {
+    const horizonStart = horizon?.start ?? (() => { const d = new Date(); d.setDate(d.getDate() - 30); return d; })();
+    const horizonEnd = horizon?.end ?? (() => { const d = new Date(); d.setFullYear(d.getFullYear() + 5); return d; })();
+    // Resource fully-off days → full-day non-working overlay.
+    const fullDayOverlay = enumerateNonWorkingDates(resourceCal, horizonStart, horizonEnd);
+    // Resource partial-day restrictions → emit residual intervals so per-day
+    // working hours == project ∩ resource (e.g. 4h/day part-time on an 8h project).
+    const intervalOverlay = enumerateResourceIntervalRestrictions(projCal, resourceCal, horizonStart, horizonEnd);
+    const composedForLookup = withAdditionalNonWorkingWindows(projCal, [...fullDayOverlay, ...intervalOverlay]);
+    const ptoWindows = buildResourceAvailabilityWindows(composedForLookup, availabilityRows);
+    // PTO must win over interval-restriction overlays for the same date — the
+    // engine picks the FIRST matching exception, and PTO already consumed the
+    // resource's restricted intervals when it was built (via composedForLookup).
+    return withAdditionalNonWorkingWindows(projCal, [...ptoWindows, ...fullDayOverlay, ...intervalOverlay]);
+  }
+  const baseCal = projCal ?? resourceCal;
+  const ptoWindows = buildResourceAvailabilityWindows(baseCal, availabilityRows);
+  if (baseCal) {
+    return ptoWindows.length ? withAdditionalNonWorkingWindows(baseCal, ptoWindows) : baseCal;
+  }
+  if (ptoWindows.length) return withAdditionalNonWorkingWindows(defaultLegacyResolvedCalendar(), ptoWindows);
+  return null;
+}
+
 /**
  * Subtract `ptoHours` of working time from the END of a day's working
  * intervals and return the residual intervals the resource is still

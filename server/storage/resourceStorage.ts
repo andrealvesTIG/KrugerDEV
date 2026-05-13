@@ -461,7 +461,7 @@ export async function updateTaskResourceAssignments(taskId: number, resourceIds:
       return;
     }
     
-    let durationDays = task.durationDays;
+    let durationDays = task.durationDays != null ? Number(task.durationDays) : null;
     if (durationDays == null && task.startDate && task.endDate) {
       const start = new Date(task.startDate);
       const end = new Date(task.endDate);
@@ -469,28 +469,67 @@ export async function updateTaskResourceAssignments(taskId: number, resourceIds:
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
       durationDays = diffDays + 1;
     }
-    
-    if (durationDays == null || durationDays <= 0) {
+
+    if ((durationDays == null || durationDays <= 0) && !(task.startDate && task.endDate)) {
       await tx.update(tasks)
         .set({ estimatedHours: null })
         .where(eq(tasks.id, taskId));
       return;
     }
-    
+
     const assignedResources = await tx.select()
       .from(resources)
       .where(inArray(resources.id, resourceIds));
-    
+
+    // Phase 3a Slice 2: estimated hours are calendar-aware. When the task has
+    // both start AND end dates, we ask the calendar engine how many working
+    // hours each resource actually has in that range — honouring project
+    // holidays, the resource's working week, and (partial-day) PTO via the
+    // shared `composeResourceEffectiveCalendar` helper. If only durationDays
+    // is set (no concrete dates), we fall back to the legacy
+    // weeklyCapacity/5 × durationDays math since we have no calendar window
+    // to query.
+    const calStorage = await import("./calendarStorage");
+    const projCal = await calStorage.getResolvedCalendarForProject(task.projectId);
+    const haveDates = !!(task.startDate && task.endDate);
+    let rangeStart: Date | null = null;
+    let rangeEnd: Date | null = null;
+    if (haveDates) {
+      const [sy, sm, sd] = String(task.startDate).slice(0, 10).split("-").map(Number);
+      const [ey, em, ed] = String(task.endDate).slice(0, 10).split("-").map(Number);
+      rangeStart = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
+      rangeEnd = new Date(ey, em - 1, ed, 23, 59, 59, 999);
+    }
+
     let totalEstimatedHours = 0;
     for (const resource of assignedResources) {
       const assignment = assignmentData.find(a => a.resourceId === resource.id);
       const allocationPct = assignment?.allocationPercentage ?? 100;
-      const weeklyCapacity = Number(resource.weeklyCapacity ?? 40);
-      const dailyCapacity = weeklyCapacity / 5;
-      const resourceHours = (allocationPct / 100) * dailyCapacity * durationDays;
-      totalEstimatedHours += resourceHours;
+      let perResourceHours: number;
+      if (haveDates) {
+        const resourceCal = resource.calendarId
+          ? await calStorage.loadResolvedCalendar(resource.calendarId)
+          : null;
+        const availabilityRows = await getResourceAvailability(resource.id);
+        // Pin the compose horizon to the task's date range so resource-calendar
+        // restrictions (incl. far-future tasks) are always enumerated. Without
+        // this the engine's default horizon (today-30d → today+5y) would silently
+        // skip restrictions for tasks scheduled beyond +5y.
+        const composed = calStorage.composeResourceEffectiveCalendar(
+          projCal, resourceCal, availabilityRows,
+          { start: rangeStart!, end: rangeEnd! },
+        ) ?? (await import("@shared/lib/calendarEngine")).defaultLegacyResolvedCalendar();
+        const engine = await import("@shared/lib/calendarEngine");
+        const workingHours = engine.workingHoursBetween(composed, rangeStart!, rangeEnd!);
+        perResourceHours = (allocationPct / 100) * workingHours;
+      } else {
+        const weeklyCapacity = Number(resource.weeklyCapacity ?? 40);
+        const dailyCapacity = weeklyCapacity / 5;
+        perResourceHours = (allocationPct / 100) * dailyCapacity * (durationDays ?? 0);
+      }
+      totalEstimatedHours += perResourceHours;
     }
-    
+
     await tx.update(tasks)
       .set({ estimatedHours: Math.round(totalEstimatedHours * 100) / 100 })
       .where(eq(tasks.id, taskId));

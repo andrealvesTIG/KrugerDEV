@@ -23,6 +23,14 @@ import {
   defaultStandardWorkingWeek,
   type ResolvedCalendar,
 } from "@shared/lib/calendarEngine";
+
+// Re-export the pure compose helpers from the engine so existing
+// callers / tests can import them either via @shared or via storage.
+export {
+  buildResourceAvailabilityWindows,
+  composeResourceEffectiveCalendar,
+  type ResourceAvailabilityWindowInput,
+} from "@shared/lib/calendarEngine";
 import { and, eq, isNull } from "drizzle-orm";
 
 /**

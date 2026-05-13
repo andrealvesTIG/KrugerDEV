@@ -1,6 +1,11 @@
 import OpenAI from "openai";
 import { storage } from "../storage";
 import { withAiCredits } from "./aiCredits";
+import {
+  composeResourceEffectiveCalendar,
+  workingHoursBetween,
+  defaultLegacyResolvedCalendar,
+} from "@shared/lib/calendarEngine";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -65,7 +70,17 @@ export async function generateResourceOptimization(
   const projectMap = new Map(activeProjects.map(p => [p.id, p]));
   const taskMap = new Map(orgTasks.map(t => [t.id, t]));
 
-  const resourceSummaries = activeResources.map(r => {
+  // Phase 3a Slice 2: also report effective working hours for each resource
+  // over the next 30 days, computed via the calendar engine using their
+  // resource calendar + approved PTO. Gives the AI a much more accurate
+  // signal than the static `weeklyCapacity || 40` heuristic.
+  const horizonStart = new Date();
+  horizonStart.setHours(0, 0, 0, 0);
+  const horizonEnd = new Date(horizonStart);
+  horizonEnd.setDate(horizonEnd.getDate() + 30);
+  horizonEnd.setHours(23, 59, 59, 999);
+
+  const resourceSummaries = await Promise.all(activeResources.map(async r => {
     const assignments = allAssignments.filter(a => a.resourceId === r.id);
     const totalAllocation = assignments.reduce((sum, a) => sum + (a.allocationPercentage || 100), 0);
     const taskDetails = assignments.map(a => {
@@ -84,11 +99,19 @@ export async function generateResourceOptimization(
 
     const leaveEntries = availability.filter(a => a.resourceId === r.id);
 
+    const resourceCal = r.calendarId ? await storage.loadResolvedCalendar(r.calendarId) : null;
+    const composed = composeResourceEffectiveCalendar(null, resourceCal, leaveEntries as any)
+      ?? defaultLegacyResolvedCalendar();
+    const effectiveHoursNext30Days = Math.round(
+      workingHoursBetween(composed, horizonStart, horizonEnd) * 100
+    ) / 100;
+
     return {
       name: r.displayName,
       title: r.title || "N/A",
       department: r.department || "N/A",
       weeklyCapacity: r.weeklyCapacity || 40,
+      effectiveHoursNext30Days,
       hourlyRate: r.hourlyRate ? Number(r.hourlyRate) : null,
       totalAllocationPercent: totalAllocation,
       assignmentCount: taskDetails.length,
@@ -96,7 +119,7 @@ export async function generateResourceOptimization(
       plannedLeave: leaveEntries.length,
       skills: r.skills || [],
     };
-  });
+  }));
 
   const projectSummaries = activeProjects.map(p => {
     const projectTasks = orgTasks.filter(t => t.projectId === p.id);
