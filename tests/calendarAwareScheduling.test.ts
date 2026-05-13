@@ -380,6 +380,130 @@ describe("Phase 3a: partial-day PTO via withAdditionalNonWorkingWindows + subtra
     expect(workingHoursBetween(composed, d("2026-06-01"), new Date(2026, 5, 5, 23, 59, 59, 999))).toBe(15);
   });
 
+  it("composeResourceEffectiveCalendar — PTO precedence is preserved (PTO wins over interval restriction on same date)", async () => {
+    // Project legacy 8–12 + 13–17 (8h). Resource 9–17 (intersection per-day = 7h).
+    // PTO: 4h on Wed → end-of-day-PTO leaves 9–12 only = 3h. This test pins
+    // the ordering invariant so a future refactor of the exception list can't
+    // silently regress PTO precedence (engine picks the FIRST matching exception).
+    const projCal = defaultLegacyResolvedCalendar();
+    const resourceCal: ResolvedCalendar = buildResolvedCalendar({
+      id: 1, name: "9-17",
+      shifts: [1,2,3,4,5].map(dow => ({ dayOfWeek: dow, startMinute: 9 * 60, endMinute: 17 * 60 })),
+      exceptions: [], recurring: [],
+    });
+    const composed = composeResourceEffectiveCalendar(
+      projCal, resourceCal,
+      [{ startDate: "2026-06-03", endDate: "2026-06-03", hoursPerDay: 4 }],
+      { start: d("2026-06-01"), end: d("2026-06-30") },
+    )!;
+    // The first exception matching 2026-06-03 must be the PTO one (3h),
+    // not the interval-restriction overlay (7h). Verifies via observed hours.
+    expect(workingHoursBetween(composed, d("2026-06-03"), new Date(2026, 5, 3, 23, 59, 59, 999))).toBe(3);
+    // And on a date with NO PTO, the interval restriction still applies → 7h.
+    expect(workingHoursBetween(composed, d("2026-06-02"), new Date(2026, 5, 2, 23, 59, 59, 999))).toBe(7);
+  });
+
+  it("estimateTaskAssignmentHours — calendar-aware path uses composed working hours (not weeklyCapacity/5)", async () => {
+    const { estimateTaskAssignmentHours } = await import("../shared/lib/assignmentEstimation");
+    const projCal = defaultLegacyResolvedCalendar(); // 8h/day
+    const partTimeCal: ResolvedCalendar = buildResolvedCalendar({
+      id: 99, name: "Mornings",
+      shifts: [1,2,3,4,5].map(dow => ({ dayOfWeek: dow, startMinute: 9 * 60, endMinute: 13 * 60 })),
+      exceptions: [], recurring: [],
+    });
+    // 5-working-day Mon–Fri task, single 100% allocation, part-time resource.
+    // Calendar-aware: project ∩ resource per-day = 9–12 = 3h × 5 = 15h.
+    // Legacy weeklyCapacity/5 would have produced (40/5) × 5 = 40h.
+    const total = await estimateTaskAssignmentHours({
+      projCal,
+      resources: [{ id: 1, calendarId: 99, weeklyCapacity: 40 }],
+      allocations: [{ resourceId: 1, allocationPercentage: 100 }],
+      rangeStart: d("2026-06-01"),
+      rangeEnd: new Date(2026, 5, 5, 23, 59, 59, 999),
+      durationDays: 5,
+      loadResourceCalendar: async () => partTimeCal,
+      loadResourceAvailability: async () => [],
+    });
+    expect(total).toBe(15);
+    expect(total).not.toBe(40); // explicit regression guard against legacy formula
+  });
+
+  it("estimateTaskAssignmentHours — PTO subtracts from calendar-aware total", async () => {
+    const { estimateTaskAssignmentHours } = await import("../shared/lib/assignmentEstimation");
+    const projCal = defaultLegacyResolvedCalendar(); // 8h/day
+    // Same Mon–Fri week, full-time resource, PTO 4h on Wed → 8+8+4+8+8 = 36h, 50% alloc → 18h.
+    const total = await estimateTaskAssignmentHours({
+      projCal,
+      resources: [{ id: 1, calendarId: null, weeklyCapacity: 40 }],
+      allocations: [{ resourceId: 1, allocationPercentage: 50 }],
+      rangeStart: d("2026-06-01"),
+      rangeEnd: new Date(2026, 5, 5, 23, 59, 59, 999),
+      durationDays: 5,
+      loadResourceCalendar: async () => null,
+      loadResourceAvailability: async () => [
+        { startDate: "2026-06-03", endDate: "2026-06-03", hoursPerDay: 4 },
+      ],
+    });
+    expect(total).toBe(18);
+  });
+
+  it("estimateTaskAssignmentHours — forwards horizon pin so far-future tasks (beyond engine default +5y) still see resource restrictions", async () => {
+    const { estimateTaskAssignmentHours } = await import("../shared/lib/assignmentEstimation");
+    // Task scheduled +10y from today — well beyond the engine's default
+    // today-30d → today+5y horizon. Without horizon forwarding the resource
+    // interval restriction would not be enumerated and the helper would
+    // return the unrestricted project hours (40h) instead of the restricted
+    // intersection (15h). This test would FAIL if the helper dropped the
+    // `{ start, end }` arg to composeResourceEffectiveCalendar.
+    const farStart = new Date(2036, 5, 2, 0, 0, 0, 0);    // 2036-06-02 (Mon)
+    const farEnd = new Date(2036, 5, 6, 23, 59, 59, 999); // 2036-06-06 (Fri)
+    const partTimeCal: ResolvedCalendar = buildResolvedCalendar({
+      id: 99, name: "Mornings",
+      shifts: [1,2,3,4,5].map(dow => ({ dayOfWeek: dow, startMinute: 9 * 60, endMinute: 12 * 60 })),
+      exceptions: [], recurring: [],
+    });
+    const total = await estimateTaskAssignmentHours({
+      projCal: defaultLegacyResolvedCalendar(),
+      resources: [{ id: 1, calendarId: 99, weeklyCapacity: 40 }],
+      allocations: [{ resourceId: 1, allocationPercentage: 100 }],
+      rangeStart: farStart,
+      rangeEnd: farEnd,
+      durationDays: 5,
+      loadResourceCalendar: async () => partTimeCal,
+      loadResourceAvailability: async () => [],
+    });
+    expect(total).toBe(15); // restricted: 9–12 ∩ 8–12 = 3h × 5 days
+    expect(total).not.toBe(40); // unrestricted-project regression guard
+  });
+
+  it("estimateTaskAssignmentHours — falls back to legacy weeklyCapacity/5 × durationDays when no dates", async () => {
+    const { estimateTaskAssignmentHours } = await import("../shared/lib/assignmentEstimation");
+    // No dates, only durationDays → legacy: (40/5) × 10 × 100% = 80h, plus a
+    // second resource with 50% alloc and 25h/wk capacity → (25/5) × 10 × 0.5 = 25h.
+    let resourceCalLoaded = false;
+    let availabilityLoaded = false;
+    const total = await estimateTaskAssignmentHours({
+      projCal: defaultLegacyResolvedCalendar(),
+      resources: [
+        { id: 1, calendarId: null, weeklyCapacity: 40 },
+        { id: 2, calendarId: 5, weeklyCapacity: 25 },
+      ],
+      allocations: [
+        { resourceId: 1, allocationPercentage: 100 },
+        { resourceId: 2, allocationPercentage: 50 },
+      ],
+      rangeStart: null,
+      rangeEnd: null,
+      durationDays: 10,
+      loadResourceCalendar: async () => { resourceCalLoaded = true; return null; },
+      loadResourceAvailability: async () => { availabilityLoaded = true; return []; },
+    });
+    expect(total).toBe(105);
+    // Legacy fallback must NOT touch the calendar/PTO loaders (no dates → nothing to compute against).
+    expect(resourceCalLoaded).toBe(false);
+    expect(availabilityLoaded).toBe(false);
+  });
+
   it("composeResourceEffectiveCalendar — disjoint project/resource intervals collapse to 0h (full-day non-working)", () => {
     // Project: legacy Mon–Fri 8–12 + 13–17. Resource: Mon–Fri 18:00–20:00 (evening shift).
     // Intervals are disjoint → composed day must be 0h, not full project day.

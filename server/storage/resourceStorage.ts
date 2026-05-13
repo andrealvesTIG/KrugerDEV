@@ -481,15 +481,13 @@ export async function updateTaskResourceAssignments(taskId: number, resourceIds:
       .from(resources)
       .where(inArray(resources.id, resourceIds));
 
-    // Phase 3a Slice 2: estimated hours are calendar-aware. When the task has
-    // both start AND end dates, we ask the calendar engine how many working
-    // hours each resource actually has in that range — honouring project
-    // holidays, the resource's working week, and (partial-day) PTO via the
-    // shared `composeResourceEffectiveCalendar` helper. If only durationDays
-    // is set (no concrete dates), we fall back to the legacy
-    // weeklyCapacity/5 × durationDays math since we have no calendar window
-    // to query.
+    // Phase 3a Slice 2: estimated hours are calendar-aware. The actual
+    // estimation logic is the pure `estimateTaskAssignmentHours` helper in
+    // `shared/lib/assignmentEstimation.ts` (unit-testable without DB stack);
+    // here we just resolve the project calendar + dates and inject the
+    // per-resource calendar / availability loaders.
     const calStorage = await import("./calendarStorage");
+    const { estimateTaskAssignmentHours } = await import("@shared/lib/assignmentEstimation");
     const projCal = await calStorage.getResolvedCalendarForProject(task.projectId);
     const haveDates = !!(task.startDate && task.endDate);
     let rangeStart: Date | null = null;
@@ -501,37 +499,23 @@ export async function updateTaskResourceAssignments(taskId: number, resourceIds:
       rangeEnd = new Date(ey, em - 1, ed, 23, 59, 59, 999);
     }
 
-    let totalEstimatedHours = 0;
-    for (const resource of assignedResources) {
-      const assignment = assignmentData.find(a => a.resourceId === resource.id);
-      const allocationPct = assignment?.allocationPercentage ?? 100;
-      let perResourceHours: number;
-      if (haveDates) {
-        const resourceCal = resource.calendarId
-          ? await calStorage.loadResolvedCalendar(resource.calendarId)
-          : null;
-        const availabilityRows = await getResourceAvailability(resource.id);
-        // Pin the compose horizon to the task's date range so resource-calendar
-        // restrictions (incl. far-future tasks) are always enumerated. Without
-        // this the engine's default horizon (today-30d → today+5y) would silently
-        // skip restrictions for tasks scheduled beyond +5y.
-        const composed = calStorage.composeResourceEffectiveCalendar(
-          projCal, resourceCal, availabilityRows,
-          { start: rangeStart!, end: rangeEnd! },
-        ) ?? (await import("@shared/lib/calendarEngine")).defaultLegacyResolvedCalendar();
-        const engine = await import("@shared/lib/calendarEngine");
-        const workingHours = engine.workingHoursBetween(composed, rangeStart!, rangeEnd!);
-        perResourceHours = (allocationPct / 100) * workingHours;
-      } else {
-        const weeklyCapacity = Number(resource.weeklyCapacity ?? 40);
-        const dailyCapacity = weeklyCapacity / 5;
-        perResourceHours = (allocationPct / 100) * dailyCapacity * (durationDays ?? 0);
-      }
-      totalEstimatedHours += perResourceHours;
-    }
+    const totalEstimatedHours = await estimateTaskAssignmentHours({
+      projCal,
+      resources: assignedResources.map(r => ({
+        id: r.id,
+        calendarId: r.calendarId ?? null,
+        weeklyCapacity: r.weeklyCapacity != null ? Number(r.weeklyCapacity) : null,
+      })),
+      allocations: assignmentData.map(a => ({ resourceId: a.resourceId, allocationPercentage: a.allocationPercentage })),
+      rangeStart,
+      rangeEnd,
+      durationDays,
+      loadResourceCalendar: (id) => calStorage.loadResolvedCalendar(id),
+      loadResourceAvailability: (id) => getResourceAvailability(id) as any,
+    });
 
     await tx.update(tasks)
-      .set({ estimatedHours: Math.round(totalEstimatedHours * 100) / 100 })
+      .set({ estimatedHours: totalEstimatedHours })
       .where(eq(tasks.id, taskId));
   });
 }
