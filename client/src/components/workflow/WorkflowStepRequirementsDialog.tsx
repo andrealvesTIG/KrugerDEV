@@ -307,7 +307,7 @@ export function WorkflowStepRequirementsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" data-testid="workflow-step-dialog">
+      <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto" data-testid="workflow-step-dialog">
         <DialogHeader>
           <DialogTitle>{step.label}</DialogTitle>
           {step.description && <DialogDescription>{step.description}</DialogDescription>}
@@ -351,7 +351,7 @@ export function WorkflowStepRequirementsDialog({
           </div>
         )}
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="gap-2 flex-wrap">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving} data-testid="wsd-button-cancel">
             Close
           </Button>
@@ -366,10 +366,11 @@ export function WorkflowStepRequirementsDialog({
               onClick={handleSaveAndAdvance}
               disabled={isSaving || !canAdvance}
               data-testid="wsd-button-advance"
-              title={!canAdvance && validationErrors.length > 0 ? "Complete required fields first" : undefined}
+              title={!canAdvance && validationErrors.length > 0 ? "Complete required fields first" : `Save & Advance to ${nextStep.label}`}
+              className="whitespace-normal text-left h-auto py-2 min-w-0 max-w-full"
             >
-              {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-              Save &amp; Advance to {nextStep.label}
+              {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-1 shrink-0" />}
+              <span className="truncate">Save &amp; Advance to {nextStep.label}</span>
             </Button>
           )}
         </DialogFooter>
