@@ -338,14 +338,23 @@ export function registerIntakeRoutes(app: Express) {
                 const trimmed = (raw ?? '').toString().trim();
                 const isEmpty = trimmed.length === 0
                   || (def.fieldType === 'checkbox' && trimmed !== 'true')
-                  || (def.fieldType === 'multiselect' && (trimmed === '[]' || trimmed === 'null'));
+                  || (def.fieldType === 'multiselect' && (trimmed === '[]' || trimmed === 'null'))
+                  || (def.fieldType === 'number' && Number(trimmed) <= 0);
                 if (isEmpty) errors.push(`${prefix}${label} is required`);
                 continue;
               }
               const v = merged[field];
-              if (typeof v === 'string' && !v.trim()) errors.push(`${prefix}${field} is required`);
+              // Numeric DB columns (e.g. estimatedBudget, itCostEstimate) are
+              // returned as strings by Drizzle and default to "0" — treat
+              // string "0" as empty for required gates.
+              const numericFields = new Set([
+                'estimatedBudget', 'capitalExpense', 'operatingExpense',
+                'itCostEstimate', 'expectedBenefits',
+              ]);
+              if (v === null || v === undefined) errors.push(`${prefix}${field} is required`);
+              else if (typeof v === 'string' && !v.trim()) errors.push(`${prefix}${field} is required`);
               else if (typeof v === 'number' && v <= 0) errors.push(`${prefix}${field} is required`);
-              else if (v === null || v === undefined) errors.push(`${prefix}${field} is required`);
+              else if (numericFields.has(field) && typeof v === 'string' && Number(v) <= 0) errors.push(`${prefix}${field} is required`);
             }
           }
           if (errors.length > 0) {

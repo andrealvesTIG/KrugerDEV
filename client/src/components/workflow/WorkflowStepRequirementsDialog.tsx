@@ -24,6 +24,7 @@ import { useIntakeTabLayout } from "@/hooks/use-intake-tab-layout";
 import { useIntakeGovernanceQuestions } from "@/hooks/use-intake-governance-questions";
 import { AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
 import { PROJECT_FORM_FIELD_BY_KEY, type ProjectFieldDefinition } from "@shared/projectFormRegistry";
+import { INTAKE_FIELD_BY_KEY } from "@shared/intakeFormRegistry";
 import type { CustomFieldDefinition } from "@shared/schema";
 
 export type WorkflowEntityType = "intake" | "project";
@@ -66,6 +67,14 @@ interface FieldDescriptor {
 
 function builtinIntakeField(key: string) {
   return AVAILABLE_INTAKE_FIELDS.find(f => f.key === key);
+}
+
+// Returns true if the given built-in intake/project field key is numeric. Used
+// to detect Drizzle-string "0" values that should count as empty for required
+// gates. Source of truth: the form registries' `inputType` metadata.
+function isNumericBuiltinField(entityType: WorkflowEntityType, key: string): boolean {
+  if (entityType === 'project') return PROJECT_FORM_FIELD_BY_KEY[key]?.inputType === 'number';
+  return INTAKE_FIELD_BY_KEY[key]?.inputType === 'number';
 }
 
 function getEntityEndpoint(t: WorkflowEntityType, id: number) {
@@ -180,12 +189,15 @@ export function WorkflowStepRequirementsDialog({
         const ft = f.customDef?.fieldType;
         const empty = trimmed.length === 0
           || (ft === 'checkbox' && trimmed !== 'true')
-          || (ft === 'multiselect' && (trimmed === '[]' || trimmed === 'null'));
+          || (ft === 'multiselect' && (trimmed === '[]' || trimmed === 'null'))
+          || (ft === 'number' && Number(trimmed) <= 0);
         if (empty) errs.push(`${f.label} is required`);
       } else {
+        const isNumberField = isNumericBuiltinField(entityType, f.key);
         if (v == null) { errs.push(`${f.label} is required`); continue; }
         if (typeof v === 'string' && !v.trim()) errs.push(`${f.label} is required`);
         else if (typeof v === 'number' && v <= 0) errs.push(`${f.label} is required`);
+        else if (isNumberField && typeof v === 'string' && Number(v) <= 0) errs.push(`${f.label} is required`);
       }
     }
     return errs;
@@ -226,7 +238,8 @@ export function WorkflowStepRequirementsDialog({
             const ft = def.fieldType;
             const empty = trimmed.length === 0
               || (ft === 'checkbox' && trimmed !== 'true')
-              || (ft === 'multiselect' && (trimmed === '[]' || trimmed === 'null'));
+              || (ft === 'multiselect' && (trimmed === '[]' || trimmed === 'null'))
+              || (ft === 'number' && Number(trimmed) <= 0);
             if (empty) {
               errs.push(`${item.displayName || def.name} is required (${tab.label})`);
             }
@@ -245,7 +258,11 @@ export function WorkflowStepRequirementsDialog({
           if (stepKeys.has(key) || seen.has(key)) continue;
           seen.add(key);
           const v = (entity as any)[key];
-          const empty = v == null || (typeof v === 'string' && !v.trim());
+          const isNumberField = isNumericBuiltinField(entityType, key);
+          const empty = v == null
+            || (typeof v === 'string' && !v.trim())
+            || (typeof v === 'number' && v <= 0)
+            || (isNumberField && typeof v === 'string' && Number(v) <= 0);
           if (empty) {
             const label = item.displayName
               || (entityType === 'project' ? PROJECT_FORM_FIELD_BY_KEY[key]?.label : builtinIntakeField(key)?.label)

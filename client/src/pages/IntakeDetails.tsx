@@ -6,6 +6,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useOrganization } from "@/hooks/use-organization";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useIntakeWorkflow, AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
+import { INTAKE_FIELD_BY_KEY } from "@shared/intakeFormRegistry";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIntakeTabLayout } from "@/hooks/use-intake-tab-layout";
 import { IntakeFormRenderer, type IntakeFormRendererContext } from "@/components/intake/IntakeFormRenderer";
@@ -403,7 +404,8 @@ export default function IntakeDetails() {
         const trimmed = (cfValue ?? '').toString().trim();
         const isEmpty = trimmed.length === 0
           || (def.fieldType === 'checkbox' && trimmed !== 'true')
-          || (def.fieldType === 'multiselect' && (trimmed === '[]' || trimmed === 'null'));
+          || (def.fieldType === 'multiselect' && (trimmed === '[]' || trimmed === 'null'))
+          || (def.fieldType === 'number' && Number(trimmed) <= 0);
         if (isEmpty) {
           errors.push(`${label} is required`);
         }
@@ -412,13 +414,17 @@ export default function IntakeDetails() {
       const value = currentData[field as keyof typeof currentData];
       const fieldInfo = AVAILABLE_INTAKE_FIELDS.find(f => f.key === field);
       const fieldLabel = fieldInfo?.label || field;
-      
-      // Check for empty values based on field type
-      if (typeof value === 'string' && !value.trim()) {
+      const isNumberField = INTAKE_FIELD_BY_KEY[field]?.inputType === 'number';
+
+      // Check for empty values based on field type. Numeric DB columns
+      // (e.g. estimatedBudget) come back as strings — treat string "0" as empty.
+      if (value === null || value === undefined) {
+        errors.push(`${fieldLabel} is required`);
+      } else if (typeof value === 'string' && !value.trim()) {
         errors.push(`${fieldLabel} is required`);
       } else if (typeof value === 'number' && value <= 0) {
         errors.push(`${fieldLabel} is required`);
-      } else if (value === null || value === undefined) {
+      } else if (isNumberField && typeof value === 'string' && Number(value) <= 0) {
         errors.push(`${fieldLabel} is required`);
       }
     }
@@ -448,7 +454,8 @@ export default function IntakeDetails() {
             const trimmed = (cfValue ?? '').toString().trim();
             const isEmpty = trimmed.length === 0
               || (def.fieldType === 'checkbox' && trimmed !== 'true')
-              || (def.fieldType === 'multiselect' && (trimmed === '[]' || trimmed === 'null'));
+              || (def.fieldType === 'multiselect' && (trimmed === '[]' || trimmed === 'null'))
+              || (def.fieldType === 'number' && Number(trimmed) <= 0);
             if (isEmpty) {
               errors.push(`${item.displayName || def.name} is required (${tab.label})`);
             }
@@ -463,9 +470,11 @@ export default function IntakeDetails() {
           const value = currentData[key as keyof typeof currentData];
           const fieldInfo = AVAILABLE_INTAKE_FIELDS.find(f => f.key === key);
           const label = item.displayName || fieldInfo?.label || key;
+          const isNumberField = INTAKE_FIELD_BY_KEY[key]?.inputType === 'number';
           const isEmpty = value == null
             || (typeof value === 'string' && !value.trim())
-            || (typeof value === 'number' && value <= 0);
+            || (typeof value === 'number' && value <= 0)
+            || (isNumberField && typeof value === 'string' && Number(value) <= 0);
           if (isEmpty) {
             errors.push(`${label} is required (${tab.label})`);
           }
