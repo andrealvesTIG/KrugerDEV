@@ -491,21 +491,23 @@ export function WorkflowStepRequirementsDialog({
 
         {entityQuery.isLoading ? (
           <div className="py-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-        ) : fields.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-4">
-            No required fields are configured for this step. Use Settings → Governance → Project Workflow to define what users must complete here.
-          </p>
         ) : (
           <div className="space-y-4 py-2">
-            {fields.map(f => (
-              <div key={f.key} className="space-y-1.5">
-                <Label htmlFor={`wsd-${f.key}`} className="flex items-center gap-1.5">
-                  <span>{f.label}</span>
-                  {f.required && <span className="text-destructive">*</span>}
-                </Label>
-                {renderInput(f)}
-              </div>
-            ))}
+            {fields.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No step-specific required fields are configured. Use Settings → Governance → Project Workflow to define what users must complete here.
+              </p>
+            ) : (
+              fields.map(f => (
+                <div key={f.key} className="space-y-1.5">
+                  <Label htmlFor={`wsd-${f.key}`} className="flex items-center gap-1.5">
+                    <span>{f.label}</span>
+                    {f.required && <span className="text-destructive">*</span>}
+                  </Label>
+                  {renderInput(f)}
+                </div>
+              ))
+            )}
             {allValidationErrors.length > 0 && isCurrentStep && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
