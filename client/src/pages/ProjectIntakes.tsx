@@ -92,11 +92,14 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, wo
       }
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (created: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/project-intakes'] });
       toast({ title: "Success", description: "Intake request created successfully" });
       onOpenChange(false);
       resetForm();
+      if (created?.id) {
+        setLocation(`/intakes/${created.id}`);
+      }
     },
     onError: (err: any) => {
       if (err.limitExceeded) {
