@@ -24,12 +24,6 @@ jobs:
           node-version: '22.x'
 
       - name: npm install, build, and test
-        env:
-          # Required by `npm run build` so drizzle-kit push can sync the schema
-          # against the Azure Postgres instance at build time. Add this secret
-          # in GitHub: Settings → Secrets and variables → Actions →
-          # New repository secret → name: DATABASE_URL.
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           npm install
           npm run build --if-present
