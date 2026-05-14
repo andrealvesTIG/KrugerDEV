@@ -34,6 +34,10 @@ interface StepInfo {
   helpText?: string | null;
   description?: string | null;
   requiredFields?: string[] | null;
+  // Intake-only: governance Y/N questionnaires are only enforced when the
+  // current step has these toggles enabled.
+  showArchitectureQuestions?: boolean | null;
+  showCybersecurityQuestions?: boolean | null;
 }
 
 interface Props {
@@ -258,29 +262,38 @@ export function WorkflowStepRequirementsDialog({
   // every row must have answer === 'yes' or 'no' before the user can advance.
   // If the questionnaire was never seeded (list is empty) we don't enforce —
   // matches the lazy-seed model in IntakeDetails.
+  // Only fetch / enforce governance answers when the *current* step actually
+  // shows that questionnaire — otherwise advancing from an unrelated step
+  // would falsely block on questions the user isn't expected to fill in here.
+  const archEnabled = entityType === 'intake' && open && step.showArchitectureQuestions === true;
+  const cyberEnabled = entityType === 'intake' && open && step.showCybersecurityQuestions === true;
   const archQuestionsQ = useIntakeGovernanceQuestions(
-    entityType === 'intake' && open ? entityId : 0,
+    archEnabled ? entityId : 0,
     'architecture',
   );
   const cyberQuestionsQ = useIntakeGovernanceQuestions(
-    entityType === 'intake' && open ? entityId : 0,
+    cyberEnabled ? entityId : 0,
     'cybersecurity',
   );
   const governanceValidationErrors = useMemo<string[]>(() => {
     if (entityType !== 'intake') return [];
     const errs: string[] = [];
-    const arch = archQuestionsQ.data || [];
-    const cyber = cyberQuestionsQ.data || [];
-    const archUnanswered = arch.filter(q => q.answer !== 'yes' && q.answer !== 'no').length;
-    const cyberUnanswered = cyber.filter(q => q.answer !== 'yes' && q.answer !== 'no').length;
-    if (archUnanswered > 0) {
-      errs.push(`${archUnanswered} Architecture question${archUnanswered === 1 ? '' : 's'} unanswered`);
+    if (archEnabled) {
+      const arch = archQuestionsQ.data || [];
+      const archUnanswered = arch.filter(q => q.answer !== 'yes' && q.answer !== 'no').length;
+      if (archUnanswered > 0) {
+        errs.push(`${archUnanswered} Architecture question${archUnanswered === 1 ? '' : 's'} unanswered`);
+      }
     }
-    if (cyberUnanswered > 0) {
-      errs.push(`${cyberUnanswered} Cybersecurity question${cyberUnanswered === 1 ? '' : 's'} unanswered`);
+    if (cyberEnabled) {
+      const cyber = cyberQuestionsQ.data || [];
+      const cyberUnanswered = cyber.filter(q => q.answer !== 'yes' && q.answer !== 'no').length;
+      if (cyberUnanswered > 0) {
+        errs.push(`${cyberUnanswered} Cybersecurity question${cyberUnanswered === 1 ? '' : 's'} unanswered`);
+      }
     }
     return errs;
-  }, [entityType, archQuestionsQ.data, cyberQuestionsQ.data]);
+  }, [entityType, archEnabled, cyberEnabled, archQuestionsQ.data, cyberQuestionsQ.data]);
 
   const allValidationErrors = useMemo(
     () => [...validationErrors, ...layoutValidationErrors, ...governanceValidationErrors],

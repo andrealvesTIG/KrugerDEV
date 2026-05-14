@@ -894,6 +894,8 @@ export default function IntakeDetails() {
               description: step.description,
               helpText: step.helpText,
               requiredFields: step.requiredFields ?? [],
+              showArchitectureQuestions: (step as any).showArchitectureQuestions ?? false,
+              showCybersecurityQuestions: (step as any).showCybersecurityQuestions ?? false,
             }}
             isCurrentStep={isCurrent}
             isLocked={isLocked}
