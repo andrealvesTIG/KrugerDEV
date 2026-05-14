@@ -35,24 +35,32 @@ const allowlist = [
 async function buildAll() {
   await rm("dist", { recursive: true, force: true });
 
-  console.log("cleaning up orphaned data before schema sync...");
-  try {
-    execSync("npx tsx script/pre-push-cleanup.ts", { stdio: "inherit" });
-    console.log("Pre-push cleanup complete.");
-  } catch (err) {
-    console.warn("Warning: Pre-push cleanup had issues, continuing...", err);
-  }
+  // Skip DB-touching steps when there's no DATABASE_URL (e.g. CI builds that
+  // only validate compilation). Deploy environments always have DATABASE_URL
+  // set, so this preserves the production behaviour.
+  const hasDatabase = !!process.env.DATABASE_URL;
+  if (!hasDatabase) {
+    console.log("No DATABASE_URL set — skipping pre-push cleanup, schema push, and migrations.");
+  } else {
+    console.log("cleaning up orphaned data before schema sync...");
+    try {
+      execSync("npx tsx script/pre-push-cleanup.ts", { stdio: "inherit" });
+      console.log("Pre-push cleanup complete.");
+    } catch (err) {
+      console.warn("Warning: Pre-push cleanup had issues, continuing...", err);
+    }
 
-  console.log("syncing database schema...");
-  execSync("npx drizzle-kit push --force", { stdio: "inherit" });
-  console.log("Schema push complete.");
+    console.log("syncing database schema...");
+    execSync("npx drizzle-kit push --force", { stdio: "inherit" });
+    console.log("Schema push complete.");
 
-  console.log("applying additional migrations...");
-  try {
-    execSync("npx tsx script/migrate.ts", { stdio: "inherit" });
-    console.log("Additional migrations applied.");
-  } catch (err) {
-    console.warn("Warning: Additional migrations failed (indexes may already exist), continuing build...", err);
+    console.log("applying additional migrations...");
+    try {
+      execSync("npx tsx script/migrate.ts", { stdio: "inherit" });
+      console.log("Additional migrations applied.");
+    } catch (err) {
+      console.warn("Warning: Additional migrations failed (indexes may already exist), continuing build...", err);
+    }
   }
 
   console.log("building client...");
