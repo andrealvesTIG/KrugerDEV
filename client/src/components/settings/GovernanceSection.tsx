@@ -8,7 +8,8 @@ import { IntakeWorkflowSection } from "./IntakeWorkflowSection";
 import { IntakeFormLayoutSection } from "./IntakeFormLayoutSection";
 import { ProjectFormLayoutSection } from "./ProjectFormLayoutSection";
 import { ProjectWorkflowSection } from "./ProjectWorkflowSection";
-import { GitBranch, FolderKanban, Layout, LayoutGrid, BarChart3 } from "lucide-react";
+import { ConfigExportImportSection } from "./ConfigExportImportSection";
+import { GitBranch, FolderKanban, Layout, LayoutGrid, BarChart3, Download } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -101,6 +102,10 @@ export function GovernanceSection({ organizationId }: { organizationId: number }
             <LayoutGrid className="h-4 w-4" />
             Project Form
           </TabsTrigger>
+          <TabsTrigger value="config-io" className="gap-2" data-testid="tab-config-export-import">
+            <Download className="h-4 w-4" />
+            Export / Import
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="intake" className="mt-4 space-y-6">
@@ -118,6 +123,10 @@ export function GovernanceSection({ organizationId }: { organizationId: number }
 
         <TabsContent value="project-form" className="mt-4">
           <ProjectFormLayoutSection organizationId={organizationId} />
+        </TabsContent>
+
+        <TabsContent value="config-io" className="mt-4">
+          <ConfigExportImportSection organizationId={organizationId} />
         </TabsContent>
       </Tabs>
     </div>

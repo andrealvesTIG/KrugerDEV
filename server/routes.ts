@@ -13,6 +13,7 @@ import { db } from "./db";
 import { trainingModules, trainingLessons, trainingQuizQuestions } from "@shared/schema";
 import { registerUserRoutes } from "./routes/userRoutes";
 import { registerOrganizationRoutes } from "./routes/organizationRoutes";
+import { registerOrgConfigExportRoutes } from "./routes/orgConfigExportRoutes";
 import { registerOrgMemberRoutes } from "./routes/orgMemberRoutes";
 import { registerPortfolioRoutes } from "./routes/portfolioRoutes";
 import { registerProgramRoutes } from "./routes/programRoutes";
@@ -124,6 +125,7 @@ export async function registerRoutes(
 
   registerUserRoutes(app);
   registerOrganizationRoutes(app);
+  registerOrgConfigExportRoutes(app);
   registerOrgMemberRoutes(app);
   registerPortfolioRoutes(app);
   registerProgramRoutes(app);
