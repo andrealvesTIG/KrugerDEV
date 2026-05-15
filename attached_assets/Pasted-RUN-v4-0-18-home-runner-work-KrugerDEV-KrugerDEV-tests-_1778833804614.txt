@@ -1,0 +1,289 @@
+RUN  v4.0.18 /home/runner/work/KrugerDEV/KrugerDEV
+ ✓ tests/calendarAwareScheduling.test.ts (37 tests) 50ms
+ ❯ tests/financialAnalytics.test.ts (0 test)
+ ❯ tests/jarvisServiceAnthropic.test.ts (7 tests | 7 failed) 67ms
+     × single round: one anthropic.messages.stream call, exactly one recordAiCredits with round-0 suffixed requestId 62ms
+     × tool loop: round-0 tool_use → handleToolCall → round-1 final text; bills both rounds and forwards tool_result back to Anthropic 1ms
+     × returns the default OpenAI client when the org has no Friday Agent config 1ms
+     × returns an Azure OpenAI client when provider=openai + useOrgAzure with valid endpoint+key 1ms
+     × returns the Anthropic provider with decrypted key + configured model when provider=anthropic 0ms
+     × converts every OpenAI function tool into an Anthropic tool with name/description/input_schema preserved 0ms
+     × returns a stable cached instance on subsequent calls (no per-request rebuild) 0ms
+ ❯ tests/jarvisQuickReplies.test.ts (0 test)
+ ✓ tests/jarvisRoutes.integration.test.ts (8 tests) 593ms
+     ✓ enforces credits before SSE, then enforces+records ONE credit per OpenAI call via meterPerCall (round-suffixed requestId)  558ms
+ ❯ tests/jarvisRoutesAnthropic.integration.test.ts (3 tests | 3 failed) 554ms
+     × single-round Anthropic call: one pre-flight enforce + one round-0 enforce/record pair via meterPerCall 550ms
+     × multi-round Anthropic tool loop: one enforce+record PER Anthropic call (not per HTTP turn), with monotonically suffixed requestIds 1ms
+     × returns 403 limitExceeded BEFORE opening SSE when pre-flight enforce throws — never opens an Anthropic stream 1ms
+ ✓ tests/intakeNotificationEmails.test.ts (10 tests) 742ms
+     ✓ saves valid recipient lists with dedupe + lowercase normalization  590ms
+ ✓ tests/projectAnalytics.test.ts (9 tests) 18ms
+ ✓ tests/workingDays.test.ts (46 tests) 172ms
+ ✓ tests/calendarEngine.test.ts (25 tests) 11ms
+ ✓ tests/orgUrl.test.ts (25 tests) 10ms
+ ✓ tests/jarvisRoutesBilling.integration.test.ts (4 tests) 538ms
+     ✓ two distinct requests → two separate usage events with different requestIds  521ms
+ ❯ tests/orgFridayAgentConfigRoute.test.ts (4 tests | 4 failed) 623ms
+     × persists the plaintext anthropicApiKey as ENCRYPTED ciphertext (never raw) and forwards the model + provider 619ms
+     × GET returns the saved Anthropic key MASKED (first 4 + bullets + last 4) — never the ciphertext or plaintext 1ms
+     × PUT with the masked placeholder string preserves the existing ciphertext (no re-encrypt, no clobber) 1ms
+     × rejects PUT with provider=anthropic + empty key when no key has been saved yet 1ms
+ ✓ tests/aiCredits.test.ts (10 tests) 13ms
+ ✓ tests/agentDashboardsDashboard.test.tsx (4 tests) 179ms
+ ✓ tests/fridayEmailTool.test.ts (6 tests) 513ms
+     ✓ returns a preview without sending when userConfirmed is false  506ms
+ ✓ tests/organizationsResolve.test.ts (6 tests) 533ms
+     ✓ resolves a slug for a member and returns isMember: true  511ms
+ ✓ tests/agentReportsDashboard.test.tsx (4 tests) 175ms
+ ✓ tests/templateGanttPreview.test.ts (6 tests) 6ms
+ ✓ tests/fridayReportSanitizer.test.ts (23 tests) 235ms
+ ✓ tests/orgAccessGate.integration.test.tsx (2 tests) 66ms
+ ✓ tests/orgAccessDenied.test.tsx (3 tests) 20ms
+ ❯ tests/filterContextByScope.test.ts (0 test)
+ ❯ tests/selectChartableProjectIds.test.ts (0 test)
+⎯⎯⎯⎯⎯⎯ Failed Suites 4 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/filterContextByScope.test.ts [ tests/filterContextByScope.test.ts ]
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+ ❯ server/db.ts:8:9
+      6| 
+      7| if (!process.env.DATABASE_URL) {
+      8|   throw new Error(
+       |         ^
+      9|     "DATABASE_URL must be set. Did you forget to provision a database?…
+     10|   );
+ ❯ server/services/jarvisService.ts:1:1
+ ❯ tests/filterContextByScope.test.ts:2:1
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/18]⎯
+ FAIL  tests/financialAnalytics.test.ts [ tests/financialAnalytics.test.ts ]
+Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ createOpenAIClient server/services/jarvisService.ts:42:10
+     40|     return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+     41|   }
+     42|   return new OpenAI({
+       |          ^
+     43|     apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+     44|     baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+ ❯ server/services/jarvisService.ts:48:23
+ ❯ server/routes/financialsRoutes.ts:22:1
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/18]⎯
+ FAIL  tests/jarvisQuickReplies.test.ts [ tests/jarvisQuickReplies.test.ts ]
+Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ createOpenAIClient server/services/jarvisService.ts:42:10
+     40|     return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+     41|   }
+     42|   return new OpenAI({
+       |          ^
+     43|     apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+     44|     baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+ ❯ server/services/jarvisService.ts:48:23
+ ❯ tests/jarvisQuickReplies.test.ts:119:1
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/18]⎯
+ FAIL  tests/selectChartableProjectIds.test.ts [ tests/selectChartableProjectIds.test.ts ]
+Error: DATABASE_URL must be set. Did you forget to provision a database?
+ ❯ server/db.ts:8:9
+      6| 
+      7| if (!process.env.DATABASE_URL) {
+      8|   throw new Error(
+       |         ^
+      9|     "DATABASE_URL must be set. Did you forget to provision a database?…
+     10|   );
+ ❯ server/services/jarvisService.ts:1:1
+ ❯ tests/selectChartableProjectIds.test.ts:2:1
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/18]⎯
+⎯⎯⎯⎯⎯⎯ Failed Tests 14 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/jarvisRoutesAnthropic.integration.test.ts > POST /api/jarvis/chat — Anthropic provider parity (route-level) > single-round Anthropic call: one pre-flight enforce + one round-0 enforce/record pair via meterPerCall
+ FAIL  tests/jarvisRoutesAnthropic.integration.test.ts > POST /api/jarvis/chat — Anthropic provider parity (route-level) > multi-round Anthropic tool loop: one enforce+record PER Anthropic call (not per HTTP turn), with monotonically suffixed requestIds
+ FAIL  tests/jarvisRoutesAnthropic.integration.test.ts > POST /api/jarvis/chat — Anthropic provider parity (route-level) > returns 403 limitExceeded BEFORE opening SSE when pre-flight enforce throws — never opens an Anthropic stream
+Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ createOpenAIClient server/services/jarvisService.ts:42:10
+     40|     return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+     41|   }
+     42|   return new OpenAI({
+       |          ^
+     43|     apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+     44|     baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+ ❯ server/services/jarvisService.ts:48:23
+ ❯ server/routes/jarvisRoutes.ts:3:1
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/18]⎯
+ FAIL  tests/jarvisServiceAnthropic.test.ts > streamJarvisResponse — Anthropic branch credit metering > single round: one anthropic.messages.stream call, exactly one recordAiCredits with round-0 suffixed requestId
+ FAIL  tests/jarvisServiceAnthropic.test.ts > streamJarvisResponse — Anthropic branch credit metering > tool loop: round-0 tool_use → handleToolCall → round-1 final text; bills both rounds and forwards tool_result back to Anthropic
+ FAIL  tests/jarvisServiceAnthropic.test.ts > getOrgLlmProvider > returns the default OpenAI client when the org has no Friday Agent config
+ FAIL  tests/jarvisServiceAnthropic.test.ts > getOrgLlmProvider > returns an Azure OpenAI client when provider=openai + useOrgAzure with valid endpoint+key
+ FAIL  tests/jarvisServiceAnthropic.test.ts > getOrgLlmProvider > returns the Anthropic provider with decrypted key + configured model when provider=anthropic
+ FAIL  tests/jarvisServiceAnthropic.test.ts > getAnthropicJarvisTools > converts every OpenAI function tool into an Anthropic tool with name/description/input_schema preserved
+ FAIL  tests/jarvisServiceAnthropic.test.ts > getAnthropicJarvisTools > returns a stable cached instance on subsequent calls (no per-request rebuild)
+Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ createOpenAIClient server/services/jarvisService.ts:42:10
+     40|     return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+     41|   }
+     42|   return new OpenAI({
+       |          ^
+     43|     apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+     44|     baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+ ❯ server/services/jarvisService.ts:48:23
+ ❯ tests/jarvisServiceAnthropic.test.ts:210:38
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/18]⎯
+ FAIL  tests/orgFridayAgentConfigRoute.test.ts > PUT /api/organizations/:id/friday-agent-config — Anthropic fields > persists the plaintext anthropicApiKey as ENCRYPTED ciphertext (never raw) and forwards the model + provider
+ FAIL  tests/orgFridayAgentConfigRoute.test.ts > PUT /api/organizations/:id/friday-agent-config — Anthropic fields > GET returns the saved Anthropic key MASKED (first 4 + bullets + last 4) — never the ciphertext or plaintext
+ FAIL  tests/orgFridayAgentConfigRoute.test.ts > PUT /api/organizations/:id/friday-agent-config — Anthropic fields > PUT with the masked placeholder string preserves the existing ciphertext (no re-encrypt, no clobber)
+ FAIL  tests/orgFridayAgentConfigRoute.test.ts > PUT /api/organizations/:id/friday-agent-config — Anthropic fields > rejects PUT with provider=anthropic + empty key when no key has been saved yet
+Error: [vitest] There was an error when mocking a module. If you are using "vi.mock" factory, make sure there are no top level variables inside, since this call is hoisted to top of the file. Read more: https://vitest.dev/api/vi.html#vi-mock
+ ❯ server/routes/organizationRoutes.ts:10:1
+      8| import { users, taskResourceAssignments, resources, tasks, projects, o…
+      9| import type { User } from "@shared/models/auth";
+     10| import {
+       | ^
+     11|   classifyError,
+     12|   getUserIdFromRequest,
+ ❯ buildApp tests/orgFridayAgentConfigRoute.test.ts:69:42
+Caused by: Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ Test Files  7 failed | 17 passed (24)
+      Tests  14 failed | 228 passed (242)
+   Start at  08:28:59
+   Duration  17.91s (transform 1.76s, setup 0ms, import 4.65s, tests 5.12s, environment 1.24s)
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ server/routes/helpers.ts:17:16
+ ❯ tests/orgFridayAgentConfigRoute.test.ts:57:18
+Error: Error: DATABASE_URL must be set. Did you forget to provision a database?
+ ❯ server/db.ts:8:9
+ ❯ server/services/jarvisService.ts:1:1
+ ❯ tests/filterContextByScope.test.ts:2:1
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/18]⎯
+Error: Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ createOpenAIClient server/services/jarvisService.ts:42:10
+ ❯ server/services/jarvisService.ts:48:23
+ ❯ server/routes/financialsRoutes.ts:22:1
+
+
+Error: Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ createOpenAIClient server/services/jarvisService.ts:42:10
+ ❯ server/services/jarvisService.ts:48:23
+ ❯ tests/jarvisQuickReplies.test.ts:119:1
+
+
+Error: Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ createOpenAIClient server/services/jarvisService.ts:42:10
+ ❯ server/services/jarvisService.ts:48:23
+ ❯ server/routes/jarvisRoutes.ts:3:1
+
+
+Error: Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ createOpenAIClient server/services/jarvisService.ts:42:10
+ ❯ server/services/jarvisService.ts:48:23
+ ❯ server/routes/jarvisRoutes.ts:3:1
+
+
+Error: Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ createOpenAIClient server/services/jarvisService.ts:42:10
+ ❯ server/services/jarvisService.ts:48:23
+ ❯ server/routes/jarvisRoutes.ts:3:1
+
+
+Error: Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ createOpenAIClient server/services/jarvisService.ts:42:10
+ ❯ server/services/jarvisService.ts:48:23
+ ❯ tests/jarvisServiceAnthropic.test.ts:210:38
+
+
+Error: Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ createOpenAIClient server/services/jarvisService.ts:42:10
+ ❯ server/services/jarvisService.ts:48:23
+ ❯ tests/jarvisServiceAnthropic.test.ts:210:38
+
+
+Error: Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ createOpenAIClient server/services/jarvisService.ts:42:10
+ ❯ server/services/jarvisService.ts:48:23
+ ❯ tests/jarvisServiceAnthropic.test.ts:210:38
+
+
+Error: Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ createOpenAIClient server/services/jarvisService.ts:42:10
+ ❯ server/services/jarvisService.ts:48:23
+ ❯ tests/jarvisServiceAnthropic.test.ts:210:38
+
+
+Error: Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ createOpenAIClient server/services/jarvisService.ts:42:10
+ ❯ server/services/jarvisService.ts:48:23
+ ❯ tests/jarvisServiceAnthropic.test.ts:210:38
+
+
+Error: Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ createOpenAIClient server/services/jarvisService.ts:42:10
+ ❯ server/services/jarvisService.ts:48:23
+ ❯ tests/jarvisServiceAnthropic.test.ts:210:38
+
+
+Error: Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ createOpenAIClient server/services/jarvisService.ts:42:10
+ ❯ server/services/jarvisService.ts:48:23
+ ❯ tests/jarvisServiceAnthropic.test.ts:210:38
+
+
+Error: Error: [vitest] There was an error when mocking a module. If you are using "vi.mock" factory, make sure there are no top level variables inside, since this call is hoisted to top of the file. Read more: https://vitest.dev/api/vi.html#vi-mock
+ ❯ server/routes/organizationRoutes.ts:10:1
+ ❯ buildApp tests/orgFridayAgentConfigRoute.test.ts:69:42
+
+Caused by: Caused by: Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ server/routes/helpers.ts:17:16
+ ❯ tests/orgFridayAgentConfigRoute.test.ts:57:18
+
+
+Error: Error: [vitest] There was an error when mocking a module. If you are using "vi.mock" factory, make sure there are no top level variables inside, since this call is hoisted to top of the file. Read more: https://vitest.dev/api/vi.html#vi-mock
+ ❯ server/routes/organizationRoutes.ts:10:1
+ ❯ buildApp tests/orgFridayAgentConfigRoute.test.ts:69:42
+
+Caused by: Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ server/routes/helpers.ts:17:16
+ ❯ tests/orgFridayAgentConfigRoute.test.ts:57:18
+
+
+Error: Error: [vitest] There was an error when mocking a module. If you are using "vi.mock" factory, make sure there are no top level variables inside, since this call is hoisted to top of the file. Read more: https://vitest.dev/api/vi.html#vi-mock
+ ❯ server/routes/organizationRoutes.ts:10:1
+ ❯ buildApp tests/orgFridayAgentConfigRoute.test.ts:69:42
+
+Caused by: Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ server/routes/helpers.ts:17:16
+ ❯ tests/orgFridayAgentConfigRoute.test.ts:57:18
+
+
+Error: Error: [vitest] There was an error when mocking a module. If you are using "vi.mock" factory, make sure there are no top level variables inside, since this call is hoisted to top of the file. Read more: https://vitest.dev/api/vi.html#vi-mock
+ ❯ server/routes/organizationRoutes.ts:10:1
+ ❯ buildApp tests/orgFridayAgentConfigRoute.test.ts:69:42
+
+Caused by: Error: Missing credentials. Please pass an `apiKey`, `workloadIdentity`, or set the `OPENAI_API_KEY` environment variable.
+ ❯ new OpenAI node_modules/openai/client.mjs:130:19
+ ❯ server/routes/helpers.ts:17:16
+ ❯ tests/orgFridayAgentConfigRoute.test.ts:57:18
+
+
+Error: Error: DATABASE_URL must be set. Did you forget to provision a database?
+ ❯ server/db.ts:8:9
+ ❯ server/services/jarvisService.ts:1:1
+ ❯ tests/selectChartableProjectIds.test.ts:2:1
+
+
+Error: Process completed with exit code 1.
