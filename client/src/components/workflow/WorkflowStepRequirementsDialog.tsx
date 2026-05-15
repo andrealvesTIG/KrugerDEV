@@ -521,11 +521,34 @@ export function WorkflowStepRequirementsDialog({
       }
     }
 
-    // Intake built-in: simple text/textarea heuristic
-    const longish = ['description', 'businessProblem', 'desiredOutcome', 'financialJustification', 'resourceRequirements', 'cyberRiskAssessment'].includes(f.key);
-    return longish
-      ? <Textarea value={String(v)} onChange={e => set(e.target.value)} disabled={disabled} rows={3} className="resize-none" data-testid={`wsd-input-${f.key}`} />
-      : <Input value={String(v)} onChange={e => set(e.target.value)} disabled={disabled} data-testid={`wsd-input-${f.key}`} />;
+    // Intake built-in: use the full registry (INTAKE_FIELD_BY_KEY) for
+    // inputType / options / placeholder so select fields (e.g. businessUnit,
+    // fundingSource) actually render as dropdowns instead of free text.
+    const idef = INTAKE_FIELD_BY_KEY[f.key];
+    const iit = idef?.inputType || 'text';
+    switch (iit) {
+      case 'textarea':
+        return <Textarea value={String(v)} onChange={e => set(e.target.value)} disabled={disabled} rows={idef?.rows || 3} placeholder={idef?.placeholder} className="resize-none" data-testid={`wsd-input-${f.key}`} />;
+      case 'number':
+        return <Input type="number" value={String(v)} onChange={e => set(e.target.value === '' ? '' : Number(e.target.value))} disabled={disabled} data-testid={`wsd-input-${f.key}`} />;
+      case 'select': {
+        const options = idef?.options || [];
+        return (
+          <Select value={String(v)} onValueChange={set} disabled={disabled}>
+            <SelectTrigger data-testid={`wsd-input-${f.key}`}><SelectValue placeholder="Select..." /></SelectTrigger>
+            <SelectContent>{options.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+          </Select>
+        );
+      }
+      default: {
+        // Fallback to the previous text/textarea heuristic for keys not in
+        // the rich registry (kept so legacy keys keep their old shape).
+        const longish = ['description', 'businessProblem', 'desiredOutcome', 'financialJustification', 'resourceRequirements', 'cyberRiskAssessment'].includes(f.key);
+        return longish
+          ? <Textarea value={String(v)} onChange={e => set(e.target.value)} disabled={disabled} rows={3} className="resize-none" data-testid={`wsd-input-${f.key}`} />
+          : <Input value={String(v)} onChange={e => set(e.target.value)} disabled={disabled} placeholder={idef?.placeholder} data-testid={`wsd-input-${f.key}`} />;
+      }
+    }
   };
 
   const canAdvance = isCurrentStep && !!nextStep && !isLocked && allValidationErrors.length === 0;
