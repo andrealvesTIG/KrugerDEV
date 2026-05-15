@@ -142,6 +142,18 @@ function BusinessProcessFlow({
   const currentIndex = PROJECT_STAGES.findIndex(s => s.value === currentStatus);
   const isCurrentlyLocked = PROJECT_STAGES.some(s => s.value === currentStatus && s.isTerminal);
   const handleClick = (stage: ProjectStage) => {
+    // Terminal-stage clicks (Closed, On Hold) and reopen clicks (any
+    // earlier stage while currently in a terminal status) are discrete
+    // status jumps that `onStatusChange` already handles with its own
+    // confirm. The gate dialog is only useful for walking through
+    // intermediate non-terminal steps — for terminals it has no Save /
+    // Advance button (since there's no `nextStep`), which would leave
+    // the user with no way to set the status.
+    const isReopen = isCurrentlyLocked && !stage.isTerminal;
+    if (stage.isTerminal || isReopen) {
+      onStatusChange(stage.value);
+      return;
+    }
     if (onStepClick) onStepClick(stage);
     else onStatusChange(stage.value);
   };
@@ -1303,6 +1315,9 @@ export default function ProjectDetails() {
   };
 
   const handleStatusChange = (status: string) => {
+    // No-op when the user clicks the stage they're already on (e.g. the
+    // current terminal pill while locked) — avoids a wasted PUT / toast.
+    if (status === project.status) return;
     const isTargetTerminal = projectStages.some(s => s.value === status && s.isTerminal);
 
     if (isTargetTerminal && !isProjectLocked) {
