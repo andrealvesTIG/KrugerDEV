@@ -247,43 +247,44 @@ export interface ImportBlocker { resource: string; count: number; message: strin
  */
 export async function getImportBlockers(organizationId: number): Promise<ImportBlocker[]> {
   const blockers: ImportBlocker[] = [];
+  const firstCount = (r: any): number => Number(r?.rows?.[0]?.n ?? 0);
 
-  const [{ n: pcfvCount }] = await db.execute<{ n: number }>(sql`
+  const pcfvCount = firstCount(await db.execute(sql`
     SELECT COUNT(*)::int AS n FROM ${projectCustomFieldValues} v
     JOIN ${customFieldDefinitions} d ON d.id = v.field_definition_id
     WHERE d.organization_id = ${organizationId}
-  `) as unknown as Array<{ n: number }>;
+  `));
   if (pcfvCount > 0) blockers.push({ resource: "project_custom_field_values", count: pcfvCount,
     message: `${pcfvCount} project custom-field value(s) reference this organization's custom fields` });
 
-  const [{ n: tcfvCount }] = await db.execute<{ n: number }>(sql`
+  const tcfvCount = firstCount(await db.execute(sql`
     SELECT COUNT(*)::int AS n FROM ${taskCustomFieldValues} v
     JOIN ${customFieldDefinitions} d ON d.id = v.field_definition_id
     WHERE d.organization_id = ${organizationId}
-  `) as unknown as Array<{ n: number }>;
+  `));
   if (tcfvCount > 0) blockers.push({ resource: "task_custom_field_values", count: tcfvCount,
     message: `${tcfvCount} task custom-field value(s) reference this organization's custom fields` });
 
-  const [{ n: rcfvCount }] = await db.execute<{ n: number }>(sql`
+  const rcfvCount = firstCount(await db.execute(sql`
     SELECT COUNT(*)::int AS n FROM ${resourceCustomFieldValues} v
     JOIN ${customFieldDefinitions} d ON d.id = v.field_definition_id
     WHERE d.organization_id = ${organizationId}
-  `) as unknown as Array<{ n: number }>;
+  `));
   if (rcfvCount > 0) blockers.push({ resource: "resource_custom_field_values", count: rcfvCount,
     message: `${rcfvCount} resource custom-field value(s) reference this organization's custom fields` });
 
-  const [{ n: icfvCount }] = await db.execute<{ n: number }>(sql`
+  const icfvCount = firstCount(await db.execute(sql`
     SELECT COUNT(*)::int AS n FROM ${intakeCustomFieldValues} v
     JOIN ${customFieldDefinitions} d ON d.id = v.field_definition_id
     WHERE d.organization_id = ${organizationId}
-  `) as unknown as Array<{ n: number }>;
+  `));
   if (icfvCount > 0) blockers.push({ resource: "intake_custom_field_values", count: icfvCount,
     message: `${icfvCount} intake custom-field value(s) reference this organization's custom fields` });
 
-  const [{ n: intakeCount }] = await db.execute<{ n: number }>(sql`
+  const intakeCount = firstCount(await db.execute(sql`
     SELECT COUNT(*)::int AS n FROM ${projectIntakes} i
     WHERE i.organization_id = ${organizationId} AND i.workflow_id IS NOT NULL
-  `) as unknown as Array<{ n: number }>;
+  `));
   if (intakeCount > 0) blockers.push({ resource: "project_intakes", count: intakeCount,
     message: `${intakeCount} intake(s) reference this organization's intake workflows` });
 
