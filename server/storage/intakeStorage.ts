@@ -6,6 +6,7 @@ import {
   intakeWorkflows, intakeWorkflowSteps, projectWorkflows, projectWorkflowSteps,
   projects, tasks, taskDependencies, powerbiIntakeRequests,
   intakeCustomFieldValues, projectCustomFieldValues,
+  customFieldDefinitions, resources,
   type ProjectIntake, type InsertProjectIntake, type UpdateProjectIntakeRequest,
   type MppImport, type InsertMppImport,
   type MppImportTask, type InsertMppImportTask,
@@ -108,6 +109,39 @@ export async function approveProjectIntake(id: number, approvedBy: string): Prom
       ).onConflictDoNothing({
         target: [projectCustomFieldValues.projectId, projectCustomFieldValues.fieldDefinitionId],
       });
+
+      // Map intake-typed `resource` custom fields named "Project Manager" onto
+      // the project's built-in `managerId` user column. The custom field stores
+      // a resource id; the column expects a user id, so resolve via
+      // resources.userId. If multiple PM-like CFs exist, prefer an exact-name
+      // match. Silently skip if the resource is not linked to a user.
+      const defIds = Array.from(new Set(intakeValues.map(v => v.fieldDefinitionId)));
+      const defs = defIds.length > 0
+        ? await tx.select().from(customFieldDefinitions).where(inArray(customFieldDefinitions.id, defIds))
+        : [];
+      const pmDef = defs.find(d =>
+        d.entityType === 'intake'
+        && d.fieldType === 'resource'
+        && (d.name || '').trim().toLowerCase() === 'project manager'
+      );
+      if (pmDef) {
+        const pmValueRow = intakeValues.find(v => v.fieldDefinitionId === pmDef.id);
+        const resourceId = Number(pmValueRow?.value ?? '');
+        if (Number.isFinite(resourceId) && resourceId > 0) {
+          // Org guard: never resolve a resource id from a different tenant
+          // even if a tampered CF value points there.
+          const [resource] = await tx.select().from(resources).where(and(
+            eq(resources.id, resourceId),
+            eq(resources.organizationId, intake.organizationId),
+          ));
+          if (resource?.userId) {
+            await tx.update(projects)
+              .set({ managerId: resource.userId })
+              .where(eq(projects.id, newProject.id));
+            newProject.managerId = resource.userId;
+          }
+        }
+      }
     }
 
     await tx.update(projectIntakes)
