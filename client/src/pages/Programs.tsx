@@ -26,7 +26,20 @@ import type { Program } from "@shared/schema";
 
 const STATUSES = ["Active", "On Hold", "Closed", "Archived"] as const;
 
-type OrgMember = { userId: string; firstName?: string | null; lastName?: string | null; email?: string | null };
+type OrgMember = {
+  userId: string;
+  // The /api/organizations/:id/members endpoint enriches each row with the
+  // full user under `.user` (sanitized) — there are no flattened name/email
+  // fields on the membership row itself.
+  user?: { id: string; firstName?: string | null; lastName?: string | null; email?: string | null } | null;
+};
+
+function memberDisplayName(m: OrgMember): string {
+  const u = m.user;
+  if (!u) return m.userId;
+  const full = [u.firstName, u.lastName].filter(Boolean).join(" ").trim();
+  return full || u.email || m.userId;
+}
 
 function useOrgMembers(organizationId?: number) {
   return useQuery<OrgMember[]>({
@@ -102,7 +115,7 @@ function ProgramForm({
             <SelectContent>
               {members.map(m => (
                 <SelectItem key={m.userId} value={m.userId}>
-                  {[m.firstName, m.lastName].filter(Boolean).join(" ") || m.email || m.userId}
+                  {memberDisplayName(m)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -164,7 +177,7 @@ export default function Programs() {
 
   const ownerName = (ownerId: string) => {
     const m = members.find(m => m.userId === ownerId);
-    return m ? ([m.firstName, m.lastName].filter(Boolean).join(" ") || m.email || ownerId) : ownerId;
+    return m ? memberDisplayName(m) : ownerId;
   };
 
   function toNumOrNull(v: string | null | undefined) {
