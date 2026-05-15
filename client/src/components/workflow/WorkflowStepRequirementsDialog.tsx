@@ -26,6 +26,7 @@ import { AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
 import { PROJECT_FORM_FIELD_BY_KEY, type ProjectFieldDefinition } from "@shared/projectFormRegistry";
 import { INTAKE_FIELD_BY_KEY } from "@shared/intakeFormRegistry";
 import type { CustomFieldDefinition } from "@shared/schema";
+import { parseFieldRules, evaluateFieldRule } from "@shared/lib/workflowFieldRules";
 
 export type WorkflowEntityType = "intake" | "project";
 
@@ -35,6 +36,10 @@ interface StepInfo {
   helpText?: string | null;
   description?: string | null;
   requiredFields?: string[] | null;
+  // Per-field value-based gate rules. Shape:
+  // { [fieldKey]: { allowedValues: string[] } } — see
+  // shared/lib/workflowFieldRules.ts for full semantics.
+  fieldRules?: unknown;
   // Intake-only: governance Y/N questionnaires are only enforced when the
   // current step has these toggles enabled.
   showArchitectureQuestions?: boolean | null;
@@ -312,9 +317,43 @@ export function WorkflowStepRequirementsDialog({
     return errs;
   }, [entityType, archEnabled, cyberEnabled, archQuestionsQ.data, cyberQuestionsQ.data]);
 
+  // Value-based gate rules ("field must be one of these allowed values").
+  // Evaluated against the current draft so the user sees the error update
+  // live as they change the value in the dialog.
+  const ruleValidationErrors = useMemo<string[]>(() => {
+    const rules = parseFieldRules(step.fieldRules);
+    const keys = Object.keys(rules);
+    if (keys.length === 0) return [];
+    const errs: string[] = [];
+    for (const key of keys) {
+      const rule = rules[key];
+      let label = key;
+      let value: unknown;
+      if (key.startsWith('cf:')) {
+        const id = Number(key.slice(3));
+        const def = cfDefs.find(d => d.id === id);
+        label = def?.name || key;
+        // Prefer draft (in-dialog edit) over the persisted cf value.
+        if (key in draft) value = draft[key];
+        else value = cfValues.find(cv => cv.fieldDefinitionId === id)?.value ?? '';
+      } else {
+        if (entityType === 'project') {
+          label = PROJECT_FORM_FIELD_BY_KEY[key]?.label || key;
+        } else {
+          label = builtinIntakeField(key)?.label || key;
+        }
+        if (key in draft) value = draft[key];
+        else value = (entity as any)?.[key];
+      }
+      const err = evaluateFieldRule(key, rule, label, value);
+      if (err) errs.push(err.message);
+    }
+    return errs;
+  }, [draft, entity, entityType, cfDefs, cfValues, step.fieldRules]);
+
   const allValidationErrors = useMemo(
-    () => [...validationErrors, ...layoutValidationErrors, ...governanceValidationErrors],
-    [validationErrors, layoutValidationErrors, governanceValidationErrors],
+    () => [...validationErrors, ...layoutValidationErrors, ...governanceValidationErrors, ...ruleValidationErrors],
+    [validationErrors, layoutValidationErrors, governanceValidationErrors, ruleValidationErrors],
   );
 
   const [isSaving, setIsSaving] = useState(false);

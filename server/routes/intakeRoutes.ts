@@ -4,6 +4,7 @@ import { and, eq, asc, sql } from "drizzle-orm";
 import { db } from "../db";
 import { resources, insertProjectIntakeSchema, powerbiIntakeRequests, powerbiAgentConversations, powerbiAgentMessages, intakeGovernanceQuestions, intakeCostingChecklist, type InsertIntakeWorkflow, type InsertProjectWorkflow, type IntakeWorkflow } from "@shared/schema";
 import { DEFAULT_GOVERNANCE_QUESTIONS } from "@shared/intakeGovernanceDefaults";
+import { parseFieldRules, evaluateFieldRule } from "@shared/lib/workflowFieldRules";
 import { DEFAULT_COSTING_CHECKLIST } from "@shared/intakeCostingDefaults";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -321,26 +322,47 @@ export function registerIntakeRoutes(app: Express) {
           const stepsToValidate = steps.slice(fromIdx, toIdx);
           const merged: any = { ...existing, ...req.body };
           const errors: string[] = [];
-          const anyCustomFields = stepsToValidate.some(s =>
-            ((s.requiredFields || []) as string[]).some(f => f.startsWith('cf:'))
-          );
+          // Prefetch cfValues if ANY step references a cf:<id> via either
+          // requiredFields OR fieldRules — otherwise rule-only custom fields
+          // would always read as blank and falsely fail.
+          const anyCustomFields = stepsToValidate.some(s => {
+            const req = (s.requiredFields || []) as string[];
+            const rules = parseFieldRules((s as any).fieldRules);
+            return req.some(f => f.startsWith('cf:'))
+              || Object.keys(rules).some(f => f.startsWith('cf:'));
+          });
           const cfValues = anyCustomFields ? await storage.getIntakeCustomFieldValues(id) : [];
           for (const step of stepsToValidate) {
             const requiredFields = (step.requiredFields || []) as string[];
-            for (const field of requiredFields) {
+            const fieldRules = parseFieldRules((step as any).fieldRules);
+            // Union of required + value-gated fields, so a step can have a
+            // value rule on a field that wasn't explicitly marked required
+            // (the rule itself implies presence).
+            const allFieldKeys = Array.from(new Set([
+              ...requiredFields,
+              ...Object.keys(fieldRules),
+            ]));
+            for (const field of allFieldKeys) {
               const prefix = `${step.label}: `;
+              const isRequired = requiredFields.includes(field);
+              const rule = fieldRules[field];
+
               if (field.startsWith('cf:')) {
                 const defId = Number(field.slice(3));
                 const def = await storage.getCustomFieldDefinition(defId);
                 const label = def?.name || field;
-                if (!def) { errors.push(`${prefix}${label} is required`); continue; }
+                if (!def) { if (isRequired) errors.push(`${prefix}${label} is required`); continue; }
                 const raw = cfValues.find(v => v.fieldDefinitionId === defId)?.value;
                 const trimmed = (raw ?? '').toString().trim();
                 const isEmpty = trimmed.length === 0
                   || (def.fieldType === 'checkbox' && trimmed !== 'true')
                   || (def.fieldType === 'multiselect' && (trimmed === '[]' || trimmed === 'null'))
                   || (def.fieldType === 'number' && Number(trimmed) <= 0);
-                if (isEmpty) errors.push(`${prefix}${label} is required`);
+                if (isRequired && isEmpty) errors.push(`${prefix}${label} is required`);
+                if (rule) {
+                  const ruleErr = evaluateFieldRule(field, rule, label, raw, prefix);
+                  if (ruleErr) errors.push(ruleErr.message);
+                }
                 continue;
               }
               const v = merged[field];
@@ -351,10 +373,17 @@ export function registerIntakeRoutes(app: Express) {
                 'estimatedBudget', 'capitalExpense', 'operatingExpense',
                 'itCostEstimate', 'expectedBenefits',
               ]);
-              if (v === null || v === undefined) errors.push(`${prefix}${field} is required`);
-              else if (typeof v === 'string' && !v.trim()) errors.push(`${prefix}${field} is required`);
-              else if (typeof v === 'number' && v <= 0) errors.push(`${prefix}${field} is required`);
-              else if (numericFields.has(field) && typeof v === 'string' && Number(v) <= 0) errors.push(`${prefix}${field} is required`);
+              if (isRequired) {
+                if (v === null || v === undefined) errors.push(`${prefix}${field} is required`);
+                else if (typeof v === 'string' && !v.trim()) errors.push(`${prefix}${field} is required`);
+                else if (typeof v === 'number' && v <= 0) errors.push(`${prefix}${field} is required`);
+                else if (numericFields.has(field) && typeof v === 'string' && Number(v) <= 0) errors.push(`${prefix}${field} is required`);
+              }
+              if (rule) {
+                const label = field;
+                const ruleErr = evaluateFieldRule(field, rule, label, v, prefix);
+                if (ruleErr) errors.push(ruleErr.message);
+              }
             }
           }
           if (errors.length > 0) {
@@ -937,6 +966,23 @@ export function registerIntakeRoutes(app: Express) {
       const wfIdResult = await resolveProjectWorkflowId(req, orgId);
       if (typeof wfIdResult === 'object') return res.status(wfIdResult.status).json({ message: wfIdResult.message });
 
+      // Sanitize incoming fieldRules: keep only well-formed per-field
+      // { allowedValues: string[] } entries. Drops empty arrays and unknown
+      // shapes so we never persist garbage that would crash the validator.
+      const sanitizeFieldRules = (raw: any): Record<string, { allowedValues: string[] }> => {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+        const out: Record<string, { allowedValues: string[] }> = {};
+        for (const [k, v] of Object.entries(raw)) {
+          if (typeof k !== 'string' || !k) continue;
+          const av = (v as any)?.allowedValues;
+          if (!Array.isArray(av)) continue;
+          const clean = av.filter((x: any) => typeof x === 'string');
+          if (clean.length === 0) continue;
+          out[k] = { allowedValues: clean };
+        }
+        return out;
+      };
+
       const cleaned = steps.map((s: any) => ({
         stepKey: String(s.stepKey),
         label: String(s.label),
@@ -946,6 +992,7 @@ export function registerIntakeRoutes(app: Express) {
         requiredFields: Array.isArray(s.requiredFields)
           ? s.requiredFields.map((f: any) => String(f)).filter(Boolean)
           : [],
+        fieldRules: sanitizeFieldRules(s.fieldRules),
         isTerminal: !!s.isTerminal,
         isActive: s.isActive !== false,
       }));

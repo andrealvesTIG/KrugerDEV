@@ -76,6 +76,10 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
   const [editDescription, setEditDescription] = useState("");
   const [editHelpText, setEditHelpText] = useState("");
   const [editRequiredFields, setEditRequiredFields] = useState<string[]>([]);
+  // Per-field value-based gate rules ("field must equal one of these allowed
+  // values"). Local UI shape is { fieldKey -> allowedValues[] }; converted to
+  // the persistence shape { allowedValues: string[] } on save.
+  const [editFieldRules, setEditFieldRules] = useState<Record<string, string[]>>({});
   const [editFieldSearch, setEditFieldSearch] = useState("");
   const [editIsTerminal, setEditIsTerminal] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -88,6 +92,46 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
 
   const toggleRequiredField = (k: string) =>
     setEditRequiredFields(prev => prev.includes(k) ? prev.filter(f => f !== k) : [...prev, k]);
+
+  const buildFieldRulesPayload = (
+    rules: Record<string, string[]>,
+    required: string[],
+  ): Record<string, { allowedValues: string[] }> => {
+    const out: Record<string, { allowedValues: string[] }> = {};
+    for (const [k, vals] of Object.entries(rules)) {
+      const clean = vals.filter(v => typeof v === 'string');
+      if (clean.length === 0) continue;
+      if (!required.includes(k)) continue;
+      out[k] = { allowedValues: clean };
+    }
+    return out;
+  };
+
+  // Returns the option list for a built-in or custom dropdown field; [] for
+  // free-text or unknown fields (no value rules allowed there).
+  const getFieldOptions = (key: string): { value: string; label: string }[] => {
+    if (key.startsWith('cf:')) {
+      const id = Number(key.slice(3));
+      const def = projectCustomFields.find(d => d.id === id);
+      if (!def) return [];
+      if (def.fieldType !== 'select' && def.fieldType !== 'multiselect') return [];
+      const opts = (def.options as string[] | null) ?? [];
+      return opts.map(o => ({ value: o, label: o }));
+    }
+    const f = PROJECT_FORM_FIELD_BY_KEY[key];
+    if (!f || f.inputType !== 'select') return [];
+    return (f.options ?? []).map(o => ({ value: o.value, label: o.label }));
+  };
+
+  const toggleAllowedValue = (fieldKey: string, optionValue: string) => {
+    setEditFieldRules(prev => {
+      const current = prev[fieldKey] ?? [];
+      const next = current.includes(optionValue)
+        ? current.filter(v => v !== optionValue)
+        : [...current, optionValue];
+      return { ...prev, [fieldKey]: next };
+    });
+  };
 
   const { data: workflowSteps, isLoading } = useQuery<ProjectWorkflowStep[]>({
     queryKey: wfQueryKey,
@@ -205,6 +249,7 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
       description: s.description,
       helpText: (s as any).helpText ?? null,
       requiredFields: (s as any).requiredFields ?? [],
+      fieldRules: (s as any).fieldRules ?? {},
       position: idx,
       isTerminal: s.isTerminal,
       isActive: s.isActive,
@@ -212,9 +257,18 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
 
   const handleEditSave = () => {
     if (!editingStep || !workflowSteps) return;
+    const newRules = buildFieldRulesPayload(editFieldRules, editRequiredFields);
     const updatedSteps = workflowSteps.map(s =>
       s.id === editingStep.id
-        ? { ...s, label: editLabel, description: editDescription, helpText: editHelpText || null, requiredFields: editRequiredFields, isTerminal: editIsTerminal }
+        ? {
+            ...s,
+            label: editLabel,
+            description: editDescription,
+            helpText: editHelpText || null,
+            requiredFields: editRequiredFields,
+            fieldRules: newRules,
+            isTerminal: editIsTerminal,
+          }
         : s
     );
     updateWorkflowMutation.mutate(stepsForUpdate(updatedSteps));
@@ -449,6 +503,18 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
                         setEditDescription(step.description || "");
                         setEditHelpText((step as any).helpText || "");
                         setEditRequiredFields(((step as any).requiredFields || []) as string[]);
+                        // Parse persisted fieldRules into the simpler UI shape.
+                        const rawRules = (step as any).fieldRules;
+                        const parsed: Record<string, string[]> = {};
+                        if (rawRules && typeof rawRules === 'object' && !Array.isArray(rawRules)) {
+                          for (const [k, v] of Object.entries(rawRules as Record<string, any>)) {
+                            const av = (v as any)?.allowedValues;
+                            if (Array.isArray(av) && av.length > 0) {
+                              parsed[k] = av.filter((x: any) => typeof x === 'string');
+                            }
+                          }
+                        }
+                        setEditFieldRules(parsed);
                         setEditFieldSearch("");
                         setEditIsTerminal(step.isTerminal ?? false);
                       }}
@@ -565,6 +631,46 @@ export function ProjectWorkflowSection({ organizationId }: { organizationId: num
                 );
               })()}
             </div>
+            {/* Acceptable Values: per-required-field value-based gate rules. */}
+            {(() => {
+              const dropdownRequired = editRequiredFields.filter(k => getFieldOptions(k).length > 0);
+              if (dropdownRequired.length === 0) return null;
+              return (
+                <div className="space-y-2" data-testid="section-acceptable-values">
+                  <Label>Acceptable Values</Label>
+                  <p className="text-xs text-muted-foreground">
+                    For each required dropdown field, pick the values that allow advancing past this step.
+                    Leave all unchecked to accept any value (only "must be filled in" is enforced).
+                  </p>
+                  <div className="border rounded-md divide-y">
+                    {dropdownRequired.map(key => {
+                      const opts = getFieldOptions(key);
+                      const allowed = editFieldRules[key] ?? [];
+                      return (
+                        <div key={key} className="p-3 space-y-2" data-testid={`row-allowed-values-${key}`}>
+                          <div className="text-sm font-medium">{fieldKeyLabel(key)}</div>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1">
+                            {opts.map(opt => (
+                              <label
+                                key={opt.value}
+                                className="flex items-center gap-2 text-sm cursor-pointer"
+                              >
+                                <Checkbox
+                                  checked={allowed.includes(opt.value)}
+                                  onCheckedChange={() => toggleAllowedValue(key, opt.value)}
+                                  data-testid={`checkbox-allowed-${key}-${opt.value}`}
+                                />
+                                <span>{opt.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
             <div className="flex items-center gap-2">
               <Switch checked={editIsTerminal} onCheckedChange={setEditIsTerminal} />
               <Label>Terminal step (locks the project)</Label>

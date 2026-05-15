@@ -22,6 +22,7 @@ import {
 import { mapPlannerPriorityToProjectPriority, mapPlannerPercentToStatus, getOrgIntegration } from "../services/microsoftPlanner";
 import { mapDataversePriorityToProjectPriority, mapDataverseProgressToStatus } from "../services/microsoftDataverse";
 import { addWorkingDays, ensureWorkingDay, calculateEndDate, calculateDuration, nextWorkingDay, formatDateStr, workingDaysBetweenExclusive } from "../lib/workingDays";
+import { parseFieldRules, evaluateFieldRule } from "@shared/lib/workflowFieldRules";
 import { createProjectAssignmentNotification } from "../services/notificationEngine";
 import { sendEmail } from "../services/email";
 import { invalidateOrganizationContextCache } from "../services/jarvisService";
@@ -3123,32 +3124,55 @@ export function registerProjectRoutes(app: Express) {
           const stepsToValidate = steps.slice(fromIdx, toIdx);
           const merged: any = { ...existing, ...input };
           const errors: string[] = [];
-          const anyCustomFields = stepsToValidate.some(s =>
-            ((s.requiredFields || []) as string[]).some(f => f.startsWith('cf:'))
-          );
+          // Prefetch cfValues if ANY step references a cf:<id> via either
+          // requiredFields OR fieldRules — otherwise rule-only custom fields
+          // would always read as blank and falsely fail.
+          const anyCustomFields = stepsToValidate.some(s => {
+            const req = (s.requiredFields || []) as string[];
+            const rules = parseFieldRules((s as any).fieldRules);
+            return req.some(f => f.startsWith('cf:'))
+              || Object.keys(rules).some(f => f.startsWith('cf:'));
+          });
           const cfValues = anyCustomFields ? await storage.getProjectCustomFieldValues(projectId) : [];
           for (const step of stepsToValidate) {
             const requiredFields = (step.requiredFields || []) as string[];
-            for (const field of requiredFields) {
+            const fieldRules = parseFieldRules((step as any).fieldRules);
+            const allFieldKeys = Array.from(new Set([
+              ...requiredFields,
+              ...Object.keys(fieldRules),
+            ]));
+            for (const field of allFieldKeys) {
+              const prefix = `${step.label}: `;
+              const isRequired = requiredFields.includes(field);
+              const rule = fieldRules[field];
+
               if (field.startsWith('cf:')) {
                 const defId = Number(field.slice(3));
                 const def = await storage.getCustomFieldDefinition(defId);
                 const label = def?.name || field;
-                const prefix = `${step.label}: `;
-                if (!def) { errors.push(`${prefix}${label} is required`); continue; }
+                if (!def) { if (isRequired) errors.push(`${prefix}${label} is required`); continue; }
                 const raw = cfValues.find(v => v.fieldDefinitionId === defId)?.value;
                 const trimmed = (raw ?? '').toString().trim();
                 const isEmpty = trimmed.length === 0
                   || (def.fieldType === 'checkbox' && trimmed !== 'true')
                   || (def.fieldType === 'multiselect' && (trimmed === '[]' || trimmed === 'null'));
-                if (isEmpty) errors.push(`${prefix}${label} is required`);
+                if (isRequired && isEmpty) errors.push(`${prefix}${label} is required`);
+                if (rule) {
+                  const ruleErr = evaluateFieldRule(field, rule, label, raw, prefix);
+                  if (ruleErr) errors.push(ruleErr.message);
+                }
                 continue;
               }
               const v = merged[field];
-              const prefix = `${step.label}: `;
-              if (typeof v === 'string' && !v.trim()) errors.push(`${prefix}${field} is required`);
-              else if (typeof v === 'number' && v <= 0) errors.push(`${prefix}${field} is required`);
-              else if (v === null || v === undefined) errors.push(`${prefix}${field} is required`);
+              if (isRequired) {
+                if (typeof v === 'string' && !v.trim()) errors.push(`${prefix}${field} is required`);
+                else if (typeof v === 'number' && v <= 0) errors.push(`${prefix}${field} is required`);
+                else if (v === null || v === undefined) errors.push(`${prefix}${field} is required`);
+              }
+              if (rule) {
+                const ruleErr = evaluateFieldRule(field, rule, field, v, prefix);
+                if (ruleErr) errors.push(ruleErr.message);
+              }
             }
           }
           if (errors.length > 0) {

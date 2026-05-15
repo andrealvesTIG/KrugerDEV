@@ -67,6 +67,9 @@ interface ExportIntakeWorkflowStep {
   workflowId: number | null; stepKey: string; position: number;
   label: string; description: string | null; helpText: string | null;
   requiredFields: string[] | null;
+  // Value-based gate rules. Field keys (including `cf:<id>`) are remapped on
+  // import in the same way as `requiredFields`.
+  fieldRules: Record<string, { allowedValues: string[] }> | null;
   notifyOnEntry: string[] | null; notifyOnExit: string[] | null;
   showFinancials: boolean; showArchitectureQuestions: boolean;
   showCybersecurityQuestions: boolean; showCostingChecklist: boolean;
@@ -81,6 +84,7 @@ interface ExportProjectWorkflowStep {
   workflowId: number | null; stepKey: string; position: number;
   label: string; description: string | null; helpText: string | null;
   requiredFields: string[] | null;
+  fieldRules: Record<string, { allowedValues: string[] }> | null;
   isTerminal: boolean | null; isActive: boolean | null;
 }
 interface ExportTabItem {
@@ -124,6 +128,31 @@ function remapRequiredFields(arr: string[] | null | undefined, cfMap: Map<number
     } else {
       out.push(v);
     }
+  }
+  return out;
+}
+
+// Remap field-rule keys the same way requiredFields are remapped — `cf:<oldId>`
+// keys swap to `cf:<newId>` so rules survive an export/import across orgs.
+// Unknown cf: ids are dropped (matches remapRequiredFields).
+function remapFieldRules(
+  rules: Record<string, { allowedValues: string[] }> | null | undefined,
+  cfMap: Map<number, number>,
+): Record<string, { allowedValues: string[] }> | null {
+  if (!rules || typeof rules !== "object" || Array.isArray(rules)) return null;
+  const out: Record<string, { allowedValues: string[] }> = {};
+  for (const [key, val] of Object.entries(rules)) {
+    if (!val || typeof val !== "object" || !Array.isArray((val as any).allowedValues)) continue;
+    const allowed = (val as any).allowedValues.filter((x: unknown) => typeof x === "string");
+    if (allowed.length === 0) continue;
+    let mappedKey: string | null = key;
+    if (key.startsWith("cf:")) {
+      const oldId = Number(key.slice(3));
+      const newId = cfMap.get(oldId);
+      mappedKey = Number.isFinite(newId as number) ? `cf:${newId}` : null;
+    }
+    if (mappedKey === null) continue;
+    out[mappedKey] = { allowedValues: allowed };
   }
   return out;
 }
@@ -213,7 +242,9 @@ export async function exportOrganizationConfig(organizationId: number): Promise<
       intakeWorkflowSteps: iwSteps.map(s => ({
         workflowId: s.workflowId ?? null, stepKey: s.stepKey, position: s.position,
         label: s.label, description: s.description ?? null, helpText: s.helpText ?? null,
-        requiredFields: s.requiredFields ?? null, notifyOnEntry: s.notifyOnEntry ?? null,
+        requiredFields: s.requiredFields ?? null,
+        fieldRules: ((s as any).fieldRules ?? null) as Record<string, { allowedValues: string[] }> | null,
+        notifyOnEntry: s.notifyOnEntry ?? null,
         notifyOnExit: s.notifyOnExit ?? null,
         showFinancials: !!s.showFinancials, showArchitectureQuestions: !!s.showArchitectureQuestions,
         showCybersecurityQuestions: !!s.showCybersecurityQuestions, showCostingChecklist: !!s.showCostingChecklist,
@@ -228,6 +259,7 @@ export async function exportOrganizationConfig(organizationId: number): Promise<
         workflowId: s.workflowId ?? null, stepKey: s.stepKey, position: s.position,
         label: s.label, description: s.description ?? null, helpText: s.helpText ?? null,
         requiredFields: s.requiredFields ?? null,
+        fieldRules: ((s as any).fieldRules ?? null) as Record<string, { allowedValues: string[] }> | null,
         isTerminal: s.isTerminal ?? null, isActive: s.isActive ?? null,
       })),
       intakeTabs: nest(tabRows, secRows, itemRows, false, true),
@@ -403,6 +435,7 @@ export async function importOrganizationConfig(
         stepKey: s.stepKey, position: s.position, label: s.label,
         description: s.description, helpText: s.helpText,
         requiredFields: remapRequiredFields(s.requiredFields, cfMap),
+        fieldRules: remapFieldRules(s.fieldRules, cfMap) ?? {},
         notifyOnEntry: s.notifyOnEntry ?? null, notifyOnExit: s.notifyOnExit ?? null,
         showFinancials: !!s.showFinancials, showArchitectureQuestions: !!s.showArchitectureQuestions,
         showCybersecurityQuestions: !!s.showCybersecurityQuestions, showCostingChecklist: !!s.showCostingChecklist,
@@ -435,6 +468,7 @@ export async function importOrganizationConfig(
         stepKey: s.stepKey, position: s.position, label: s.label,
         description: s.description, helpText: s.helpText,
         requiredFields: remapRequiredFields(s.requiredFields, cfMap),
+        fieldRules: remapFieldRules(s.fieldRules, cfMap) ?? {},
         isTerminal: s.isTerminal ?? false, isActive: s.isActive ?? true,
       });
       result.projectWorkflowStepsImported++;

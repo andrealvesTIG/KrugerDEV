@@ -1937,6 +1937,13 @@ export const intakeWorkflowSteps = pgTable("intake_workflow_steps", {
   description: text("description"), // Short description
   helpText: text("help_text"), // Detailed help text shown during step
   requiredFields: text("required_fields").array(), // Array of field names required at this step
+  // Per-field value-based gate rules. Shape: { [fieldKey]: { allowedValues: string[] } }
+  // where fieldKey follows the same convention as `requiredFields` (bare key for
+  // built-in columns, `cf:<definitionId>` for custom fields). When a rule is
+  // present, the current value must equal one of `allowedValues` (case-sensitive,
+  // trimmed) to allow advancing past the step. Coexists with `requiredFields`:
+  // a field can be required, value-gated, or both.
+  fieldRules: jsonb("field_rules").default(sql`'{}'::jsonb`),
   notifyOnEntry: text("notify_on_entry").array(), // Email recipients notified when an intake enters this step
   notifyOnExit: text("notify_on_exit").array(), // Email recipients notified when an intake exits this step
   showFinancials: boolean("show_financials").default(false).notNull(), // Whether to render the Intake Estimates (CapEx/OpEx) grid on this step
@@ -1982,6 +1989,9 @@ export const projectWorkflowSteps = pgTable("project_workflow_steps", {
   // `description`); per-org custom fields are stored as `cf:<definitionId>`.
   // Mirrors the same convention used by `intake_workflow_steps.required_fields`.
   requiredFields: text("required_fields").array().default(sql`ARRAY[]::text[]`),
+  // Per-field value-based gate rules. Same shape and conventions as
+  // `intake_workflow_steps.field_rules` — see comment there for details.
+  fieldRules: jsonb("field_rules").default(sql`'{}'::jsonb`),
   isTerminal: boolean("is_terminal").default(false),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
