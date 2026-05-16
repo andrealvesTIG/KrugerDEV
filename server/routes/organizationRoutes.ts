@@ -235,7 +235,17 @@ export function registerOrganizationRoutes(app: Express) {
       }
       
       const { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl, timezone, fiscalYearStartMonth, slug, showPowerBiIntake, showAiMode } = req.body;
-      const updates: Record<string, unknown> = { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl, timezone };
+      // Only include fields that were actually sent — avoids clobbering NOT NULL
+      // columns (e.g. name) with undefined on partial-update PATCH-style calls.
+      const updates: Record<string, unknown> = {};
+      if (name !== undefined) updates.name = name;
+      if (description !== undefined) updates.description = description;
+      if (hiddenModules !== undefined) updates.hiddenModules = hiddenModules;
+      if (moduleOrder !== undefined) updates.moduleOrder = moduleOrder;
+      if (hiddenGroups !== undefined) updates.hiddenGroups = hiddenGroups;
+      if (sidebarStructure !== undefined) updates.sidebarStructure = sidebarStructure;
+      if (logoUrl !== undefined) updates.logoUrl = logoUrl;
+      if (timezone !== undefined) updates.timezone = timezone;
       if (showPowerBiIntake !== undefined) {
         updates.showPowerBiIntake = !!showPowerBiIntake;
       }
