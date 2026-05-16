@@ -86,7 +86,12 @@ let msalClient: ConfidentialClientApplication | null = null;
 function getMsalConfig(): Configuration | null {
   const clientId = process.env.MICROSOFT_CLIENT_ID;
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
-  const tenantId = "common";
+  // Multi-tenant SaaS app: accept any work/school Entra ID tenant. Use
+  // "organizations" rather than "common" so consumer Outlook/Hotmail/Live
+  // personal accounts are rejected for this enterprise product. Override
+  // with MICROSOFT_TENANT_ID only if you need to lock auth to a single
+  // tenant (e.g. internal-only deployments).
+  const tenantId = process.env.MICROSOFT_TENANT_ID || "organizations";
 
   if (!clientId || !clientSecret) {
     return null;
