@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { useLocation } from "wouter";
 import { useAiMode, setAiMode } from "@/hooks/use-ai-mode";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -8,6 +9,7 @@ interface ModeToggleProps {
 
 export function ModeToggle({ className }: ModeToggleProps) {
   const { aiMode } = useAiMode();
+  const [, setLocation] = useLocation();
 
   return (
     <Tooltip>
@@ -15,7 +17,13 @@ export function ModeToggle({ className }: ModeToggleProps) {
         <button
           type="button"
           role="switch"
-          onClick={() => setAiMode(!aiMode)}
+          onClick={() => {
+            const next = !aiMode;
+            setAiMode(next);
+            // Exiting AI Mode → drop the user on the Home page rather than
+            // whichever route happened to be behind the AI Mode overlay.
+            if (!next) setLocation("/");
+          }}
           aria-checked={aiMode}
           aria-label={aiMode ? "AI Mode is on. Click to turn off." : "AI Mode is off. Click to turn on."}
           data-testid="button-ai-mode-toggle"
