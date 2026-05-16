@@ -282,6 +282,7 @@ export function registerOrganizationRoutes(app: Express) {
       const updated = await storage.updateOrganization(orgId, updates);
       res.json(updated);
     } catch (err) {
+      console.error('[PUT /api/organizations/:id] update failed', { orgId: req.params.id, body: req.body, err });
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update organization' : classified.message });
     }
