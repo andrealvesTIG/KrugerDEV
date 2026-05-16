@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useCustomFieldDefinitions, useIntakeCustomFieldValues, useUpdateIntakeCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useResources } from "@/hooks/use-resources";
 import { AttachmentFieldInput, AttachmentFieldDisplay } from "@/components/custom-fields/AttachmentField";
@@ -83,17 +84,23 @@ export function IntakeSingleCustomField({
         return <Checkbox checked={editValue === "true"} onCheckedChange={(c) => setEditValue(c ? "true" : "false")} data-testid={`input-intake-cf-${field.id}`} />;
       case "select":
         return (
-          <Select value={editValue} onValueChange={setEditValue}>
-            <SelectTrigger data-testid={`select-intake-cf-${field.id}`}><SelectValue placeholder="Select..." /></SelectTrigger>
-            <SelectContent>{(field.options as string[] || []).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-          </Select>
+          <SearchableSelect
+            value={editValue}
+            onValueChange={setEditValue}
+            placeholder="Select..."
+            options={(field.options as string[] || []).map(o => ({ value: o, label: o }))}
+            testId={`select-intake-cf-${field.id}`}
+          />
         );
       case "resource":
         return (
-          <Select value={editValue} onValueChange={setEditValue}>
-            <SelectTrigger data-testid={`select-intake-cf-resource-${field.id}`}><SelectValue placeholder="Select resource..." /></SelectTrigger>
-            <SelectContent>{orgResources.map(r => <SelectItem key={r.id} value={String(r.id)}>{r.displayName}</SelectItem>)}</SelectContent>
-          </Select>
+          <SearchableSelect
+            value={editValue}
+            onValueChange={setEditValue}
+            placeholder="Select resource..."
+            options={orgResources.map(r => ({ value: String(r.id), label: r.displayName }))}
+            testId={`select-intake-cf-resource-${field.id}`}
+          />
         );
       case "attachment":
         return <AttachmentFieldInput value={editValue} onChange={setEditValue} testId={`attachment-intake-cf-${field.id}`} />;

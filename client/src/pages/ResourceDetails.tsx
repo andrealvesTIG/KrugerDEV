@@ -45,6 +45,7 @@ import {
   ExternalLink
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1058,29 +1059,21 @@ function ResourceCustomFieldsSection({ resourceId, organizationId }: { resourceI
         );
       case "select":
         return (
-          <Select value={editValue} onValueChange={setEditValue}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select..." />
-            </SelectTrigger>
-            <SelectContent>
-              {(field.options as string[] || []).map((opt) => (
-                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            value={editValue}
+            onValueChange={setEditValue}
+            placeholder="Select..."
+            options={(field.options as string[] || []).map((opt) => ({ value: opt, label: opt }))}
+          />
         );
       case "resource":
         return (
-          <Select value={editValue} onValueChange={setEditValue}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select resource..." />
-            </SelectTrigger>
-            <SelectContent>
-              {orgResources.map((r) => (
-                <SelectItem key={r.id} value={String(r.id)}>{r.displayName}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            value={editValue}
+            onValueChange={setEditValue}
+            placeholder="Select resource..."
+            options={orgResources.map((r) => ({ value: String(r.id), label: r.displayName }))}
+          />
         );
       case "attachment":
         return (

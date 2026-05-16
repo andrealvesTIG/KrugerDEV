@@ -71,6 +71,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Loader2, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Users, UserPlus, Flag, FlagTriangleRight, ImageDown, Mail, Briefcase, ZoomIn, ZoomOut, Maximize2, ListTodo, MoreVertical, UserMinus, PanelLeft, CircleDot } from "lucide-react";
 import { toPng } from "html-to-image";
 import ExcelJS from "exceljs";
@@ -3494,29 +3495,23 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
         );
       case "select":
         return (
-          <Select value={editValue} onValueChange={setEditValue}>
-            <SelectTrigger data-testid={`select-custom-field-${field.id}`}>
-              <SelectValue placeholder="Select..." />
-            </SelectTrigger>
-            <SelectContent>
-              {(field.options as string[] || []).map((opt) => (
-                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            value={editValue}
+            onValueChange={setEditValue}
+            placeholder="Select..."
+            options={(field.options as string[] || []).map((opt) => ({ value: opt, label: opt }))}
+            testId={`select-custom-field-${field.id}`}
+          />
         );
       case "resource":
         return (
-          <Select value={editValue} onValueChange={setEditValue}>
-            <SelectTrigger data-testid={`select-resource-custom-field-${field.id}`}>
-              <SelectValue placeholder="Select resource..." />
-            </SelectTrigger>
-            <SelectContent>
-              {orgResources.map((r) => (
-                <SelectItem key={r.id} value={String(r.id)}>{r.displayName}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            value={editValue}
+            onValueChange={setEditValue}
+            placeholder="Select resource..."
+            options={orgResources.map((r) => ({ value: String(r.id), label: r.displayName }))}
+            testId={`select-resource-custom-field-${field.id}`}
+          />
         );
       case "attachment":
         return (
