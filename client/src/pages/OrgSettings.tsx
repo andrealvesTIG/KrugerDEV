@@ -1,9 +1,14 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { Loader2, Settings, Users, ShieldAlert, Trash2, Eye, FileText, GitBranch, Plug, Calendar, Sparkles, Building2, Zap, LayoutGrid, Columns, Code2, UserCheck, Bell, Target, Bot, DollarSign } from "lucide-react";
 import { ChevronDown, PanelLeftClose, PanelLeft } from "lucide-react";
 import type { Organization } from "@shared/schema";
@@ -325,7 +330,8 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
           <IntegrationsPage />
         </TabsContent>
         {isAdminOrOwner && (
-          <TabsContent value="agents" className="mt-0">
+          <TabsContent value="agents" className="mt-0 space-y-4">
+            <AiModeToggleCard />
             <Tabs
               value={agentsSubTab}
               onValueChange={(v) => setAgentsSubTab(v as "custom" | "friday")}
@@ -358,5 +364,65 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         </TabsContent>
       </div>
     </Tabs>
+  );
+}
+
+function AiModeToggleCard() {
+  const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const checked = currentOrganization?.showAiMode ?? true;
+
+  const handleToggle = async (next: boolean) => {
+    if (!currentOrganization) return;
+    try {
+      await apiRequest("PUT", `/api/organizations/${currentOrganization.id}`, {
+        showAiMode: next,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["/api/organizations"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast({
+        title: "Saved",
+        description: next
+          ? "AI Mode is now available. Users land in AI Mode by default after signing in."
+          : "AI Mode is now hidden. Users land on the dashboard and the AI Mode toggle is removed.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to update setting",
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Sparkles className="h-5 w-5 text-primary" />
+          AI Mode
+        </CardTitle>
+        <CardDescription>
+          Controls the AI Mode landing experience for everyone in this
+          organization. When off, users land on the dashboard and the AI Mode
+          toggle in the top bar is hidden. The Friday assistant panel and other
+          AI features stay available.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor="show-ai-mode" className="text-sm">
+            Enable AI Mode as the default landing experience
+          </Label>
+          <Switch
+            id="show-ai-mode"
+            checked={checked}
+            onCheckedChange={handleToggle}
+            data-testid="switch-show-ai-mode"
+          />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
