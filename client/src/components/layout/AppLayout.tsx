@@ -137,7 +137,11 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
   
   const isFullBleedPage = location.startsWith('/embed') || location.startsWith('/pmo-radar') || location.startsWith('/powerbi-agent');
 
-  if (aiMode) {
+  // Org-level kill switch: when the current org has AI Mode disabled, never
+  // auto-land in AI Mode regardless of the user's saved preference. The
+  // ModeToggle is also hidden below.
+  const orgAllowsAiMode = currentOrganization?.showAiMode !== false;
+  if (aiMode && orgAllowsAiMode) {
     return <AiModePage />;
   }
 
@@ -354,7 +358,7 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
               <HelpCircle className="h-4 w-4" />
             </Button>
             <NotificationBell />
-            <ModeToggle />
+            {orgAllowsAiMode && <ModeToggle />}
             <span className="hidden sm:inline-flex"><ThemeToggle /></span>
             <UserMenu />
           </div>

@@ -9,7 +9,7 @@ import { IntakeFormLayoutSection } from "./IntakeFormLayoutSection";
 import { ProjectFormLayoutSection } from "./ProjectFormLayoutSection";
 import { ProjectWorkflowSection } from "./ProjectWorkflowSection";
 import { ConfigExportImportSection } from "./ConfigExportImportSection";
-import { GitBranch, FolderKanban, Layout, LayoutGrid, BarChart3, Download } from "lucide-react";
+import { GitBranch, FolderKanban, Layout, LayoutGrid, BarChart3, Download, Sparkles } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -72,6 +72,66 @@ function PowerBiIntakeToggleCard() {
   );
 }
 
+function AiModeToggleCard() {
+  const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const checked = currentOrganization?.showAiMode ?? true;
+
+  const handleToggle = async (next: boolean) => {
+    if (!currentOrganization) return;
+    try {
+      await apiRequest("PUT", `/api/organizations/${currentOrganization.id}`, {
+        showAiMode: next,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["/api/organizations"] });
+      await queryClient.invalidateQueries({ queryKey: [`/api/users`] });
+      toast({
+        title: "Saved",
+        description: next
+          ? "AI Mode is now available. Users land in AI Mode by default after signing in."
+          : "AI Mode is now hidden. Users land on the dashboard and the AI Mode toggle is removed.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to update setting",
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-primary" />
+          AI Mode
+        </CardTitle>
+        <CardDescription>
+          Controls the AI Mode landing experience for everyone in this
+          organization. When off, users land on the dashboard and the AI Mode
+          toggle in the top bar is hidden. The Friday AI assistant panel and
+          other AI features stay available.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor="show-ai-mode" className="text-sm">
+            Enable AI Mode as the default landing experience
+          </Label>
+          <Switch
+            id="show-ai-mode"
+            checked={checked}
+            onCheckedChange={handleToggle}
+            data-testid="switch-show-ai-mode"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function GovernanceSection({ organizationId }: { organizationId: number }) {
   const [activeTab, setActiveTab] = useState("intake");
 
@@ -109,6 +169,7 @@ export function GovernanceSection({ organizationId }: { organizationId: number }
         </TabsList>
 
         <TabsContent value="intake" className="mt-4 space-y-6">
+          <AiModeToggleCard />
           <PowerBiIntakeToggleCard />
           <IntakeWorkflowSection organizationId={organizationId} />
         </TabsContent>
