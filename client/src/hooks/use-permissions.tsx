@@ -10,7 +10,7 @@ interface MePermissionsResponse {
 
 /**
  * Fetch the current user's effective permissions in the active org. Returns
- * a stable `has(key)` checker. `super_admin` / `marketing` users always
+ * a stable `has(key)` checker. Platform `super_admin` users always
  * receive every permission (computed server-side).
  */
 export function usePermissions() {

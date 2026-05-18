@@ -81,7 +81,7 @@ export function registerProgramRoutes(app: Express) {
       if (!await userHasOrgAccess(userId, parsed.data.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
-      if (await denyIfMissingPerm(req, res, userId, parsed.data.organizationId, "program.create")) return;
+      if (await denyIfMissingPerm(req, res, userId, parsed.data.organizationId, "program.manage")) return;
       const created = await storage.createProgram({ ...parsed.data, createdBy: userId } as any);
       res.status(201).json(created);
     } catch (err) {
@@ -104,7 +104,7 @@ export function registerProgramRoutes(app: Express) {
       if (!await userHasOrgAccess(userId, existing.organizationId)) {
         return res.status(403).json({ message: 'Access denied' });
       }
-      if (await denyIfMissingPerm(req, res, userId, existing.organizationId, "program.update")) return;
+      if (await denyIfMissingPerm(req, res, userId, existing.organizationId, "program.manage")) return;
 
       const parsed = updateProgramSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -132,7 +132,7 @@ export function registerProgramRoutes(app: Express) {
       if (!await userHasOrgAccess(userId, existing.organizationId)) {
         return res.status(403).json({ message: 'Access denied' });
       }
-      if (await denyIfMissingPerm(req, res, userId, existing.organizationId, "program.delete")) return;
+      if (await denyIfMissingPerm(req, res, userId, existing.organizationId, "program.manage")) return;
       await storage.deleteProgram(id, userId);
       res.status(204).send();
     } catch (err) {
