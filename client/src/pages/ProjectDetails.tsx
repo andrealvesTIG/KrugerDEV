@@ -4525,6 +4525,23 @@ function ProjectTeamTab({
                             </div>
                           </div>
 
+                          {isExpanded && member.taskDetails.length === 0 && (
+                            <div className="flex border-b bg-background">
+                              <div className="w-44 sm:w-64 flex-shrink-0 p-2 border-r pl-6 sm:pl-10 sticky left-0 z-10 bg-background">
+                                <p className="text-xs text-muted-foreground italic">No task assignments yet</p>
+                              </div>
+                              <div className="flex-1 flex">
+                                {member.weeks.map((_, weekIdx) => (
+                                  <div
+                                    key={weekIdx}
+                                    className={`flex-1 p-1.5 border-r ${teamTimeScale === "day" ? "min-w-[50px]" : "min-w-[65px]"} bg-slate-50 dark:bg-slate-900`}
+                                  >
+                                    <div className="text-center text-xs text-muted-foreground">-</div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           {isExpanded && member.taskDetails.map((td) => (
                             <div key={td.task.id} className="flex border-b bg-background hover:bg-muted/10 transition-colors">
                               <div className="w-44 sm:w-64 flex-shrink-0 p-2 border-r pl-6 sm:pl-10 sticky left-0 z-10 bg-background">
