@@ -108,6 +108,10 @@ export default function CalendarDetails() {
 
   async function addException() {
     if (!exName.trim() || !exStart || !exEnd) return;
+    if (exEnd < exStart) {
+      toast({ title: "Invalid date range", description: "End date must be on or after start date.", variant: "destructive" });
+      return;
+    }
     try {
       await createExc.mutateAsync({
         name: exName.trim(),
@@ -269,7 +273,7 @@ export default function CalendarDetails() {
                 </div>
                 <div className="col-span-3">
                   <Label>End</Label>
-                  <Input type="date" value={exEnd} onChange={(e) => setExEnd(e.target.value)} data-testid="input-exception-end" />
+                  <Input type="date" value={exEnd} min={exStart || undefined} onChange={(e) => setExEnd(e.target.value)} data-testid="input-exception-end" />
                 </div>
                 <div className="col-span-2 flex items-center gap-2 pb-2">
                   <Switch checked={exWorking} onCheckedChange={setExWorking} id="ex-working" />
