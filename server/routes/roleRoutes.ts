@@ -3,7 +3,7 @@
  * requires the `roles.manage` permission (super-admin bypasses).
  */
 import type { Express } from "express";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../db";
 import {
   roles as rolesTable,
@@ -59,11 +59,10 @@ export function registerRoleRoutes(app: Express) {
         const orgRoles = await db.select().from(rolesTable).where(eq(rolesTable.organizationId, orgId));
         const ids = orgRoles.map(r => r.id);
         const permRows = ids.length > 0
-          ? await db.select().from(rolePermissionsTable)
+          ? await db.select().from(rolePermissionsTable).where(inArray(rolePermissionsTable.roleId, ids))
           : [];
         const byRole = new Map<number, string[]>();
         for (const r of permRows) {
-          if (!ids.includes(r.roleId)) continue;
           (byRole.get(r.roleId) || byRole.set(r.roleId, []).get(r.roleId)!).push(r.permissionKey);
         }
         res.json(orgRoles.map(r => ({
