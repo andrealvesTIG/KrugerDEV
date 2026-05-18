@@ -38,7 +38,9 @@ export const PERMISSIONS = {
 
   // Programs
   PROGRAM_VIEW: "program.view",
-  PROGRAM_MANAGE: "program.manage",
+  PROGRAM_CREATE: "program.create",
+  PROGRAM_UPDATE: "program.update",
+  PROGRAM_DELETE: "program.delete",
 
   // Projects
   PROJECT_VIEW: "project.view",
@@ -58,13 +60,23 @@ export const PERMISSIONS = {
   TASK_UPDATE: "task.update",
   TASK_DELETE: "task.delete",
 
-  // Risks & Issues
-  RISK_MANAGE: "risk.manage",
-  ISSUE_MANAGE: "issue.manage",
+  // Risks
+  RISK_VIEW: "risk.view",
+  RISK_CREATE: "risk.create",
+  RISK_UPDATE: "risk.update",
+  RISK_DELETE: "risk.delete",
+
+  // Issues
+  ISSUE_VIEW: "issue.view",
+  ISSUE_CREATE: "issue.create",
+  ISSUE_UPDATE: "issue.update",
+  ISSUE_DELETE: "issue.delete",
 
   // Resources
   RESOURCE_VIEW: "resource.view",
-  RESOURCE_MANAGE: "resource.manage",
+  RESOURCE_CREATE: "resource.create",
+  RESOURCE_UPDATE: "resource.update",
+  RESOURCE_DELETE: "resource.delete",
 
   // Financials
   FINANCIALS_VIEW: "financials.view",
@@ -99,7 +111,9 @@ export const PERMISSION_CATALOG: PermissionDef[] = [
   { key: PERMISSIONS.PORTFOLIO_DELETE, area: "Portfolios", label: "Delete portfolios", description: "Delete portfolios." },
 
   { key: PERMISSIONS.PROGRAM_VIEW, area: "Programs", label: "View programs", description: "Read program data." },
-  { key: PERMISSIONS.PROGRAM_MANAGE, area: "Programs", label: "Manage programs", description: "Create, edit and delete programs." },
+  { key: PERMISSIONS.PROGRAM_CREATE, area: "Programs", label: "Create programs", description: "Create new programs." },
+  { key: PERMISSIONS.PROGRAM_UPDATE, area: "Programs", label: "Update programs", description: "Edit programs and their project associations." },
+  { key: PERMISSIONS.PROGRAM_DELETE, area: "Programs", label: "Delete programs", description: "Delete programs." },
 
   { key: PERMISSIONS.PROJECT_VIEW, area: "Projects", label: "View projects", description: "Read project data." },
   { key: PERMISSIONS.PROJECT_CREATE, area: "Projects", label: "Create projects", description: "Create new projects." },
@@ -116,11 +130,20 @@ export const PERMISSION_CATALOG: PermissionDef[] = [
   { key: PERMISSIONS.TASK_UPDATE, area: "Tasks", label: "Update tasks", description: "Edit existing tasks." },
   { key: PERMISSIONS.TASK_DELETE, area: "Tasks", label: "Delete tasks", description: "Delete tasks." },
 
-  { key: PERMISSIONS.RISK_MANAGE, area: "Risks", label: "Manage risks", description: "Create, edit and delete risks." },
-  { key: PERMISSIONS.ISSUE_MANAGE, area: "Issues", label: "Manage issues", description: "Create, edit and delete issues." },
+  { key: PERMISSIONS.RISK_VIEW, area: "Risks", label: "View risks", description: "Read project risks." },
+  { key: PERMISSIONS.RISK_CREATE, area: "Risks", label: "Create risks", description: "Log new risks." },
+  { key: PERMISSIONS.RISK_UPDATE, area: "Risks", label: "Update risks", description: "Edit existing risks." },
+  { key: PERMISSIONS.RISK_DELETE, area: "Risks", label: "Delete risks", description: "Delete risks." },
+
+  { key: PERMISSIONS.ISSUE_VIEW, area: "Issues", label: "View issues", description: "Read project issues." },
+  { key: PERMISSIONS.ISSUE_CREATE, area: "Issues", label: "Create issues", description: "Log new issues." },
+  { key: PERMISSIONS.ISSUE_UPDATE, area: "Issues", label: "Update issues", description: "Edit existing issues." },
+  { key: PERMISSIONS.ISSUE_DELETE, area: "Issues", label: "Delete issues", description: "Delete issues." },
 
   { key: PERMISSIONS.RESOURCE_VIEW, area: "Resources", label: "View resources", description: "See the resource directory." },
-  { key: PERMISSIONS.RESOURCE_MANAGE, area: "Resources", label: "Manage resources", description: "Create, edit and delete resources." },
+  { key: PERMISSIONS.RESOURCE_CREATE, area: "Resources", label: "Create resources", description: "Add new resources to the directory." },
+  { key: PERMISSIONS.RESOURCE_UPDATE, area: "Resources", label: "Update resources", description: "Edit existing resources." },
+  { key: PERMISSIONS.RESOURCE_DELETE, area: "Resources", label: "Delete resources", description: "Delete resources." },
 
   { key: PERMISSIONS.FINANCIALS_VIEW, area: "Financials", label: "View financials", description: "See project financial data and grids." },
   { key: PERMISSIONS.FINANCIALS_EDIT, area: "Financials", label: "Edit financials", description: "Edit cost items and financial cells." },

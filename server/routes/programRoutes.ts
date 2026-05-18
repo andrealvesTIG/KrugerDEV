@@ -68,7 +68,7 @@ export function registerProgramRoutes(app: Express) {
       if (!parsed.success) {
         return res.status(400).json({ message: 'Validation failed', errors: formatZodErrors(parsed.error) });
       }
-      if (await enforcePermission(req, res, userId, parsed.data.organizationId, "program.manage")) return;
+      if (await enforcePermission(req, res, userId, parsed.data.organizationId, "program.create")) return;
       const created = await storage.createProgram({ ...parsed.data, createdBy: userId } as any);
       res.status(201).json(created);
     } catch (err) {
@@ -88,7 +88,7 @@ export function registerProgramRoutes(app: Express) {
 
       const existing = await storage.getProgram(id);
       if (!existing) return res.status(404).json({ message: 'Program not found' });
-      if (await enforcePermission(req, res, userId, existing.organizationId, "program.manage")) return;
+      if (await enforcePermission(req, res, userId, existing.organizationId, "program.update")) return;
 
       const parsed = updateProgramSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -113,7 +113,7 @@ export function registerProgramRoutes(app: Express) {
 
       const existing = await storage.getProgram(id);
       if (!existing) return res.status(404).json({ message: 'Program not found' });
-      if (await enforcePermission(req, res, userId, existing.organizationId, "program.manage")) return;
+      if (await enforcePermission(req, res, userId, existing.organizationId, "program.delete")) return;
       await storage.deleteProgram(id, userId);
       res.status(204).send();
     } catch (err) {
@@ -155,7 +155,7 @@ export function registerProgramRoutes(app: Express) {
 
       const program = await storage.getProgram(id);
       if (!program) return res.status(404).json({ message: 'Program not found' });
-      if (await enforcePermission(req, res, userId, program.organizationId, "program.manage")) return;
+      if (await enforcePermission(req, res, userId, program.organizationId, "program.update")) return;
 
       const parsed = z.object({ projectIds: z.array(z.number().int()) }).safeParse(req.body);
       if (!parsed.success) {
@@ -182,7 +182,7 @@ export function registerProgramRoutes(app: Express) {
 
       const program = await storage.getProgram(id);
       if (!program) return res.status(404).json({ message: 'Program not found' });
-      if (await enforcePermission(req, res, userId, program.organizationId, "program.manage")) return;
+      if (await enforcePermission(req, res, userId, program.organizationId, "program.update")) return;
       await storage.addProjectToProgram(id, projectId);
       res.status(204).send();
     } catch (err) {
@@ -203,7 +203,7 @@ export function registerProgramRoutes(app: Express) {
 
       const program = await storage.getProgram(id);
       if (!program) return res.status(404).json({ message: 'Program not found' });
-      if (await enforcePermission(req, res, userId, program.organizationId, "program.manage")) return;
+      if (await enforcePermission(req, res, userId, program.organizationId, "program.update")) return;
       await storage.removeProjectFromProgram(projectId);
       res.status(204).send();
     } catch (err) {
