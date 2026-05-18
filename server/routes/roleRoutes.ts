@@ -121,6 +121,12 @@ export function registerRoleRoutes(app: Express) {
         const roleId = Number(req.params.roleId);
         const [role] = await db.select().from(rolesTable).where(and(eq(rolesTable.id, roleId), eq(rolesTable.organizationId, orgId)));
         if (!role) return res.status(404).json({ message: "Role not found" });
+        if (role.isSystem) {
+          return res.status(400).json({
+            message: "Built-in roles are read-only. Clone this role to make a customizable copy.",
+            code: "BUILTIN_ROLE_IMMUTABLE",
+          });
+        }
 
         const { name, description, permissions: permList } = req.body || {};
         const updates: any = { updatedAt: new Date() };
@@ -171,6 +177,42 @@ export function registerRoleRoutes(app: Express) {
         }
         await db.delete(rolesTable).where(eq(rolesTable.id, roleId));
         res.status(204).end();
+      } catch (err) {
+        const c = classifyError(err);
+        res.status(c.status).json({ message: c.message });
+      }
+    },
+  );
+
+  // -------- Clone a role (typically a built-in) into a new custom role ----------
+  app.post(
+    "/api/organizations/:orgId/roles/:roleId/clone",
+    requirePermission("roles.manage"),
+    async (req, res) => {
+      try {
+        const orgId = Number(req.params.orgId);
+        const roleId = Number(req.params.roleId);
+        const [source] = await db.select().from(rolesTable).where(and(eq(rolesTable.id, roleId), eq(rolesTable.organizationId, orgId)));
+        if (!source) return res.status(404).json({ message: "Role not found" });
+        const { name, key } = req.body || {};
+        if (!name || !key) return res.status(400).json({ message: "name and key are required" });
+        if (!/^[a-z0-9_]+$/.test(String(key))) {
+          return res.status(400).json({ message: "key must be snake_case (a-z, 0-9, _)" });
+        }
+        const [created] = await db.insert(rolesTable).values({
+          organizationId: orgId,
+          key: String(key),
+          name: String(name),
+          description: source.description,
+          isSystem: false,
+        }).returning();
+        const sourcePerms = await db.select().from(rolePermissionsTable).where(eq(rolePermissionsTable.roleId, source.id));
+        if (sourcePerms.length > 0) {
+          await db.insert(rolePermissionsTable).values(
+            sourcePerms.map(p => ({ roleId: created.id, permissionKey: p.permissionKey })),
+          ).onConflictDoNothing();
+        }
+        res.status(201).json({ ...created, permissions: sourcePerms.map(p => p.permissionKey) });
       } catch (err) {
         const c = classifyError(err);
         res.status(c.status).json({ message: c.message });

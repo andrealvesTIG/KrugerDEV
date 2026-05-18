@@ -11,6 +11,17 @@ import {
   getUserOrgRole,
   formatZodErrors,
 } from "./helpers";
+import { userHasPermission } from "../services/authorizationService";
+
+async function denyIfMissingPerm(req: any, res: any, userId: string, orgId: number, key: string) {
+  if (await userHasPermission(userId, orgId, key, req)) return false;
+  res.status(403).json({
+    message: "You do not have permission to perform this action.",
+    code: "FORBIDDEN_PERMISSION",
+    required: key,
+  });
+  return true;
+}
 
 export function registerProgramRoutes(app: Express) {
   // List programs (optionally by org)
@@ -70,6 +81,7 @@ export function registerProgramRoutes(app: Express) {
       if (!await userHasOrgAccess(userId, parsed.data.organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
+      if (await denyIfMissingPerm(req, res, userId, parsed.data.organizationId, "program.create")) return;
       const created = await storage.createProgram({ ...parsed.data, createdBy: userId } as any);
       res.status(201).json(created);
     } catch (err) {
@@ -92,6 +104,7 @@ export function registerProgramRoutes(app: Express) {
       if (!await userHasOrgAccess(userId, existing.organizationId)) {
         return res.status(403).json({ message: 'Access denied' });
       }
+      if (await denyIfMissingPerm(req, res, userId, existing.organizationId, "program.update")) return;
 
       const parsed = updateProgramSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -119,10 +132,7 @@ export function registerProgramRoutes(app: Express) {
       if (!await userHasOrgAccess(userId, existing.organizationId)) {
         return res.status(403).json({ message: 'Access denied' });
       }
-      const role = await getUserOrgRole(userId, existing.organizationId);
-      if (role !== 'owner' && role !== 'org_admin' && role !== 'admin') {
-        return res.status(403).json({ message: 'Only org admins can delete a program' });
-      }
+      if (await denyIfMissingPerm(req, res, userId, existing.organizationId, "program.delete")) return;
       await storage.deleteProgram(id, userId);
       res.status(204).send();
     } catch (err) {

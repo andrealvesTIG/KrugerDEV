@@ -32,7 +32,7 @@ import {
 } from "@shared/schema";
 import { PERMISSION_CATALOG, PERMISSION_KEYS } from "@shared/permissionCatalog";
 import { BUILTIN_ROLES, mapLegacyMemberRole } from "@shared/permissionDefaults";
-import { getUserIdFromRequest } from "../routes/helpers";
+import { getUserIdFromRequest, userHasOrgAccess } from "../routes/helpers";
 
 /* ------------------------------------------------------------------ */
 /* Catalog sync — runs on boot                                         */
@@ -139,7 +139,10 @@ export async function seedDefaultRolesForOrg(orgId: number): Promise<void> {
 /* Effective permission resolution                                     */
 /* ------------------------------------------------------------------ */
 
-const SUPER_USER_ROLES = new Set(["super_admin", "marketing"]);
+// Only the platform super_admin bypasses RBAC. `marketing` and other elevated
+// users.role values do NOT get a blanket pass — they must be explicit org
+// members and hold the right permissions.
+const SUPER_USER_ROLES = new Set(["super_admin"]);
 
 function reqCache(req: Request): Map<string, Set<string>> {
   const r = req as any;
@@ -227,6 +230,13 @@ export function requirePermission(permissionKey: string) {
     const orgId = Number(orgIdRaw);
     if (!orgId || Number.isNaN(orgId)) {
       return res.status(400).json({ message: "organizationId is required" });
+    }
+    // Membership-first gate: a permission alone is not enough — the user
+    // must currently be a member of (or admin over) the organization. This
+    // keeps the existing org-access model as the foundation and stops stale
+    // `user_roles` rows from granting access after a member is removed.
+    if (!(await userHasOrgAccess(userId, orgId))) {
+      return res.status(403).json({ message: "Access denied to this organization" });
     }
     const ok = await userHasPermission(userId, orgId, permissionKey, req);
     if (!ok) {

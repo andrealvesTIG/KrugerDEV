@@ -31,7 +31,11 @@ export default function RolesAndPermissionsPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [editing, setEditing] = useState<RoleWithPerms | null>(null);
+  const [viewing, setViewing] = useState<RoleWithPerms | null>(null);
   const [creating, setCreating] = useState(false);
+  const [cloning, setCloning] = useState<RoleWithPerms | null>(null);
+  const [cloneName, setCloneName] = useState("");
+  const [cloneKey, setCloneKey] = useState("");
 
   const rolesQuery = useQuery<RoleWithPerms[]>({
     queryKey: ["/api/organizations/roles", orgId],
@@ -82,6 +86,26 @@ export default function RolesAndPermissionsPage() {
       toast({ title: "Role deleted" });
     },
     onError: (e: any) => toast({ title: "Delete failed", description: e.message, variant: "destructive" }),
+  });
+
+  const cloneRoleMut = useMutation({
+    mutationFn: async ({ source, name, key }: { source: RoleWithPerms; name: string; key: string }) => {
+      const r = await fetch(`/api/organizations/${orgId}/roles/${source.id}/clone`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name, key }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || "Clone failed");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/organizations/roles", orgId] });
+      setCloning(null);
+      setCloneName("");
+      setCloneKey("");
+      toast({ title: "Role cloned" });
+    },
+    onError: (e: any) => toast({ title: "Clone failed", description: e.message, variant: "destructive" }),
   });
 
   const resetDefaults = useMutation({
@@ -147,18 +171,38 @@ export default function RolesAndPermissionsPage() {
               </div>
               {canManage && (
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setEditing(role)} data-testid={`button-edit-${role.key}`}>
-                    Edit
-                  </Button>
-                  {!role.isSystem && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => { if (confirm(`Delete role "${role.name}"?`)) deleteRole.mutate(role.id); }}
-                      data-testid={`button-delete-${role.key}`}
-                    >
-                      Delete
-                    </Button>
+                  {role.isSystem ? (
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => setViewing(role)} data-testid={`button-view-${role.key}`}>
+                        View
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setCloning(role);
+                          setCloneName(`${role.name} (custom)`);
+                          setCloneKey(`${role.key}_custom`);
+                        }}
+                        data-testid={`button-clone-${role.key}`}
+                      >
+                        Clone
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => setEditing(role)} data-testid={`button-edit-${role.key}`}>
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => { if (confirm(`Delete role "${role.name}"?`)) deleteRole.mutate(role.id); }}
+                        data-testid={`button-delete-${role.key}`}
+                      >
+                        Delete
+                      </Button>
+                    </>
                   )}
                 </div>
               )}
@@ -185,6 +229,59 @@ export default function RolesAndPermissionsPage() {
         onSave={(data) => saveRole.mutate(data)}
         saving={saveRole.isPending}
       />
+
+      {/* Read-only viewer for built-in roles */}
+      <Dialog open={!!viewing} onOpenChange={(o) => !o && setViewing(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="dialog-view-builtin">
+          <DialogHeader>
+            <DialogTitle>{viewing?.name} <Badge variant="secondary" className="ml-2">Built-in</Badge></DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Built-in roles are read-only. Use "Clone" to create a custom copy you can edit.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-1">
+            {(viewing?.permissions || []).map(p => (
+              <Badge key={p} variant="outline" className="font-mono text-xs">{p}</Badge>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setViewing(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clone built-in dialog */}
+      <Dialog open={!!cloning} onOpenChange={(o) => !o && setCloning(null)}>
+        <DialogContent data-testid="dialog-clone-role">
+          <DialogHeader>
+            <DialogTitle>Clone "{cloning?.name}"</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium">New role name</label>
+              <Input value={cloneName} onChange={(e) => setCloneName(e.target.value)} data-testid="input-clone-name" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Key (snake_case)</label>
+              <Input
+                value={cloneKey}
+                onChange={(e) => setCloneKey(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"))}
+                data-testid="input-clone-key"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setCloning(null)}>Cancel</Button>
+            <Button
+              disabled={!cloneName.trim() || !cloneKey.trim() || cloneRoleMut.isPending}
+              onClick={() => cloning && cloneRoleMut.mutate({ source: cloning, name: cloneName.trim(), key: cloneKey.trim() })}
+              data-testid="button-confirm-clone"
+            >
+              {cloneRoleMut.isPending ? "Cloning…" : "Clone"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
