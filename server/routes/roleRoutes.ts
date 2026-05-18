@@ -20,7 +20,8 @@ import {
   assignRoleToUser,
   removeRoleFromUser,
 } from "../services/authorizationService";
-import { getUserIdFromRequest, userHasOrgAccess, classifyError, validateUserInOrg } from "./helpers";
+import { getUserIdFromRequest, classifyError, validateUserInOrg } from "./helpers";
+import { enforceMembership } from "../services/authorizationService";
 
 export function registerRoleRoutes(app: Express) {
   // -------- /api/me/permissions ----------
@@ -32,9 +33,7 @@ export function registerRoleRoutes(app: Express) {
     if (!orgId) {
       return res.json({ organizationId: null, permissions: [], catalog: PERMISSION_CATALOG });
     }
-    if (!(await userHasOrgAccess(userId, orgId))) {
-      return res.status(403).json({ message: "Access denied to this organization" });
-    }
+    if (await enforceMembership(req, res, userId, orgId)) return;
     const perms = await getUserPermissions(userId, orgId, req);
     res.json({
       organizationId: orgId,

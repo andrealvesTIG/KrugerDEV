@@ -295,6 +295,65 @@ export function requirePermission(permissionKey: string) {
   };
 }
 
+/**
+ * Inline equivalent of `requirePermission` for routes that already loaded
+ * the org id from a related entity (e.g. fetched a program first). Sends
+ * the 401/403 response itself and returns `true` when the request should
+ * stop processing. Returns `false` to indicate "all good, continue".
+ */
+export async function enforcePermission(
+  req: Request,
+  res: Response,
+  userId: string | undefined,
+  orgId: number,
+  permissionKey: string,
+): Promise<boolean> {
+  if (!userId) {
+    res.status(401).json({ message: "Authentication required" });
+    return true;
+  }
+  const ok = await userHasPermission(userId, orgId, permissionKey, req);
+  const isSuperAdmin = await userIsSuperAdmin(userId, req);
+  if (!isSuperAdmin) {
+    if (!(await userIsOrgMember(userId, orgId))) {
+      res.status(403).json({ message: "Access denied to this organization" });
+      return true;
+    }
+  }
+  if (!ok) {
+    res.status(403).json({
+      message: "You do not have permission to perform this action.",
+      code: "FORBIDDEN_PERMISSION",
+      required: permissionKey,
+    });
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Strict membership-only gate (no permission check). Used by read endpoints
+ * like `/api/me/permissions` that just need to confirm the caller belongs
+ * to the org without honouring the legacy `marketing` platform bypass.
+ */
+export async function enforceMembership(
+  req: Request,
+  res: Response,
+  userId: string | undefined,
+  orgId: number,
+): Promise<boolean> {
+  if (!userId) {
+    res.status(401).json({ message: "Authentication required" });
+    return true;
+  }
+  if (await userIsSuperAdmin(userId, req)) return false;
+  if (!(await userIsOrgMember(userId, orgId))) {
+    res.status(403).json({ message: "Access denied to this organization" });
+    return true;
+  }
+  return false;
+}
+
 /** Manually assign a role to a user in an org (admin operation). */
 export async function assignRoleToUser(orgId: number, userId: string, roleId: number, assignedBy?: string) {
   await db.insert(userRolesTable).values({
