@@ -2984,6 +2984,25 @@ export const insertProjectSchema = createInsertSchema(projects).omit({ id: true,
   // Coerce date strings (YYYY-MM-DD or ISO) coming from the dynamic project form into Date for the timestamp column
   activeGateStartedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),
 });
+// Update schema for projects. Mirrors the route-layer validation in
+// `shared/routes.ts` so server-internal callers (storage, etc.) share the same
+// type contract. completionPercentage is clamped 0-100; health is enum-locked.
+export const updateProjectSchema = insertProjectSchema.partial().extend({
+  completionPercentage: z.number().int().min(0).max(100).optional(),
+  health: projectHealthEnum.optional(),
+  // Date-typed columns are stored as strings in Drizzle. Accept Date objects
+  // from internal callers and normalize to ISO date strings (YYYY-MM-DD).
+  startDate: z.union([z.string(), z.date().transform(d => d.toISOString().slice(0, 10)), z.null()]).optional(),
+  endDate: z.union([z.string(), z.date().transform(d => d.toISOString().slice(0, 10)), z.null()]).optional(),
+  baselineStartDate: z.union([z.string(), z.date().transform(d => d.toISOString().slice(0, 10)), z.null()]).optional(),
+  baselineEndDate: z.union([z.string(), z.date().transform(d => d.toISOString().slice(0, 10)), z.null()]).optional(),
+  actualStartDate: z.union([z.string(), z.date().transform(d => d.toISOString().slice(0, 10)), z.null()]).optional(),
+  actualEndDate: z.union([z.string(), z.date().transform(d => d.toISOString().slice(0, 10)), z.null()]).optional(),
+  healthReason: z.union([z.string(), z.null()]).optional(),
+  // healthReasonUpdatedAt is a timestamp column (Date in Drizzle).
+  healthReasonUpdatedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),
+  deletedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),
+});
 // Risk schema is now an alias for Issue schema with itemType="risk"
 // Extend to handle date strings for escalatedAt field
 const baseRiskSchema = createInsertSchema(issues).omit({ id: true, createdAt: true });
@@ -3296,10 +3315,7 @@ export type CreatePortfolioRequest = InsertPortfolio;
 export type UpdatePortfolioRequest = Partial<InsertPortfolio>;
 
 export type CreateProjectRequest = InsertProject;
-export type UpdateProjectRequest = Partial<InsertProject> & { 
-  completionPercentage?: number;
-  health?: string;
-};
+export type UpdateProjectRequest = z.infer<typeof updateProjectSchema>;
 
 export type CreateRiskRequest = InsertRisk;
 export type UpdateRiskRequest = Partial<InsertRisk>;

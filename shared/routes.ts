@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { 
   insertPortfolioSchema, 
   insertProjectSchema,
+  updateProjectSchema,
   dateOrderRefine, 
   insertRiskSchema, 
   insertMilestoneSchema,
@@ -140,19 +141,7 @@ export const api = {
     update: {
       method: 'PUT' as const,
       path: '/api/projects/:id',
-      input: insertProjectSchema.partial().extend({
-        completionPercentage: z.number().int().min(0).max(100).optional(),
-        health: z.string().optional(),
-        startDate: z.union([z.string(), z.date(), z.null()]).optional(),
-        endDate: z.union([z.string(), z.date(), z.null()]).optional(),
-        baselineStartDate: z.union([z.string(), z.date(), z.null()]).optional(),
-        baselineEndDate: z.union([z.string(), z.date(), z.null()]).optional(),
-        actualStartDate: z.union([z.string(), z.date(), z.null()]).optional(),
-        actualEndDate: z.union([z.string(), z.date(), z.null()]).optional(),
-        healthReason: z.union([z.string(), z.null()]).optional(),
-        healthReasonUpdatedAt: z.union([z.string(), z.date(), z.null()]).optional(),
-        deletedAt: z.union([z.string(), z.date(), z.null()]).optional(),
-      }).superRefine(dateOrderRefine),
+      input: updateProjectSchema.superRefine(dateOrderRefine),
       responses: {
         200: z.custom<typeof projects.$inferSelect>(),
         400: errorSchemas.validation,

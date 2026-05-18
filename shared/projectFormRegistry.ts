@@ -56,27 +56,27 @@ export const PROJECT_FORM_FIELDS: ProjectFieldDefinition[] = [
   {
     key: "priority", label: "Priority", group: "Status & Health", inputType: "select",
     options: [
-      { value: "low",      label: "Low" },
-      { value: "medium",   label: "Medium" },
-      { value: "high",     label: "High" },
-      { value: "critical", label: "Critical" },
+      { value: "Low",      label: "Low" },
+      { value: "Medium",   label: "Medium" },
+      { value: "High",     label: "High" },
+      { value: "Critical", label: "Critical" },
     ],
   },
   {
     key: "health", label: "Health", group: "Status & Health", inputType: "select",
     options: [
-      { value: "green",  label: "Green" },
-      { value: "yellow", label: "Yellow" },
-      { value: "red",    label: "Red" },
+      { value: "Green",  label: "Green" },
+      { value: "Yellow", label: "Yellow" },
+      { value: "Red",    label: "Red" },
     ],
   },
   { key: "healthReason", label: "Health Reason", group: "Status & Health", inputType: "textarea", rows: 3 },
   {
     key: "riskLevel", label: "Risk Level", group: "Status & Health", inputType: "select",
     options: [
-      { value: "low",    label: "Low" },
-      { value: "medium", label: "Medium" },
-      { value: "high",   label: "High" },
+      { value: "Low",    label: "Low" },
+      { value: "Medium", label: "Medium" },
+      { value: "High",   label: "High" },
     ],
   },
   {
