@@ -25,6 +25,7 @@ import { sendLimitExceeded } from "../services/aiCredits";
 import { invalidateOrganizationContextCache } from "../services/jarvisService";
 import { addWorkingDays, ensureWorkingDay, calculateEndDate, calculateDuration, nextWorkingDay, formatDateStr, workingDaysBetweenExclusive, addWorkingDaysCal, ensureWorkingDayCal, calculateEndDateCal, calculateDurationCal, nextWorkingDayCal, workingDaysBetweenExclusiveCal } from "../lib/workingDays";
 import type { ResolvedCalendar } from "@shared/lib/calendarEngine";
+import { composeResourceEffectiveCalendar } from "@shared/lib/calendarEngine";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404, p } from "../route-registry";
 
 export function registerProjectItemRoutes(app: Express) {
@@ -1935,6 +1936,16 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         }
       }
       
+      // Resolve the task's effective calendar (project + assigned resources +
+      // approved PTO) so duration→end-date math honours resource holidays /
+      // PTO, not just project / org calendar. Horizon pinned to the task's
+      // own date range so far-future tasks still get PTO/exception overlays.
+      const taskCalHorizon = buildTaskCalendarHorizon(
+        input.startDate, input.endDate,
+        previousTask.startDate, previousTask.endDate,
+      );
+      const taskCal: ResolvedCalendar | null = await getResolvedCalendarForTask(taskId, taskCalHorizon);
+
       if (input.durationDays != null) {
         if (input.durationDays === 0) {
           input.isMilestone = true;
@@ -1944,16 +1955,16 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         const startDate = input.startDate || previousTask.startDate;
         if (startDate) {
           const start = new Date(startDate + 'T00:00:00');
-          const end = calculateEndDate(start, input.durationDays);
+          const end = calculateEndDateCal(taskCal, start, input.durationDays);
           input.endDate = formatDateStr(end);
         }
       } else if (input.startDate && input.startDate !== previousTask.startDate && input.endDate === undefined) {
         const duration = previousTask.durationDays ?? (previousTask.startDate && previousTask.endDate
-          ? calculateDuration(new Date(previousTask.startDate + 'T00:00:00'), new Date(previousTask.endDate + 'T00:00:00'))
+          ? calculateDurationCal(taskCal, new Date(previousTask.startDate + 'T00:00:00'), new Date(previousTask.endDate + 'T00:00:00'))
           : 1);
         if (duration > 0) {
           const start = new Date(input.startDate + 'T00:00:00');
-          const end = calculateEndDate(start, duration);
+          const end = calculateEndDateCal(taskCal, start, duration);
           input.endDate = formatDateStr(end);
           input.durationDays = duration;
         }
@@ -1962,7 +1973,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         if (startDate) {
           const start = new Date(startDate + 'T00:00:00');
           const end = new Date(input.endDate + 'T00:00:00');
-          input.durationDays = calculateDuration(start, end);
+          input.durationDays = calculateDurationCal(taskCal, start, end);
         }
       }
       
@@ -2506,6 +2517,54 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     }
   });
 
+  // Resolve a task's effective working calendar: project calendar folded
+  // with each assigned resource's calendar + approved PTO (resource overlay
+  // restricts; same semantic as the resource resolved-calendar route and
+  // the assignment hour estimator). Returns null when there is no project
+  // calendar and no resource overlays — callers treat null as legacy Mon–Fri.
+  async function getResolvedCalendarForTask(
+    taskId: number,
+    horizon?: { start: Date; end: Date },
+  ): Promise<ResolvedCalendar | null> {
+    const task = await storage.getTask(taskId);
+    if (!task) return null;
+    const projCal: ResolvedCalendar | null = task.projectId
+      ? await storage.getResolvedCalendarForProject(task.projectId)
+      : null;
+    const assignments = await storage.getTaskResourceAssignments(taskId);
+    if (assignments.length === 0) return projCal;
+    // Pin horizon (engine default is today-30d → +5y). Far-future tasks must
+    // pass an explicit range so PTO/exception overlays are enumerated for the
+    // task's actual dates.
+    let composed: ResolvedCalendar | null = projCal;
+    for (const a of assignments) {
+      const rcalId = (a.resource as any)?.calendarId ?? null;
+      const rcal = rcalId ? await storage.loadResolvedCalendar(rcalId) : null;
+      const avail = await storage.getResourceAvailability(a.resourceId);
+      composed = composeResourceEffectiveCalendar(composed, rcal, avail, horizon);
+    }
+    return composed;
+  }
+
+  // Build a compose horizon that comfortably covers the task's relevant date
+  // range. Adds a 1-year pad on either side so duration extensions, baseline
+  // bumps, and dependency shifts still hit a hydrated overlay.
+  function buildTaskCalendarHorizon(...dates: Array<string | Date | null | undefined>): { start: Date; end: Date } | undefined {
+    const parsed = dates
+      .map(d => {
+        if (!d) return null;
+        const dt = typeof d === "string" ? new Date(d + (d.length === 10 ? "T00:00:00" : "")) : d;
+        return Number.isNaN(dt.getTime()) ? null : dt;
+      })
+      .filter((d): d is Date => d != null);
+    if (parsed.length === 0) return undefined;
+    const min = new Date(Math.min(...parsed.map(d => d.getTime())));
+    const max = new Date(Math.max(...parsed.map(d => d.getTime())));
+    min.setFullYear(min.getFullYear() - 1);
+    max.setFullYear(max.getFullYear() + 1);
+    return { start: min, end: max };
+  }
+
   async function propagateScheduleForProject(projectId: number): Promise<{ taskId: number; newStartDate: string; newEndDate: string }[]> {
     const allTasks = await storage.getTasksByProject(projectId);
     const dependencies = await storage.getProjectDependencies(projectId);
@@ -2630,17 +2689,31 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         }
       }
 
+      // Per-task effective calendar so the successor's own duration/end-date
+      // math honours the assigned resources' calendars + approved PTO,
+      // not just the project / org calendar. Horizon pinned to the successor's
+      // current dates plus the dependency-derived constraints so overlays are
+      // hydrated for the whole adjustment window.
+      const taskCalHorizon = buildTaskCalendarHorizon(
+        successor.startDate, successor.endDate,
+        maxRequiredStart, maxRequiredEnd,
+      );
+      const taskCal: ResolvedCalendar | null = await getResolvedCalendarForTask(taskId, taskCalHorizon);
+
       const currentStart = successor.startDate ? new Date(successor.startDate + 'T00:00:00') : null;
       const currentEnd = successor.endDate ? new Date(successor.endDate + 'T00:00:00') : null;
       const parsedDuration = successor.durationDays == null ? NaN : Number(successor.durationDays);
-      const duration = Number.isFinite(parsedDuration) ? parsedDuration : (currentStart && currentEnd ? calculateDurationCal(cal, currentStart, currentEnd) : 1);
+      const duration = Number.isFinite(parsedDuration) ? parsedDuration : (currentStart && currentEnd ? calculateDurationCal(taskCal, currentStart, currentEnd) : 1);
 
       let newStart: Date | null = null;
       let newEnd: Date | null = null;
 
       if (maxRequiredStart) {
-        newStart = maxRequiredStart;
-        newEnd = calculateEndDateCal(cal, newStart, duration);
+        // Constraint derivation uses project cal; bump to next task-cal
+        // working day so resource holidays push the successor's start out
+        // (and end-date math stays consistent with the persisted start).
+        newStart = ensureWorkingDayCal(taskCal, maxRequiredStart, 1);
+        newEnd = calculateEndDateCal(taskCal, newStart, duration);
       }
 
       if (maxRequiredEnd) {
@@ -2648,15 +2721,15 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         if (!effectiveEnd || effectiveEnd.getTime() !== maxRequiredEnd.getTime()) {
           newEnd = maxRequiredEnd;
           if (!newStart) {
-            newStart = addWorkingDaysCal(cal, newEnd, -(duration - 1));
-            newStart = ensureWorkingDayCal(cal, newStart, 1);
+            newStart = addWorkingDaysCal(taskCal, newEnd, -(duration - 1));
+            newStart = ensureWorkingDayCal(taskCal, newStart, 1);
           }
         }
       }
 
       if (newStart && newEnd) {
         if (newStart > newEnd) {
-          newEnd = calculateEndDateCal(cal, newStart, duration);
+          newEnd = calculateEndDateCal(taskCal, newStart, duration);
         }
 
         const newStartStr = formatDateStr(newStart);
