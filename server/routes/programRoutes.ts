@@ -155,9 +155,7 @@ export function registerProgramRoutes(app: Express) {
 
       const program = await storage.getProgram(id);
       if (!program) return res.status(404).json({ message: 'Program not found' });
-      if (!await userHasOrgAccess(userId, program.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
-      }
+      if (await enforcePermission(req, res, userId, program.organizationId, "program.manage")) return;
 
       const parsed = z.object({ projectIds: z.array(z.number().int()) }).safeParse(req.body);
       if (!parsed.success) {
@@ -184,9 +182,7 @@ export function registerProgramRoutes(app: Express) {
 
       const program = await storage.getProgram(id);
       if (!program) return res.status(404).json({ message: 'Program not found' });
-      if (!await userHasOrgAccess(userId, program.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
-      }
+      if (await enforcePermission(req, res, userId, program.organizationId, "program.manage")) return;
       await storage.addProjectToProgram(id, projectId);
       res.status(204).send();
     } catch (err) {
@@ -207,9 +203,7 @@ export function registerProgramRoutes(app: Express) {
 
       const program = await storage.getProgram(id);
       if (!program) return res.status(404).json({ message: 'Program not found' });
-      if (!await userHasOrgAccess(userId, program.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
-      }
+      if (await enforcePermission(req, res, userId, program.organizationId, "program.manage")) return;
       await storage.removeProjectFromProgram(projectId);
       res.status(204).send();
     } catch (err) {

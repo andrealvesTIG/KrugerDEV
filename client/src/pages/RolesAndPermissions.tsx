@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "@/hooks/use-organization";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -301,8 +301,8 @@ function RoleEditorDialog({
   const [description, setDescription] = useState(role?.description || "");
   const [selected, setSelected] = useState<Set<string>>(new Set(role?.permissions || []));
 
-  // Reset when role changes
-  useMemo(() => {
+  // Reset form state whenever the dialog opens or the target role changes.
+  useEffect(() => {
     setName(role?.name || "");
     setKey(role?.key || "");
     setDescription(role?.description || "");

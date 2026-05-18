@@ -5,7 +5,8 @@
  *   - Permissions = stable string keys (see shared/permissionCatalog.ts).
  *   - Roles = org-scoped, hold a set of permissions.
  *   - Users hold zero or more roles per organization.
- *   - super_admin / marketing users (users.role) bypass all checks.
+ *   - super_admin users (users.role) bypass all checks. No other platform
+ *     role grants a global bypass.
  *
  * Public surface used by routes:
  *   - getUserPermissions(userId, orgId) -> Set<string>
@@ -189,7 +190,7 @@ function reqCache(req: Request): Map<string, Set<string>> {
 
 /**
  * Return the full set of permission keys the user effectively has in the
- * org. Super-admin / marketing users get the entire catalog.
+ * org. Platform super_admin users get the entire catalog.
  */
 export async function getUserPermissions(
   userId: string,
