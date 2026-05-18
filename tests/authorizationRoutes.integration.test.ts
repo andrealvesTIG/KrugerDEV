@@ -430,3 +430,283 @@ describe("seedDefaultRolesForOrg — idempotency", () => {
     ).length).toBe(1);
   });
 });
+
+describe("roles admin API — CRUD & helpers", () => {
+  // All scenarios authenticate as a super_admin so we bypass the
+  // membership / permission gates (already covered above) and exercise
+  // the handler bodies directly.
+  function seedAdmin() {
+    rowsFor(schema.users).push({ id: "admin", role: "super_admin" });
+  }
+
+  it("POST /roles validates snake_case key", async () => {
+    seedAdmin();
+    const app = buildApp();
+    const r = await request(app)
+      .post("/api/organizations/5/roles")
+      .set("x-test-user-id", "admin")
+      .send({ key: "Bad Key", name: "Bad", permissions: [] });
+    expect(r.status).toBe(400);
+    expect(String(r.body.message || "")).toMatch(/snake_case/i);
+    expect(rowsFor(schema.roles).length).toBe(0);
+  });
+
+  it("POST /roles requires key and name", async () => {
+    seedAdmin();
+    const app = buildApp();
+    const r = await request(app)
+      .post("/api/organizations/5/roles")
+      .set("x-test-user-id", "admin")
+      .send({ key: "auditor" });
+    expect(r.status).toBe(400);
+    expect(String(r.body.message || "")).toMatch(/key and name/i);
+  });
+
+  it("POST /roles persists only catalog-valid permissions and returns 201", async () => {
+    seedAdmin();
+    const app = buildApp();
+    const r = await request(app)
+      .post("/api/organizations/5/roles")
+      .set("x-test-user-id", "admin")
+      .send({
+        key: "auditor",
+        name: "Auditor",
+        description: "Read-only auditor",
+        permissions: ["roles.view", "not.a.real.permission", "project.view"],
+      });
+    expect(r.status).toBe(201);
+    expect(r.body.organizationId).toBe(5);
+    expect(r.body.key).toBe("auditor");
+    expect(r.body.isSystem).toBe(false);
+    expect([...r.body.permissions].sort()).toEqual(["project.view", "roles.view"]);
+
+    const stored = rowsFor(schema.rolePermissions).filter(p => p.roleId === r.body.id);
+    expect(stored.map(p => p.permissionKey).sort()).toEqual(["project.view", "roles.view"]);
+    expect(stored.some(p => p.permissionKey === "not.a.real.permission")).toBe(false);
+  });
+
+  it("PUT on a built-in role returns 400 BUILTIN_ROLE_IMMUTABLE", async () => {
+    seedAdmin();
+    rowsFor(schema.roles).push({
+      id: 1,
+      organizationId: 5,
+      key: "pmo_admin",
+      name: "PMO Admin",
+      description: null,
+      isSystem: true,
+    });
+    nextRoleId = 2;
+    const app = buildApp();
+    const r = await request(app)
+      .put("/api/organizations/5/roles/1")
+      .set("x-test-user-id", "admin")
+      .send({ name: "Hacked", permissions: ["roles.view"] });
+    expect(r.status).toBe(400);
+    expect(r.body.code).toBe("BUILTIN_ROLE_IMMUTABLE");
+    expect(rowsFor(schema.roles).find(row => row.id === 1)!.name).toBe("PMO Admin");
+    expect(rowsFor(schema.rolePermissions).length).toBe(0);
+  });
+
+  it("PUT on a custom role replaces the permission set (adds + removes)", async () => {
+    seedAdmin();
+    rowsFor(schema.roles).push({
+      id: 1,
+      organizationId: 5,
+      key: "auditor",
+      name: "Auditor",
+      description: null,
+      isSystem: false,
+    });
+    nextRoleId = 2;
+    rowsFor(schema.rolePermissions).push({ roleId: 1, permissionKey: "roles.view" });
+    rowsFor(schema.rolePermissions).push({ roleId: 1, permissionKey: "project.view" });
+
+    const app = buildApp();
+    const r = await request(app)
+      .put("/api/organizations/5/roles/1")
+      .set("x-test-user-id", "admin")
+      .send({
+        name: "Renamed Auditor",
+        description: "now with create",
+        permissions: ["roles.view", "project.create", "not.real"],
+      });
+    expect(r.status).toBe(200);
+    expect(r.body.name).toBe("Renamed Auditor");
+    expect(r.body.description).toBe("now with create");
+    expect([...r.body.permissions].sort()).toEqual(["project.create", "roles.view"]);
+
+    const stored = rowsFor(schema.rolePermissions)
+      .filter(p => p.roleId === 1)
+      .map(p => p.permissionKey)
+      .sort();
+    expect(stored).toEqual(["project.create", "roles.view"]);
+  });
+
+  it("DELETE refuses a built-in role", async () => {
+    seedAdmin();
+    rowsFor(schema.roles).push({
+      id: 1,
+      organizationId: 5,
+      key: "pmo_admin",
+      name: "PMO Admin",
+      description: null,
+      isSystem: true,
+    });
+    nextRoleId = 2;
+    const app = buildApp();
+    const r = await request(app)
+      .delete("/api/organizations/5/roles/1")
+      .set("x-test-user-id", "admin");
+    expect(r.status).toBe(400);
+    expect(String(r.body.message || "")).toMatch(/cannot be deleted/i);
+    expect(rowsFor(schema.roles).length).toBe(1);
+  });
+
+  it("DELETE succeeds for a custom role", async () => {
+    seedAdmin();
+    rowsFor(schema.roles).push({
+      id: 1,
+      organizationId: 5,
+      key: "auditor",
+      name: "Auditor",
+      description: null,
+      isSystem: false,
+    });
+    nextRoleId = 2;
+    const app = buildApp();
+    const r = await request(app)
+      .delete("/api/organizations/5/roles/1")
+      .set("x-test-user-id", "admin");
+    expect(r.status).toBe(204);
+    expect(rowsFor(schema.roles).length).toBe(0);
+  });
+
+  it("DELETE returns 404 when the role does not belong to the org", async () => {
+    seedAdmin();
+    rowsFor(schema.roles).push({
+      id: 1,
+      organizationId: 99,
+      key: "auditor",
+      name: "Auditor",
+      description: null,
+      isSystem: false,
+    });
+    nextRoleId = 2;
+    const app = buildApp();
+    const r = await request(app)
+      .delete("/api/organizations/5/roles/1")
+      .set("x-test-user-id", "admin");
+    expect(r.status).toBe(404);
+    expect(rowsFor(schema.roles).length).toBe(1);
+  });
+
+  it("POST /:roleId/clone copies the source role's permissions onto a new custom role", async () => {
+    seedAdmin();
+    rowsFor(schema.roles).push({
+      id: 1,
+      organizationId: 5,
+      key: "pmo_admin",
+      name: "PMO Admin",
+      description: "built-in",
+      isSystem: true,
+    });
+    nextRoleId = 2;
+    rowsFor(schema.rolePermissions).push({ roleId: 1, permissionKey: "roles.view" });
+    rowsFor(schema.rolePermissions).push({ roleId: 1, permissionKey: "roles.manage" });
+    rowsFor(schema.rolePermissions).push({ roleId: 1, permissionKey: "project.view" });
+
+    const app = buildApp();
+    const r = await request(app)
+      .post("/api/organizations/5/roles/1/clone")
+      .set("x-test-user-id", "admin")
+      .send({ key: "pmo_admin_copy", name: "PMO Admin (copy)" });
+    expect(r.status).toBe(201);
+    expect(r.body.key).toBe("pmo_admin_copy");
+    expect(r.body.isSystem).toBe(false);
+    expect(r.body.organizationId).toBe(5);
+    expect([...r.body.permissions].sort()).toEqual(
+      ["project.view", "roles.manage", "roles.view"],
+    );
+
+    const newRoleId = r.body.id;
+    const clonedRows = rowsFor(schema.rolePermissions)
+      .filter(p => p.roleId === newRoleId)
+      .map(p => p.permissionKey)
+      .sort();
+    expect(clonedRows).toEqual(["project.view", "roles.manage", "roles.view"]);
+    expect(rowsFor(schema.rolePermissions).filter(p => p.roleId === 1).length).toBe(3);
+  });
+
+  it("POST /:roleId/clone validates the snake_case key", async () => {
+    seedAdmin();
+    rowsFor(schema.roles).push({
+      id: 1,
+      organizationId: 5,
+      key: "pmo_admin",
+      name: "PMO Admin",
+      description: null,
+      isSystem: true,
+    });
+    nextRoleId = 2;
+    const app = buildApp();
+    const r = await request(app)
+      .post("/api/organizations/5/roles/1/clone")
+      .set("x-test-user-id", "admin")
+      .send({ key: "Bad Key", name: "Copy" });
+    expect(r.status).toBe(400);
+    expect(String(r.body.message || "")).toMatch(/snake_case/i);
+  });
+
+  it("GET /role-assignments returns the org's user_roles rows", async () => {
+    seedAdmin();
+    rowsFor(schema.userRoles).push({ organizationId: 5, userId: "alice", roleId: 1 });
+    rowsFor(schema.userRoles).push({ organizationId: 5, userId: "bob", roleId: 2 });
+    // Different org — must NOT appear in the response.
+    rowsFor(schema.userRoles).push({ organizationId: 99, userId: "carol", roleId: 1 });
+
+    const app = buildApp();
+    const r = await request(app)
+      .get("/api/organizations/5/role-assignments")
+      .set("x-test-user-id", "admin");
+    expect(r.status).toBe(200);
+    expect(Array.isArray(r.body)).toBe(true);
+    expect(r.body.length).toBe(2);
+    const pairs = (r.body as any[])
+      .map(row => `${row.userId}:${row.roleId}`)
+      .sort();
+    expect(pairs).toEqual(["alice:1", "bob:2"]);
+    expect((r.body as any[]).some(row => row.userId === "carol")).toBe(false);
+  });
+
+  it("POST /roles/reset-defaults reseeds the catalog without duplicating rows", async () => {
+    seedAdmin();
+    const app = buildApp();
+
+    const r1 = await request(app)
+      .post("/api/organizations/5/roles/reset-defaults")
+      .set("x-test-user-id", "admin")
+      .send({});
+    expect(r1.status).toBe(200);
+    expect(r1.body.ok).toBe(true);
+
+    const rolesAfterFirst = rowsFor(schema.roles).length;
+    const permsAfterFirst = rowsFor(schema.rolePermissions).length;
+    expect(rolesAfterFirst).toBe(BUILTIN_ROLES.length);
+    expect(permsAfterFirst).toBeGreaterThan(0);
+
+    insertSpy.mockClear();
+    updateSpy.mockClear();
+    deleteSpy.mockClear();
+
+    const r2 = await request(app)
+      .post("/api/organizations/5/roles/reset-defaults")
+      .set("x-test-user-id", "admin")
+      .send({});
+    expect(r2.status).toBe(200);
+    expect(insertSpy).not.toHaveBeenCalled();
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(deleteSpy).not.toHaveBeenCalled();
+    expect(rowsFor(schema.roles).length).toBe(rolesAfterFirst);
+    expect(rowsFor(schema.rolePermissions).length).toBe(permsAfterFirst);
+  });
+});
