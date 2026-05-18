@@ -195,7 +195,9 @@ app.use((req, res, next) => {
     try {
       const { storage } = await import("./storage");
       const { syncPermissionCatalog, seedDefaultRolesForOrg } = await import("./services/authorizationService");
+      const { ensureBillingBootstrap } = await import("./services/billingInit");
       await syncPermissionCatalog();
+      await ensureBillingBootstrap();
       const orgs = await storage.getOrganizations();
       let seeded = 0;
       for (const org of orgs) {
