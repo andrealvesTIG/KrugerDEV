@@ -9,6 +9,7 @@ import { useRoute, Link } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory, useProjects, useDeleteProject } from "@/hooks/use-projects";
 import { useProjectWorkflows } from "@/hooks/use-project-workflows";
 import { usePortfolios, useCreatePortfolio } from "@/hooks/use-portfolios";
+import { useCalendars } from "@/hooks/use-calendars";
 import { usePrograms } from "@/hooks/use-programs";
 import { useRisks } from "@/hooks/use-risks";
 import { useIssues } from "@/hooks/use-issues";
@@ -4686,6 +4687,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
   const { currentOrganization } = useOrganization();
   const { data: resources } = useResources(currentOrganization?.id ?? null);
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
+  const { data: calendars = [] } = useCalendars(currentOrganization?.id);
   const createPortfolio = useCreatePortfolio();
   const [managerResourceId, setManagerResourceId] = useState<number | null>(null);
   const [sponsorResourceId, setSponsorResourceId] = useState<number | null>(null);
@@ -5061,6 +5063,24 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
                   <Calendar mode="single" selected={project.endDate ? new Date(project.endDate) : undefined} defaultMonth={project.endDate ? new Date(project.endDate) : undefined} showDateInput onDateInputSelect={(date) => handleDateChange('endDate', date)} onSelect={(date) => handleDateChange('endDate', date)} initialFocus />
                 </PopoverContent>
               </Popover>
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Working Calendar</Label>
+              <Select
+                value={project.calendarId == null ? "none" : String(project.calendarId)}
+                onValueChange={(v) => autoSave("calendarId", v === "none" ? null : Number(v))}
+                disabled={readOnly}
+              >
+                <SelectTrigger className="h-8 text-sm" data-testid="select-project-calendar">
+                  <SelectValue placeholder="Org default" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Org default</SelectItem>
+                  {calendars.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>{c.name}{c.isDefault ? " (default)" : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Manager</Label>

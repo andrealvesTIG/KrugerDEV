@@ -16,6 +16,7 @@ import { z } from "zod";
 import { insertProjectSchema, dateOrderRefine } from "@shared/schema";
 import { ProjectLocationMediaSection } from "@/components/ProjectLocationMediaSection";
 import type { InsertProject } from "@shared/schema";
+import { useCalendars } from "@/hooks/use-calendars";
 import { useToast } from "@/hooks/use-toast";
 import { cn, normalizeSearch } from "@/lib/utils";
 import { format } from "date-fns";
@@ -180,6 +181,8 @@ export function CreateProjectDialog({
 
   const { data: portfoliosFetched } = usePortfolios(portfoliosProp ? null : (organizationId ?? null));
   const portfolios = portfoliosProp ?? portfoliosFetched ?? [];
+
+  const { data: calendars = [] } = useCalendars(organizationId ?? undefined);
 
   const { data: plannerStatus, refetch: refetchPlannerStatus } = useQuery<{ configured: boolean; connected: boolean }>({
     queryKey: ["/api/planner/status", organizationId],
@@ -1090,6 +1093,30 @@ export function CreateProjectDialog({
                 <div className="space-y-2">
                   <Label htmlFor="cp-endDate">End Date</Label>
                   <Input id="cp-endDate" type="date" {...form.register("endDate")} data-testid="input-end-date" />
+                </div>
+
+                <div className="space-y-2 col-span-2">
+                  <Label htmlFor="cp-calendar">Working Calendar</Label>
+                  <Controller
+                    control={form.control}
+                    name="calendarId"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value == null ? "none" : String(field.value)}
+                        onValueChange={(v) => field.onChange(v === "none" ? null : Number(v))}
+                      >
+                        <SelectTrigger id="cp-calendar" data-testid="select-calendar">
+                          <SelectValue placeholder="Use organization default" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Use organization default</SelectItem>
+                          {calendars.map((c) => (
+                            <SelectItem key={c.id} value={String(c.id)}>{c.name}{c.isDefault ? " (default)" : ""}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
                 </div>
 
                 <div className="space-y-2 col-span-2">
