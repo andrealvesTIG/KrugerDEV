@@ -4614,6 +4614,7 @@ function ProjectFormSummary({
   const { data: layout, isLoading } = useProjectFormLayout(organizationId);
   const { data: resources = [] } = useResources(organizationId ?? null);
   const { data: programs = [] } = usePrograms(organizationId ?? null);
+  const { data: calendars = [] } = useCalendars(organizationId);
   const { data: allCustomFieldDefs = [] } = useCustomFieldDefinitions(organizationId);
   const projectCustomFieldDefs = useMemo(
     () => allCustomFieldDefs.filter(d => {
@@ -4674,6 +4675,7 @@ function ProjectFormSummary({
         portfolios,
         programs,
         resources,
+        calendars,
         onFieldChange: handleFieldChange,
         renderCustomFieldsBlock,
         currentStepRequiredFields,

@@ -7,7 +7,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Portfolio, Program, Resource } from "@shared/schema";
+import type { Portfolio, Program, Resource, Calendar } from "@shared/schema";
 import type { ProjectFormLayoutTabFull, ProjectFormLayoutSectionFull, ProjectFormLayoutItemFull } from "@/hooks/use-project-form-layout";
 import { ProjectFieldRenderer } from "./ProjectFieldRenderer";
 import { ProjectSingleCustomField } from "./ProjectSingleCustomField";
@@ -33,6 +33,7 @@ export interface ProjectFormRendererContext {
   portfolios: Portfolio[];
   programs: Program[];
   resources: Resource[];
+  calendars: Calendar[];
   onFieldChange: (field: string, value: any) => void;
   renderCustomFieldsBlock: (excludeDefinitionIds: number[]) => ReactNode;
   // Field keys (and `cf:<defId>` for custom fields) that the current workflow
@@ -131,6 +132,7 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds }: { item: ProjectFormLa
         portfolios={ctx.portfolios}
         programs={ctx.programs}
         resources={ctx.resources}
+        calendars={ctx.calendars}
         labelOverride={item.displayName}
         isRequired={requiredByStep}
       />

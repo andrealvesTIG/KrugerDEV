@@ -15,6 +15,7 @@ export type ProjectFieldInputType =
   | "portfolio"
   | "program"
   | "resource"
+  | "calendar"
   | "datetime";
 
 export interface ProjectFieldDefinition {
@@ -96,6 +97,7 @@ export const PROJECT_FORM_FIELDS: ProjectFieldDefinition[] = [
   { key: "actualStartDate",   label: "Actual Start Date",   group: "Schedule", inputType: "date" },
   { key: "actualEndDate",     label: "Actual End Date",     group: "Schedule", inputType: "date" },
   { key: "completionPercentage", label: "Completion %",     group: "Schedule", inputType: "percentage" },
+  { key: "calendarId",        label: "Working Calendar",    group: "Schedule", inputType: "calendar", helpText: "Org default is used when blank." },
 
   // Financials
   { key: "budget",           label: "Budget",            group: "Financials", inputType: "currency" },
