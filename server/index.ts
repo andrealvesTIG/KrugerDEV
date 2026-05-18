@@ -194,18 +194,21 @@ app.use((req, res, next) => {
   (async () => {
     try {
       const { storage } = await import("./storage");
+      const { syncPermissionCatalog, seedDefaultRolesForOrg } = await import("./services/authorizationService");
+      await syncPermissionCatalog();
       const orgs = await storage.getOrganizations();
       let seeded = 0;
       for (const org of orgs) {
         try {
           await storage.ensureDefaultIntakeWorkflow(org.id);
           await storage.ensureDefaultProjectWorkflow(org.id);
+          await seedDefaultRolesForOrg(org.id);
           seeded++;
         } catch (e) {
           console.error(`[seed] Failed for org ${org.id}:`, e);
         }
       }
-      if (seeded > 0) console.log(`[seed] Ensured default workflows for ${seeded} organization(s)`);
+      if (seeded > 0) console.log(`[seed] Ensured default workflows + roles for ${seeded} organization(s)`);
     } catch (e) {
       console.error("[seed] Workflow seed failed:", e);
     }

@@ -41,6 +41,7 @@ const Admin = lazy(() => import("@/pages/Admin"));
 const SuperAdmin = lazy(() => import("@/pages/SuperAdmin"));
 const UserInsights = lazy(() => import("@/pages/UserInsights"));
 const OrgSettings = lazy(() => import("@/pages/OrgSettings"));
+const RolesAndPermissions = lazy(() => import("@/pages/RolesAndPermissions"));
 const Profile = lazy(() => import("@/pages/Profile"));
 const UserGuide = lazy(() => import("@/pages/UserGuide"));
 const Resources = lazy(() => import("@/pages/Resources"));
@@ -279,6 +280,7 @@ function Router() {
           <Route path="/super-admin" component={SuperAdmin} />
           <Route path="/admin/users/:userId/insights" component={UserInsights} />
           <Route path="/org-settings" component={OrgSettings} />
+          <Route path="/roles" component={RolesAndPermissions} />
           <Route path="/profile" component={Profile} />
           <Route path="/user-guide" component={UserGuide} />
           <GuardedRoute path="/training/schedule-management" component={TrainingModule} moduleKey="training" />

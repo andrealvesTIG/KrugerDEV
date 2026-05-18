@@ -512,6 +512,54 @@ export const organizationMembers = pgTable("organization_members", {
   uniqueOrgUser: uniqueIndex("unique_org_user").on(table.organizationId, table.userId),
 }));
 
+// ============== ROLES & PERMISSIONS (RBAC) ==============
+// Org-scoped roles. `isSystem=true` means seeded built-in (cannot be deleted
+// or have its `key` changed, but admins may add/remove permissions on it).
+export const roles = pgTable("roles", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  key: text("key").notNull(), // stable key, snake_case (e.g. 'project_manager')
+  name: text("name").notNull(),
+  description: text("description"),
+  isSystem: boolean("is_system").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  uniqueOrgRoleKey: uniqueIndex("unique_org_role_key").on(table.organizationId, table.key),
+}));
+
+// Global catalog of permission keys. Rows are seeded from
+// shared/permissionCatalog.ts on boot.
+export const permissions = pgTable("permissions", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(), // e.g. 'project.create'
+  area: text("area").notNull(),
+  label: text("label").notNull(),
+  description: text("description"),
+});
+
+// Join: which permissions does a role have.
+export const rolePermissions = pgTable("role_permissions", {
+  id: serial("id").primaryKey(),
+  roleId: integer("role_id").references(() => roles.id, { onDelete: "cascade" }).notNull(),
+  permissionKey: text("permission_key").notNull(),
+}, (table) => ({
+  uniqueRolePerm: uniqueIndex("unique_role_permission").on(table.roleId, table.permissionKey),
+}));
+
+// Join: which roles does a user have in a given organization. A user may
+// hold multiple roles per org; effective permissions are the union.
+export const userRoles = pgTable("user_roles", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  roleId: integer("role_id").references(() => roles.id, { onDelete: "cascade" }).notNull(),
+  assignedAt: timestamp("assigned_at").defaultNow(),
+  assignedBy: varchar("assigned_by").references(() => users.id),
+}, (table) => ({
+  uniqueUserRole: uniqueIndex("unique_user_role").on(table.organizationId, table.userId, table.roleId),
+}));
+
 // Organization Invites (Pending invitations by email)
 export const organizationInvites = pgTable("organization_invites", {
   id: serial("id").primaryKey(),
@@ -2892,6 +2940,13 @@ export const taskDependenciesRelations = relations(taskDependencies, ({ one }) =
 
 export const insertOrganizationSchema = createInsertSchema(organizations).omit({ id: true, createdAt: true });
 export const insertOrganizationMemberSchema = createInsertSchema(organizationMembers).omit({ id: true, createdAt: true });
+export const insertRoleSchema = createInsertSchema(roles).omit({ id: true, createdAt: true, updatedAt: true }).extend({
+  name: z.string().min(1, "Role name is required"),
+  key: z.string().min(1, "Role key is required").regex(/^[a-z0-9_]+$/, "Role key must be snake_case (a-z, 0-9, _)"),
+});
+export const insertPermissionSchema = createInsertSchema(permissions).omit({ id: true });
+export const insertRolePermissionSchema = createInsertSchema(rolePermissions).omit({ id: true });
+export const insertUserRoleSchema = createInsertSchema(userRoles).omit({ id: true, assignedAt: true });
 export const insertOrganizationInviteSchema = createInsertSchema(organizationInvites).omit({ id: true, createdAt: true, acceptedAt: true });
 export const insertOrganizationAccessRequestSchema = createInsertSchema(organizationAccessRequests).omit({ id: true, createdAt: true, reviewedAt: true });
 export const insertExternalShareSchema = createInsertSchema(externalShares).omit({ id: true, sharedAt: true });
@@ -3062,6 +3117,12 @@ export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
 
 export type OrganizationMember = typeof organizationMembers.$inferSelect;
 export type InsertOrganizationMember = z.infer<typeof insertOrganizationMemberSchema>;
+
+export type Role = typeof roles.$inferSelect;
+export type InsertRole = z.infer<typeof insertRoleSchema>;
+export type Permission = typeof permissions.$inferSelect;
+export type RolePermission = typeof rolePermissions.$inferSelect;
+export type UserRole = typeof userRoles.$inferSelect;
 
 export type OrganizationInvite = typeof organizationInvites.$inferSelect;
 export type InsertOrganizationInvite = z.infer<typeof insertOrganizationInviteSchema>;
