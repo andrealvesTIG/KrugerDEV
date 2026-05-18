@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Settings, Users, ShieldAlert, Trash2, Eye, FileText, GitBranch, Plug, Calendar, Sparkles, Building2, Zap, LayoutGrid, Columns, Code2, UserCheck, Bell, Target, Bot, DollarSign } from "lucide-react";
+import { Loader2, Settings, Users, ShieldAlert, Trash2, Eye, FileText, GitBranch, Plug, Calendar, Sparkles, Building2, Zap, LayoutGrid, Columns, Code2, UserCheck, Bell, Target, Bot, DollarSign, KeyRound } from "lucide-react";
 import { ChevronDown, PanelLeftClose, PanelLeft } from "lucide-react";
 import type { Organization } from "@shared/schema";
 import IntegrationsPage from "@/pages/Integrations";
@@ -36,6 +36,7 @@ import { FinancialLockdownsSection } from "@/components/settings/FinancialLockdo
 import { DeveloperSection } from "@/components/settings/DeveloperSection";
 import { ActAsSection } from "@/components/settings/ActAsSection";
 import { ScoringCriteriaSection } from "@/components/settings/ScoringCriteriaSection";
+import RolesAndPermissionsPage from "@/pages/RolesAndPermissions";
 import Calendars from "@/pages/Calendars";
 import { ApplyTemplateButton } from "@/components/settings/ApplyTemplateButton";
 
@@ -111,6 +112,7 @@ const settingsTabs = [
   { value: "custom-tabs", label: "Project Tabs", icon: LayoutGrid },
   { value: "governance", label: "Governance", icon: GitBranch },
   { value: "members", label: "Team Members", icon: Users },
+  { value: "roles", label: "Roles & Permissions", icon: KeyRound },
   { value: "recycle", label: "Recycle Bin", icon: Trash2 },
   { value: "demo", label: "Demo Data", icon: Sparkles },
   { value: "reminders", label: "Reminders & Escalation", icon: Bell },
@@ -316,6 +318,9 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
         </TabsContent>
         <TabsContent value="members" className="mt-0">
           <MembersSection organizationId={currentOrganization.id} orgName={currentOrganization.name} />
+        </TabsContent>
+        <TabsContent value="roles" className="mt-0">
+          <RolesAndPermissionsPage />
         </TabsContent>
         <TabsContent value="recycle" className="mt-0">
           <RecycleBinSection organizationId={currentOrganization.id} />
