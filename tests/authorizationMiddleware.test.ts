@@ -24,7 +24,6 @@ vi.mock("../server/routes/helpers", async () => {
   return {
     ...actual,
     getUserIdFromRequest: (req: any) => req.headers["x-test-user-id"] as string | undefined,
-    userHasOrgAccess: vi.fn(async () => mockMembership),
   };
 });
 
@@ -41,13 +40,15 @@ vi.mock("../server/db", async () => {
               );
             }
             if (table === schema.userRoles) {
-              // One role row per call; permissions are looked up next.
               return Promise.resolve(mockPermissions.size > 0 ? [{ roleId: 1 }] : []);
             }
             if (table === schema.rolePermissions) {
               return Promise.resolve(
                 Array.from(mockPermissions).map(k => ({ permissionKey: k })),
               );
+            }
+            if (table === schema.organizationMembers) {
+              return Promise.resolve(mockMembership ? [{ id: 1 }] : []);
             }
             return Promise.resolve([]);
           },
@@ -153,6 +154,32 @@ describe("requirePermission middleware", () => {
       .set("x-test-user-id", "u1");
     expect(r.status).toBe(403);
     expect(r.body.code).toBe("FORBIDDEN_PERMISSION");
+  });
+
+  it("marketing platform role without membership is denied (no org-access shortcut)", async () => {
+    mockMembership = false; // critically: NOT a member
+    mockPermissions = new Set(["project.delete"]);
+    mockUserPlatformRole = "marketing";
+    const app = buildApp();
+    const r = await request(app)
+      .get("/api/organizations/5/secret")
+      .set("x-test-user-id", "u1");
+    // Either way it must NOT succeed; the marketing platform role does not
+    // grant access to orgs it doesn't belong to.
+    expect(r.status).toBe(403);
+  });
+
+  it("stale user_roles after membership removal cannot authorize access", async () => {
+    // Simulates: user previously held perms via user_roles, then was
+    // removed from organization_members. They must be blocked.
+    mockMembership = false;
+    mockPermissions = new Set(["project.delete"]); // stale assignment
+    mockUserPlatformRole = null;
+    const app = buildApp();
+    const r = await request(app)
+      .get("/api/organizations/5/secret")
+      .set("x-test-user-id", "u1");
+    expect(r.status).toBe(403);
   });
 
   it("resolves organizationId from request body when not in URL", async () => {

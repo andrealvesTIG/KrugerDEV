@@ -32,7 +32,44 @@ import {
 } from "@shared/schema";
 import { PERMISSION_CATALOG, PERMISSION_KEYS } from "@shared/permissionCatalog";
 import { BUILTIN_ROLES, mapLegacyMemberRole } from "@shared/permissionDefaults";
-import { getUserIdFromRequest, userHasOrgAccess } from "../routes/helpers";
+import { getUserIdFromRequest } from "../routes/helpers";
+
+/**
+ * Strict membership check used by `requirePermission`. Unlike
+ * `helpers.userHasOrgAccess`, this does NOT honour the legacy
+ * `marketing` platform-role bypass — only `super_admin` may transcend
+ * org membership, and that branch is handled separately in
+ * `userHasPermission`. Looks up an active (non-deleted) row in
+ * `organization_members`.
+ */
+async function userIsSuperAdmin(userId: string, req?: Request): Promise<boolean> {
+  if (req) {
+    const cache = reqCache(req);
+    const cached = (cache as any).__superAdmin?.get(userId);
+    if (cached !== undefined) return cached;
+  }
+  const [u] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId));
+  const result = !!u && SUPER_USER_ROLES.has(String(u.role));
+  if (req) {
+    const cache = reqCache(req);
+    if (!(cache as any).__superAdmin) (cache as any).__superAdmin = new Map();
+    (cache as any).__superAdmin.set(userId, result);
+  }
+  return result;
+}
+
+async function userIsOrgMember(userId: string, orgId: number): Promise<boolean> {
+  const rows = await db
+    .select({ id: organizationMembers.id })
+    .from(organizationMembers)
+    .where(
+      and(
+        eq(organizationMembers.userId, userId),
+        eq(organizationMembers.organizationId, orgId),
+      ),
+    );
+  return rows.length > 0;
+}
 
 /* ------------------------------------------------------------------ */
 /* Catalog sync — runs on boot                                         */
@@ -231,14 +268,22 @@ export function requirePermission(permissionKey: string) {
     if (!orgId || Number.isNaN(orgId)) {
       return res.status(400).json({ message: "organizationId is required" });
     }
-    // Membership-first gate: a permission alone is not enough — the user
-    // must currently be a member of (or admin over) the organization. This
-    // keeps the existing org-access model as the foundation and stops stale
-    // `user_roles` rows from granting access after a member is removed.
-    if (!(await userHasOrgAccess(userId, orgId))) {
-      return res.status(403).json({ message: "Access denied to this organization" });
-    }
+    // Platform super_admin can bypass everything (membership included).
+    // We resolve this via the cached permission lookup, which returns the
+    // full catalog for super_admin.
     const ok = await userHasPermission(userId, orgId, permissionKey, req);
+
+    // Membership-first gate: even if a stale `user_roles` row would grant
+    // the permission, the user must currently be a member of the org.
+    // super_admin still gets through because their bypass is computed
+    // without touching organization_members (they only need `ok=true`).
+    const isSuperAdmin = await userIsSuperAdmin(userId, req);
+    if (!isSuperAdmin) {
+      if (!(await userIsOrgMember(userId, orgId))) {
+        return res.status(403).json({ message: "Access denied to this organization" });
+      }
+    }
+
     if (!ok) {
       return res.status(403).json({
         message: "You do not have permission to perform this action.",
