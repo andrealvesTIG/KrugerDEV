@@ -9,7 +9,7 @@ type RiskResourceWithAssignment = RiskResourceAssignment & { resource: Resource 
 
 export function useResources(organizationId: number | null) {
   return useQuery<Resource[]>({
-    queryKey: ["/api/resources", organizationId],
+    queryKey: ["/api/resources", "list", organizationId],
     enabled: !!organizationId,
     queryFn: async () => {
       const response = await fetch(`/api/resources?organizationId=${organizationId}`);
@@ -21,7 +21,7 @@ export function useResources(organizationId: number | null) {
 
 export function useResource(id: number | null) {
   return useQuery<Resource>({
-    queryKey: ["/api/resources", id],
+    queryKey: ["/api/resources", "detail", id],
     enabled: !!id,
     queryFn: async () => {
       const response = await fetch(`/api/resources/${id}`);
@@ -51,7 +51,7 @@ export function useCreateResource() {
       return response.json();
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/resources", variables.organizationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/resources", "list", variables.organizationId] });
       trackChecklistEvent("assign_member");
     },
   });
@@ -65,8 +65,8 @@ export function useUpdateResource() {
       return response.json();
     },
     onSuccess: (data: Resource) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/resources", data.organizationId] });
-      queryClient.invalidateQueries({ queryKey: ["/api/resources", data.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/resources", "list", data.organizationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/resources", "detail", data.id] });
     },
   });
 }
@@ -79,7 +79,7 @@ export function useDeleteResource() {
       return { organizationId };
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/resources", data.organizationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/resources", "list", data.organizationId] });
     },
   });
 }

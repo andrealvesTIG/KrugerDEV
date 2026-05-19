@@ -571,16 +571,29 @@ export function registerResourceRoutes(app: Express) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
       
-      const { displayName, email, title, department, skills, hourlyRate, isActive, notes } = req.body;
+      const {
+        displayName, email, phone, title, department, location,
+        skills, hourlyRate, weeklyCapacity, availability,
+        isActive, isBillable, timesheetHidden, notes, calendarId,
+      } = req.body;
       const safeUpdate: Record<string, any> = {};
       if (displayName !== undefined) safeUpdate.displayName = displayName;
       if (email !== undefined) safeUpdate.email = email;
+      if (phone !== undefined) safeUpdate.phone = phone;
       if (title !== undefined) safeUpdate.title = title;
       if (department !== undefined) safeUpdate.department = department;
+      if (location !== undefined) safeUpdate.location = location;
       if (skills !== undefined) safeUpdate.skills = skills;
       if (hourlyRate !== undefined) safeUpdate.hourlyRate = hourlyRate;
+      if (weeklyCapacity !== undefined) safeUpdate.weeklyCapacity = weeklyCapacity;
+      if (availability !== undefined) safeUpdate.availability = availability;
       if (isActive !== undefined) safeUpdate.isActive = isActive;
+      if (isBillable !== undefined) safeUpdate.isBillable = isBillable;
+      if (timesheetHidden !== undefined) safeUpdate.timesheetHidden = timesheetHidden;
       if (notes !== undefined) safeUpdate.notes = notes;
+      if (calendarId !== undefined) {
+        safeUpdate.calendarId = calendarId === null ? null : Number(calendarId);
+      }
 
       const updated = await storage.updateResource(id, safeUpdate);
       res.json(updated);
