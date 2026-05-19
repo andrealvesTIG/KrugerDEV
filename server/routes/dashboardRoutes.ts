@@ -403,10 +403,10 @@ export function registerDashboardRoutes(app: Express) {
       if (!Number.isFinite(organizationId) || organizationId <= 0) {
         return res.status(400).json({ message: "organizationId is required" });
       }
-      const memberships = await storage.getUserOrganizations(userId);
-      if (!memberships.some(m => m.organizationId === organizationId)) {
+      if (!await userHasOrgAccess(userId, organizationId)) {
         return res.status(403).json({ message: "You don't have access to this organization" });
       }
+      const memberships = await storage.getUserOrganizations(userId);
       const role = memberships.find(m => m.organizationId === organizationId)?.role || null;
       const { getOrganizationSetupStatus } = await import("../services/onboarding");
       const status = await getOrganizationSetupStatus(organizationId, userId);
