@@ -605,9 +605,12 @@ export function Sidebar() {
             if (group.hidden) return null;
             if (isTeamMember && teamMemberHiddenGroups.has(group.id)) return null;
             
+            const orgAllowsAiMode = currentOrganization?.showAiMode !== false;
+            const aiOnlyModules = new Set(["agents", "powerbi-agent"]);
             const visibleItems = group.items.filter(item => {
               if (item.hidden) return false;
               if (isTeamMember && item.type === 'module' && teamMemberHiddenModules.has(item.key)) return false;
+              if (!orgAllowsAiMode && item.type === 'module' && aiOnlyModules.has(item.key)) return false;
               return true;
             });
             if (visibleItems.length === 0 && group.id !== "help") return null;

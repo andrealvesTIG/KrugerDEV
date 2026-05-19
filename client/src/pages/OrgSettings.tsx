@@ -409,10 +409,10 @@ function AiModeToggleCard() {
           AI Mode
         </CardTitle>
         <CardDescription>
-          Controls the AI Mode landing experience for everyone in this
-          organization. When off, users land on the dashboard and the AI Mode
-          toggle in the top bar is hidden. The Friday assistant panel and other
-          AI features stay available.
+          Controls all AI features for everyone in this organization. When
+          off, users land on the dashboard, the AI Mode toggle is hidden, the
+          floating Friday assistant is hidden, and the Agents and Power BI
+          Request entries are removed from the sidebar.
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -393,8 +393,12 @@ function AppLayoutContent({ children }: { children: ReactNode }) {
           )}
         </main>
       </div>
-      <JarvisOrbFloating onClick={toggleJarvis} isActive={jarvisOpen} />
-      <JarvisPanel open={jarvisOpen} onOpenChange={setJarvisOpen} />
+      {orgAllowsAiMode && (
+        <>
+          <JarvisOrbFloating onClick={toggleJarvis} isActive={jarvisOpen} />
+          <JarvisPanel open={jarvisOpen} onOpenChange={setJarvisOpen} />
+        </>
+      )}
     </div>
   );
 }
