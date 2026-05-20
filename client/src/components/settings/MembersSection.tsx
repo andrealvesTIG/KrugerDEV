@@ -258,6 +258,51 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
     }
   });
 
+  interface RbacRole { id: number; key: string; name: string; description: string | null; isSystem: boolean; permissions: string[] }
+  interface RoleAssignment { organizationId: number; userId: string; roleId: number }
+
+  const { data: rbacRoles = [] } = useQuery<RbacRole[]>({
+    queryKey: [`/api/organizations/${organizationId}/roles`],
+  });
+  const { data: roleAssignments = [] } = useQuery<RoleAssignment[]>({
+    queryKey: [`/api/organizations/${organizationId}/role-assignments`],
+  });
+
+  const assignmentByUser = useMemo(() => {
+    const m = new Map<string, number[]>();
+    for (const a of roleAssignments) {
+      const arr = m.get(a.userId) || [];
+      arr.push(a.roleId);
+      m.set(a.userId, arr);
+    }
+    return m;
+  }, [roleAssignments]);
+
+  const sortedRbacRoles = useMemo(() => {
+    const list = [...rbacRoles];
+    list.sort((a, b) => {
+      if (a.isSystem !== b.isSystem) return a.isSystem ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    return list;
+  }, [rbacRoles]);
+
+  const updateMemberRbacRole = useMutation({
+    mutationFn: async ({ userId, roleId }: { userId: string; roleId: number }) => {
+      return apiRequest('PUT', `/api/organizations/${organizationId}/members/${userId}/roles`, { roleIds: [roleId] });
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/organizations/${organizationId}/role-assignments`] });
+      if (variables.userId === currentUser?.id) {
+        queryClient.invalidateQueries({ queryKey: ["/api/me/permissions"] });
+      }
+      toast({ title: "Success", description: "Permission role updated" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err?.message || "Failed to update permission role", variant: "destructive" });
+    },
+  });
+
   const generateTempPassword = useMutation({
     mutationFn: async ({ userId }: { userId: string; name: string }) => {
       const res = await apiRequest('POST', `/api/organizations/${organizationId}/members/${userId}/generate-temp-password`);
@@ -413,6 +458,7 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Role</TableHead>
+              <TableHead>Permission Role</TableHead>
               <TableHead>Added</TableHead>
               <TableHead className="w-[180px]">Actions</TableHead>
             </TableRow>
@@ -439,6 +485,29 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
                       <SelectItem value="viewer">Viewer</SelectItem>
                     </SelectContent>
                   </Select>
+                </TableCell>
+                <TableCell>
+                  {(() => {
+                    const assigned = [...(assignmentByUser.get(member.userId) || [])].sort((a, b) => a - b);
+                    const currentRoleId = assigned[0];
+                    return (
+                      <Select
+                        value={currentRoleId ? String(currentRoleId) : ""}
+                        onValueChange={(val) => updateMemberRbacRole.mutate({ userId: member.userId, roleId: Number(val) })}
+                      >
+                        <SelectTrigger className="w-[200px]" data-testid={`select-rbac-role-${member.id}`}>
+                          <SelectValue placeholder="(uses legacy role)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sortedRbacRoles.map(r => (
+                            <SelectItem key={r.id} value={String(r.id)} data-testid={`rbac-role-option-${r.key}`}>
+                              {r.name}{r.isSystem ? "" : " (custom)"}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell>
                   {member.createdAt ? format(new Date(member.createdAt), 'MMM d, yyyy') : 'N/A'}
