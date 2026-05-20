@@ -3,7 +3,8 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { z } from "zod";
 import { eq, and } from "drizzle-orm";
-import { users, organizationInvites, plans, subscriptions, billingAuditLogs, notifications, passwordResetTokens, type Task } from "@shared/schema";
+import { users, organizationInvites, plans, subscriptions, billingAuditLogs, notifications, passwordResetTokens, roles as rolesTable, userRoles as userRolesTable, type Task } from "@shared/schema";
+import { mapLegacyMemberRole } from "@shared/permissionDefaults";
 import crypto from "crypto";
 import { sendPasswordResetEmail } from "../services/email";
 import { hashPassword } from "../auth/emailAuth";
@@ -1090,6 +1091,33 @@ export function registerOrgMemberRoutes(app: Express) {
         req.params.userId,
         role
       );
+
+      // Keep RBAC user_roles in sync with the legacy role change. Without
+      // this, a user promoted from "member" to "org_admin" keeps the
+      // project_manager RBAC assignment and still gets 403s on
+      // admin-only permissions like program.create.
+      try {
+        const targetKey = mapLegacyMemberRole(role);
+        const [targetRole] = await db.select().from(rolesTable).where(and(
+          eq(rolesTable.organizationId, orgId),
+          eq(rolesTable.key, targetKey),
+        ));
+        if (targetRole) {
+          await db.delete(userRolesTable).where(and(
+            eq(userRolesTable.organizationId, orgId),
+            eq(userRolesTable.userId, req.params.userId),
+          ));
+          await db.insert(userRolesTable).values({
+            organizationId: orgId,
+            userId: req.params.userId,
+            roleId: targetRole.id,
+            assignedBy: currentUserId,
+          }).onConflictDoNothing();
+        }
+      } catch (syncErr) {
+        console.error("[member-role] failed to sync RBAC user_roles after legacy role change", syncErr);
+      }
+
       res.json(updated);
     } catch (err) {
       const classified = classifyError(err);
