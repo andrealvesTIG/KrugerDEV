@@ -174,6 +174,17 @@ export function useUpdateTaskResourceAssignments() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tasks", variables.taskId, "resources"] });
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      // Org-wide assignment caches power the Tasks page grouping by Resource
+      // and the "My Assignments" filter. Without these invalidations the
+      // dialog refreshes but the list stays stale.
+      queryClient.invalidateQueries({
+        predicate: (q) => {
+          const k = q.queryKey;
+          return Array.isArray(k)
+            && k[0] === "/api/organizations"
+            && (k[2] === "task-assignments" || k[2] === "full-task-assignments");
+        },
+      });
     },
   });
 }
