@@ -332,7 +332,14 @@ export function CreateProjectDialog({
         organizationId: z.number().nullable().optional(),
         startDate: z.string().nullable().optional().transform((v) => v || null),
         endDate: z.string().nullable().optional().transform((v) => v || null),
-        budget: z.union([z.string(), z.number()]).nullable().optional().transform((v) => v ? String(v) : "0"),
+        // projects.budget is `.notNull().default(0)` in the DB. Match that here:
+        // optional on input, defaults to "0", always emitted as a non-empty
+        // string for the Drizzle `numeric` type. Empty string (from a cleared
+        // <input type="number">) and nullish both normalize to "0".
+        budget: z.union([z.string(), z.number()]).optional().default("0").transform((v) => {
+          if (v === undefined || v === null || v === "") return "0";
+          return String(v);
+        }),
       }).superRefine(dateOrderRefine)
     ),
     defaultValues: {
@@ -381,12 +388,12 @@ export function CreateProjectDialog({
   }, [open, initialSource, initialP6Files, initialMsProjectFile]);
 
   const onSubmit = (data: InsertProject) => {
+    // Date and budget normalization is handled by the form's zod resolver.
+    // Don't re-coerce budget to Number here — Drizzle's `numeric` column
+    // expects a string; double-coercion loses precision on large values.
     const cleanedData = {
       ...data,
       organizationId: organizationId!,
-      startDate: data.startDate || null,
-      endDate: data.endDate || null,
-      budget: Number(data.budget) || 0,
     };
     createMutation.mutate(cleanedData, {
       onSuccess: (newProject: any) => {

@@ -48,6 +48,8 @@ import {
   PROJECT_PRIORITIES,
   TASK_STATUSES,
   TASK_PRIORITIES,
+  PORTFOLIO_STATUSES,
+  RISK_TOLERANCE_LEVELS,
 } from '@shared/schema';
 
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
@@ -59,8 +61,8 @@ const STATUS_ENUMS = {
   task: [...TASK_STATUSES],
   priority: [...PROJECT_PRIORITIES],
   health: [...PROJECT_HEALTH_VALUES],
-  riskTolerance: ['Low', 'Medium', 'High'],
-  portfolioStatus: ['Active', 'On Hold', 'Closed', 'Archived'],
+  riskTolerance: [...RISK_TOLERANCE_LEVELS],
+  portfolioStatus: [...PORTFOLIO_STATUSES],
   taskType: ['Work', 'Milestone', 'Summary', 'Fixed Duration', 'Fixed Units', 'Ongoing'],
   constraintType: ['ASAP', 'ALAP', 'Start No Earlier Than', 'Finish No Later Than', 'Must Start On', 'Must Finish On'],
   riskStatus: ['Identified', 'Open', 'In Mitigation', 'Mitigated', 'Closed', 'Accepted'],

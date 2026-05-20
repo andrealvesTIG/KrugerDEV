@@ -165,10 +165,10 @@ export function registerProjectRoutes(app: Express) {
           });
         }
       }
+      // Date normalization (empty string → null) is handled by insertProjectSchema's
+      // preprocess. Here we only attach server-controlled audit fields.
       const sanitizedInput = {
         ...input,
-        startDate: input.startDate || null,
-        endDate: input.endDate || null,
         createdBy: userId || null,
         updatedAt: new Date(),
         updatedBy: userId || null,

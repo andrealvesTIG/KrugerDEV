@@ -64,6 +64,15 @@ export const RISK_PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
 export type RiskStatus = (typeof RISK_STATUSES)[number];
 export type RiskPriority = (typeof RISK_PRIORITIES)[number];
 
+// Portfolio enums — referenced by openapi-schemas.ts and the Portfolio UI
+// dropdowns. Keep here so the OpenAPI spec cannot drift from the values the
+// app actually emits. (The DB column is unconstrained `text` today; promoting
+// to pgEnum + check constraint is a future tightening.)
+export const PORTFOLIO_STATUSES = ["Active", "On Hold", "Closed", "Archived"] as const;
+export const RISK_TOLERANCE_LEVELS = ["Low", "Medium", "High"] as const;
+export type PortfolioStatus = (typeof PORTFOLIO_STATUSES)[number];
+export type RiskToleranceLevel = (typeof RISK_TOLERANCE_LEVELS)[number];
+
 // Audit trail: fields tracked by the risk update history.
 // Names MUST match Drizzle camelCase column properties on the issues table
 // (e.g. mitigationPlan, ownerId — not "mitigation"/"owner").
@@ -2983,6 +2992,14 @@ export const dateOrderRefine = (data: any, ctx: z.RefinementCtx) => {
 export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true, updatedAt: true, updatedBy: true, createdBy: true }).extend({
   // Coerce date strings (YYYY-MM-DD or ISO) coming from the dynamic project form into Date for the timestamp column
   activeGateStartedAt: z.union([z.date(), z.string().transform(s => s ? new Date(s) : null), z.null()]).optional(),
+  // Normalize falsy values (empty string, undefined) to null so handlers don't
+  // need to mutate parsed input. Keeps the contract honest: the schema is the
+  // single source of truth for what reaches storage. `projects.startDate` and
+  // `endDate` are Drizzle `date()` columns — stored as ISO date strings — so
+  // we accept string|null only (Date inputs are handled by updateProjectSchema
+  // for internal callers via an explicit transform).
+  startDate: z.preprocess((v) => (v === "" || v === undefined ? null : v), z.union([z.string(), z.null()]).optional()),
+  endDate:   z.preprocess((v) => (v === "" || v === undefined ? null : v), z.union([z.string(), z.null()]).optional()),
 });
 // Update schema for projects. Mirrors the route-layer validation in
 // `shared/routes.ts` so server-internal callers (storage, etc.) share the same
