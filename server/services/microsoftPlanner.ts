@@ -207,7 +207,10 @@ function generateSecureToken(): string {
 }
 
 function getPlannerRedirectUri(req: Request): string {
-  const protocol = req.protocol || "https";
+  const forwardedProto = req.headers["x-forwarded-proto"];
+  const protocol = (Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto)
+    || req.protocol
+    || "https";
   const host = req.get("host") || "localhost:5000";
   return `${protocol}://${host}/api/planner/callback`;
 }
