@@ -10,7 +10,10 @@ export type IntakeFieldInputType =
   | "select"
   | "checkbox"
   | "portfolio"
-  | "program";
+  | "program"
+  | "readonly";
+
+export type IntakeFieldReadonlyFormat = "date" | "datetime" | "text";
 
 export interface IntakeFieldDefinition {
   key: string;            // matches the projectIntakes column name
@@ -21,6 +24,8 @@ export interface IntakeFieldDefinition {
   rows?: number;          // for textarea
   options?: { value: string; label: string }[];   // for select
   helpText?: string;
+  // For inputType "readonly": how to format the stored value for display.
+  readonlyFormat?: IntakeFieldReadonlyFormat;
 }
 
 // Every built-in projectIntakes field that should be placeable on the form.
@@ -73,6 +78,12 @@ export const INTAKE_FIELDS: IntakeFieldDefinition[] = [
   { key: "cyberRiskAssessment", label: "Cybersecurity Risk Assessment", group: "Governance", inputType: "textarea", rows: 3, placeholder: "Identify security risks, data sensitivity, access requirements, and mitigation strategies..." },
   { key: "complianceRequirements", label: "Compliance Requirements", group: "Governance", inputType: "textarea", rows: 3, placeholder: "Regulatory requirements, data privacy (GDPR, HIPAA), industry standards..." },
   { key: "securityApproval", label: "Security Review Completed", group: "Governance", inputType: "checkbox", helpText: "Security review completed and approved" },
+
+  // Read-only audit fields — populated by the server, surfaced through the
+  // form layout editor like any other built-in field.
+  { key: "createdAt",      label: "Created on",       group: "Audit", inputType: "readonly", readonlyFormat: "datetime" },
+  { key: "updatedAt",      label: "Last modified on", group: "Audit", inputType: "readonly", readonlyFormat: "datetime" },
+  { key: "updatedByName",  label: "Last modified by", group: "Audit", inputType: "readonly", readonlyFormat: "text" },
 ];
 
 export const INTAKE_FIELD_BY_KEY: Record<string, IntakeFieldDefinition> = Object.fromEntries(

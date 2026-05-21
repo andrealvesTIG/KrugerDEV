@@ -395,7 +395,7 @@ export function registerIntakeRoutes(app: Express) {
         }
       }
 
-      const updated = await storage.updateProjectIntake(id, req.body);
+      const updated = await storage.updateProjectIntake(id, req.body, userId);
 
       dispatchIntakeStepTransitionEmails({
         intakeId: id,
@@ -686,7 +686,7 @@ export function registerIntakeRoutes(app: Express) {
         rejectedAt: new Date(),
         rejectedBy: userId,
         rejectionReason: reason,
-      });
+      }, userId);
       
       res.json(updated);
     } catch (err) {

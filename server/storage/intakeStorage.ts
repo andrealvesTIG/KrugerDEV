@@ -6,7 +6,7 @@ import {
   intakeWorkflows, intakeWorkflowSteps, projectWorkflows, projectWorkflowSteps,
   projects, tasks, taskDependencies, powerbiIntakeRequests,
   intakeCustomFieldValues, projectCustomFieldValues,
-  customFieldDefinitions, resources,
+  customFieldDefinitions, resources, users,
   type ProjectIntake, type InsertProjectIntake, type UpdateProjectIntakeRequest,
   type MppImport, type InsertMppImport,
   type MppImportTask, type InsertMppImportTask,
@@ -23,18 +23,66 @@ import { getTasks, deleteAllTasksForProject } from "./taskStorage";
 import { createScheduleVersionFromImportTasks } from "./scheduleVersionStorage";
 import { assignAutonumberValuesForEntity } from "./miscStorage";
 
+// Compose a friendly display name for a user row, falling back through
+// firstName + lastName → email → null.
+function formatUserDisplayName(u: { firstName: string | null; lastName: string | null; email: string | null } | null | undefined): string | null {
+  if (!u) return null;
+  const composed = `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim();
+  return composed || u.email || null;
+}
+
+async function enrichIntakeWithAuditNames<T extends ProjectIntake>(intake: T): Promise<T & { createdByName: string | null; updatedByName: string | null }> {
+  const ids = Array.from(new Set([intake.submitterId, intake.updatedBy].filter((v): v is string => !!v)));
+  let byId = new Map<string, { firstName: string | null; lastName: string | null; email: string | null }>();
+  if (ids.length > 0) {
+    const rows = await db.select({
+      id: users.id,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      email: users.email,
+    }).from(users).where(inArray(users.id, ids));
+    byId = new Map(rows.map(r => [r.id, r]));
+  }
+  return {
+    ...intake,
+    createdByName: formatUserDisplayName(intake.submitterId ? byId.get(intake.submitterId) : null),
+    updatedByName: formatUserDisplayName(intake.updatedBy ? byId.get(intake.updatedBy) : null),
+  };
+}
+
 export async function getProjectIntakes(organizationId: number): Promise<ProjectIntake[]> {
-  return await db.select().from(projectIntakes)
+  const rows = await db.select().from(projectIntakes)
     .where(and(
       eq(projectIntakes.organizationId, organizationId),
       isNull(projectIntakes.deletedAt)
     ))
     .orderBy(desc(projectIntakes.createdAt));
+  // Batch-load the display names so list views can show "Last modified by"
+  // without N+1 round-trips.
+  const ids = Array.from(new Set(
+    rows.flatMap(r => [r.submitterId, r.updatedBy]).filter((v): v is string => !!v)
+  ));
+  let byId = new Map<string, { firstName: string | null; lastName: string | null; email: string | null }>();
+  if (ids.length > 0) {
+    const userRows = await db.select({
+      id: users.id,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      email: users.email,
+    }).from(users).where(inArray(users.id, ids));
+    byId = new Map(userRows.map(r => [r.id, r]));
+  }
+  return rows.map(r => ({
+    ...r,
+    createdByName: formatUserDisplayName(r.submitterId ? byId.get(r.submitterId) : null),
+    updatedByName: formatUserDisplayName(r.updatedBy ? byId.get(r.updatedBy) : null),
+  })) as ProjectIntake[];
 }
 
 export async function getProjectIntake(id: number): Promise<ProjectIntake | undefined> {
   const [intake] = await db.select().from(projectIntakes).where(eq(projectIntakes.id, id));
-  return intake;
+  if (!intake) return undefined;
+  return await enrichIntakeWithAuditNames(intake) as ProjectIntake;
 }
 
 export async function createProjectIntake(intake: InsertProjectIntake): Promise<ProjectIntake> {
@@ -51,9 +99,16 @@ export async function createProjectIntake(intake: InsertProjectIntake): Promise<
   return newIntake;
 }
 
-export async function updateProjectIntake(id: number, updates: UpdateProjectIntakeRequest): Promise<ProjectIntake> {
+export async function updateProjectIntake(id: number, updates: UpdateProjectIntakeRequest, actorUserId?: string | null): Promise<ProjectIntake> {
   const [updated] = await db.update(projectIntakes)
-    .set({ ...updates, updatedAt: new Date() })
+    .set({
+      ...updates,
+      updatedAt: new Date(),
+      // Stamp the actor (if known) so the "Last modified by" field can
+      // surface a real user. Internal callers that don't pass an actor leave
+      // the existing value untouched.
+      ...(actorUserId ? { updatedBy: actorUserId } : {}),
+    })
     .where(eq(projectIntakes.id, id))
     .returning();
   return updated;

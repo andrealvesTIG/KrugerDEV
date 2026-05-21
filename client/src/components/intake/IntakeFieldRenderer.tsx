@@ -53,6 +53,39 @@ export function IntakeFieldRenderer({ fieldKey, intake, formData, onChange, isLo
     );
   }
 
+  if (def.inputType === "readonly") {
+    const raw = current;
+    let display: string;
+    if (raw === null || raw === undefined || raw === "") {
+      display = "—";
+    } else if (def.readonlyFormat === "date" || def.readonlyFormat === "datetime") {
+      const d = raw instanceof Date ? raw : new Date(raw);
+      if (Number.isNaN(d.getTime())) {
+        display = String(raw);
+      } else if (def.readonlyFormat === "datetime") {
+        display = d.toLocaleString();
+      } else {
+        display = d.toLocaleDateString();
+      }
+    } else {
+      display = String(raw);
+    }
+    return (
+      <div className="space-y-2">
+        <Label>
+          {effectiveLabel}
+          {isRequired && <span className="text-destructive ml-1">*</span>}
+        </Label>
+        <div
+          className="text-sm text-foreground bg-muted/40 border border-border rounded-md px-3 py-2 min-h-[36px]"
+          data-testid={`readonly-${def.key}`}
+        >
+          {display}
+        </div>
+      </div>
+    );
+  }
+
   if (def.inputType === "program") {
     return (
       <div className="space-y-2">
