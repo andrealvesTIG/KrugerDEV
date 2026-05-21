@@ -201,9 +201,10 @@ export async function updateTask(id: number, updates: UpdateTaskRequest): Promis
 
 export async function bulkUpdateTasks(taskIds: number[], updates: UpdateTaskRequest): Promise<Task[]> {
   if (taskIds.length === 0) return [];
+  // Soft-delete safety: never resurrect deleted tasks via a bulk update.
   const updated = await db.update(tasks)
     .set(updates)
-    .where(inArray(tasks.id, taskIds))
+    .where(and(inArray(tasks.id, taskIds), isNull(tasks.deletedAt)))
     .returning();
   return updated;
 }

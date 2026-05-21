@@ -508,6 +508,13 @@ export type ResourceAvailabilityWindowInput = {
   endDate: string | Date;
   hoursPerDay?: string | number | null;
   status?: string | null;
+  /**
+   * Optional split-shift PTO window (minutes-into-day). When set together with
+   * `hoursPerDay`, the partial-day PTO is taken from this specific time-of-day
+   * window (e.g. 8:00–12:00 morning PTO) instead of the end of the day.
+   */
+  ptoStartMinute?: number | null;
+  ptoEndMinute?: number | null;
 };
 
 /**
@@ -532,10 +539,16 @@ export function buildResourceAvailabilityWindows(
     const out: NonWorkingWindow[] = [];
     const start = _parseYmdEng(startStr);
     const end = _parseYmdEng(endStr);
+    const ptoStart = r.ptoStartMinute != null ? Number(r.ptoStartMinute) : null;
+    const ptoEnd = r.ptoEndMinute != null ? Number(r.ptoEndMinute) : null;
+    const splitShift =
+      ptoStart != null && ptoEnd != null && isFinite(ptoStart) && isFinite(ptoEnd) && ptoEnd > ptoStart
+        ? { ptoStartMinute: ptoStart, ptoEndMinute: ptoEnd }
+        : undefined;
     for (let cur = new Date(start); cur <= end; cur.setDate(cur.getDate() + 1)) {
       const dayIntervals = getWorkingIntervalsForDate(lookupCal, cur);
       if (!dayIntervals.length) continue;
-      const residual = subtractPtoFromIntervals(dayIntervals, hpd);
+      const residual = subtractPtoFromIntervals(dayIntervals, hpd, splitShift);
       const ymd = _localYmdEng(cur);
       out.push({ startDate: ymd, endDate: ymd, intervals: residual.length ? residual : null });
     }
@@ -622,6 +635,14 @@ export function enumerateResourceIntervalRestrictions(
   return out;
 }
 
+/**
+ * Compose a resource's effective ResolvedCalendar.
+ *
+ * @internal — prefer `composeForRange` so the horizon is always pinned
+ * explicitly. The bare `horizon` arg is optional only for the legacy default
+ * (today-30d → +5y), which silently produces wrong answers for tasks past
+ * that window (see README "Pin horizon for far-future task ranges").
+ */
 export function composeResourceEffectiveCalendar(
   projCal: ResolvedCalendar | null,
   resourceCal: ResolvedCalendar | null,
@@ -670,12 +691,43 @@ export function composeResourceEffectiveCalendar(
 export function subtractPtoFromIntervals(
   intervals: CalendarInterval[],
   ptoHours: number,
+  opts?: { ptoStartMinute?: number; ptoEndMinute?: number },
 ): CalendarInterval[] {
   if (ptoHours <= 0) return intervals.map(i => ({ ...i }));
   if (!intervals.length) return [];
+
+  // Split-shift PTO: when a time-of-day window is supplied, subtract working
+  // minutes that fall INSIDE [ptoStartMinute, ptoEndMinute] instead of the
+  // legacy "trim from the end of the day" behaviour. Caps removed minutes at
+  // `ptoHours` so an oversized window doesn't accidentally clear more than the
+  // approved PTO budget.
+  const ws = opts?.ptoStartMinute;
+  const we = opts?.ptoEndMinute;
+  if (ws != null && we != null && isFinite(ws) && isFinite(we) && we > ws) {
+    let remainingPtoMin = ptoHours * 60;
+    const out: CalendarInterval[] = [];
+    for (const iv of intervals) {
+      // No overlap with the PTO window → keep as-is.
+      if (iv.endMinute <= ws || iv.startMinute >= we || remainingPtoMin <= 0) {
+        out.push({ ...iv });
+        continue;
+      }
+      const overlapStart = Math.max(iv.startMinute, ws);
+      const overlapEnd = Math.min(iv.endMinute, we);
+      const overlap = overlapEnd - overlapStart;
+      const cut = Math.min(overlap, remainingPtoMin);
+      const cutStart = overlapStart;
+      const cutEnd = overlapStart + cut;
+      remainingPtoMin -= cut;
+      if (iv.startMinute < cutStart) out.push({ startMinute: iv.startMinute, endMinute: cutStart });
+      if (iv.endMinute > cutEnd) out.push({ startMinute: cutEnd, endMinute: iv.endMinute });
+    }
+    return out;
+  }
+
   let remainingPtoMin = ptoHours * 60;
-  // Walk from the LAST interval backward, trimming working minutes until
-  // the PTO budget is consumed. Whatever survives is the residual.
+  // Default: walk from the LAST interval backward, trimming working minutes
+  // until the PTO budget is consumed. Whatever survives is the residual.
   const out: CalendarInterval[] = intervals.map(i => ({ ...i }));
   for (let i = out.length - 1; i >= 0 && remainingPtoMin > 0; i--) {
     const span = out[i].endMinute - out[i].startMinute;
@@ -688,4 +740,23 @@ export function subtractPtoFromIntervals(
     }
   }
   return out;
+}
+
+/**
+ * Calendar composition wrapper that REQUIRES an explicit horizon range. All
+ * application callers should go through this rather than the bare
+ * `composeResourceEffectiveCalendar` so far-future task ranges still get
+ * PTO / resource-restriction overlays enumerated for their actual dates.
+ */
+export function composeForRange(
+  projCal: ResolvedCalendar | null,
+  resourceCal: ResolvedCalendar | null,
+  availabilityRows: ResourceAvailabilityWindowInput[],
+  rangeStart: Date,
+  rangeEnd: Date,
+): ResolvedCalendar | null {
+  return composeResourceEffectiveCalendar(projCal, resourceCal, availabilityRows, {
+    start: rangeStart,
+    end: rangeEnd,
+  });
 }

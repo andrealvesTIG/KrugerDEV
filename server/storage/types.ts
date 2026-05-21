@@ -475,8 +475,8 @@ export interface IIntakeStorage {
   createMppImportTask(task: InsertMppImportTask): Promise<MppImportTask>;
   createMppImportTasks(tasks: InsertMppImportTask[]): Promise<MppImportTask[]>;
   deleteMppImportTasks(importId: number): Promise<void>;
-  convertMppImportToProject(importId: number, projectData: { organizationId: number; portfolioId?: number; name: string; description?: string; status?: string; priority?: string }): Promise<{ project: Project; taskCount: number }>;
-  syncMppImportToProject(importId: number, projectId: number, options?: { syncMode?: 'merge' | 'replace'; importedBy?: string | null }): Promise<{ project: Project; tasksAdded: number; tasksUpdated: number; tasksRemoved: number; scheduleVersionId?: number; scheduleVersionNumber?: number }>;
+  convertMppImportToProject(importId: number, projectData: { organizationId: number; portfolioId?: number; name: string; description?: string; status?: string; priority?: string }): Promise<{ project: Project; taskCount: number; importErrors?: Array<{ row: number; taskName: string; error: string }> }>;
+  syncMppImportToProject(importId: number, projectId: number, options?: { syncMode?: 'merge' | 'replace'; importedBy?: string | null }): Promise<{ project: Project; tasksAdded: number; tasksUpdated: number; tasksRemoved: number; scheduleVersionId?: number; scheduleVersionNumber?: number; importErrors?: Array<{ row: number; taskName: string; error: string }> }>;
   getIntakeWorkflowSteps(organizationId: number, workflowId?: number | null): Promise<IntakeWorkflowStep[]>;
   upsertIntakeWorkflowSteps(organizationId: number, steps: InsertIntakeWorkflowStep[], workflowId?: number | null): Promise<IntakeWorkflowStep[]>;
   resetIntakeWorkflowToDefaults(organizationId: number, workflowId?: number | null): Promise<IntakeWorkflowStep[]>;

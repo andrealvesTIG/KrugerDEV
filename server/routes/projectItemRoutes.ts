@@ -976,21 +976,47 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       duration = calculateDuration(start, end);
     }
 
-    if (duration && duration > 0) {
-      let totalEstimatedHours = 0;
-      for (const assignment of assignments) {
-        const allocationPct = assignment.allocationPercentage ?? 100;
-        const weeklyCapacityStr = assignment.resource?.weeklyCapacity;
-        const weeklyCapacity = weeklyCapacityStr != null ? Number(weeklyCapacityStr) : 40;
-        const dailyHours = weeklyCapacity / 5;
-        const hoursForResource = (allocationPct / 100) * dailyHours * duration;
-        totalEstimatedHours += hoursForResource;
-      }
-      const roundedHours = Math.round(totalEstimatedHours * 100) / 100;
-      await storage.updateTask(taskId, { estimatedHours: roundedHours });
-    } else {
+    const haveDates = !!(task.startDate && task.endDate);
+    if ((!duration || duration <= 0) && !haveDates) {
       await storage.updateTask(taskId, { estimatedHours: null });
+      return;
     }
+
+    // Calendar-aware: delegate to the same `estimateTaskAssignmentHours` helper
+    // the assignment-write path uses so org holidays / resource PTO / partial-
+    // day availability all flow through the same engine instead of legacy
+    // `weeklyCapacity / 5 × durationDays` math.
+    const { estimateTaskAssignmentHours } = await import("@shared/lib/assignmentEstimation");
+    const calStorage = await import("../storage/calendarStorage");
+    const projCal = task.projectId
+      ? await storage.getResolvedCalendarForProject(task.projectId)
+      : null;
+    let rangeStart: Date | null = null;
+    let rangeEnd: Date | null = null;
+    if (haveDates) {
+      const [sy, sm, sd] = String(task.startDate).slice(0, 10).split("-").map(Number);
+      const [ey, em, ed] = String(task.endDate).slice(0, 10).split("-").map(Number);
+      rangeStart = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
+      rangeEnd = new Date(ey, em - 1, ed, 23, 59, 59, 999);
+    }
+    const totalEstimatedHours = await estimateTaskAssignmentHours({
+      projCal,
+      resources: assignments.map(a => ({
+        id: a.resourceId,
+        calendarId: (a.resource as any)?.calendarId ?? null,
+        weeklyCapacity: a.resource?.weeklyCapacity != null ? Number(a.resource.weeklyCapacity) : null,
+      })),
+      allocations: assignments.map(a => ({
+        resourceId: a.resourceId,
+        allocationPercentage: a.allocationPercentage ?? 100,
+      })),
+      rangeStart,
+      rangeEnd,
+      durationDays: duration ?? null,
+      loadResourceCalendar: (id) => calStorage.loadResolvedCalendar(id),
+      loadResourceAvailability: (id) => storage.getResourceAvailability(id) as any,
+    });
+    await storage.updateTask(taskId, { estimatedHours: totalEstimatedHours });
   }
 
   async function rollUpParentTasks(projectId: number) {
@@ -2702,8 +2728,14 @@ Format your response as a numbered list with clear, concise strategies. Do not i
 
       const currentStart = successor.startDate ? new Date(successor.startDate + 'T00:00:00') : null;
       const currentEnd = successor.endDate ? new Date(successor.endDate + 'T00:00:00') : null;
+      // NaN/negative guard: a malformed `durationDays` (NaN, Infinity, < 0)
+      // must NOT propagate into calculateEndDateCal — it would silently make
+      // endDate == startDate and corrupt the downstream schedule. Fall back
+      // to the calendar-aware duration derived from current dates, else 1.
       const parsedDuration = successor.durationDays == null ? NaN : Number(successor.durationDays);
-      const duration = Number.isFinite(parsedDuration) ? parsedDuration : (currentStart && currentEnd ? calculateDurationCal(taskCal, currentStart, currentEnd) : 1);
+      const duration = Number.isFinite(parsedDuration) && parsedDuration >= 0
+        ? parsedDuration
+        : (currentStart && currentEnd ? calculateDurationCal(taskCal, currentStart, currentEnd) : 1);
 
       let newStart: Date | null = null;
       let newEnd: Date | null = null;

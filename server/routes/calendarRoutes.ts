@@ -102,7 +102,23 @@ export function registerCalendarRoutes(app: Express) {
       // resource overlay restriction, partial-day PTO honoured at the
       // engine level. Returns null only when projCal/resourceCal/PTO are
       // all absent (caller falls back to legacy Mon–Fri).
-      return res.json(calStorage.composeResourceEffectiveCalendar(projCal, resourceCal, availabilityRows));
+      //
+      // Pin the horizon explicitly (optional `from`/`to` query params, else
+      // the engine's default today-30d → +5y). Far-future Gantt callers
+      // should pass `from`/`to` covering the task range so PTO / resource
+      // restriction overlays are enumerated for those dates.
+      const fromRaw = req.query.from;
+      const toRaw = req.query.to;
+      const horizonStart = typeof fromRaw === "string" && fromRaw
+        ? new Date(fromRaw)
+        : (() => { const d = new Date(); d.setDate(d.getDate() - 30); return d; })();
+      const horizonEnd = typeof toRaw === "string" && toRaw
+        ? new Date(toRaw)
+        : (() => { const d = new Date(); d.setFullYear(d.getFullYear() + 5); return d; })();
+      return res.json(calStorage.composeResourceEffectiveCalendar(
+        projCal, resourceCal, availabilityRows,
+        { start: horizonStart, end: horizonEnd },
+      ));
     } catch (err) {
       const c = classifyError(err);
       res.status(c.status).json({ message: c.status === 500 ? "Error loading resource calendar" : c.message });

@@ -267,6 +267,7 @@ export async function convertMppImportToProject(
   }
 
   const importedTasks = await getMppImportTasks(importId);
+  const importErrors: Array<{ row: number; taskName: string; error: string }> = [];
 
   // No project exists yet — fall back to the org's default calendar so MPP
   // duration math respects org holidays/weekends instead of legacy Mon–Fri.
@@ -322,10 +323,25 @@ export async function convertMppImportToProject(
     for (let i = 0; i < importedTasks.length; i++) {
       const importedTask = importedTasks[i];
       const startDate = importedTask.startDate || today;
-      const endDate = importedTask.finishDate || 
-        (importedTask.durationDays 
-          ? formatDateStr(calculateEndDateCal(importCal, new Date(startDate), importedTask.durationDays))
-          : defaultEndDate);
+      // Reject malformed durations (NaN, Infinity, negative). Previously a
+      // bad value silently fell through to calculateEndDateCal and produced
+      // endDate == startDate, hiding the corrupted row.
+      let derivedEndDate: string | undefined;
+      if (importedTask.finishDate) {
+        derivedEndDate = importedTask.finishDate;
+      } else if (importedTask.durationDays != null) {
+        const dur = Number(importedTask.durationDays);
+        if (!Number.isFinite(dur) || dur < 0) {
+          importErrors.push({
+            row: i + 1,
+            taskName: importedTask.taskName,
+            error: `Invalid durationDays (${importedTask.durationDays}); expected a non-negative finite number`,
+          });
+        } else {
+          derivedEndDate = formatDateStr(calculateEndDateCal(importCal, new Date(startDate), dur));
+        }
+      }
+      const endDate = derivedEndDate ?? defaultEndDate;
 
       const isSummary = importedTask.isSummary || false;
       const isMilestone = importedTask.isMilestone || false;
@@ -491,7 +507,7 @@ export async function convertMppImportToProject(
       throw snapshotErr;
     }
 
-    return { project: newProject, taskCount: importedTasks.length };
+    return { project: newProject, taskCount: importedTasks.length, importErrors };
   });
 }
 
@@ -502,7 +518,7 @@ export async function syncMppImportToProject(
     syncMode?: 'merge' | 'replace';
     importedBy?: string | null;
   }
-): Promise<{ project: Project; tasksAdded: number; tasksUpdated: number; tasksRemoved: number; scheduleVersionId?: number; scheduleVersionNumber?: number }> {
+): Promise<{ project: Project; tasksAdded: number; tasksUpdated: number; tasksRemoved: number; scheduleVersionId?: number; scheduleVersionNumber?: number; importErrors?: Array<{ row: number; taskName: string; error: string }> }> {
   const mppImportRecord = await getMppImport(importId);
   if (!mppImportRecord) {
     throw new Error("Import not found");
@@ -515,6 +531,7 @@ export async function syncMppImportToProject(
 
   const importedTasks = await getMppImportTasks(importId);
   const existingTasks = await getTasks(projectId);
+  const importErrors: Array<{ row: number; taskName: string; error: string }> = [];
 
   // Project exists — resolve its calendar (project.calendarId → org default)
   // so re-sync duration math honours the same holidays/weekends as the rest
@@ -553,10 +570,25 @@ export async function syncMppImportToProject(
   for (let i = 0; i < importedTasks.length; i++) {
     const importedTask = importedTasks[i];
     const startDate = importedTask.startDate || today;
-    const endDate = importedTask.finishDate || 
-      (importedTask.durationDays 
-        ? formatDateStr(calculateEndDateCal(importCal, new Date(startDate), importedTask.durationDays))
-        : defaultEndDate);
+    // Reject malformed durations (NaN, Infinity, negative) — mirror
+    // convertMppImportToProject above so re-syncs surface the same per-row
+    // errors instead of silently collapsing endDate onto startDate.
+    let derivedEndDate: string | undefined;
+    if (importedTask.finishDate) {
+      derivedEndDate = importedTask.finishDate;
+    } else if (importedTask.durationDays != null) {
+      const dur = Number(importedTask.durationDays);
+      if (!Number.isFinite(dur) || dur < 0) {
+        importErrors.push({
+          row: i + 1,
+          taskName: importedTask.taskName,
+          error: `Invalid durationDays (${importedTask.durationDays}); expected a non-negative finite number`,
+        });
+      } else {
+        derivedEndDate = formatDateStr(calculateEndDateCal(importCal, new Date(startDate), dur));
+      }
+    }
+    const endDate = derivedEndDate ?? defaultEndDate;
 
     const isSummary = importedTask.isSummary || false;
     const isMilestone = importedTask.isMilestone || false;
@@ -766,6 +798,7 @@ export async function syncMppImportToProject(
     tasksRemoved,
     scheduleVersionId: newVersion.id,
     scheduleVersionNumber: newVersion.versionNumber,
+    importErrors: importErrors.length > 0 ? importErrors : undefined,
   };
 }
 

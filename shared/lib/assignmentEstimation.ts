@@ -1,5 +1,5 @@
 import {
-  composeResourceEffectiveCalendar,
+  composeForRange,
   defaultLegacyResolvedCalendar,
   workingHoursBetween,
   type ResolvedCalendar,
@@ -33,25 +33,37 @@ export interface EstimateAssignmentInputs {
  */
 export async function estimateTaskAssignmentHours(input: EstimateAssignmentInputs): Promise<number> {
   const haveDates = input.rangeStart != null && input.rangeEnd != null;
+  // NaN guard: durationDays may arrive as a non-numeric string from imports
+  // or stale rows. Treat anything non-finite or negative as 0 so we never
+  // silently multiply NaN into estimatedHours.
+  const durationRaw = input.durationDays;
+  const durationDays =
+    durationRaw != null && Number.isFinite(Number(durationRaw)) && Number(durationRaw) >= 0
+      ? Number(durationRaw)
+      : 0;
   let total = 0;
   for (const resource of input.resources) {
-    const allocPct = input.allocations.find(a => a.resourceId === resource.id)?.allocationPercentage ?? 100;
+    const rawAlloc = input.allocations.find(a => a.resourceId === resource.id)?.allocationPercentage ?? 100;
+    // Invariant: allocationPercentage is clamped at the Zod / storage layer,
+    // but defensively clamp again here so this pure helper can't yield a
+    // negative or >100% per-resource share even if a stale row sneaks in.
+    const allocPct = Math.max(0, Math.min(100, Number(rawAlloc) || 0));
     let perResourceHours: number;
     if (haveDates) {
       const resourceCal = resource.calendarId
         ? await input.loadResourceCalendar(resource.calendarId)
         : null;
       const availabilityRows = await input.loadResourceAvailability(resource.id);
-      const composed = composeResourceEffectiveCalendar(
+      const composed = composeForRange(
         input.projCal, resourceCal, availabilityRows,
-        { start: input.rangeStart!, end: input.rangeEnd! },
+        input.rangeStart!, input.rangeEnd!,
       ) ?? defaultLegacyResolvedCalendar();
       const wh = workingHoursBetween(composed, input.rangeStart!, input.rangeEnd!);
       perResourceHours = (allocPct / 100) * wh;
     } else {
       const weeklyCapacity = Number(resource.weeklyCapacity ?? 40);
       const dailyCapacity = weeklyCapacity / 5;
-      perResourceHours = (allocPct / 100) * dailyCapacity * (input.durationDays ?? 0);
+      perResourceHours = (allocPct / 100) * dailyCapacity * durationDays;
     }
     total += perResourceHours;
   }

@@ -445,10 +445,15 @@ export async function updateTaskResourceAssignments(taskId: number, resourceIds:
     if (resourceIds.length > 0) {
       for (const resourceId of resourceIds) {
         const allocation = allocations?.find(a => a.resourceId === resourceId && resourceIdSet.has(a.resourceId));
-        assignmentData.push({ 
-          taskId, 
+        // Defensive clamp: even if a buggy caller bypasses the Zod schema,
+        // allocationPercentage must stay in 0..100 — the estimation engine
+        // and downstream capacity math rely on this invariant.
+        const rawPct = allocation?.allocationPercentage ?? 100;
+        const clampedPct = Math.max(0, Math.min(100, Number(rawPct)));
+        assignmentData.push({
+          taskId,
           resourceId,
-          allocationPercentage: allocation?.allocationPercentage ?? 100
+          allocationPercentage: Number.isFinite(clampedPct) ? clampedPct : 100,
         });
       }
       await tx.insert(taskResourceAssignments).values(assignmentData);

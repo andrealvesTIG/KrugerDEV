@@ -100,8 +100,13 @@ export async function generateResourceOptimization(
     const leaveEntries = availability.filter(a => a.resourceId === r.id);
 
     const resourceCal = r.calendarId ? await storage.loadResolvedCalendar(r.calendarId) : null;
-    const composed = composeResourceEffectiveCalendar(null, resourceCal, leaveEntries as any)
-      ?? defaultLegacyResolvedCalendar();
+    // Pin horizon to the 30-day window we're about to query so PTO / resource
+    // restriction overlays are enumerated for that exact range, not the
+    // engine's silent default.
+    const composed = composeResourceEffectiveCalendar(
+      null, resourceCal, leaveEntries as any,
+      { start: horizonStart, end: horizonEnd },
+    ) ?? defaultLegacyResolvedCalendar();
     const effectiveHoursNext30Days = Math.round(
       workingHoursBetween(composed, horizonStart, horizonEnd) * 100
     ) / 100;

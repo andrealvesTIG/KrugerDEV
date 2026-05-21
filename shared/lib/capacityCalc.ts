@@ -1,5 +1,5 @@
 import {
-  composeResourceEffectiveCalendar,
+  composeForRange,
   defaultLegacyResolvedCalendar,
   workingHoursBetween,
   type ResolvedCalendar,
@@ -44,9 +44,9 @@ export interface ComputeEffectiveCapacityResult {
  * Side-effect free → unit-testable without a DB stack.
  */
 export function computeEffectiveCapacity(input: ComputeEffectiveCapacityInput): ComputeEffectiveCapacityResult {
-  const composed = composeResourceEffectiveCalendar(
+  const composed = composeForRange(
     input.orgCal, input.resourceCal, input.availabilityRows,
-    { start: input.rangeStart, end: input.rangeEnd },
+    input.rangeStart, input.rangeEnd,
   ) ?? defaultLegacyResolvedCalendar();
 
   const rawHours = workingHoursBetween(composed, input.rangeStart, input.rangeEnd);

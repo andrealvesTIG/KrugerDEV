@@ -3100,7 +3100,11 @@ export const insertIntakeCostingChecklistSchema = createInsertSchema(intakeCosti
   comments: z.string().nullable().optional(),
 }).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertResourceSchema = createInsertSchema(resources).omit({ id: true, createdAt: true });
-export const insertTaskResourceAssignmentSchema = createInsertSchema(taskResourceAssignments).omit({ id: true, createdAt: true });
+export const insertTaskResourceAssignmentSchema = createInsertSchema(taskResourceAssignments, {
+  // Defensive: client-supplied allocation percentages must stay in 0..100.
+  // Anything else is rejected before reaching the DB / estimation engine.
+  allocationPercentage: z.coerce.number().min(0).max(100).optional(),
+}).omit({ id: true, createdAt: true });
 export const insertIssueResourceAssignmentSchema = createInsertSchema(issueResourceAssignments).omit({ id: true, createdAt: true });
 // Risk resource assignments are now handled through issue resource assignments
 export const insertRiskResourceAssignmentSchema = insertIssueResourceAssignmentSchema;
@@ -4337,6 +4341,12 @@ export const resourceAvailability = pgTable("resource_availability", {
   endDate: date("end_date").notNull(),
   type: text("type").notNull(), // leave, pto, sick, holiday, training, other
   hoursPerDay: numeric("hours_per_day"), // Override hours unavailable per day (null = full day)
+  // Optional minute-of-day window for partial-day PTO ("split-shift PTO").
+  // When both are set, the engine subtracts only the window
+  // `[ptoStartMinute, ptoEndMinute)` from each working interval instead of
+  // the default end-of-day trim. Null preserves legacy back-compat behaviour.
+  ptoStartMinute: integer("pto_start_minute"),
+  ptoEndMinute: integer("pto_end_minute"),
   notes: text("notes"),
   status: text("status").default("approved"), // pending, approved, rejected
   createdBy: varchar("created_by").references(() => users.id),

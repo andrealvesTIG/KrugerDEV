@@ -612,6 +612,117 @@ describe("Phase 3a: partial-day PTO via withAdditionalNonWorkingWindows + subtra
     expect(windows.map(w => w.startDate).sort()).toEqual(["2026-03-05", "2026-03-06"]);
   });
 
+  it("subtractPtoFromIntervals — split-shift PTO removes the morning window, leaves the afternoon residual", async () => {
+    const engine = await import("../shared/lib/calendarEngine");
+    // Standard 8h day 9:00–17:00 (no lunch break) for simplicity.
+    const day: { startMinute: number; endMinute: number }[] = [{ startMinute: 9 * 60, endMinute: 17 * 60 }];
+    // 4h of PTO consumed inside the morning window 8:00–12:00.
+    const residual = engine.subtractPtoFromIntervals(day, 4, {
+      ptoStartMinute: 8 * 60,
+      ptoEndMinute: 12 * 60,
+    });
+    // Default trim-from-end would have returned 9:00–13:00; split-shift must
+    // instead remove the 9:00–12:00 overlap and leave 12:00–17:00.
+    expect(residual).toEqual([{ startMinute: 12 * 60, endMinute: 17 * 60 }]);
+  });
+
+  it("estimateTaskAssignmentHours — NaN durationDays in legacy path returns 0 instead of NaN", async () => {
+    const { estimateTaskAssignmentHours } = await import("../shared/lib/assignmentEstimation");
+    const total = await estimateTaskAssignmentHours({
+      projCal: null,
+      resources: [{ id: 1, calendarId: null, weeklyCapacity: 40 }],
+      allocations: [{ resourceId: 1, allocationPercentage: 100 }],
+      rangeStart: null,
+      rangeEnd: null,
+      durationDays: Number("not-a-number"),
+      loadResourceCalendar: async () => null,
+      loadResourceAvailability: async () => [],
+    });
+    expect(total).toBe(0);
+  });
+
+  it("estimateTaskAssignmentHours — clamps allocation outside 0..100 to the legal range", async () => {
+    const { estimateTaskAssignmentHours } = await import("../shared/lib/assignmentEstimation");
+    const over = await estimateTaskAssignmentHours({
+      projCal: null,
+      resources: [{ id: 1, calendarId: null, weeklyCapacity: 40 }],
+      allocations: [{ resourceId: 1, allocationPercentage: 250 }],
+      rangeStart: null,
+      rangeEnd: null,
+      durationDays: 5,
+      loadResourceCalendar: async () => null,
+      loadResourceAvailability: async () => [],
+    });
+    // 100% of 8h/day × 5d = 40h, not 100h.
+    expect(over).toBe(40);
+    const negative = await estimateTaskAssignmentHours({
+      projCal: null,
+      resources: [{ id: 1, calendarId: null, weeklyCapacity: 40 }],
+      allocations: [{ resourceId: 1, allocationPercentage: -50 }],
+      rangeStart: null,
+      rangeEnd: null,
+      durationDays: 5,
+      loadResourceCalendar: async () => null,
+      loadResourceAvailability: async () => [],
+    });
+    expect(negative).toBe(0);
+  });
+
+  it("estimateTaskAssignmentHours — calendar-aware path subtracts an org holiday from estimatedHours", async () => {
+    const { estimateTaskAssignmentHours } = await import("../shared/lib/assignmentEstimation");
+    const engine = await import("../shared/lib/calendarEngine");
+    // Project calendar = standard 8h/day Mon–Fri with a one-day holiday on Wed.
+    const projCal: ResolvedCalendar = {
+      ...defaultLegacyResolvedCalendar(),
+      id: 42,
+      name: "proj",
+      exceptions: [
+        { startDate: "2026-03-04", endDate: "2026-03-04", isWorking: false },
+      ],
+    };
+    const rangeStart = new Date(2026, 2, 2, 0, 0, 0, 0);   // Mon Mar 2
+    const rangeEnd = new Date(2026, 2, 6, 23, 59, 59, 999); // Fri Mar 6
+    const total = await estimateTaskAssignmentHours({
+      projCal,
+      resources: [{ id: 1, calendarId: null, weeklyCapacity: 40 }],
+      allocations: [{ resourceId: 1, allocationPercentage: 100 }],
+      rangeStart, rangeEnd,
+      durationDays: 5,
+      loadResourceCalendar: async () => null,
+      loadResourceAvailability: async () => [],
+    });
+    // Mon/Tue/Thu/Fri = 4 working days × 8h = 32h (Wed Mar 4 is the holiday).
+    expect(total).toBeCloseTo(32, 5);
+    // Sanity check: workingHoursBetween agrees.
+    expect(engine.workingHoursBetween(projCal, rangeStart, rangeEnd)).toBeCloseTo(32, 5);
+  });
+
+  it("composeForRange — far-future window (past the default +5y horizon) still enumerates PTO", async () => {
+    const engine = await import("../shared/lib/calendarEngine");
+    // Pick a date ~7 years out — past the engine's default today-30d → +5y horizon.
+    const farStart = new Date();
+    farStart.setFullYear(farStart.getFullYear() + 7);
+    farStart.setMonth(2, 2); farStart.setHours(0, 0, 0, 0); // Mar 2 (likely Mon)
+    const farEnd = new Date(farStart);
+    farEnd.setDate(farEnd.getDate() + 4);
+    farEnd.setHours(23, 59, 59, 999);
+    const farDateStr = farStart.toISOString().slice(0, 10);
+    // Approved full-day PTO row on the first day of the far-future window.
+    const composed = engine.composeForRange(
+      stdCal, null,
+      [{ startDate: farDateStr, endDate: farDateStr, status: "approved" }],
+      farStart, farEnd,
+    );
+    expect(composed).not.toBeNull();
+    const totalHours = engine.workingHoursBetween(composed!, farStart, farEnd);
+    const baseHours = engine.workingHoursBetween(stdCal, farStart, farEnd);
+    // The PTO day must shave hours off the composed total. With the bare
+    // `composeResourceEffectiveCalendar` (default horizon ~+5y) this PTO row
+    // would have been silently dropped because the far-future window sits
+    // outside the default exception range.
+    expect(totalHours).toBeLessThan(baseHours);
+  });
+
   it("multi-day partial-day PTO is expanded per-date with each day's residual", async () => {
     // Mirrors the route's per-date expansion for a 3-day half-day PTO row.
     const engine = await import("../shared/lib/calendarEngine");
