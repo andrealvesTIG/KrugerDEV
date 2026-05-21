@@ -20,6 +20,7 @@ import {
 } from "./helpers";
 import { gatherProjectEvmSeries } from "../services/projectAnalytics";
 import { invalidateOrganizationContextCache } from "../services/jarvisService";
+import { assertNotLocked, fiscalToCalendar } from "../services/financialLockdownService";
 
 async function teamMemberCanAccessProject(userId: string, projectId: number, organizationId: number): Promise<boolean> {
   if (!await isTeamMemberInOrg(userId, organizationId)) return true;
@@ -234,22 +235,22 @@ export function registerFinancialsRoutes(app: Express) {
         return res.status(403).json({ message: `Financial type "${typeConfig.label}" is read-only` });
       }
 
-      // Lockdown enforcement: reject saves whose period (FY+month → calendar
-      // month-end) is on or before the most-recent lockdown date for this
-      // financial type in this org.
-      const lockdownMap = await storage.getActiveLockdownMap(guard.project.organizationId);
-      const lockedAt = lockdownMap[typeKey];
-      if (lockedAt) {
-        const org = await storage.getOrganization(guard.project.organizationId);
-        const fyStart = normalizeFiscalYearStartMonth(org?.fiscalYearStartMonth);
-        const cellMonthEnd = fiscalMonthEndIso(Number(fiscalYear), monthNum, fyStart);
-        if (cellMonthEnd <= lockedAt) {
-          return res.status(403).json({
-            message: `Financial type "${typeConfig.label}" is locked through ${lockedAt}. Cell for FY${fiscalYear} M${monthNum} (${cellMonthEnd}) cannot be edited.`,
-            code: "LOCKDOWN",
-            lockdown: { financialTypeKey: typeKey, lockdownDate: lockedAt },
-          });
-        }
+      // Lockdown enforcement runs through the shared `assertNotLocked` helper
+      // so every write path (this route, bulk-clear, item-delete, change-order
+      // approval) honours exactly the same rule.
+      const violation = await assertNotLocked({
+        organizationId: guard.project.organizationId,
+        projectId,
+        fiscalYear: Number(fiscalYear),
+        fiscalMonth: monthNum,
+        typeKey,
+      });
+      if (violation) {
+        return res.status(409).json({
+          message: `Financial type "${typeConfig.label}" is locked through ${violation.lockdownDate}. Cell for FY${fiscalYear} M${monthNum} (${violation.cellMonthEnd}) cannot be edited.`,
+          code: "LOCKDOWN",
+          lockdown: { financialTypeKey: violation.financialTypeKey, lockdownDate: violation.lockdownDate },
+        });
       }
 
       const result = await storage.upsertFinancialCell({
@@ -359,6 +360,27 @@ export function registerFinancialsRoutes(app: Express) {
 
       if (toClear.length === 0) {
         return res.json({ cleared: 0, message: "Nothing to clear" });
+      }
+
+      // Lockdown enforcement: reject the whole batch if ANY cell falls in a
+      // locked period. We check per-(type, fiscalYear, month) tuple so a
+      // bulk-clear that mixes a locked AOP cell with editable FCST/ACT cells
+      // is rejected cleanly with 409, not partially applied.
+      for (const c of toClear) {
+        const violation = await assertNotLocked({
+          organizationId: guard.project.organizationId,
+          projectId,
+          fiscalYear: c.fiscalYear,
+          fiscalMonth: c.month,
+          typeKey: c.type,
+        });
+        if (violation) {
+          return res.status(409).json({
+            message: `Cannot clear cell for "${c.type}" in FY${c.fiscalYear} M${c.month}: period is locked through ${violation.lockdownDate}.`,
+            code: "LOCKDOWN",
+            lockdown: { financialTypeKey: violation.financialTypeKey, lockdownDate: violation.lockdownDate },
+          });
+        }
       }
 
       // Resolve user display name BEFORE the transaction so we don't block
@@ -506,6 +528,34 @@ export function registerFinancialsRoutes(app: Express) {
         fiscalYear: fy,
         types: Array.from(types),
       }));
+
+      // Lockdown enforcement: an item-delete drops every (type, year, month)
+      // cell of the item. Reject if ANY underlying cell sits in a locked
+      // period — the same rule the single-cell PUT route enforces.
+      //
+      // `storage.getFinancialEntries` returns rows relabelled to FISCAL
+      // coordinates (see relabelRow in financialStorage.ts) — `e.fiscalYear`
+      // is the FY label and `e.month` is M1..M12 in fiscal order. We must
+      // pass those as fiscal inputs so `assertNotLocked` translates them
+      // back to the correct calendar month-end via the org's
+      // fiscalYearStartMonth. Passing them as calendar directly would mis-
+      // match for any org whose FY does not start in January.
+      for (const e of itemEntries) {
+        const violation = await assertNotLocked({
+          organizationId: guard.project.organizationId,
+          projectId,
+          fiscalYear: e.fiscalYear,
+          fiscalMonth: e.month,
+          typeKey: e.scenario,
+        });
+        if (violation) {
+          return res.status(409).json({
+            message: `Cannot delete item: cell for "${e.scenario}" in ${violation.cellMonthEnd} is locked through ${violation.lockdownDate}.`,
+            code: "LOCKDOWN",
+            lockdown: { financialTypeKey: violation.financialTypeKey, lockdownDate: violation.lockdownDate },
+          });
+        }
+      }
 
       const previous = await storage.deleteFinancialItem({ projectId, itemKey, fiscalYear });
       if (!previous) return res.status(404).json({ message: "Item not found" });

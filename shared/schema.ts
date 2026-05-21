@@ -5672,6 +5672,23 @@ export const insertBidLineItemSchema = createInsertSchema(bidLineItems).omit({
 export type BidLineItem = typeof bidLineItems.$inferSelect;
 export type InsertBidLineItem = z.infer<typeof insertBidLineItemSchema>;
 
+// ============ FINANCIAL COUNTERS (atomic per-project sequence rows) ============
+// Replaces the racey `SELECT max(num)+1` pattern in invoice / change-order
+// numbering. One row per (scope, projectId). Allocation uses
+// `INSERT ... ON CONFLICT ... DO UPDATE SET value = value + 1 RETURNING value`
+// which is atomic in Postgres. See server/services/financialCounterService.ts.
+// TODO: Hierarchical cost-item rollups are currently recomputed on demand via
+// SQL sum(); when that moves to a materialized cache, add a counter row here
+// to gate background recompute fences.
+export const financialCounters = pgTable("financial_counters", {
+  scope: text("scope").notNull(),         // e.g. "invoice", "co:PCO", "co:COR", "co:CO"
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  value: integer("value").default(0).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.scope, table.projectId] }),
+]);
+
 // ============ CHANGE ORDERS (Construction Financial Management) ============
 
 export const changeOrders = pgTable("change_orders", {
@@ -5708,6 +5725,12 @@ export const changeOrders = pgTable("change_orders", {
   index("change_orders_project_id_idx").on(table.projectId),
   index("change_orders_tier_idx").on(table.tier),
   index("change_orders_status_idx").on(table.status),
+  // Atomic-numbering backstop: even if two concurrent creators slip past the
+  // counter, the DB rejects duplicate (project, number) pairs. Partial index
+  // skips soft-deleted rows so deleted numbers can be reused.
+  uniqueIndex("change_orders_project_number_unique")
+    .on(table.projectId, table.changeOrderNumber)
+    .where(sql`${table.deletedAt} IS NULL AND ${table.changeOrderNumber} IS NOT NULL`),
 ]);
 
 export const changeOrderLineItems = pgTable("change_order_line_items", {
@@ -5777,6 +5800,10 @@ export const constructionInvoices = pgTable("construction_invoices", {
 }, (table) => [
   index("construction_invoices_project_id_idx").on(table.projectId),
   index("construction_invoices_status_idx").on(table.status),
+  // See change_orders_project_number_unique — same atomic-numbering backstop.
+  uniqueIndex("construction_invoices_project_number_unique")
+    .on(table.projectId, table.invoiceNumber)
+    .where(sql`${table.deletedAt} IS NULL AND ${table.invoiceNumber} IS NOT NULL`),
 ]);
 
 export const constructionInvoiceLineItems = pgTable("construction_invoice_line_items", {

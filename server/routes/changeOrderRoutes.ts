@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { db } from "../db";
 import { z } from "zod";
-import { eq, and, isNull, desc, sql, asc } from "drizzle-orm";
+import { eq, and, isNull, desc, asc, sql } from "drizzle-orm";
 import { changeOrders, changeOrderLineItems, projects, projectFinancials } from "@shared/schema";
 import {
   classifyError,
@@ -9,26 +9,32 @@ import {
   userHasOrgAccess,
   logUserActivity,
 } from "./helpers";
+import { decimalString, sumDecimals, isZeroDecimal, BigNumber } from "@shared/lib/decimalString";
+import { assertNotLocked } from "../services/financialLockdownService";
+import { nextCounterValue, formatCounter } from "../services/financialCounterService";
 
+// All money fields cross the wire as decimal strings. JS `number` inputs are
+// REJECTED at the schema boundary — see shared/lib/decimalString.ts. All
+// arithmetic uses BigNumber so 0.10 × 10 === 1.00 exactly.
 const createChangeOrderSchema = z.object({
   title: z.string().min(1).max(500),
   description: z.string().max(10000).nullable().optional(),
   tier: z.enum(["PCO", "COR", "CO"]).default("PCO"),
   status: z.enum(["Draft", "Pending", "Under Review", "Approved", "Rejected", "Void"]).default("Draft"),
   reasonCode: z.string().max(200).nullable().optional(),
-  costImpact: z.number().nullable().optional(),
+  costImpact: decimalString.nullable().optional(),
   scheduleImpactDays: z.number().int().nullable().optional(),
-  originalContractAmount: z.number().nullable().optional(),
-  revisedContractAmount: z.number().nullable().optional(),
+  originalContractAmount: decimalString.nullable().optional(),
+  revisedContractAmount: decimalString.nullable().optional(),
   requestedBy: z.string().max(500).nullable().optional(),
   requestedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   notes: z.string().max(10000).nullable().optional(),
   lineItems: z.array(z.object({
     costCode: z.string().max(100).nullable().optional(),
     description: z.string().min(1).max(1000),
-    quantity: z.number().nullable().optional(),
-    unitPrice: z.number().nullable().optional(),
-    totalPrice: z.number().nullable().optional(),
+    quantity: decimalString.nullable().optional(),
+    unitPrice: decimalString.nullable().optional(),
+    totalPrice: decimalString.nullable().optional(),
     category: z.string().max(200).nullable().optional(),
     sortOrder: z.number().int().optional(),
   })).optional(),
@@ -36,27 +42,16 @@ const createChangeOrderSchema = z.object({
 
 const updateChangeOrderSchema = createChangeOrderSchema.partial().strict();
 
+/**
+ * Atomic per-(project, tier) numbering. Replaces the legacy
+ * `SELECT max+1` read-then-write that produced duplicates under concurrency.
+ * Combined with the partial unique index `change_orders_project_number_unique`,
+ * duplicates are impossible.
+ */
 async function getNextChangeOrderNumber(projectId: number, tier: string): Promise<string> {
   const prefix = tier === "PCO" ? "PCO" : tier === "COR" ? "COR" : "CO";
-  const existing = await db.select({ changeOrderNumber: changeOrders.changeOrderNumber })
-    .from(changeOrders)
-    .where(and(
-      eq(changeOrders.projectId, projectId),
-      eq(changeOrders.tier, tier),
-    ))
-    .orderBy(desc(changeOrders.id));
-
-  let maxNum = 0;
-  for (const co of existing) {
-    if (co.changeOrderNumber) {
-      const match = co.changeOrderNumber.match(/(\d+)$/);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (num > maxNum) maxNum = num;
-      }
-    }
-  }
-  return `${prefix}-${String(maxNum + 1).padStart(3, "0")}`;
+  const next = await nextCounterValue(`co:${tier}`, projectId);
+  return formatCounter(prefix, next);
 }
 
 async function verifyProjectAccess(userId: string, projectId: number) {
@@ -65,6 +60,14 @@ async function verifyProjectAccess(userId: string, projectId: number) {
   const hasAccess = await userHasOrgAccess(userId, project.organizationId);
   if (!hasAccess) return null;
   return project;
+}
+
+// Money columns are stored as Postgres `numeric`. Drizzle's custom numeric
+// type coerces to/from JS `number` (legacy), so we may receive a number from
+// older rows. Coerce defensively to a decimal string for BigNumber math.
+function toDecimal(v: unknown): BigNumber {
+  if (v == null || v === "") return new BigNumber(0);
+  return new BigNumber(typeof v === "number" ? String(v) : String(v));
 }
 
 export function registerChangeOrderRoutes(app: Express) {
@@ -116,19 +119,19 @@ export function registerChangeOrderRoutes(app: Express) {
       const approvedCount = allOrders.filter(o => o.status === "Approved").length;
       const pendingCount = allOrders.filter(o => ["Pending", "Under Review"].includes(o.status)).length;
 
-      const approvedCostImpact = allOrders
-        .filter(o => o.status === "Approved" && o.tier === "CO")
-        .reduce((sum, o) => sum + (o.costImpact ?? 0), 0);
-
-      const totalCostImpact = allOrders
-        .reduce((sum, o) => sum + (o.costImpact ?? 0), 0);
+      // Money rollups use BigNumber so e.g. summing ten `0.10` impacts gives
+      // exactly `1.00`, not `0.9999999999999999`.
+      const approvedCostImpact = sumDecimals(
+        allOrders.filter(o => o.status === "Approved" && o.tier === "CO").map(o => String(o.costImpact ?? 0)),
+      );
+      const totalCostImpact = sumDecimals(allOrders.map(o => String(o.costImpact ?? 0)));
 
       const totalScheduleImpact = allOrders
         .filter(o => o.status === "Approved")
         .reduce((sum, o) => sum + (o.scheduleImpactDays || 0), 0);
 
-      const originalContract = (project.contractTotal ?? 0);
-      const revisedContract = originalContract + approvedCostImpact;
+      const originalContract = String(project.contractTotal ?? 0);
+      const revisedContract = new BigNumber(originalContract).plus(approvedCostImpact).toFixed();
 
       res.json({
         totalCount,
@@ -186,23 +189,29 @@ export function registerChangeOrderRoutes(app: Express) {
           approved: tierOrders.filter(o => o.status === "Approved").length,
           pending: tierOrders.filter(o => ["Pending", "Under Review"].includes(o.status)).length,
           rejected: tierOrders.filter(o => o.status === "Rejected").length,
-          totalCostImpact: tierOrders.reduce((sum, o) => sum + (o.costImpact ?? 0), 0),
-          approvedCostImpact: tierOrders.filter(o => o.status === "Approved").reduce((sum, o) => sum + (o.costImpact ?? 0), 0),
+          totalCostImpact: sumDecimals(tierOrders.map(o => String(o.costImpact ?? 0))),
+          approvedCostImpact: sumDecimals(
+            tierOrders.filter(o => o.status === "Approved").map(o => String(o.costImpact ?? 0)),
+          ),
           totalScheduleImpact: tierOrders.filter(o => o.status === "Approved").reduce((sum, o) => sum + (o.scheduleImpactDays || 0), 0),
         };
       });
 
-      const originalContract = (project.contractTotal ?? 0);
-      const totalApprovedImpact = allOrders
-        .filter(o => o.status === "Approved" && o.tier === "CO")
-        .reduce((sum, o) => sum + (o.costImpact ?? 0), 0);
+      const originalContract = String(project.contractTotal ?? 0);
+      const totalApprovedImpact = sumDecimals(
+        allOrders
+          .filter(o => o.status === "Approved" && o.tier === "CO")
+          .map(o => String(o.costImpact ?? 0)),
+      );
 
-      const reasonCodeBreakdown: Record<string, { count: number; totalCost: number }> = {};
+      const reasonCodeBreakdown: Record<string, { count: number; totalCost: string }> = {};
       for (const o of allOrders) {
         const code = o.reasonCode || "Unspecified";
-        if (!reasonCodeBreakdown[code]) reasonCodeBreakdown[code] = { count: 0, totalCost: 0 };
+        if (!reasonCodeBreakdown[code]) reasonCodeBreakdown[code] = { count: 0, totalCost: "0" };
         reasonCodeBreakdown[code].count++;
-        reasonCodeBreakdown[code].totalCost += (o.costImpact ?? 0);
+        reasonCodeBreakdown[code].totalCost = new BigNumber(reasonCodeBreakdown[code].totalCost)
+          .plus(toDecimal(o.costImpact))
+          .toFixed();
       }
 
       const log = allOrders.map(o => ({
@@ -225,7 +234,7 @@ export function registerChangeOrderRoutes(app: Express) {
       res.json({
         projectName: project.name,
         originalContract,
-        revisedContract: originalContract + totalApprovedImpact,
+        revisedContract: new BigNumber(originalContract).plus(totalApprovedImpact).toFixed(),
         netChange: totalApprovedImpact,
         tierSummaries,
         reasonCodeBreakdown,
@@ -292,7 +301,7 @@ export function registerChangeOrderRoutes(app: Express) {
         projectId,
         changeOrderNumber,
         createdBy: userId,
-      }).returning();
+      } as any).returning();
 
       if (lineItems && lineItems.length > 0) {
         await db.insert(changeOrderLineItems).values(
@@ -300,7 +309,7 @@ export function registerChangeOrderRoutes(app: Express) {
             ...li,
             changeOrderId: co.id,
             sortOrder: li.sortOrder ?? idx,
-          }))
+          })) as any,
         );
       }
 
@@ -340,7 +349,7 @@ export function registerChangeOrderRoutes(app: Express) {
       }
 
       const [updated] = await db.update(changeOrders)
-        .set({ ...data, updatedAt: new Date() })
+        .set({ ...data, updatedAt: new Date() } as any)
         .where(and(
           eq(changeOrders.id, changeOrderId),
           eq(changeOrders.projectId, projectId),
@@ -358,7 +367,7 @@ export function registerChangeOrderRoutes(app: Express) {
               ...li,
               changeOrderId,
               sortOrder: li.sortOrder ?? idx,
-            }))
+            })) as any,
           );
         }
       }
@@ -422,7 +431,7 @@ export function registerChangeOrderRoutes(app: Express) {
         notes: existing.notes,
         promotedFrom: existing.id,
         createdBy: userId,
-      }).returning();
+      } as any).returning();
 
       const existingLineItems = await db.select()
         .from(changeOrderLineItems)
@@ -439,7 +448,7 @@ export function registerChangeOrderRoutes(app: Express) {
             totalPrice: li.totalPrice,
             category: li.category,
             sortOrder: li.sortOrder ?? idx,
-          }))
+          })) as any,
         );
       }
 
@@ -492,6 +501,22 @@ export function registerChangeOrderRoutes(app: Express) {
       const now = new Date();
       const approvedByName = req.body.approvedBy || "System";
 
+      // Lockdown enforcement: a CO approval that writes into project_financials
+      // for a closed calendar month must be rejected with 409, otherwise a
+      // post-close approval would mutate already-locked totals.
+      const costImpactBn = toDecimal(existing.costImpact);
+      if (existing.tier === "CO" && !costImpactBn.isZero() && project.organizationId) {
+        const violation = await assertNotLocked({
+          organizationId: project.organizationId,
+          projectId,
+          calendarYear: now.getUTCFullYear(),
+          calendarMonth: now.getUTCMonth() + 1,
+        });
+        if (violation) {
+          return res.status(409).json({ code: "LOCKDOWN", ...violation });
+        }
+      }
+
       const [approved] = await db.update(changeOrders)
         .set({
           status: "Approved",
@@ -505,21 +530,19 @@ export function registerChangeOrderRoutes(app: Express) {
         ))
         .returning();
 
-      if (existing.tier === "CO" && existing.costImpact) {
-        const costImpact = (existing.costImpact ?? 0);
-        if (costImpact !== 0) {
-          await db.insert(projectFinancials).values({
-            projectId,
-            category: "CapEx",
-            lineItem: `CO-${existing.changeOrderNumber || changeOrderId}: ${existing.title}`,
-            description: `Approved change order (${existing.tier}) cost impact`,
-            fiscalYear: now.getFullYear(),
-            fiscalPeriod: `Q${Math.ceil((now.getMonth() + 1) / 3)}`,
-            budgetAmount: costImpact,
-            plannedAmount: costImpact,
-            actualAmount: costImpact,
-          });
-        }
+      if (existing.tier === "CO" && !costImpactBn.isZero()) {
+        const costImpactStr = costImpactBn.toFixed();
+        await db.insert(projectFinancials).values({
+          projectId,
+          category: "CapEx",
+          lineItem: `CO-${existing.changeOrderNumber || changeOrderId}: ${existing.title}`,
+          description: `Approved change order (${existing.tier}) cost impact`,
+          fiscalYear: now.getFullYear(),
+          fiscalPeriod: `Q${Math.ceil((now.getMonth() + 1) / 3)}`,
+          budgetAmount: costImpactStr as any,
+          plannedAmount: costImpactStr as any,
+          actualAmount: costImpactStr as any,
+        });
       }
 
       logUserActivity(userId, "change_order_approved", "change_order", changeOrderId, { projectId, tier: existing.tier });

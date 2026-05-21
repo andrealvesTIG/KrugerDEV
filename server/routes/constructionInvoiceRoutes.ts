@@ -9,8 +9,12 @@ import {
   userHasOrgAccess,
   logUserActivity,
 } from "./helpers";
+import { decimalString, sumDecimals, BigNumber } from "@shared/lib/decimalString";
+import { nextCounterValue, formatCounter } from "../services/financialCounterService";
 
-const numericInput = z.union([z.number(), z.string()]).transform((v) => typeof v === "string" ? Number(v) : v);
+// All money values cross the wire as decimal strings to avoid float drift.
+// JS `number` inputs are REJECTED at the boundary (see decimalString.ts).
+const numericInput = decimalString;
 
 const createInvoiceSchema = z.object({
   title: z.string().min(1).max(500),
@@ -41,23 +45,16 @@ const createInvoiceSchema = z.object({
 
 const updateInvoiceSchema = createInvoiceSchema.partial().strict();
 
+/**
+ * Atomic per-project numbering. Backed by `financial_counters` +
+ * `INSERT ... ON CONFLICT ... DO UPDATE RETURNING`, which Postgres serialises
+ * on the conflicting row. The partial unique index on `(project_id,
+ * invoice_number)` is a backstop against any future code path that bypasses
+ * this helper.
+ */
 async function getNextInvoiceNumber(projectId: number): Promise<string> {
-  const existing = await db.select({ invoiceNumber: constructionInvoices.invoiceNumber })
-    .from(constructionInvoices)
-    .where(eq(constructionInvoices.projectId, projectId))
-    .orderBy(desc(constructionInvoices.id));
-
-  let maxNum = 0;
-  for (const inv of existing) {
-    if (inv.invoiceNumber) {
-      const match = inv.invoiceNumber.match(/(\d+)$/);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (num > maxNum) maxNum = num;
-      }
-    }
-  }
-  return `PAY-${String(maxNum + 1).padStart(3, "0")}`;
+  const next = await nextCounterValue("invoice", projectId);
+  return formatCounter("PAY", next);
 }
 
 async function verifyProjectAccess(userId: string, projectId: number) {
@@ -115,37 +112,46 @@ export function registerConstructionInvoiceRoutes(app: Express) {
           isNull(changeOrders.deletedAt),
         ));
 
-      const originalContract = (project.contractTotal ?? 0);
-      const approvedChanges = allChangeOrders
-        .filter(co => co.status === "Approved" && co.tier === "CO")
-        .reduce((sum, co) => sum + (co.costImpact ?? 0), 0);
-      const revisedContract = originalContract + approvedChanges;
+      // Money rollups via BigNumber so float drift can't bleed into the
+      // contract-vs-billed delta the construction PMs read every day.
+      const originalContract = new BigNumber(String(project.contractTotal ?? 0));
+      const approvedChanges = sumDecimals(
+        allChangeOrders
+          .filter(co => co.status === "Approved" && co.tier === "CO")
+          .map(co => String(co.costImpact ?? 0)),
+      );
+      const revisedContract = originalContract.plus(approvedChanges);
 
-      const totalBilled = allInvoices
-        .filter(inv => ["Approved", "Paid"].includes(inv.status))
-        .reduce((sum, inv) => sum + (inv.currentBilled ?? 0), 0);
+      const totalBilled = new BigNumber(sumDecimals(
+        allInvoices
+          .filter(inv => ["Approved", "Paid"].includes(inv.status))
+          .map(inv => String(inv.currentBilled ?? 0)),
+      ));
 
-      const totalPaid = allInvoices
-        .filter(inv => inv.status === "Paid")
-        .reduce((sum, inv) => sum + (inv.paidAmount ?? inv.currentBilled ?? 0), 0);
+      const totalPaid = sumDecimals(
+        allInvoices
+          .filter(inv => inv.status === "Paid")
+          .map(inv => String(inv.paidAmount ?? inv.currentBilled ?? 0)),
+      );
 
-      const balanceRemaining = revisedContract - totalBilled;
+      const balanceRemaining = revisedContract.minus(totalBilled);
       const pendingInvoices = allInvoices.filter(inv => ["Draft", "Submitted", "Under Review"].includes(inv.status)).length;
-      const totalRetainage = allInvoices
-        .reduce((sum, inv) => sum + (inv.retainage ?? 0), 0);
+      const totalRetainage = sumDecimals(allInvoices.map(inv => String(inv.retainage ?? 0)));
 
       res.json({
-        originalContract,
+        originalContract: originalContract.toFixed(),
         approvedChanges,
-        revisedContract,
-        totalBilled,
+        revisedContract: revisedContract.toFixed(),
+        totalBilled: totalBilled.toFixed(),
         totalPaid,
-        balanceRemaining,
+        balanceRemaining: balanceRemaining.toFixed(),
         totalRetainage,
         invoiceCount: allInvoices.length,
         pendingInvoices,
         paidInvoices: allInvoices.filter(inv => inv.status === "Paid").length,
-        percentBilled: revisedContract > 0 ? Math.round((totalBilled / revisedContract) * 100) : 0,
+        percentBilled: revisedContract.gt(0)
+          ? Math.round(totalBilled.div(revisedContract).times(100).toNumber())
+          : 0,
       });
     } catch (err: unknown) {
       const classified = classifyError(err);
@@ -279,7 +285,7 @@ export function registerConstructionInvoiceRoutes(app: Express) {
         projectId,
         invoiceNumber,
         createdBy: userId,
-      }).returning();
+      } as any).returning();
 
       if (lineItems && lineItems.length > 0) {
         await db.insert(constructionInvoiceLineItems).values(
@@ -287,7 +293,7 @@ export function registerConstructionInvoiceRoutes(app: Express) {
             ...li,
             invoiceId: invoice.id,
             sortOrder: li.sortOrder ?? idx,
-          }))
+          })) as any,
         );
       }
 
@@ -352,7 +358,7 @@ export function registerConstructionInvoiceRoutes(app: Express) {
               ...li,
               invoiceId,
               sortOrder: li.sortOrder ?? idx,
-            }))
+            })) as any,
           );
         }
       }
@@ -413,7 +419,7 @@ export function registerConstructionInvoiceRoutes(app: Express) {
           status: "Paid" as const,
           updatedAt: now,
           notes: notesUpdate,
-        })
+        } as any)
         .where(and(
           eq(constructionInvoices.id, invoiceId),
           eq(constructionInvoices.projectId, projectId),
