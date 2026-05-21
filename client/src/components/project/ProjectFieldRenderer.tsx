@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -98,13 +99,13 @@ function FieldInput({ def, value, disabled, onChange, portfolios, programs, reso
 
   if (def.inputType === "textarea") {
     return (
-      <Textarea
+      <AutoResizeTextarea
         value={draft}
         onFocus={() => setFocused(true)}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => { setFocused(false); commit(draft); }}
         disabled={disabled}
-        rows={def.rows ?? 3}
+        minRows={def.rows ?? 3}
         placeholder={def.placeholder}
         data-testid={`input-project-${def.key}`}
       />

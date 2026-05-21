@@ -1,6 +1,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -89,11 +90,11 @@ export function IntakeFieldRenderer({ fieldKey, intake, formData, onChange, isLo
 function FieldInput({ def, value, disabled, onChange, portfolios }: { def: IntakeFieldDefinition; value: any; disabled: boolean; onChange: (v: any) => void; portfolios?: Portfolio[]; }) {
   if (def.inputType === "textarea") {
     return (
-      <Textarea
+      <AutoResizeTextarea
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        rows={def.rows ?? 3}
+        minRows={def.rows ?? 3}
         placeholder={def.placeholder}
         data-testid={`input-${def.key}`}
       />

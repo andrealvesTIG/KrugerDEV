@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { useCustomFieldDefinitions, useIntakeCustomFieldValues, useUpdateIntakeCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useResources } from "@/hooks/use-resources";
 import { AttachmentFieldInput, AttachmentFieldDisplay } from "@/components/custom-fields/AttachmentField";
@@ -136,7 +137,14 @@ export function IntakeSingleCustomField({
       case "url":
         return <Input type="url" value={editValue} onChange={(e) => setEditValue(e.target.value)} placeholder="https://..." data-testid={`input-intake-cf-${field.id}`} />;
       default:
-        return <Input value={editValue} onChange={(e) => setEditValue(e.target.value)} data-testid={`input-intake-cf-${field.id}`} />;
+        return (
+          <AutoResizeTextarea
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            minRows={2}
+            data-testid={`input-intake-cf-${field.id}`}
+          />
+        );
     }
   };
 
@@ -189,7 +197,7 @@ export function IntakeSingleCustomField({
         return <span className="text-sm">{r?.displayName ?? "Unknown resource"}</span>;
       }
       default:
-        return <span className="text-sm">{value}</span>;
+        return <span className="text-sm whitespace-pre-wrap break-words">{value}</span>;
     }
   };
 

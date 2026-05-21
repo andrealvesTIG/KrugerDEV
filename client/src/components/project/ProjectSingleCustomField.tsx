@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { useCustomFieldDefinitions, useProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useResources } from "@/hooks/use-resources";
 import { useTasks } from "@/hooks/use-tasks";
@@ -163,7 +164,14 @@ export function ProjectSingleCustomField({
       case "url":
         return <Input type="url" value={editValue} onChange={(e) => setEditValue(e.target.value)} placeholder="https://..." data-testid={`input-project-cf-${field.id}`} />;
       default:
-        return <Input value={editValue} onChange={(e) => setEditValue(e.target.value)} data-testid={`input-project-cf-${field.id}`} />;
+        return (
+          <AutoResizeTextarea
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            minRows={2}
+            data-testid={`input-project-cf-${field.id}`}
+          />
+        );
     }
   };
 
@@ -263,7 +271,7 @@ export function ProjectSingleCustomField({
         );
       }
       default:
-        return <span className="text-sm">{value}</span>;
+        return <span className="text-sm whitespace-pre-wrap break-words">{value}</span>;
     }
   };
 

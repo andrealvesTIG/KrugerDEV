@@ -81,6 +81,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { format, addDays, addWeeks, addMonths, addQuarters, addYears, differenceInDays, parseISO, startOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, endOfDay } from "date-fns";
 import type { Task, ProjectFinancial, Risk, User } from "@shared/schema";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -3584,9 +3585,10 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
         );
       default:
         return (
-          <Input
+          <AutoResizeTextarea
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
+            minRows={2}
             data-testid={`input-custom-field-${field.id}`}
           />
         );
@@ -3652,7 +3654,7 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
         return <span className="text-sm" data-testid={`value-resource-${field.id}`}>{resource?.displayName ?? "Unknown resource"}</span>;
       }
       default:
-        return <span className="text-sm" data-testid={`value-text-${field.id}`}>{value}</span>;
+        return <span className="text-sm whitespace-pre-wrap break-words" data-testid={`value-text-${field.id}`}>{value}</span>;
     }
   };
 
@@ -3820,7 +3822,7 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
       return <Input type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} className="h-8 text-sm" data-testid={`input-${field.fieldKey}`} />;
     }
     if (isTextArea) {
-      return <Textarea value={editValue} onChange={(e) => setEditValue(e.target.value)} className="min-h-[60px] text-sm" data-testid={`input-${field.fieldKey}`} />;
+      return <AutoResizeTextarea value={editValue} onChange={(e) => setEditValue(e.target.value)} minRows={3} className="text-sm" data-testid={`input-${field.fieldKey}`} />;
     }
     if (isSelect) {
       const options: Record<string, string[]> = {
@@ -3895,7 +3897,7 @@ function CustomTabRenderer({ tabId, project, onUpdate }: { tabId: number; projec
                           onClick={() => handleEdit(field)}
                           data-testid={`button-edit-${field.fieldKey}`}
                         >
-                          <span className="text-sm">{formatDisplayValue(value, field.fieldKey)}</span>
+                          <span className="text-sm whitespace-pre-wrap break-words">{formatDisplayValue(value, field.fieldKey)}</span>
                           <Pencil className="h-3 w-3 text-muted-foreground" />
                         </div>
                       )}
@@ -5259,9 +5261,9 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
           <div>
             <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Description</Label>
             {editingField === 'description' ? (
-              <Textarea value={editValues.description} onChange={(e) => setEditValues(prev => ({ ...prev, description: e.target.value }))} onBlur={() => handleFieldBlur('description')} className="min-h-[60px] text-sm" autoFocus data-testid="input-project-description" />
+              <AutoResizeTextarea value={editValues.description} onChange={(e) => setEditValues(prev => ({ ...prev, description: e.target.value }))} onBlur={() => handleFieldBlur('description')} minRows={2} className="text-sm" autoFocus data-testid="input-project-description" />
             ) : (
-              <p className="text-sm text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors line-clamp-2" onClick={() => setEditingField('description')} data-testid="text-project-description">
+              <p className="text-sm text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5 -mx-1 transition-colors whitespace-pre-wrap break-words" onClick={() => setEditingField('description')} data-testid="text-project-description">
                 {project.description || 'Click to add description...'}
               </p>
             )}

@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1086,7 +1087,14 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked, exclude
       case "url":
         return <Input type="url" value={editValue} onChange={(e) => setEditValue(e.target.value)} placeholder="https://..." data-testid={`input-intake-custom-field-${field.id}`} />;
       default:
-        return <Input value={editValue} onChange={(e) => setEditValue(e.target.value)} data-testid={`input-intake-custom-field-${field.id}`} />;
+        return (
+          <AutoResizeTextarea
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            minRows={2}
+            data-testid={`input-intake-custom-field-${field.id}`}
+          />
+        );
     }
   };
 
@@ -1150,7 +1158,7 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked, exclude
         return <span className="text-sm" data-testid={`value-intake-resource-${field.id}`}>{resource?.displayName ?? "Unknown resource"}</span>;
       }
       default:
-        return <span className="text-sm" data-testid={`value-intake-text-${field.id}`}>{value}</span>;
+        return <span className="text-sm whitespace-pre-wrap break-words" data-testid={`value-intake-text-${field.id}`}>{value}</span>;
     }
   };
 
