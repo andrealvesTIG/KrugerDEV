@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useOrganization } from "@/hooks/use-organization";
 import type { IntakeWorkflowStep, InsertIntakeWorkflowStep, IntakeWorkflow } from "@shared/schema";
+import { INTAKE_FIELDS } from "@shared/intakeFormRegistry";
 import { Lightbulb, Filter, FileText, Calculator, Shield, Gavel, LucideIcon } from "lucide-react";
 
 // Map step keys to icons
@@ -14,27 +15,17 @@ const STEP_ICONS: Record<string, LucideIcon> = {
   decision: Gavel,
 };
 
-// Available intake fields that can be set as required
-export const AVAILABLE_INTAKE_FIELDS = [
-  { key: "projectName", label: "Intake Name", group: "Basic Info" },
-  { key: "description", label: "Description", group: "Basic Info" },
-  { key: "portfolioId", label: "Target Portfolio", group: "Basic Info" },
-  { key: "fundingSource", label: "Funding Source", group: "Basic Info" },
-  { key: "businessUnit", label: "Business Unit", group: "Basic Info" },
-  { key: "programId", label: "Related Program", group: "Basic Info" },
-  { key: "estimatedBudget", label: "Estimated Budget", group: "Business Case" },
-  { key: "capitalExpense", label: "Capital Expense", group: "Business Case" },
-  { key: "operatingExpense", label: "Operating Expense", group: "Business Case" },
-  { key: "financialJustification", label: "Business Justification", group: "Business Case" },
-  { key: "costBenefitAnalysis", label: "Cost-Benefit Analysis", group: "Business Case" },
-  { key: "itCostEstimate", label: "IT Cost Estimate", group: "Technical" },
-  { key: "resourceRequirements", label: "Resource Requirements", group: "Technical" },
-  { key: "implementationTimeline", label: "Implementation Timeline", group: "Technical" },
-  { key: "architecturalReview", label: "Architectural Review", group: "Technical" },
-  { key: "cyberRiskAssessment", label: "Cybersecurity Assessment", group: "Governance" },
-  { key: "complianceRequirements", label: "Compliance Requirements", group: "Governance" },
-  { key: "securityApproval", label: "Security Approval", group: "Governance" },
-];
+// Available intake fields that can be set as required on a workflow step. We
+// derive this from the canonical INTAKE_FIELDS registry so that the workflow
+// step picker, the step-click "requirements" dialog, and the intake form
+// layout editor all stay in lockstep — labels (and the set of fields) drifted
+// in the past when this list was maintained by hand. Read-only audit fields
+// (Created on, Last modified by, etc.) are filtered out: they can't be filled
+// in by the user, so they're not meaningful as gate requirements.
+export const AVAILABLE_INTAKE_FIELDS: { key: string; label: string; group: string }[] =
+  INTAKE_FIELDS
+    .filter(f => f.inputType !== "readonly")
+    .map(f => ({ key: f.key, label: f.label, group: f.group }));
 
 export interface WorkflowStep extends IntakeWorkflowStep {
   icon: LucideIcon;
