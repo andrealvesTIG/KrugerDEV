@@ -56,8 +56,9 @@ export function IntakeSingleCustomField({
   }
   const value = values.find(v => v.fieldDefinitionId === definitionId)?.value || "";
 
+  const isComputed = field.fieldType === "days_between_dates";
   const startEdit = () => {
-    if (isLocked || field.fieldType === "autonumber") return;
+    if (isLocked || field.fieldType === "autonumber" || isComputed) return;
     setEditValue(value);
     setIsEditing(true);
   };
@@ -140,6 +141,24 @@ export function IntakeSingleCustomField({
   };
 
   const renderValue = () => {
+    if (field.fieldType === "days_between_dates") {
+      const opts = Array.isArray(field.options) ? (field.options as string[]) : [];
+      const startId = parseInt(opts[0] ?? "", 10);
+      const endId = parseInt(opts[1] ?? "", 10);
+      if (!startId || !endId) {
+        return <span className="text-muted-foreground text-sm" data-testid={`value-intake-computed-empty-${field.id}`}>—</span>;
+      }
+      const sv = values.find(v => v.fieldDefinitionId === startId)?.value;
+      const ev = values.find(v => v.fieldDefinitionId === endId)?.value;
+      if (!sv || !ev) return <span className="text-muted-foreground text-sm" data-testid={`value-intake-computed-empty-${field.id}`}>—</span>;
+      const s = new Date(sv);
+      const e = new Date(ev);
+      if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) {
+        return <span className="text-muted-foreground text-sm" data-testid={`value-intake-computed-empty-${field.id}`}>—</span>;
+      }
+      const days = Math.round((e.getTime() - s.getTime()) / 86_400_000);
+      return <span className="text-sm" data-testid={`value-intake-computed-${field.id}`}>{days} {days === 1 ? "day" : "days"}</span>;
+    }
     if (field.fieldType === "autonumber") {
       if (!value) return <span className="text-muted-foreground text-sm italic" data-testid={`value-intake-autonumber-pending-${field.id}`}>Pending…</span>;
       return <span className="text-sm font-mono font-medium" data-testid={`value-intake-autonumber-${field.id}`}>{value}</span>;
@@ -193,7 +212,7 @@ export function IntakeSingleCustomField({
       ) : (
         <div className="flex items-center gap-2 group">
           {renderValue()}
-          {!isLocked && field.fieldType !== "autonumber" && (
+          {!isLocked && field.fieldType !== "autonumber" && !isComputed && (
             <Button size="icon" variant="ghost" className="h-6 w-6 opacity-0 group-hover:opacity-100" onClick={startEdit} data-testid={`button-edit-intake-cf-${field.id}`}>
               <Pencil className="h-3 w-3" />
             </Button>

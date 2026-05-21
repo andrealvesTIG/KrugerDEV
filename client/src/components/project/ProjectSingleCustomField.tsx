@@ -64,7 +64,8 @@ export function ProjectSingleCustomField({
   const isComputed = field.fieldType === "days_since_updated"
     || field.fieldType === "days_since_created"
     || field.fieldType === "effort_completed_hours"
-    || field.fieldType === "effort_remaining_hours";
+    || field.fieldType === "effort_remaining_hours"
+    || field.fieldType === "days_between_dates";
   const startEdit = () => {
     if (isLocked || field.fieldType === "autonumber" || isComputed) return;
     setEditValue(value);
@@ -199,6 +200,24 @@ export function ProjectSingleCustomField({
         }, 0);
       }
       return <span className="text-sm" data-testid={`value-project-computed-${field.id}`}>{formatHours(total)} h</span>;
+    }
+    if (field.fieldType === "days_between_dates") {
+      const opts = Array.isArray(field.options) ? (field.options as string[]) : [];
+      const startId = parseInt(opts[0] ?? "", 10);
+      const endId = parseInt(opts[1] ?? "", 10);
+      if (!startId || !endId) {
+        return <span className="text-muted-foreground text-sm" data-testid={`value-project-computed-empty-${field.id}`}>—</span>;
+      }
+      const sv = values.find(v => v.fieldDefinitionId === startId)?.value;
+      const ev = values.find(v => v.fieldDefinitionId === endId)?.value;
+      if (!sv || !ev) return <span className="text-muted-foreground text-sm" data-testid={`value-project-computed-empty-${field.id}`}>—</span>;
+      const s = new Date(sv);
+      const e = new Date(ev);
+      if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) {
+        return <span className="text-muted-foreground text-sm" data-testid={`value-project-computed-empty-${field.id}`}>—</span>;
+      }
+      const days = Math.round((e.getTime() - s.getTime()) / 86_400_000);
+      return <span className="text-sm" data-testid={`value-project-computed-${field.id}`}>{days} {days === 1 ? "day" : "days"}</span>;
     }
     if (field.fieldType === "autonumber") {
       if (!value) return <span className="text-muted-foreground text-sm italic" data-testid={`value-project-autonumber-pending-${field.id}`}>Pending…</span>;

@@ -32,6 +32,7 @@ const FIELD_TYPES = [
   { value: "days_since_created", label: "Days Since Creation (computed)" },
   { value: "effort_completed_hours", label: "Effort Completed in Hours (computed)" },
   { value: "effort_remaining_hours", label: "Effort Remaining in Hours (computed)" },
+  { value: "days_between_dates", label: "Days Between Two Dates (computed)" },
 ] as const;
 
 const COMPUTED_FIELD_TYPES = new Set([
@@ -39,6 +40,7 @@ const COMPUTED_FIELD_TYPES = new Set([
   "days_since_created",
   "effort_completed_hours",
   "effort_remaining_hours",
+  "days_between_dates",
 ]);
 
 const ENTITY_TYPES = [
@@ -67,6 +69,8 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
   const [isRequired, setIsRequired] = useState(false);
   const [options, setOptions] = useState("");
   const [mask, setMask] = useState("");
+  const [startDateFieldId, setStartDateFieldId] = useState<string>("");
+  const [endDateFieldId, setEndDateFieldId] = useState<string>("");
 
   // Intake and project share their custom-field pool: a definition typed
   // 'intake' shows on both intake forms and projects (it's carried forward at
@@ -92,6 +96,8 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
     setIsRequired(false);
     setOptions("");
     setMask("");
+    setStartDateFieldId("");
+    setEndDateFieldId("");
     setEditingField(null);
   };
 
@@ -104,6 +110,14 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
     setIsRequired(field.isRequired ?? false);
     setOptions(field.options ? (field.options as string[]).join(", ") : "");
     setMask((field as any).mask || "");
+    if (field.fieldType === "days_between_dates" && Array.isArray(field.options)) {
+      const opts = field.options as string[];
+      setStartDateFieldId(opts[0] || "");
+      setEndDateFieldId(opts[1] || "");
+    } else {
+      setStartDateFieldId("");
+      setEndDateFieldId("");
+    }
     setShowAddDialog(true);
   };
 
@@ -113,9 +127,21 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
       return;
     }
 
-    const optionsArray = (fieldType === "select" || fieldType === "multiselect") && options.trim()
+    let optionsArray: string[] | null = (fieldType === "select" || fieldType === "multiselect") && options.trim()
       ? options.split(",").map(o => o.trim()).filter(Boolean)
       : null;
+
+    if (fieldType === "days_between_dates") {
+      if (!startDateFieldId || !endDateFieldId) {
+        toast({ title: "Error", description: "Pick both a start date field and an end date field", variant: "destructive" });
+        return;
+      }
+      if (startDateFieldId === endDateFieldId) {
+        toast({ title: "Error", description: "Start date field and end date field must be different", variant: "destructive" });
+        return;
+      }
+      optionsArray = [startDateFieldId, endDateFieldId];
+    }
 
     if (fieldType === "autonumber") {
       if (!mask.trim()) {
@@ -363,6 +389,53 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
                 />
               </div>
             )}
+            {fieldType === "days_between_dates" && (() => {
+              const dateFields = fields.filter(f =>
+                f.fieldType === "date"
+                && matchesEntityTab(f, entityType)
+                && (!editingField || f.id !== editingField.id)
+              );
+              if (dateFields.length < 2) {
+                return (
+                  <p className="text-xs text-destructive">
+                    Need at least two date custom fields on this entity before you can create a computed days-between field.
+                  </p>
+                );
+              }
+              return (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="field-start-date">Start Date Field *</Label>
+                    <Select value={startDateFieldId} onValueChange={setStartDateFieldId}>
+                      <SelectTrigger id="field-start-date" data-testid="select-start-date-field">
+                        <SelectValue placeholder="Pick a date field..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {dateFields.map(f => (
+                          <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="field-end-date">End Date Field *</Label>
+                    <Select value={endDateFieldId} onValueChange={setEndDateFieldId}>
+                      <SelectTrigger id="field-end-date" data-testid="select-end-date-field">
+                        <SelectValue placeholder="Pick a date field..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {dateFields.map(f => (
+                          <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Value is computed as <code className="px-1 rounded bg-muted">end − start</code> in whole days. Empty when either date is missing.
+                    </p>
+                  </div>
+                </>
+              );
+            })()}
             {fieldType === "autonumber" && (
               <div className="space-y-2">
                 <Label htmlFor="field-mask">Mask *</Label>

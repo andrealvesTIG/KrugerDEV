@@ -3442,6 +3442,7 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
 
   const handleEdit = (field: CustomFieldDefinition) => {
     if (field.fieldType === "autonumber") return;
+    if (field.fieldType === "days_between_dates") return;
     setEditingFieldId(field.id);
     setEditValue(getFieldValue(field.id));
   };
@@ -3594,6 +3595,24 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
 
   const renderFieldValue = (field: CustomFieldDefinition) => {
     const value = getFieldValue(field.id);
+    if (field.fieldType === "days_between_dates") {
+      const opts = Array.isArray(field.options) ? (field.options as string[]) : [];
+      const startId = parseInt(opts[0] ?? "", 10);
+      const endId = parseInt(opts[1] ?? "", 10);
+      if (!startId || !endId) {
+        return <span className="text-muted-foreground text-sm" data-testid={`value-computed-empty-${field.id}`}>—</span>;
+      }
+      const sv = getFieldValue(startId);
+      const ev = getFieldValue(endId);
+      if (!sv || !ev) return <span className="text-muted-foreground text-sm" data-testid={`value-computed-empty-${field.id}`}>—</span>;
+      const s = new Date(sv);
+      const e = new Date(ev);
+      if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) {
+        return <span className="text-muted-foreground text-sm" data-testid={`value-computed-empty-${field.id}`}>—</span>;
+      }
+      const days = Math.round((e.getTime() - s.getTime()) / 86_400_000);
+      return <span className="text-sm" data-testid={`value-computed-${field.id}`}>{days} {days === 1 ? "day" : "days"}</span>;
+    }
     if (field.fieldType === "autonumber") {
       if (!value) return <span className="text-muted-foreground text-sm italic" data-testid={`value-autonumber-pending-${field.id}`}>Pending…</span>;
       return <span className="text-sm font-mono font-medium" data-testid={`value-autonumber-${field.id}`}>{value}</span>;
@@ -3660,10 +3679,10 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-            ) : field.fieldType === "autonumber" ? (
+            ) : field.fieldType === "autonumber" || field.fieldType === "days_between_dates" ? (
               <div
                 className="flex items-center justify-between p-1 rounded min-h-[28px] bg-muted/30"
-                data-testid={`display-autonumber-field-${field.id}`}
+                data-testid={`display-computed-field-${field.id}`}
               >
                 {renderFieldValue(field)}
               </div>

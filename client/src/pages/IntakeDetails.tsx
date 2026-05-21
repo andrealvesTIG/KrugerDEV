@@ -970,6 +970,7 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked, exclude
   const handleEdit = (field: CustomFieldDefinition) => {
     if (isLocked) return;
     if (field.fieldType === "autonumber") return;
+    if (field.fieldType === "days_between_dates") return;
     setEditingFieldId(field.id);
     setEditValue(getFieldValue(field.id));
   };
@@ -1085,6 +1086,24 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked, exclude
 
   const renderFieldValue = (field: CustomFieldDefinition) => {
     const value = getFieldValue(field.id);
+    if (field.fieldType === "days_between_dates") {
+      const opts = Array.isArray(field.options) ? (field.options as string[]) : [];
+      const startId = parseInt(opts[0] ?? "", 10);
+      const endId = parseInt(opts[1] ?? "", 10);
+      if (!startId || !endId) {
+        return <span className="text-muted-foreground text-sm" data-testid={`value-intake-computed-empty-${field.id}`}>—</span>;
+      }
+      const sv = getFieldValue(startId);
+      const ev = getFieldValue(endId);
+      if (!sv || !ev) return <span className="text-muted-foreground text-sm" data-testid={`value-intake-computed-empty-${field.id}`}>—</span>;
+      const s = new Date(sv);
+      const e = new Date(ev);
+      if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) {
+        return <span className="text-muted-foreground text-sm" data-testid={`value-intake-computed-empty-${field.id}`}>—</span>;
+      }
+      const days = Math.round((e.getTime() - s.getTime()) / 86_400_000);
+      return <span className="text-sm" data-testid={`value-intake-computed-${field.id}`}>{days} {days === 1 ? "day" : "days"}</span>;
+    }
     if (field.fieldType === "autonumber") {
       if (!value) return <span className="text-muted-foreground text-sm italic" data-testid={`value-intake-autonumber-pending-${field.id}`}>Pending…</span>;
       return <span className="text-sm font-mono font-medium" data-testid={`value-intake-autonumber-${field.id}`}>{value}</span>;
@@ -1152,10 +1171,10 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked, exclude
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-            ) : field.fieldType === "autonumber" ? (
+            ) : field.fieldType === "autonumber" || field.fieldType === "days_between_dates" ? (
               <div
                 className="flex items-center justify-between p-2 rounded min-h-[36px] border border-input bg-muted/30"
-                data-testid={`display-intake-autonumber-field-${field.id}`}
+                data-testid={`display-intake-computed-field-${field.id}`}
               >
                 {renderFieldValue(field)}
               </div>
