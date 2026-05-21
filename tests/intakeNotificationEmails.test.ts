@@ -219,8 +219,8 @@ describe('PUT /api/project-intakes/:id — step transition email triggering', ()
   const intakeId = 123;
   const workflowId = 7;
 
-  function setupIntake(currentStep: string, wfId: number = workflowId) {
-    storageMock.getProjectIntake.mockResolvedValue({
+  function setupIntake(currentStep: string, wfId: number = workflowId, nextStep?: string, nextWfId?: number) {
+    const baseRow = {
       id: intakeId,
       organizationId: TEST_ORG_ID,
       workflowId: wfId,
@@ -228,7 +228,23 @@ describe('PUT /api/project-intakes/:id — step transition email triggering', ()
       submitterId: ADMIN_USER_ID,
       intakeNumber: 'INT-001',
       projectName: 'Test Project',
-    });
+    };
+    // The PUT /api/project-intakes/:id route calls getProjectIntake twice:
+    // once to load the pre-update row (for auth + previousStep) and once
+    // after updateProjectIntake to enrich the response with audit fields.
+    // First call returns the pre-update row; subsequent calls return the
+    // post-update row when one was provided, otherwise the same row.
+    storageMock.getProjectIntake.mockReset();
+    storageMock.getProjectIntake.mockResolvedValueOnce(baseRow);
+    if (nextStep !== undefined) {
+      storageMock.getProjectIntake.mockResolvedValue({
+        ...baseRow,
+        currentStep: nextStep,
+        workflowId: nextWfId ?? wfId,
+      });
+    } else {
+      storageMock.getProjectIntake.mockResolvedValue(baseRow);
+    }
   }
 
   function setupWorkflowSteps() {
@@ -251,7 +267,7 @@ describe('PUT /api/project-intakes/:id — step transition email triggering', ()
   }
 
   it('sends exit and entry emails when currentStep changes', async () => {
-    setupIntake('triage');
+    setupIntake('triage', workflowId, 'business_case');
     setupWorkflowSteps();
     storageMock.updateProjectIntake.mockResolvedValue({
       id: intakeId,
@@ -306,7 +322,7 @@ describe('PUT /api/project-intakes/:id — step transition email triggering', ()
   });
 
   it('does not send any emails when currentStep and workflowId are unchanged', async () => {
-    setupIntake('triage');
+    setupIntake('triage', workflowId, 'triage');
     setupWorkflowSteps();
     storageMock.updateProjectIntake.mockResolvedValue({
       id: intakeId,
@@ -331,7 +347,7 @@ describe('PUT /api/project-intakes/:id — step transition email triggering', ()
   });
 
   it('does not send emails when the only configured recipients are empty', async () => {
-    setupIntake('triage');
+    setupIntake('triage', workflowId, 'business_case');
     storageMock.getIntakeWorkflowSteps.mockResolvedValue([
       { stepKey: 'triage', label: 'Triage', position: 0, notifyOnExit: [], notifyOnEntry: [] },
       { stepKey: 'business_case', label: 'Business Case', position: 1, notifyOnExit: [], notifyOnEntry: [] },
@@ -358,7 +374,7 @@ describe('PUT /api/project-intakes/:id — step transition email triggering', ()
   });
 
   it('still returns the updated intake when an email send fails', async () => {
-    setupIntake('triage');
+    setupIntake('triage', workflowId, 'business_case');
     setupWorkflowSteps();
     storageMock.updateProjectIntake.mockResolvedValue({
       id: intakeId,
@@ -388,7 +404,7 @@ describe('PUT /api/project-intakes/:id — step transition email triggering', ()
   });
 
   it('uses fromSteps for both ends when previousWorkflowId equals nextWorkflowId', async () => {
-    setupIntake('triage', workflowId);
+    setupIntake('triage', workflowId, 'business_case');
     setupWorkflowSteps();
     storageMock.updateProjectIntake.mockResolvedValue({
       id: intakeId,
