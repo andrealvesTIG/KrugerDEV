@@ -121,11 +121,13 @@ function isItemVisibleForCurrentStep(item: IntakeTabLayoutItemFull, ctx: IntakeF
     case "architecture_questions":  return ctx.showArchitectureForCurrentStep;
     case "cybersecurity_questions": return ctx.showCybersecurityForCurrentStep;
     case "costing_checklist":       return ctx.showCostingChecklistForCurrentStep;
-    // The legacy `pm_approval` layout block is deprecated. PM approval is
-    // now rendered from the workflow step's `requiresPmApproval` toggle,
-    // outside the layout (see IntakeDetails). Hide any pre-existing block
-    // in saved layouts so it doesn't double-render.
-    case "pm_approval":             return false;
+    // The legacy `pm_approval` layout block is deprecated for new layouts
+    // (removed from the picker/defaults). For existing layouts that still
+    // include it, render it only when the current workflow step requires
+    // PM approval. IntakeDetails detects this block in the saved layout
+    // and suppresses the standalone <PmApprovalCard /> so we don't
+    // double-render.
+    case "pm_approval":             return ctx.requiresPmApprovalForCurrentStep;
     default:                        return true;
   }
 }
@@ -296,9 +298,11 @@ function BlockRenderer({ blockKey, ctx, placedCustomFieldIds, bare }: { blockKey
     case "source_conversation":
       return <>{ctx.renderSourcePanel()}</>;
     case "pm_approval":
-      // Deprecated: PM approval is now rendered from the workflow step's
-      // `requiresPmApproval` toggle, via <PmApprovalCard /> in IntakeDetails.
-      return null;
+      // Legacy block kept for backward compatibility with saved layouts.
+      // Renders the same card as the standalone <PmApprovalCard />.
+      // Visibility is already gated by isItemVisibleForCurrentStep, which
+      // checks ctx.requiresPmApprovalForCurrentStep.
+      return <PmApprovalCard ctx={ctx} />;
     default:
       return <MissingRefPlaceholder kind="block" itemKey={blockKey} />;
   }

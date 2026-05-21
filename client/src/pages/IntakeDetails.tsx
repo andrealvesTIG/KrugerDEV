@@ -316,6 +316,18 @@ export default function IntakeDetails() {
   const { data: allCustomFieldDefs = [] } = useCustomFieldDefinitions(currentOrganization?.id);
   const { data: intakeCustomFieldValues = [] } = useIntakeCustomFieldValues(id);
   const { data: intakeFormLayout = [] } = useIntakeTabLayout(currentOrganization?.id);
+  // Suppress the standalone PmApprovalCard when the saved intake layout
+  // still contains the legacy `pm_approval` block — the block renders the
+  // same card in-line, so we'd otherwise double-render it.
+  const layoutHasLegacyPmApprovalBlock = (intakeFormLayout as any[]).some((tab: any) =>
+    (tab?.isActive !== false) &&
+    (tab?.sections ?? []).some((section: any) =>
+      (section?.isActive !== false) &&
+      (section?.items ?? []).some((item: any) =>
+        item?.itemType === "block" && item?.itemKey === "pm_approval" && item?.isActive !== false
+      )
+    )
+  );
 
   const [formData, setFormData] = useState<Partial<ProjectIntake>>({});
 
@@ -637,13 +649,19 @@ export default function IntakeDetails() {
   const showCybersecurityForCurrentStep = stepsForVisibility.some(s => s.showCybersecurityQuestions === true);
   const showCostingChecklistForCurrentStep = stepsForVisibility.some(s => s.showCostingChecklist === true);
   // PM approval is tied to a specific workflow step (admin opts in via the
-  // "Requires PM approval" toggle in workflow settings). For locked intakes
-  // we still want approvers to see the approval state, so fall back to the
-  // last step. Older orgs that never customized see the toggle preset on
-  // their "decision" step via the seed default + boot backfill.
-  const requiresPmApprovalForCurrentStep = isLocked
-    ? workflowSteps.some(s => (s as any).requiresPmApproval === true)
-    : !!(currentStep as any)?.requiresPmApproval;
+  // "Requires PM approval" toggle in workflow settings). Locked intakes show
+  // the card whenever any step in the workflow requires it. Older orgs that
+  // never customized see the toggle preset on their "decision" step via the
+  // seed default + boot backfill. Safety fallback: when no step in the
+  // workflow has the toggle on at all, fall back to the current behaviour
+  // (card is shown) so admins who turn every toggle off do not create a
+  // dead-end for approvers.
+  const anyStepRequiresPmApproval = workflowSteps.some(s => (s as any).requiresPmApproval === true);
+  const requiresPmApprovalForCurrentStep = !anyStepRequiresPmApproval
+    ? true
+    : isLocked
+      ? true
+      : !!(currentStep as any)?.requiresPmApproval;
 
   return (
     <div className="space-y-6">
@@ -838,29 +856,31 @@ export default function IntakeDetails() {
         }}
       />
 
-      <PmApprovalCard
-        ctx={{
-          intake,
-          formData,
-          onFieldChange: handleFieldChange,
-          isLocked,
-          portfolios: portfolios ?? [],
-          programs: programs ?? [],
-          organizationId: currentOrganization?.id,
-          canApproveIntakes,
-          onPmoApprovedChange: (v) => {
-            handleFieldChange('pmoApproved', v);
-            updateIntake.mutate({ pmoApproved: v });
-          },
-          showFinancialsForCurrentStep,
-          showArchitectureForCurrentStep,
-          showCybersecurityForCurrentStep,
-          showCostingChecklistForCurrentStep,
-          requiresPmApprovalForCurrentStep,
-          renderSourcePanel: () => null,
-          renderCustomFieldsBlock: () => null,
-        }}
-      />
+      {!layoutHasLegacyPmApprovalBlock && (
+        <PmApprovalCard
+          ctx={{
+            intake,
+            formData,
+            onFieldChange: handleFieldChange,
+            isLocked,
+            portfolios: portfolios ?? [],
+            programs: programs ?? [],
+            organizationId: currentOrganization?.id,
+            canApproveIntakes,
+            onPmoApprovedChange: (v) => {
+              handleFieldChange('pmoApproved', v);
+              updateIntake.mutate({ pmoApproved: v });
+            },
+            showFinancialsForCurrentStep,
+            showArchitectureForCurrentStep,
+            showCybersecurityForCurrentStep,
+            showCostingChecklistForCurrentStep,
+            requiresPmApprovalForCurrentStep,
+            renderSourcePanel: () => null,
+            renderCustomFieldsBlock: () => null,
+          }}
+        />
+      )}
 
       {isApproved && intake.createdProjectId && (
         <Card className="border-green-500/50 bg-green-500/5">
