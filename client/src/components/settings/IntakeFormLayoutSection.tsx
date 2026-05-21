@@ -60,6 +60,27 @@ export function IntakeFormLayoutSection({ organizationId }: { organizationId: nu
     [allCustomFieldDefs],
   );
 
+  // Broken layout refs — items in the draft that point to a registry field/block
+  // or custom-field id that no longer exists. Surfaced to admins as a banner so
+  // they can clean them up.
+  const brokenRefs = useMemo(() => {
+    const out: Array<{ tab: string; section: string; itemType: string; itemKey: string }> = [];
+    for (const t of draft) {
+      for (const s of t.sections) {
+        for (const i of s.items) {
+          let ok = false;
+          if (i.itemType === "field") ok = !!INTAKE_FIELDS.find(f => f.key === i.itemKey);
+          else if (i.itemType === "block") ok = !!INTAKE_BLOCKS.find(b => b.key === i.itemKey);
+          else if (i.itemType === "custom_field") ok = !!intakeCustomFieldDefs.find(d => String(d.id) === i.itemKey);
+          if (!ok) {
+            out.push({ tab: t.label || t.key, section: s.title || "(untitled)", itemType: i.itemType, itemKey: i.itemKey });
+          }
+        }
+      }
+    }
+    return out;
+  }, [draft, intakeCustomFieldDefs]);
+
   useEffect(() => {
     if (layout) {
       const d = toDraft(layout);
@@ -305,6 +326,28 @@ export function IntakeFormLayoutSection({ organizationId }: { organizationId: nu
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {brokenRefs.length > 0 && (
+          <div
+            className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3 text-sm"
+            data-testid="intake-form-broken-refs"
+          >
+            <div className="font-medium text-amber-900 dark:text-amber-200 mb-1">
+              {brokenRefs.length} broken layout reference{brokenRefs.length === 1 ? "" : "s"}
+            </div>
+            <div className="text-amber-800 dark:text-amber-300 mb-2">
+              These items point to fields/blocks/custom fields that no longer exist. Remove or replace them to clean up the form.
+            </div>
+            <ul className="list-disc pl-5 space-y-0.5 text-amber-900 dark:text-amber-200">
+              {brokenRefs.slice(0, 20).map((b, idx) => (
+                <li key={idx}>
+                  <span className="font-mono text-xs">{b.itemType}:{b.itemKey}</span>
+                  <span className="text-amber-700 dark:text-amber-400"> — {b.tab} › {b.section}</span>
+                </li>
+              ))}
+              {brokenRefs.length > 20 && <li>…and {brokenRefs.length - 20} more</li>}
+            </ul>
+          </div>
+        )}
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleTabDragEnd}>
           <SortableContext items={draft.map(t => t.uid)} strategy={horizontalListSortingStrategy}>
             <div className="flex flex-wrap gap-2 border-b pb-2">

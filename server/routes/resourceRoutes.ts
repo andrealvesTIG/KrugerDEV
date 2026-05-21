@@ -24,7 +24,11 @@ export function registerResourceRoutes(app: Express) {
   apiRoute(app, 'get', '/api/resources', {
     tag: 'Resources',
     summary: 'List resources',
-    parameters: [qInt('organizationId', true, 'Organization ID')],
+    parameters: [
+      qInt('organizationId', true, 'Organization ID'),
+      qInt('page', false, '1-based page number; omit for unpaginated list'),
+      qInt('pageSize', false, 'Items per page (max 200)'),
+    ],
     responses: { ...r200('Resources list', arrOf('Resource')), ...authRes },
   }, async (req, res) => {
     try {
@@ -37,6 +41,11 @@ export function registerResourceRoutes(app: Express) {
       if (!await userHasOrgAccess(userId, organizationId)) {
         return res.status(403).json({ message: 'Access denied to this organization' });
       }
+      const pageParam = req.query.page;
+      const pageSizeParam = req.query.pageSize;
+      const paginated = pageParam !== undefined || pageSizeParam !== undefined;
+      const page = Math.max(1, Number(pageParam) || 1);
+      const pageSize = paginated ? Math.min(200, Math.max(1, Number(pageSizeParam) || 50)) : 0;
       let resourceList = await storage.getResources(organizationId);
 
       if (await isTeamMemberInOrg(userId, organizationId)) {
@@ -55,6 +64,13 @@ export function registerResourceRoutes(app: Express) {
         resourceList = resourceList.filter(r => allowedResourceIds.has(r.id));
       }
 
+      if (paginated) {
+        const total = resourceList.length;
+        const start = (page - 1) * pageSize;
+        const items = resourceList.slice(start, start + pageSize);
+        res.setHeader('X-Total-Count', String(total));
+        return res.json({ data: items, total, page, pageSize });
+      }
       res.json(resourceList);
     } catch (err) {
       console.error("Error fetching resources:", err);

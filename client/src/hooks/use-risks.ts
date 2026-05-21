@@ -2,14 +2,24 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl, type CreateRiskRequest, type UpdateRiskRequest } from "@shared/routes";
 import type { RiskChangeLog } from "@shared/schema";
 
-export function useRisks(projectId: number) {
+export function useRisks(
+  projectId: number,
+  pagination?: { page?: number; pageSize?: number },
+) {
+  const { page, pageSize } = pagination ?? {};
   return useQuery({
-    queryKey: [api.risks.list.path, projectId],
+    queryKey: [api.risks.list.path, projectId, page ?? null, pageSize ?? null],
     queryFn: async () => {
-      const url = buildUrl(api.risks.list.path, { projectId });
+      const base = buildUrl(api.risks.list.path, { projectId });
+      const qs = new URLSearchParams();
+      if (page !== undefined) qs.set("page", String(page));
+      if (pageSize !== undefined) qs.set("pageSize", String(Math.min(200, pageSize)));
+      const url = qs.toString() ? `${base}?${qs.toString()}` : base;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch risks");
-      return api.risks.list.responses[200].parse(await res.json());
+      const json = await res.json();
+      const list = Array.isArray(json) ? json : (json?.data ?? []);
+      return api.risks.list.responses[200].parse(list);
     },
     enabled: !!projectId,
   });

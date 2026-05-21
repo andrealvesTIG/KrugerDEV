@@ -33,7 +33,7 @@ export function registerProjectItemRoutes(app: Express) {
   apiRoute(app, 'get', '/api/projects/:projectId/risks', {
     tag: 'Risks',
     summary: 'List risks for a project',
-    parameters: [pathId('projectId')],
+    parameters: [pathId('projectId'), qInt('page', false), qInt('pageSize', false)],
     responses: { ...r200('Project risks', arrOf('Risk')), ...idRes },
   }, async (req, res) => {
     try {
@@ -46,6 +46,14 @@ export function registerProjectItemRoutes(app: Express) {
         return res.status(403).json({ message: 'Access denied' });
       }
       const risks = await storage.getRisks(projectId);
+      const paginated = req.query.page !== undefined || req.query.pageSize !== undefined;
+      if (paginated) {
+        const page = Math.max(1, Number(req.query.page) || 1);
+        const pageSize = Math.min(200, Math.max(1, Number(req.query.pageSize) || 50));
+        const start = (page - 1) * pageSize;
+        res.setHeader('X-Total-Count', String(risks.length));
+        return res.json({ data: risks.slice(start, start + pageSize), total: risks.length, page, pageSize });
+      }
       res.json(risks);
     } catch (err) {
       const classified = classifyError(err);
@@ -498,7 +506,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
   apiRoute(app, 'get', '/api/projects/:projectId/issues', {
     tag: 'Issues',
     summary: 'List issues for a project',
-    parameters: [pathId('projectId')],
+    parameters: [pathId('projectId'), qInt('page', false), qInt('pageSize', false)],
     responses: { ...r200('Project issues', arrOf('Issue')), ...idRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
@@ -510,13 +518,21 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       return res.status(403).json({ message: 'Access denied' });
     }
     const issues = await storage.getIssues(projectId);
+    const paginated = req.query.page !== undefined || req.query.pageSize !== undefined;
+    if (paginated) {
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const pageSize = Math.min(200, Math.max(1, Number(req.query.pageSize) || 50));
+      const start = (page - 1) * pageSize;
+      res.setHeader('X-Total-Count', String(issues.length));
+      return res.json({ data: issues.slice(start, start + pageSize), total: issues.length, page, pageSize });
+    }
     res.json(issues);
   });
 
   apiRoute(app, 'get', '/api/issues', {
     tag: 'Issues',
     summary: 'List all issues',
-    parameters: [qInt('organizationId', false), qStr('itemType', false)],
+    parameters: [qInt('organizationId', false), qStr('itemType', false), qInt('page', false), qInt('pageSize', false)],
     responses: { ...r200('All issues', arrOf('Issue')), ...authRes },
   }, async (req, res) => {
     const userId = getUserIdFromRequest(req);
@@ -573,6 +589,14 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
     }
     
+    const paginated = req.query.page !== undefined || req.query.pageSize !== undefined;
+    if (paginated) {
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const pageSize = Math.min(200, Math.max(1, Number(req.query.pageSize) || 50));
+      const start = (page - 1) * pageSize;
+      res.setHeader('X-Total-Count', String(filteredIssues.length));
+      return res.json({ data: filteredIssues.slice(start, start + pageSize), total: filteredIssues.length, page, pageSize });
+    }
     res.json(filteredIssues);
   });
 

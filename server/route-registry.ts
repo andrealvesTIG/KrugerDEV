@@ -68,6 +68,45 @@ export function getRegisteredPaths(): Record<string, any> {
   return paths;
 }
 
+/**
+ * Register OpenAPI metadata for a route that was already bound directly via
+ * `app.get/post/...`. Equivalent to calling apiRoute but without rebinding
+ * the handler. Used to backfill docs for legacy routes (e.g. OAuth flows in
+ * integration services) without rewriting them all in place.
+ */
+export function registerOpenApi(method: HttpMethod, path: string, meta: OpenApiMeta): void {
+  const oaPath = path.replace(/^\/api/, '').replace(/:(\w+)/g, '{$1}');
+  if (!paths[oaPath]) paths[oaPath] = {};
+  paths[oaPath][method] = {
+    operationId: uniqueId(meta.operationId || toId(meta.summary)),
+    tags: [meta.tag],
+    summary: meta.summary,
+    ...(meta.description && { description: meta.description }),
+    ...(meta.parameters && { parameters: meta.parameters }),
+    ...(meta.requestBody && { requestBody: meta.requestBody }),
+    responses: meta.responses,
+    ...(meta.security !== undefined && { security: meta.security }),
+    ...(meta.deprecated && { deprecated: true }),
+  };
+}
+
+/**
+ * Bulk-document a list of routes. Each entry is `[method, path, tag, summary]`.
+ * Responses default to a generic 200/401 pair which is sufficient for
+ * documentation-coverage purposes.
+ */
+export function documentRoutes(
+  routes: ReadonlyArray<[HttpMethod, string, string, string]>,
+  defaultResponses: Record<string, any> = {
+    '200': { description: 'OK' },
+    '401': { description: 'Authentication required' },
+  },
+): void {
+  for (const [method, path, tag, summary] of routes) {
+    registerOpenApi(method, path, { tag, summary, responses: defaultResponses });
+  }
+}
+
 export const p = (name: string, location: 'path' | 'query', schema: any, required = true, description?: string) => ({
   name, in: location, required, schema, ...(description ? { description } : {}),
 });

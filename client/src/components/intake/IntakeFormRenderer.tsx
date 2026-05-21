@@ -73,6 +73,18 @@ function isItemVisibleForCurrentStep(item: IntakeTabLayoutItemFull, ctx: IntakeF
   }
 }
 
+function MissingRefPlaceholder({ kind, itemKey }: { kind: string; itemKey: string }) {
+  return (
+    <div
+      title={`Admin: layout references a missing ${kind} (${itemKey}). Clean it up in Settings → Governance → Intake Form.`}
+      className="w-full min-h-[3.25rem] rounded-md border border-dashed border-muted-foreground/40 bg-muted/30 px-3 py-2 text-xs text-muted-foreground flex items-center"
+      data-testid="intake-form-missing-ref"
+    >
+      <span className="opacity-60">Missing {kind} placeholder</span>
+    </div>
+  );
+}
+
 const isSectionVisibleForCurrentStep = (section: IntakeTabLayoutSectionFull, ctx: IntakeFormRendererContext) =>
   section.items.some(item => isItemVisibleForCurrentStep(item, ctx));
 
@@ -172,7 +184,7 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds, bare }: { item: IntakeT
   if (item.itemType === "custom_field") {
     const defId = Number(item.itemKey);
     if (!Number.isFinite(defId)) {
-      return <div className="text-xs text-destructive">Invalid custom field reference: {item.itemKey}</div>;
+      return <MissingRefPlaceholder kind="custom field" itemKey={item.itemKey} />;
     }
     const requiredByStep = ctx.currentStepRequiredFields?.includes(`cf:${defId}`) ?? false;
     return (
@@ -265,6 +277,6 @@ function BlockRenderer({ blockKey, ctx, placedCustomFieldIds, bare }: { blockKey
         </Card>
       );
     default:
-      return <div className="text-xs text-destructive">Unknown block: {blockKey}</div>;
+      return <MissingRefPlaceholder kind="block" itemKey={blockKey} />;
   }
 }

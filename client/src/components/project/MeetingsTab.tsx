@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -598,6 +598,7 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
               <span className="text-muted-foreground font-mono text-sm">{detailMeeting?.meetingNumber as string}</span>
               {detailMeeting?.title as string}
             </DialogTitle>
+            <DialogDescription className="sr-only">Meeting details.</DialogDescription>
           </DialogHeader>
           {detailMeeting && (
             <div className="space-y-4">
@@ -701,6 +702,7 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingMeeting ? "Edit Meeting" : "New Meeting"}</DialogTitle>
+            <DialogDescription className="sr-only">Create or edit a meeting.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -805,6 +807,7 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Record Meeting Minutes</DialogTitle>
+            <DialogDescription className="sr-only">Capture minutes for this meeting.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {minutesAgendaItems.length > 0 && (
@@ -853,6 +856,7 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>New Action Item</DialogTitle>
+            <DialogDescription className="sr-only">Add a new action item to this meeting.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -901,6 +905,7 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Meeting</DialogTitle>
+            <DialogDescription className="sr-only">Confirm deletion of this meeting.</DialogDescription>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">Are you sure you want to delete "{deleteTarget?.title as string}"? This action cannot be undone.</p>
           <DialogFooter>
@@ -918,6 +923,7 @@ export default function MeetingsTab({ projectId }: { projectId: number }) {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Distribute Meeting Minutes</DialogTitle>
+            <DialogDescription className="sr-only">Send the meeting minutes to attendees.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">Send meeting minutes via email to attendees. Enter comma-separated email addresses.</p>

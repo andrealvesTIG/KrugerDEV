@@ -7,14 +7,30 @@ type ResourceWithAssignment = TaskResourceAssignment & { resource: Resource };
 type IssueResourceWithAssignment = IssueResourceAssignment & { resource: Resource };
 type RiskResourceWithAssignment = RiskResourceAssignment & { resource: Resource };
 
-export function useResources(organizationId: number | null) {
+/**
+ * List resources for an organization.
+ *
+ * Pass `{ page, pageSize }` to request a paginated response from the server
+ * (`{ data, total, page, pageSize }`). When omitted the server returns the
+ * full unbounded array for backward compatibility.
+ */
+export function useResources(
+  organizationId: number | null,
+  pagination?: { page?: number; pageSize?: number },
+) {
+  const { page, pageSize } = pagination ?? {};
   return useQuery<Resource[]>({
-    queryKey: ["/api/resources", "list", organizationId],
+    queryKey: ["/api/resources", "list", organizationId, page ?? null, pageSize ?? null],
     enabled: !!organizationId,
     queryFn: async () => {
-      const response = await fetch(`/api/resources?organizationId=${organizationId}`);
+      const qs = new URLSearchParams({ organizationId: String(organizationId) });
+      if (page !== undefined) qs.set("page", String(page));
+      if (pageSize !== undefined) qs.set("pageSize", String(Math.min(200, pageSize)));
+      const response = await fetch(`/api/resources?${qs.toString()}`);
       if (!response.ok) throw new Error("Failed to fetch resources");
-      return response.json();
+      const json = await response.json();
+      // Server returns an array for unpaginated calls, `{ data, ... }` for paginated.
+      return Array.isArray(json) ? json : (json?.data ?? []);
     },
   });
 }

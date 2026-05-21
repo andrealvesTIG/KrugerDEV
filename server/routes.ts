@@ -46,6 +46,7 @@ import { registerInvestorRoutes } from "./routes/investorRoutes";
 import { registerDailyLogRoutes } from "./routes/dailyLogRoutes";
 import { registerRfiRoutes } from "./routes/rfiRoutes";
 import { registerSubmittalRoutes } from "./routes/submittalRoutes";
+import { registerIntegrationRouteDocs } from "./routes/integrationRouteDocs";
 import { registerDrawingRoutes } from "./routes/drawingRoutes";
 import { registerPunchListRoutes } from "./routes/punchListRoutes";
 import { registerQualitySafetyRoutes } from "./routes/qualitySafetyRoutes";
@@ -175,6 +176,11 @@ export async function registerRoutes(
   registerPowerBIAgentRoutes(app);
   registerLocationRoutes(app);
   registerProjectTabTemplateRoutes(app);
+
+  // Backfill OpenAPI metadata for routes that are still bound directly via
+  // app.method() inside integration services (Microsoft Planner, Project
+  // Online, Dynamics 365, Dataverse) and for RFI/submittal sub-resources.
+  registerIntegrationRouteDocs();
 
   // Seed system project tab templates and backfill the default Generic PMO
   // template for any organization that hasn't received it yet. Both calls are

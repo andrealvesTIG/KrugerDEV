@@ -3,7 +3,7 @@ import { useCreateProject } from "@/hooks/use-projects";
 import { usePortfolios } from "@/hooks/use-portfolios";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -224,7 +224,11 @@ export function CreateProjectDialog({
     },
     onSuccess: (data: any) => {
       toast({ title: "Success", description: data.message || "Project imported successfully" });
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      // Invalidate both the legacy list key and any paginated variants
+      queryClient.invalidateQueries({
+        predicate: (q) =>
+          Array.isArray(q.queryKey) && q.queryKey[0] === "/api/projects",
+      });
       onOpenChange(false);
       setSelectedPlanId(null);
       setProjectSource("manual");
@@ -299,7 +303,7 @@ export function CreateProjectDialog({
     },
     onSuccess: (data: any) => {
       toast({ title: "Success", description: `${data.count} Premium plan${data.count > 1 ? "s" : ""} imported successfully` });
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "/api/projects" });
       onOpenChange(false);
       setSelectedDataversePlanIds(new Set());
       setProjectSource("manual");
@@ -622,7 +626,7 @@ export function CreateProjectDialog({
     setIsImportingP6(false);
 
     if (successCount > 0) {
-      queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+      queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "/api/projects" });
     }
 
     if (limitExceededDetails) {
@@ -761,7 +765,7 @@ export function CreateProjectDialog({
             ? `Overwrote existing project "${result?.project?.name || proposedName}".`
             : (result?.message || "Project imported successfully"),
         });
-        queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
+        queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey[0] === "/api/projects" });
       }
       onOpenChange(false);
       setSelectedMsProjectFile(null);
@@ -795,6 +799,7 @@ export function CreateProjectDialog({
         <DialogContent className="sm:max-w-md" data-testid="dialog-import-conflict">
           <DialogHeader>
             <DialogTitle>Project already exists</DialogTitle>
+            <DialogDescription className="sr-only">A project with this name already exists in the selected portfolio.</DialogDescription>
           </DialogHeader>
           {conflictPrompt && (
             <div className="space-y-4">
@@ -875,6 +880,7 @@ export function CreateProjectDialog({
         <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create New Project</DialogTitle>
+            <DialogDescription className="sr-only">Form to create a new project under a portfolio.</DialogDescription>
           </DialogHeader>
 
           {(() => {

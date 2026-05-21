@@ -337,9 +337,26 @@ export async function assignAutonumberValuesForEntity(args: {
     const seq = updated?.assigned ?? 1;
     const mask = (def as any).mask ?? '';
     const match = String(mask).match(/#+/);
-    const rendered = match
-      ? String(mask).replace(/#+/, String(seq).padStart(match[0].length, '0'))
-      : `${mask}${seq}`;
+    let rendered: string;
+    if (match) {
+      const maskWidth = match[0].length;
+      const seqStr = String(seq);
+      // Auto-number mask overflow: when the sequence has more digits than the
+      // mask allows, pad to the actual digit count so the value stays sortable
+      // and emit a warning so admins can widen the mask.
+      if (seqStr.length > maskWidth) {
+        console.warn(
+          `[autonumber] sequence ${seq} for field definition ${def.id} ` +
+            `(${entityType}, org ${organizationId}) exceeded mask width ${maskWidth} ` +
+            `(mask: "${mask}"). Rendering at width ${seqStr.length}. ` +
+            `Update the mask to avoid sort-order breakage.`,
+        );
+      }
+      const padded = seqStr.padStart(Math.max(maskWidth, seqStr.length), '0');
+      rendered = String(mask).replace(/#+/, padded);
+    } else {
+      rendered = `${mask}${seq}`;
+    }
 
     try {
       if (entityType === 'project') {

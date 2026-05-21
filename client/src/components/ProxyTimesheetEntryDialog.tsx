@@ -4,6 +4,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -101,6 +102,7 @@ export function ProxyTimesheetEntryDialog({ organizationId, open, onOpenChange }
             <UserPlus className="h-5 w-5" />
             Enter Time on Behalf of Team Member
           </DialogTitle>
+          <DialogDescription className="sr-only">Log time on behalf of another team member.</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">

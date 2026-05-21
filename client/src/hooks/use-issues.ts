@@ -2,14 +2,24 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import type { CreateIssueRequest, UpdateIssueRequest, IssueChangeLog } from "@shared/schema";
 
-export function useIssues(projectId: number) {
+export function useIssues(
+  projectId: number,
+  pagination?: { page?: number; pageSize?: number },
+) {
+  const { page, pageSize } = pagination ?? {};
   return useQuery({
-    queryKey: [api.issues.list.path, projectId],
+    queryKey: [api.issues.list.path, projectId, page ?? null, pageSize ?? null],
     queryFn: async () => {
-      const url = buildUrl(api.issues.list.path, { projectId });
+      const base = buildUrl(api.issues.list.path, { projectId });
+      const qs = new URLSearchParams();
+      if (page !== undefined) qs.set("page", String(page));
+      if (pageSize !== undefined) qs.set("pageSize", String(Math.min(200, pageSize)));
+      const url = qs.toString() ? `${base}?${qs.toString()}` : base;
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch issues");
-      return api.issues.list.responses[200].parse(await res.json());
+      const json = await res.json();
+      const list = Array.isArray(json) ? json : (json?.data ?? []);
+      return api.issues.list.responses[200].parse(list);
     },
     enabled: !!projectId,
   });

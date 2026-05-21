@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useCreateRisk, useAiMitigationSuggestion } from "@/hooks/use-risks";
 import { useProjects } from "@/hooks/use-projects";
 import { LimitExceededDialog } from "@/components/LimitExceededDialog";
@@ -79,13 +79,17 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
     defaultValues,
   });
 
+  const prevOpenRef = useRef(false);
   useEffect(() => {
-    if (open && projectId) {
+    // Only reset on `open` transitioning from false → true so mid-edit
+    // projectId changes don't wipe user input.
+    if (open && !prevOpenRef.current) {
       form.reset({
         ...defaultValues,
-        projectId,
+        projectId: projectId ?? (undefined as unknown as number),
       });
     }
+    prevOpenRef.current = open;
   }, [open, projectId]);
 
   const handleOpenChange = (isOpen: boolean) => {

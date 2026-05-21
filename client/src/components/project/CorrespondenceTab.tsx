@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
@@ -262,6 +262,7 @@ export default function CorrespondenceTab({ projectId }: { projectId: number }) 
               <span className="text-muted-foreground font-mono text-sm">{detailItem?.correspondenceNumber as string}</span>
               {detailItem?.subject as string}
             </DialogTitle>
+            <DialogDescription className="sr-only">Correspondence details.</DialogDescription>
           </DialogHeader>
           {detailItem && (
             <div className="space-y-4">
@@ -315,6 +316,7 @@ export default function CorrespondenceTab({ projectId }: { projectId: number }) 
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingItem ? "Edit Correspondence" : "New Correspondence"}</DialogTitle>
+            <DialogDescription className="sr-only">Create or edit a correspondence entry.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -409,6 +411,7 @@ export default function CorrespondenceTab({ projectId }: { projectId: number }) 
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Correspondence</DialogTitle>
+            <DialogDescription className="sr-only">Confirm deletion of this correspondence entry.</DialogDescription>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">Are you sure you want to delete "{deleteTarget?.subject as string}"? This action cannot be undone.</p>
           <DialogFooter>

@@ -257,8 +257,52 @@ export const AICreateButton = forwardRef<AICreateButtonHandle, AICreateButtonPro
         title: "Created Successfully",
         description: data.message || "Items created",
       });
-      await queryClient.invalidateQueries();
-      await queryClient.refetchQueries();
+
+      // Targeted invalidations based on which action types ran. Mirrors the
+      // server's smart-create/execute branches.
+      const enabledTypes = new Set(
+        previewActions.filter((a) => a.enabled).map((a) => a.type),
+      );
+      const created = (data && (data as any).created) || {};
+
+      const invalidateKey = (key: unknown[]) =>
+        queryClient.invalidateQueries({
+          predicate: (q) => {
+            if (!Array.isArray(q.queryKey)) return false;
+            return key.every((part, i) => q.queryKey[i] === part);
+          },
+        });
+
+      if (enabledTypes.has("create_project") || created.project || created.projects?.length) {
+        await invalidateKey(["/api/projects"]);
+        await invalidateKey(["/api/portfolios"]);
+      }
+      if (enabledTypes.has("create_task") || created.tasks?.length || enabledTypes.has("create_milestone") || created.milestones?.length) {
+        await invalidateKey(["/api/projects"]); // project task counts / summary
+        await invalidateKey(["/api/tasks"]);
+        if (scopedProjectId) {
+          await invalidateKey(["/api/projects", scopedProjectId, "tasks"]);
+        }
+      }
+      if (enabledTypes.has("create_risk") || created.risks?.length) {
+        await invalidateKey(["/api/risks"]);
+        if (scopedProjectId) {
+          await invalidateKey(["/api/projects", scopedProjectId, "risks"]);
+        }
+      }
+      if (enabledTypes.has("create_issue") || created.issues?.length) {
+        await invalidateKey(["/api/issues"]);
+        if (scopedProjectId) {
+          await invalidateKey(["/api/projects", scopedProjectId, "issues"]);
+        }
+      }
+      if (enabledTypes.has("create_resource") || created.resources?.length) {
+        await invalidateKey(["/api/resources"]);
+      }
+      if (enabledTypes.has("assign_to_me")) {
+        await invalidateKey(["/api/tasks"]);
+      }
+
       setAiDialogOpen(false);
       if (!scopedProjectId && data.redirectTo) {
         setLocation(data.redirectTo);

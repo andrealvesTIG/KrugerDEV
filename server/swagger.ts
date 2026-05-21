@@ -57,6 +57,48 @@ export function setupSwagger(app: Express): void {
   );
   console.log(`[swagger] OpenAPI spec: ${count} documented endpoints`);
 
+  // Dev-only coverage check: walk the Express router stack and warn loudly
+  // about any /api route that isn't represented in the OpenAPI registry.
+  // This catches new app.get/post/... calls that bypass apiRoute() and the
+  // integration-docs backfill.
+  if (process.env.NODE_ENV !== "production") {
+    const undocumented: Array<{ method: string; path: string }> = [];
+    const stack: any[] = ((app as any)._router?.stack ?? []);
+    for (const layer of stack) {
+      const route = layer?.route;
+      if (!route || typeof route.path !== "string") continue;
+      if (!route.path.startsWith("/api/") && route.path !== "/api") continue;
+      const oa = route.path.replace(/^\/api/, "").replace(/:(\w+)/g, "{$1}");
+      const methods = Object.keys(route.methods || {});
+      for (const m of methods) {
+        if (m === "_all") continue;
+        if (!paths[oa] || !paths[oa][m]) {
+          undocumented.push({ method: m, path: route.path });
+        }
+      }
+    }
+    if (undocumented.length > 0) {
+      const header = `[swagger] ${undocumented.length} undocumented API route(s) detected (use apiRoute() or registerOpenApi()):`;
+      const strict = process.env.OPENAPI_STRICT === "1" || process.env.OPENAPI_STRICT === "true";
+      const log = strict ? console.error : console.warn;
+      log(header);
+      for (const u of undocumented.slice(0, 50)) {
+        log(`  - ${u.method.toUpperCase()} ${u.path}`);
+      }
+      if (undocumented.length > 50) {
+        log(`  ...and ${undocumented.length - 50} more`);
+      }
+      // Hard fail when OPENAPI_STRICT=1 (used by CI / pre-merge). Keeps local
+      // dev unblocked but prevents new undocumented routes from shipping.
+      if (strict) {
+        throw new Error(
+          `[swagger] OPENAPI_STRICT: refusing to start with ${undocumented.length} undocumented API route(s). ` +
+          `Register each one via apiRoute() or server/routes/integrationRouteDocs.ts.`,
+        );
+      }
+    }
+  }
+
   app.get('/api-docs.json', (_req, res) => res.json(doc));
 
   app.use(

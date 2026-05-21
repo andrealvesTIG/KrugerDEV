@@ -186,40 +186,69 @@ export function useDeleteTask() {
   });
 }
 
+/**
+ * Server reorder semantics (POST /api/projects/:projectId/tasks/reorder):
+ *   - Sorts all tasks by current `taskIndex` ascending.
+ *   - Removes the moved task ids, splices them at `newIndex` (0-based slot in
+ *     the array-without-moved).
+ *   - Re-numbers every task so its final 1-based `taskIndex` is `position + 1`.
+ *
+ * The optimistic update below mirrors that exactly (same clamp, same 1-based
+ * re-numbering), so on success the server response is identical to the
+ * optimistic state. We therefore only invalidate (without an immediate
+ * refetchQueries) on success — the next render or focus event will pick up
+ * fresh data without the noticeable mid-drag jump that refetchQueries caused.
+ * On error we roll back and force a fresh fetch.
+ */
 export function useReorderTask() {
   return useMutation({
     mutationFn: ({ projectId, taskId, newIndex, taskIds }: { projectId: number; taskId: number; newIndex: number; taskIds?: number[] }) =>
       apiRequest('POST', `/api/projects/${projectId}/tasks/reorder`, { taskId, newIndex, taskIds }),
     onMutate: async ({ projectId, taskId, newIndex, taskIds }) => {
       await queryClient.cancelQueries({ queryKey: ['/api/projects', projectId, 'tasks'] });
-      
+
       const previousTasks = queryClient.getQueryData<Task[]>(['/api/projects', projectId, 'tasks']);
-      
+
       if (previousTasks) {
+        // Match the server: sort by current taskIndex ascending before splicing.
+        const sorted = [...previousTasks].sort((a, b) => (a.taskIndex ?? 0) - (b.taskIndex ?? 0));
         const idsToMove = taskIds || [taskId];
         const groupIdSet = new Set(idsToMove);
-        const tasksToMove = idsToMove.map(id => previousTasks.find(t => t.id === id)).filter(Boolean) as Task[];
-        
+        const tasksToMove = idsToMove
+          .map(id => sorted.find(t => t.id === id))
+          .filter(Boolean) as Task[];
+
         if (tasksToMove.length > 0) {
-          const tasksWithoutMoved = previousTasks.filter(t => !groupIdSet.has(t.id));
+          const tasksWithoutMoved = sorted.filter(t => !groupIdSet.has(t.id));
           const clampedIndex = Math.max(0, Math.min(newIndex, tasksWithoutMoved.length));
           const newTasks = [...tasksWithoutMoved];
           newTasks.splice(clampedIndex, 0, ...tasksToMove);
-          
+
+          // Server re-numbers to position+1 (1-based). Mirror exactly.
           const updatedTasks = newTasks.map((t, idx) => ({ ...t, taskIndex: idx + 1 }));
           queryClient.setQueryData(['/api/projects', projectId, 'tasks'], updatedTasks);
         }
       }
-      
+
       return { previousTasks, projectId };
     },
     onError: (_, __, context) => {
       if (context?.previousTasks) {
         queryClient.setQueryData(['/api/projects', context.projectId, 'tasks'], context.previousTasks);
       }
+      // After rollback, force a fresh fetch to recover authoritative state.
+      if (context?.projectId) {
+        queryClient.invalidateQueries({ queryKey: ['/api/projects', context.projectId, 'tasks'] });
+      }
     },
-    onSettled: (_, __, variables) => {
-      queryClient.refetchQueries({ queryKey: ['/api/projects', variables.projectId, 'tasks'] });
+    onSuccess: (_, variables) => {
+      // Optimistic state already matches server output. Mark stale so the next
+      // natural trigger refreshes — but don't force an immediate refetch that
+      // would re-render the list and cause a visible "jump".
+      queryClient.invalidateQueries({
+        queryKey: ['/api/projects', variables.projectId, 'tasks'],
+        refetchType: 'none',
+      });
     },
   });
 }

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -198,6 +198,7 @@ export function BlogManagementTab() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingPost ? "Edit Post" : "New Media Post"}</DialogTitle>
+            <DialogDescription className="sr-only">Manage blog/media post content.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -258,6 +259,7 @@ export function BlogManagementTab() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Post</DialogTitle>
+            <DialogDescription className="sr-only">Confirm deletion of this post.</DialogDescription>
           </DialogHeader>
           <p className="text-muted-foreground">Are you sure you want to permanently delete this post?</p>
           <DialogFooter>

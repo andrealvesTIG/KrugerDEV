@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { INTAKE_FIELD_BY_KEY, type IntakeFieldDefinition } from "@shared/intakeFormRegistry";
+import { MissingRefPlaceholder } from "@/components/forms/MissingRefPlaceholder";
 import type { ProjectIntake, Portfolio } from "@shared/schema";
 import { useState } from "react";
 
@@ -26,11 +27,7 @@ export interface IntakeFieldRendererProps {
 export function IntakeFieldRenderer({ fieldKey, intake, formData, onChange, isLocked, portfolios, isRequired, labelOverride }: IntakeFieldRendererProps) {
   const def = INTAKE_FIELD_BY_KEY[fieldKey];
   if (!def) {
-    return (
-      <div className="text-xs text-destructive" data-testid={`field-unknown-${fieldKey}`}>
-        Unknown field: {fieldKey}
-      </div>
-    );
+    return <MissingRefPlaceholder kind="field" itemKey={fieldKey} testIdPrefix="field-unknown" />;
   }
   const current = (formData as any)[def.key] ?? (intake as any)[def.key] ?? (def.inputType === "checkbox" ? false : "");
   const hasOverride = !!(labelOverride && labelOverride.trim());

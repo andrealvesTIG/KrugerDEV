@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PROJECT_FORM_FIELD_BY_KEY, type ProjectFieldDefinition } from "@shared/projectFormRegistry";
+import { MissingRefPlaceholder } from "@/components/forms/MissingRefPlaceholder";
 import type { Portfolio, Program, Resource, Calendar } from "@shared/schema";
 
 export interface ProjectFieldRendererProps {
@@ -38,11 +39,7 @@ function toDateInput(v: any): string {
 export function ProjectFieldRenderer({ fieldKey, project, onChange, isLocked, portfolios, programs, resources, calendars, labelOverride, isRequired }: ProjectFieldRendererProps) {
   const def = PROJECT_FORM_FIELD_BY_KEY[fieldKey];
   if (!def) {
-    return (
-      <div className="text-xs text-destructive" data-testid={`project-field-unknown-${fieldKey}`}>
-        Unknown project field: {fieldKey}
-      </div>
-    );
+    return <MissingRefPlaceholder kind="project field" itemKey={fieldKey} testIdPrefix="project-field-unknown" />;
   }
   const raw = (project as any)[def.key];
   const current = raw ?? (def.inputType === "checkbox" ? false : "");
