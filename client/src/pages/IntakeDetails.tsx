@@ -621,14 +621,20 @@ export default function IntakeDetails() {
   // every later step too. Backward-compat for financials: if no step has
   // `showFinancials` set, fall back to the Business Case step so existing
   // organizations keep their previous behavior.
+  //
+  // For locked intakes (approved / rejected) we widen the lens to every
+  // configured step so reviewers can see all the information that was ever
+  // captured — otherwise tabs the intake never reached (e.g. Cybersecurity)
+  // would be hidden after approval.
   const stepsUpToCurrent = workflowSteps.slice(0, currentStepIndex + 1);
+  const stepsForVisibility = isLocked ? workflowSteps : stepsUpToCurrent;
   const anyStepShowsFinancials = workflowSteps.some(s => s.showFinancials === true);
-  const financialsEnabledAtOrBefore = stepsUpToCurrent.some(s => s.showFinancials === true);
+  const financialsEnabledAtOrBefore = stepsForVisibility.some(s => s.showFinancials === true);
   const showFinancialsForCurrentStep = financialsEnabledAtOrBefore
-    || (!anyStepShowsFinancials && currentStep?.stepKey === "business_case");
-  const showArchitectureForCurrentStep = stepsUpToCurrent.some(s => s.showArchitectureQuestions === true);
-  const showCybersecurityForCurrentStep = stepsUpToCurrent.some(s => s.showCybersecurityQuestions === true);
-  const showCostingChecklistForCurrentStep = stepsUpToCurrent.some(s => s.showCostingChecklist === true);
+    || (!anyStepShowsFinancials && (isLocked || currentStep?.stepKey === "business_case"));
+  const showArchitectureForCurrentStep = stepsForVisibility.some(s => s.showArchitectureQuestions === true);
+  const showCybersecurityForCurrentStep = stepsForVisibility.some(s => s.showCybersecurityQuestions === true);
+  const showCostingChecklistForCurrentStep = stepsForVisibility.some(s => s.showCostingChecklist === true);
 
   return (
     <div className="space-y-6">
