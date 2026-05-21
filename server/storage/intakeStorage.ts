@@ -1280,6 +1280,49 @@ export async function backfillIntakeRequiredFlags(): Promise<{ updated: number }
   return { updated };
 }
 
+/**
+ * One-time idempotent backfill: the "Related Program" intake field used to be a
+ * free-text column (`programName`). It's now a lookup against the org's
+ * programs (`programId`). Rewrite legacy layout rows and any workflow-step
+ * required-field arrays so the picker continues to work for existing orgs.
+ */
+export async function backfillIntakeProgramFieldKey(): Promise<{ layoutItems: number; workflowSteps: number; workflowConfigs: number }> {
+  // 1) Layout items: programName -> programId (no-op if it would create a
+  //    duplicate row in the same section).
+  const layoutRes = await db.execute(sql`
+    UPDATE intake_tab_items AS t
+       SET item_key = 'programId'
+     WHERE t.item_type = 'field'
+       AND t.item_key = 'programName'
+       AND NOT EXISTS (
+         SELECT 1 FROM intake_tab_items AS o
+          WHERE o.section_id = t.section_id
+            AND o.item_type = 'field'
+            AND o.item_key = 'programId'
+       )
+  `);
+  // Delete any leftover programName rows where programId now coexists, so the
+  // legacy text field doesn't render alongside the new lookup.
+  await db.execute(sql`
+    DELETE FROM intake_tab_items
+     WHERE item_type = 'field'
+       AND item_key = 'programName'
+  `);
+
+  // 2) intake_workflow_steps.required_fields is a text[] — swap entries.
+  const stepsRes = await db.execute(sql`
+    UPDATE intake_workflow_steps
+       SET required_fields = array_replace(required_fields, 'programName', 'programId')
+     WHERE 'programName' = ANY(required_fields)
+  `);
+
+  return {
+    layoutItems: (layoutRes as any).rowCount ?? 0,
+    workflowSteps: (stepsRes as any).rowCount ?? 0,
+    workflowConfigs: 0,
+  };
+}
+
 export async function resetIntakeTabLayoutToDefaults(organizationId: number): Promise<IntakeTabLayoutTabFull[]> {
   const dto: IntakeTabLayoutTabDTO[] = DEFAULT_INTAKE_TABS.map(t => ({
     key: t.key, label: t.label, icon: t.icon, isActive: true,

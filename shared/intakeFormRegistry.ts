@@ -9,7 +9,8 @@ export type IntakeFieldInputType =
   | "number"
   | "select"
   | "checkbox"
-  | "portfolio";
+  | "portfolio"
+  | "program";
 
 export interface IntakeFieldDefinition {
   key: string;            // matches the projectIntakes column name
@@ -56,7 +57,7 @@ export const INTAKE_FIELDS: IntakeFieldDefinition[] = [
       { value: "Legal", label: "Legal" },
     ],
   },
-  { key: "programName", label: "Related Program", group: "Basic Info", inputType: "text", placeholder: "Program name (if applicable)" },
+  { key: "programId", label: "Related Program", group: "Basic Info", inputType: "program", helpText: "Lookup of programs defined for this organization." },
 
   { key: "estimatedBudget", label: "Estimated Total Budget", group: "Business Case", inputType: "number", placeholder: "0.00" },
   { key: "capitalExpense", label: "Capital Expense (CapEx)", group: "Business Case", inputType: "number", placeholder: "0.00" },

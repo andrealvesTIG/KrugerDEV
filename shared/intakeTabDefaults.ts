@@ -39,7 +39,7 @@ export const DEFAULT_INTAKE_TABS: DefaultIntakeTab[] = [
           { itemType: "field", itemKey: "description",     width: "full", isRequired: true },
           { itemType: "field", itemKey: "fundingSource",   width: "third" },
           { itemType: "field", itemKey: "businessUnit",    width: "third" },
-          { itemType: "field", itemKey: "programName",     width: "third" },
+          { itemType: "field", itemKey: "programId",       width: "third" },
           { itemType: "block", itemKey: "custom_fields",   width: "full" },
         ],
       },

@@ -210,6 +210,20 @@ export async function registerRoutes(
     }
   })();
 
+  // One-time idempotent backfill: migrate the legacy `programName` text field
+  // on the intake form to the new `programId` lookup field. Safe to re-run.
+  (async () => {
+    try {
+      const { backfillIntakeProgramFieldKey } = await import('./storage/intakeStorage');
+      const { layoutItems, workflowSteps } = await backfillIntakeProgramFieldKey();
+      if (layoutItems > 0 || workflowSteps > 0) {
+        console.log(`[migration] Intake programName→programId backfill: ${layoutItems} layout item(s), ${workflowSteps} workflow step(s) updated`);
+      }
+    } catch (err) {
+      console.error('[intake-program-backfill] Failed:', err);
+    }
+  })();
+
   // Seed the system project templates library across industries. Each seeder
   // is idempotent — upserts by slug and replaces its items in a transaction.
   (async () => {

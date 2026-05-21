@@ -21,7 +21,7 @@ export const AVAILABLE_INTAKE_FIELDS = [
   { key: "portfolioId", label: "Target Portfolio", group: "Basic Info" },
   { key: "fundingSource", label: "Funding Source", group: "Basic Info" },
   { key: "businessUnit", label: "Business Unit", group: "Basic Info" },
-  { key: "programName", label: "Program Name", group: "Basic Info" },
+  { key: "programId", label: "Related Program", group: "Basic Info" },
   { key: "estimatedBudget", label: "Estimated Budget", group: "Business Case" },
   { key: "capitalExpense", label: "Capital Expense", group: "Business Case" },
   { key: "operatingExpense", label: "Operating Expense", group: "Business Case" },

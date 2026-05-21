@@ -5,6 +5,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useOrganization } from "@/hooks/use-organization";
 import { usePortfolios } from "@/hooks/use-portfolios";
+import { usePrograms } from "@/hooks/use-programs";
 import { useIntakeWorkflow, AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
 import { INTAKE_FIELD_BY_KEY } from "@shared/intakeFormRegistry";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -275,6 +276,7 @@ export default function IntakeDetails() {
   const { toast } = useToast();
   const { currentOrganization } = useOrganization();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
+  const { data: programs } = usePrograms(currentOrganization?.id);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [activeTab, setActiveTab] = useState("details");
@@ -801,6 +803,7 @@ export default function IntakeDetails() {
           onFieldChange: handleFieldChange,
           isLocked,
           portfolios: portfolios ?? [],
+          programs: programs ?? [],
           organizationId: currentOrganization?.id,
           canApproveIntakes,
           onPmoApprovedChange: (v) => {
