@@ -18,6 +18,7 @@ import type { CustomFieldDefinition } from "@shared/schema";
 const FIELD_TYPES = [
   { value: "text", label: "Text" },
   { value: "number", label: "Number" },
+  { value: "percentage", label: "Percentage" },
   { value: "date", label: "Date" },
   { value: "select", label: "Single Select" },
   { value: "multiselect", label: "Multi Select" },

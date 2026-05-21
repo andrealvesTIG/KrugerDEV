@@ -2746,7 +2746,7 @@ export function ProjectsGridView({
           const rawValue = cfValue?.value ?? null;
           if (!rawValue) return null;
           const cfDef = projectCustomFields.find(d => d.id === cfId);
-          if (cfDef?.fieldType === "number") return Number(rawValue);
+          if (cfDef?.fieldType === "number" || cfDef?.fieldType === "percentage") return Number(rawValue);
           if (cfDef?.fieldType === "date") try { return new Date(rawValue); } catch { return rawValue; }
           if (cfDef?.fieldType === "checkbox") return rawValue === "true" ? 1 : 0;
           return rawValue;
@@ -3418,6 +3418,10 @@ export function ProjectsGridView({
           }
           if (cfDef?.fieldType === "number" && rawValue) {
             return <span className="text-sm">{Number(rawValue).toLocaleString()}</span>;
+          }
+          if (cfDef?.fieldType === "percentage" && rawValue) {
+            const n = Number(rawValue);
+            return <span className="text-sm">{Number.isFinite(n) ? `${n}%` : rawValue}</span>;
           }
           if (cfDef?.fieldType === "url" && rawValue) {
             return (

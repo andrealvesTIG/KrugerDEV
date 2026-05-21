@@ -145,6 +145,20 @@ export function ProjectSingleCustomField({
         return <Input type="date" value={editValue} onChange={(e) => setEditValue(e.target.value)} data-testid={`input-project-cf-${field.id}`} />;
       case "number":
         return <Input type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} data-testid={`input-project-cf-${field.id}`} />;
+      case "percentage":
+        return (
+          <div className="relative w-full">
+            <Input
+              type="number"
+              step="0.01"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              className="pr-7"
+              data-testid={`input-project-cf-${field.id}`}
+            />
+            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+          </div>
+        );
       case "url":
         return <Input type="url" value={editValue} onChange={(e) => setEditValue(e.target.value)} placeholder="https://..." data-testid={`input-project-cf-${field.id}`} />;
       default:
@@ -207,6 +221,10 @@ export function ProjectSingleCustomField({
       }
       case "date":
         return <span className="text-sm">{format(new Date(value), 'MMM d, yyyy')}</span>;
+      case "percentage": {
+        const n = Number(value);
+        return <span className="text-sm">{Number.isFinite(n) ? `${n}%` : value}</span>;
+      }
       case "resource": {
         const r = orgResources.find(r => String(r.id) === String(value));
         return <span className="text-sm">{r?.displayName ?? "Unknown resource"}</span>;

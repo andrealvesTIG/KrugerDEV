@@ -3626,7 +3626,7 @@ export const customFieldDefinitions = pgTable("custom_field_definitions", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   name: text("name").notNull(),
-  fieldType: text("field_type").notNull(), // 'text', 'number', 'date', 'select', 'multiselect', 'checkbox', 'url', 'autonumber'
+  fieldType: text("field_type").notNull(), // 'text', 'number', 'percentage', 'date', 'select', 'multiselect', 'checkbox', 'url', 'autonumber'
   entityType: text("entity_type").default("project").notNull(), // 'project', 'task', 'resource', 'intake' (intake-typed fields also appear on the resulting project after conversion)
   description: text("description"),
   isRequired: boolean("is_required").default(false),

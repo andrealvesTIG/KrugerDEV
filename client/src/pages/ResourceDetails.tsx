@@ -1116,6 +1116,19 @@ function ResourceCustomFieldsSection({ resourceId, organizationId }: { resourceI
             onChange={(e) => setEditValue(e.target.value)}
           />
         );
+      case "percentage":
+        return (
+          <div className="relative w-full">
+            <Input
+              type="number"
+              step="0.01"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              className="pr-7"
+            />
+            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+          </div>
+        );
       case "url":
         return (
           <Input
@@ -1164,6 +1177,10 @@ function ResourceCustomFieldsSection({ resourceId, organizationId }: { resourceI
       }
       case "date":
         return <span className="text-sm">{format(new Date(value), 'MMM d, yyyy')}</span>;
+      case "percentage": {
+        const n = Number(value);
+        return <span className="text-sm">{Number.isFinite(n) ? `${n}%` : value}</span>;
+      }
       case "resource": {
         const resource = orgResources.find(r => String(r.id) === String(value));
         return <span className="text-sm">{resource?.displayName ?? "Unknown resource"}</span>;

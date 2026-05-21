@@ -1062,6 +1062,20 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked, exclude
         return <Input type="date" value={editValue} onChange={(e) => setEditValue(e.target.value)} data-testid={`input-intake-custom-field-${field.id}`} />;
       case "number":
         return <Input type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} data-testid={`input-intake-custom-field-${field.id}`} />;
+      case "percentage":
+        return (
+          <div className="relative w-full">
+            <Input
+              type="number"
+              step="0.01"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              className="pr-7"
+              data-testid={`input-intake-custom-field-${field.id}`}
+            />
+            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+          </div>
+        );
       case "url":
         return <Input type="url" value={editValue} onChange={(e) => setEditValue(e.target.value)} placeholder="https://..." data-testid={`input-intake-custom-field-${field.id}`} />;
       default:
@@ -1102,6 +1116,10 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked, exclude
       }
       case "date":
         return <span className="text-sm" data-testid={`value-intake-date-${field.id}`}>{format(new Date(value), 'MMM d, yyyy')}</span>;
+      case "percentage": {
+        const n = Number(value);
+        return <span className="text-sm" data-testid={`value-intake-percentage-${field.id}`}>{Number.isFinite(n) ? `${n}%` : value}</span>;
+      }
       case "resource": {
         const resource = orgResources.find(r => String(r.id) === String(value));
         return <span className="text-sm" data-testid={`value-intake-resource-${field.id}`}>{resource?.displayName ?? "Unknown resource"}</span>;
