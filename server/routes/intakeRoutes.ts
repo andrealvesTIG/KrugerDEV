@@ -395,7 +395,13 @@ export function registerIntakeRoutes(app: Express) {
         }
       }
 
-      const updated = await storage.updateProjectIntake(id, req.body, userId);
+      await storage.updateProjectIntake(id, req.body, userId);
+      // Re-fetch so the response includes the enriched audit fields
+      // (createdByName, updatedByName, currentStepLabel) — otherwise the
+      // client's React Query cache would be overwritten with a row that's
+      // missing them and the form would blank out the audit fields until
+      // a full reload.
+      const updated = (await storage.getProjectIntake(id))!;
 
       dispatchIntakeStepTransitionEmails({
         intakeId: id,
@@ -681,13 +687,14 @@ export function registerIntakeRoutes(app: Express) {
         }
       }
       
-      const updated = await storage.updateProjectIntake(id, {
+      await storage.updateProjectIntake(id, {
         status: 'rejected',
         rejectedAt: new Date(),
         rejectedBy: userId,
         rejectionReason: reason,
       }, userId);
-      
+      const updated = (await storage.getProjectIntake(id))!;
+
       res.json(updated);
     } catch (err) {
       console.error("Error rejecting project intake:", err);
