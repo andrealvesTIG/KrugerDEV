@@ -246,6 +246,16 @@ export function registerJarvisRoutes(app: Express) {
         };
       };
 
+      // Abort the in-flight LLM + tool loop the moment the browser tab
+      // disconnects so a closed client cannot keep racking up credits.
+      // The signal is threaded into the service, which forwards it to
+      // OpenAI/Anthropic and skips recordSuccess() for any not-yet-charged
+      // round once aborted.
+      const abortController = new AbortController();
+      const onClientClose = () => abortController.abort();
+      req.on("close", onClientClose);
+      res.on("close", onClientClose);
+
       // Open the SSE stream BEFORE doing any further DB writes so the
       // client gets bytes ASAP. Disable proxy buffering / transforms so
       // chunks are flushed end-to-end on every write.
@@ -344,6 +354,8 @@ export function registerJarvisRoutes(app: Express) {
         pageContext ? { path: pageContext.path, entityType: pageContext.entityType, entityId: pageContext.entityId } : undefined,
         attachments,
         { forceOnboarding: forceOnboarding === true || persistedIsOnboarding },
+        undefined,
+        abortController.signal,
       );
     } catch (error) {
       if (error instanceof AiCreditsLimitError) {

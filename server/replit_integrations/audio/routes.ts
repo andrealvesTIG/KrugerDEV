@@ -10,8 +10,16 @@ import {
   newAiRequestId,
 } from "../../services/aiCredits";
 
-// Body parser with 50MB limit for audio payloads
+// Body parser with 50MB limit for audio payloads. The decoded-bytes cap
+// applied below (AUDIO_MAX_BYTES) is what actually protects ffmpeg from
+// being invoked on oversized inputs — the parser limit is just an outer
+// safety net for the base64-inflated JSON body.
 const audioBodyParser = express.json({ limit: "50mb" });
+
+// Hard caps applied BEFORE ffmpeg runs. Configurable via env so ops can
+// tighten/loosen without a redeploy.
+//   AUDIO_MAX_BYTES         — max decoded audio bytes (default 25 MB)
+const AUDIO_MAX_BYTES = Number(process.env.AUDIO_MAX_BYTES) || 25 * 1024 * 1024;
 
 export function registerAudioRoutes(app: Express): void {
   // Get all conversations
@@ -97,9 +105,29 @@ export function registerAudioRoutes(app: Express): void {
       // STT and the gpt-audio chat are metered as two independent AI calls.
       const audioIdemKey = newAiRequestId();
 
-      // 1. Auto-detect format and convert to OpenAI-compatible format
+      // 1. Auto-detect format and convert to OpenAI-compatible format.
+      //    Enforce a hard decoded-bytes cap BEFORE ffmpeg runs so we cannot
+      //    be DoS'd into transcoding an arbitrarily large blob. The duration
+      //    cap is applied inside ensureCompatibleFormat via ffprobe.
       const rawBuffer = Buffer.from(audio, "base64");
-      const { buffer: audioBuffer, format: inputFormat } = await ensureCompatibleFormat(rawBuffer);
+      if (rawBuffer.length > AUDIO_MAX_BYTES) {
+        return res.status(413).json({
+          error: `Audio too large: ${rawBuffer.length} bytes exceeds the ${AUDIO_MAX_BYTES}-byte limit.`,
+        });
+      }
+      let audioBuffer: Buffer;
+      let inputFormat: "wav" | "mp3";
+      try {
+        const out = await ensureCompatibleFormat(rawBuffer);
+        audioBuffer = out.buffer;
+        inputFormat = out.format;
+      } catch (e: any) {
+        // Duration/size validation failures bubble up as AudioInputTooLargeError.
+        if (e && e.name === "AudioInputTooLargeError") {
+          return res.status(413).json({ error: e.message });
+        }
+        throw e;
+      }
 
       // 2. Transcribe user audio (metered).
       let userTranscript: string;

@@ -365,6 +365,84 @@ describe("streamJarvisResponse — Anthropic branch credit metering", () => {
 });
 
 // =====================================================================
+// (b.5) Prompt-injection hardening — user-controlled entity names MUST
+// arrive at the model inside a delimited user-role <USER_DATA> block,
+// never interpolated into the system prompt.
+// =====================================================================
+describe("streamJarvisResponse — prompt-injection hardening", () => {
+  it("system prompt carries the sandbox directive but no org data; the FIRST user-role message is the <USER_DATA> block containing the data context", async () => {
+    // The customAgentPromptSandbox suite already proves a hostile
+    // project name is contained inside <USER_DATA> in the scheduled-
+    // agent flow. This test proves the SAME architecture for the chat
+    // flow: the system prompt is purely instructional (no
+    // user-controlled strings), the sandbox directive is present so
+    // the model knows the block is data, and the dataContext is
+    // shipped as a SEPARATE user-role message wrapped in
+    // <USER_DATA>…</USER_DATA>. If a hostile project name ever lands
+    // in `context.projects` it can only reach the model via this
+    // sandboxed user-role channel — which is the entire point of the
+    // hardening.
+    anthropicHarness = createAnthropicMock([
+      { blocks: [{ type: "text", text: "Acknowledged." }], stopReason: "end_turn" },
+    ]);
+
+    const { streamJarvisResponse } = await import("../server/services/jarvisService");
+    const { meter } = makeMeterPerCall({
+      userId: TEST_USER,
+      orgId: TEST_ORG,
+      action: "friday_chat",
+      requestId: `friday_chat_inj_${newAiRequestId()}`,
+    });
+
+    let lastError: Error | null = null;
+    await streamJarvisResponse(
+      TEST_ORG,
+      TEST_USER,
+      [{ role: "user", content: "What projects do we have?" }],
+      true,
+      () => {},
+      () => {},
+      (err) => { lastError = err; },
+      meter,
+    );
+
+    expect(lastError).toBeNull();
+
+    const args = anthropicHarness.streamCalls[0];
+    const system = args.system as string;
+    const messages = args.messages as any[];
+
+    // (1) System prompt MUST contain the sandbox directive so the
+    // model knows the <USER_DATA> block is untrusted input.
+    expect(system).toContain("<USER_DATA>");
+    expect(system.toLowerCase()).toContain("untrusted data");
+
+    // (2) System prompt MUST NOT contain the org-data markers that
+    // `buildDataContext` emits. If "### Projects" / "Organization
+    // Overview:" ever shows up in the system prompt again, the
+    // hardening has regressed — user-controlled strings would once
+    // again be reaching the system context.
+    expect(system).not.toContain("### Projects");
+    expect(system).not.toContain("Organization Overview:");
+
+    // (3) The FIRST message MUST be a user-role message whose content
+    // is wrapped in <USER_DATA>…</USER_DATA>. This is the channel that
+    // carries every potentially-hostile project / task / issue name
+    // into the conversation.
+    expect(messages.length).toBeGreaterThanOrEqual(2);
+    const firstMsg = messages[0];
+    expect(firstMsg.role).toBe("user");
+    expect(typeof firstMsg.content).toBe("string");
+    expect(firstMsg.content.startsWith("<USER_DATA>")).toBe(true);
+    expect(firstMsg.content.trimEnd().endsWith("</USER_DATA>")).toBe(true);
+    // The actual user turn comes AFTER the data block, not before.
+    const userTurn = messages[messages.length - 1];
+    expect(userTurn.role).toBe("user");
+    expect(userTurn.content).toContain("What projects do we have?");
+  });
+});
+
+// =====================================================================
 // (c) getOrgLlmProvider unit cases — three branches.
 // =====================================================================
 describe("getOrgLlmProvider", () => {

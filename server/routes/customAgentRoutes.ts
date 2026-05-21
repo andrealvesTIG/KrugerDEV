@@ -20,6 +20,44 @@ import { getUserIdFromRequest, getUserOrgIds, getUserOrgRole } from "./helpers";
 import { apiRoute, body, r200, stdRes, authRes } from "../route-registry";
 
 export const ALLOWED_MODELS = ["gpt-4o", "gpt-4o-mini"] as const;
+
+/**
+ * Resolve the org's effective model allowlist for custom agents and reject
+ * any model not on it. This is the policy-aware backstop that supplements
+ * the schema-level enum: even if a client crafts a request with a value
+ * that passes Zod, we re-check here against the org's `fridayAgentConfig`.
+ *
+ *  - If the org pins a custom Azure deployment (`useOrgAzure`), that
+ *    deployment name is the ONLY accepted model — custom agents always
+ *    call through that deployment so storing anything else is misleading
+ *    and could break future provider checks.
+ *  - Otherwise the org uses the platform OpenAI client and the allowlist
+ *    is the static `ALLOWED_MODELS` set.
+ *
+ * Returns `null` on success, or an error message on rejection (caller
+ * sends 400).
+ */
+async function validateModelForOrg(orgId: number, model: string): Promise<string | null> {
+  try {
+    const [org] = await db.select({ fridayAgentConfig: organizations.fridayAgentConfig })
+      .from(organizations).where(eq(organizations.id, orgId));
+    const cfg = (org?.fridayAgentConfig as FridayAgentConfig | null) ?? null;
+    // Org pinned to a custom Azure deployment — only that deployment is valid.
+    if (cfg?.provider !== "anthropic" && cfg?.useOrgAzure && cfg.azureDeployment) {
+      if (model === cfg.azureDeployment) return null;
+      return `Model '${model}' is not enabled for this organization. Allowed: ${cfg.azureDeployment}`;
+    }
+    // Platform OpenAI / Anthropic-with-OpenAI-fallback — ALLOWED_MODELS applies.
+    if ((ALLOWED_MODELS as readonly string[]).includes(model)) return null;
+    return `Model '${model}' is not enabled for this organization. Allowed: ${ALLOWED_MODELS.join(", ")}`;
+  } catch (e) {
+    console.error(`[customAgent] Failed to validate model for org ${orgId}:`, e);
+    // Fail closed: if we can't read the org config, only the static
+    // allowlist is accepted so misconfiguration cannot widen the surface.
+    if ((ALLOWED_MODELS as readonly string[]).includes(model)) return null;
+    return `Model '${model}' is not enabled for this organization.`;
+  }
+}
 // Safe write surface exposed to custom agents — these are the user-facing
 // action names defined in the product spec (task #71). Each maps to an
 // existing Friday tool function so no new write capabilities are introduced.
@@ -76,7 +114,10 @@ export const baseSchema = z.object({
   description: z.string().max(500).optional().nullable(),
   icon: z.enum(ALLOWED_ICONS).optional(),
   systemPrompt: z.string().min(1).max(50000),
-  model: z.enum(ALLOWED_MODELS).default("gpt-4o-mini"),
+  // Loose schema-level type — the org-policy check `validateModelForOrg`
+  // is the authoritative allowlist, because Azure-pinned orgs accept
+  // custom deployment names that are not in `ALLOWED_MODELS`.
+  model: z.string().min(1).max(200).default("gpt-4o-mini"),
   dataScope: dataScopeSchema.default({ type: "org" }),
   allowedTools: z.array(z.enum(ALLOWED_AGENT_ACTIONS)).max(20).default([]),
   visibility: z.enum(["private","org","members"]).default("private"),
@@ -202,6 +243,10 @@ export function registerCustomAgentRoutes(app: Express) {
     const { organizationId, memberIds, ...rest } = parsed.data;
     const userId = await ensureOrgAccess(req, res, organizationId);
     if (!userId) return;
+    // Org-policy model allowlist (must run AFTER ensureOrgAccess so we
+    // don't leak org config to non-members via the error message).
+    const modelErr = await validateModelForOrg(organizationId, rest.model);
+    if (modelErr) return res.status(400).json({ message: modelErr });
     if (rest.visibility === "members" && memberIds && memberIds.length > 0) {
       const valid = await db.select({ userId: organizationMembers.userId }).from(organizationMembers)
         .where(and(eq(organizationMembers.organizationId, organizationId), inArray(organizationMembers.userId, memberIds)));
@@ -290,6 +335,13 @@ export function registerCustomAgentRoutes(app: Express) {
     const userId = await ensureOrgAccess(req, res, orgId);
     if (!userId) return;
     if (!(await canEditAgent(id, orgId, userId))) return res.status(403).json({ message: "You can't edit this agent" });
+    // Org-policy model allowlist on update — only when the caller is
+    // actually changing the model field (`partial` schema makes it
+    // optional in PATCH).
+    if (parsed.data.model !== undefined) {
+      const modelErr = await validateModelForOrg(orgId, parsed.data.model);
+      if (modelErr) return res.status(400).json({ message: modelErr });
+    }
     const { organizationId: _ignore, memberIds, dataScope, ...patchData } = parsed.data;
     const patch: Partial<InsertCustomAgent> = { ...patchData };
     if (dataScope) {
@@ -566,6 +618,13 @@ export function registerCustomAgentRoutes(app: Express) {
         await recordAiCredits(chargeUserId, actCtx);
       };
 
+      // Abort the in-flight LLM + tool loop when the browser disconnects so
+      // a closed tab cannot keep racking up AI credits.
+      const abortController = new AbortController();
+      const onClientClose = () => abortController.abort();
+      req.on("close", onClientClose);
+      res.on("close", onClientClose);
+
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
@@ -609,6 +668,7 @@ export function registerCustomAgentRoutes(app: Express) {
         },
         meterPerCall,
         pageContext as any, undefined, undefined, runtime,
+        abortController.signal,
       );
     } catch (err: any) {
       if (err instanceof AiCreditsLimitError) { if (sendLimitExceeded(res, err)) return; }

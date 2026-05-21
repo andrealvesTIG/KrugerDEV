@@ -511,6 +511,7 @@ async function streamWithOpenAI(
   onChunk: (s: string) => void,
   meterPerCall: MeterPerCall,
   onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
+  signal?: AbortSignal,
 ): Promise<string> {
   const promptOverride = await getBuiltinAgentPromptOverride("powerbi");
   const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -534,7 +535,12 @@ async function streamWithOpenAI(
   let modelToUse = modelOverride ?? PBI_MODELS[modelTier].model;
 
   for (let round = 0; round <= MAX_ROUNDS; round++) {
-    // Enforce credits BEFORE the stream opens; record after it completes.
+    if (signal?.aborted) {
+      console.warn(`[PBI Agent] OpenAI tool loop aborted at round ${round} — client disconnected`);
+      break;
+    }
+    // Enforce credits BEFORE the stream opens; record after the stream
+    // completes AND any triggered tool calls succeed.
     const { result: stream, recordSuccess } = await meterPerCall(round, () => openai.chat.completions.create({
       model: modelToUse,
       messages: apiMessages,
@@ -542,7 +548,7 @@ async function streamWithOpenAI(
       max_completion_tokens: 2048,
       temperature: 0.4,
       tools: powerbiTools,
-    }));
+    }, { signal }));
 
     const toolCalls = new Map<number, { id: string; name: string; arguments: string }>();
     let hasToolCalls = false;
@@ -567,9 +573,10 @@ async function streamWithOpenAI(
       }
     }
 
-    await recordSuccess();
-
-    if (!hasToolCalls || finishReason !== "tool_calls") break;
+    if (!hasToolCalls || finishReason !== "tool_calls") {
+      await recordSuccess();
+      break;
+    }
 
     // Force smart model for the synthesis turn after tool execution (keeps message quality high).
     modelToUse = modelOverride ?? PBI_MODELS.smart.model;
@@ -584,14 +591,23 @@ async function streamWithOpenAI(
       })),
     });
 
+    let anyToolFailed = false;
     for (const [, tc] of toolCalls) {
       try {
         const args = JSON.parse(tc.arguments);
         const result = await handleSubmitTool(orgId, userId, args, conversationLog, conversationDbId, onIntakeSubmitted);
         apiMessages.push({ role: "tool", tool_call_id: tc.id, content: result });
       } catch (err: any) {
+        anyToolFailed = true;
         apiMessages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify({ success: false, message: err.message || "Tool failed" }) });
       }
+    }
+    // Only charge for this LLM round when every tool succeeded — a failed
+    // tool means the user gets the round refunded (skip-debit).
+    if (!anyToolFailed) {
+      await recordSuccess();
+    } else {
+      console.warn(`[PBI Agent] OpenAI round ${round} skipped credit debit — tool execution failed`);
     }
     // Mark a separator between rounds so the persisted log retains both halves.
     allStreamedText += "\n\n";
@@ -612,6 +628,7 @@ async function streamWithAnthropic(
   onChunk: (s: string) => void,
   meterPerCall: MeterPerCall,
   onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
+  signal?: AbortSignal,
 ): Promise<string> {
   const anthropicClient = await getAnthropicForPowerBI();
   if (!anthropicClient) throw new Error("Claude is not configured");
@@ -632,7 +649,12 @@ async function streamWithAnthropic(
   const MAX_ROUNDS = 3;
 
   for (let round = 0; round <= MAX_ROUNDS; round++) {
-    // Enforce credits BEFORE the stream opens; record after it completes.
+    if (signal?.aborted) {
+      console.warn(`[PBI Agent] Anthropic tool loop aborted at round ${round} — client disconnected`);
+      break;
+    }
+    // Enforce credits BEFORE the stream opens; record after the stream
+    // completes AND any triggered tool calls succeed.
     const { result: stream, recordSuccess } = await meterPerCall(round, async () => anthropic!.messages.stream({
       model: PBI_MODELS.claude.model,
       max_tokens: 2048,
@@ -640,7 +662,7 @@ async function streamWithAnthropic(
       system: claudeSystemPrompt,
       messages: apiMessages,
       tools: anthropicTools,
-    }));
+    }, { signal }));
 
     let assistantBlocks: Anthropic.ContentBlock[] = [];
     let stopReason = "";
@@ -657,23 +679,31 @@ async function streamWithAnthropic(
     assistantBlocks = final.content;
     stopReason = final.stop_reason || "";
 
-    await recordSuccess();
-
     const toolUses = assistantBlocks.filter(b => b.type === "tool_use") as Anthropic.ToolUseBlock[];
-    if (stopReason !== "tool_use" || toolUses.length === 0) break;
+    if (stopReason !== "tool_use" || toolUses.length === 0) {
+      await recordSuccess();
+      break;
+    }
 
     apiMessages.push({ role: "assistant", content: assistantBlocks });
 
+    let anyToolFailed = false;
     const toolResults: any[] = [];
     for (const tu of toolUses) {
       try {
         const result = await handleSubmitTool(orgId, userId, tu.input as any, conversationLog, conversationDbId, onIntakeSubmitted);
         toolResults.push({ type: "tool_result", tool_use_id: tu.id, content: result });
       } catch (err: any) {
+        anyToolFailed = true;
         toolResults.push({ type: "tool_result", tool_use_id: tu.id, content: JSON.stringify({ success: false, message: err.message || "Tool failed" }), is_error: true });
       }
     }
     apiMessages.push({ role: "user", content: toolResults });
+    if (!anyToolFailed) {
+      await recordSuccess();
+    } else {
+      console.warn(`[PBI Agent] Anthropic round ${round} skipped credit debit — tool execution failed`);
+    }
     allStreamedText += "\n\n";
     fullResponse = "";
   }
@@ -779,6 +809,12 @@ export async function streamPowerBIAgentResponse(
   meterPerCall: MeterPerCall,
   onIntakeSubmitted?: (info: IntakeSubmittedInfo) => void,
   onPhase?: (phase: { phase: "analyzing" | "analyzed"; fileCount?: number }) => void,
+  /**
+   * Optional abort signal. When the SSE route detects the client closed the
+   * connection it aborts the controller; this propagates into the underlying
+   * OpenAI/Anthropic streams and breaks the tool loop without further billing.
+   */
+  signal?: AbortSignal,
 ) {
   try {
     if (!(await isBuiltinAgentEnabled("powerbi"))) {
@@ -812,9 +848,9 @@ export async function streamPowerBIAgentResponse(
     let final: string;
     try {
       if (modelTier === "claude") {
-        final = await streamWithAnthropic(orgId, userId, messages, conversationLog, conversationDbId, onChunk, meterPerCall, onIntakeSubmitted);
+        final = await streamWithAnthropic(orgId, userId, messages, conversationLog, conversationDbId, onChunk, meterPerCall, onIntakeSubmitted, signal);
       } else {
-        final = await streamWithOpenAI(modelTier, orgId, userId, messages, conversationLog, conversationDbId, onChunk, meterPerCall, onIntakeSubmitted);
+        final = await streamWithOpenAI(modelTier, orgId, userId, messages, conversationLog, conversationDbId, onChunk, meterPerCall, onIntakeSubmitted, signal);
       }
     } catch (err) {
       if (err instanceof AiCreditsLimitError) {

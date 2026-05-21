@@ -55,6 +55,56 @@ async function finishStreamMeter(
 export type AudioFormat = "wav" | "mp3" | "webm" | "mp4" | "ogg" | "unknown";
 
 /**
+ * Hard caps applied BEFORE ffmpeg runs so we cannot be DoS'd into
+ * transcoding arbitrarily large or long inputs. Configurable via env.
+ *   AUDIO_MAX_BYTES        — max decoded bytes (default 25 MB)
+ *   AUDIO_MAX_DURATION_SEC — max duration in seconds (default 600 = 10 min)
+ */
+export const AUDIO_MAX_BYTES = Number(process.env.AUDIO_MAX_BYTES) || 25 * 1024 * 1024;
+export const AUDIO_MAX_DURATION_SEC = Number(process.env.AUDIO_MAX_DURATION_SEC) || 600;
+
+/**
+ * Thrown when a voice transcription input violates the size or duration cap.
+ * The route layer maps this to an HTTP 413 with a clear message.
+ */
+export class AudioInputTooLargeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AudioInputTooLargeError";
+  }
+}
+
+/**
+ * Probe an audio buffer with ffprobe and return its duration in seconds.
+ * Returns NaN when ffprobe cannot determine duration (e.g. malformed file).
+ */
+async function probeDurationSeconds(audioBuffer: Buffer): Promise<number> {
+  const inputPath = join(tmpdir(), `probe-${randomUUID()}`);
+  try {
+    await writeFile(inputPath, audioBuffer);
+    return await new Promise<number>((resolve, reject) => {
+      const ffprobe = spawn("ffprobe", [
+        "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        inputPath,
+      ]);
+      let stdout = "";
+      ffprobe.stdout.on("data", (d) => { stdout += d.toString(); });
+      ffprobe.stderr.on("data", () => {});
+      ffprobe.on("close", (code) => {
+        if (code !== 0) return resolve(NaN);
+        const v = parseFloat(stdout.trim());
+        resolve(Number.isFinite(v) ? v : NaN);
+      });
+      ffprobe.on("error", reject);
+    });
+  } finally {
+    await unlink(inputPath).catch(() => {});
+  }
+}
+
+/**
  * Detect audio format from buffer magic bytes.
  * Supports: WAV, MP3, WebM (Chrome/Firefox), MP4/M4A/MOV (Safari/iOS), OGG
  */
@@ -138,6 +188,21 @@ export async function convertToWav(audioBuffer: Buffer): Promise<Buffer> {
 export async function ensureCompatibleFormat(
   audioBuffer: Buffer
 ): Promise<{ buffer: Buffer; format: "wav" | "mp3" }> {
+  // Defense-in-depth: size cap also enforced here so any non-route caller
+  // (e.g. tests, future endpoints) gets the same protection.
+  if (audioBuffer.length > AUDIO_MAX_BYTES) {
+    throw new AudioInputTooLargeError(
+      `Audio too large: ${audioBuffer.length} bytes exceeds the ${AUDIO_MAX_BYTES}-byte limit.`,
+    );
+  }
+  // Duration cap (≤10 min by default) — runs ffprobe before any ffmpeg
+  // transcode so we never decode a long file just to reject it.
+  const duration = await probeDurationSeconds(audioBuffer);
+  if (Number.isFinite(duration) && duration > AUDIO_MAX_DURATION_SEC) {
+    throw new AudioInputTooLargeError(
+      `Audio too long: ${duration.toFixed(1)}s exceeds the ${AUDIO_MAX_DURATION_SEC}s limit.`,
+    );
+  }
   const detected = detectAudioFormat(audioBuffer);
   if (detected === "wav") return { buffer: audioBuffer, format: "wav" };
   if (detected === "mp3") return { buffer: audioBuffer, format: "mp3" };

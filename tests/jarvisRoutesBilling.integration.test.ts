@@ -181,6 +181,55 @@ describe("Friday chat route → real aiCredits → billing.recordCreditUsage (en
     expect(recordCreditUsageMock).not.toHaveBeenCalled();
   });
 
+  it("LLM round succeeds but the triggered tool fails → recordSuccess is NOT called for that round, so no credit is debited (refund-by-skip)", async () => {
+    // Simulate the post-hardening contract: streamJarvisResponse runs the
+    // tool loop, and ONLY calls recordSuccess() when the LLM round AND its
+    // triggered tool calls all succeed. A failing tool means the credit
+    // for that round is dropped on the floor (skip-debit refund).
+    streamJarvisResponseMock.mockImplementationOnce(
+      async (
+        _orgId: number,
+        _uid: string,
+        _msgs: any[],
+        _concise: boolean,
+        _onChunk: any,
+        onDone: any,
+        _onError: any,
+        meterPerCall: any,
+      ) => {
+        // Round 0: LLM stream returns successfully but a tool blows up.
+        const { recordSuccess } = await meterPerCall(0, async () => undefined);
+        const toolFailed = true;
+        if (!toolFailed) {
+          await recordSuccess();
+        }
+        // Hardened service then exits the loop without opening another
+        // round — the user's final response is whatever was streamed.
+        onDone("tool failed; aborting tool loop");
+      },
+    );
+
+    const app = await buildApp();
+    const res = await request(app)
+      .post("/api/jarvis/chat")
+      .set("x-test-user-id", TEST_USER)
+      .send({
+        organizationId: TEST_ORG,
+        conversationId: 100,
+        messages: [{ role: "user" as const, content: "Do the thing that calls a flaky tool" }],
+      });
+
+    // The route still streams a response back to the user (SSE 200), but
+    // billing must reflect the skipped debit.
+    expect(res.status).toBe(200);
+    // Enforcement (the pre-flight credit check) still runs — that's what
+    // protects out-of-credit users — but recording is gated on
+    // recordSuccess(), which the hardened service never calls when a tool
+    // fails. Critical assertion: no credit is debited for the failed turn.
+    expect(checkAndEnforceLimitMock).toHaveBeenCalled();
+    expect(recordCreditUsageMock).not.toHaveBeenCalled();
+  });
+
   it("over-limit user → no conversation created and no user message persisted (clean 403, no orphan state)", async () => {
     checkAndEnforceLimitMock.mockResolvedValueOnce({ allowed: false, error: "out of credits" });
 

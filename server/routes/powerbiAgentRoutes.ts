@@ -420,6 +420,15 @@ export function registerPowerBIAgentRoutes(app: Express) {
         return { result, recordSuccess: () => recordAiCredits(chargeUserId, ctx) };
       };
 
+      // Abort the in-flight LLM + tool loop when the browser disconnects so
+      // a closed tab cannot keep racking up AI credits. The signal is
+      // threaded into the service, which forwards it to OpenAI/Anthropic
+      // and skips recordSuccess() for any not-yet-charged round.
+      const abortController = new AbortController();
+      const onClientClose = () => abortController.abort();
+      req.on("close", onClientClose);
+      res.on("close", onClientClose);
+
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache, no-transform");
       res.setHeader("Connection", "keep-alive");
@@ -486,6 +495,7 @@ export function registerPowerBIAgentRoutes(app: Express) {
         meterPerCall,
         (info) => sendSSE({ intake: info }),
         (phase) => sendSSE(phase),
+        abortController.signal,
       );
 
       logUserActivity(userId, "powerbi_agent_chat", "powerbi_agent_conversation", convId ?? undefined, { organizationId });
