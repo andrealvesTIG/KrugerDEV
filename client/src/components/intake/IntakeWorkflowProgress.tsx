@@ -43,17 +43,10 @@ export function resolveStepIndex(steps: DisplayStep[], stepKey: string): number 
 }
 
 export function useResolvedWorkflowSteps(workflowId?: number | null) {
-  const hasWorkflow = workflowId != null;
-  // Always call the hook to satisfy the rules of hooks, but ignore its result
-  // when the intake has no workflow assigned so we fall back to the hardcoded
-  // standard steps rather than whatever the org-level default endpoint returns.
-  const { steps, isLoading } = useIntakeWorkflow(hasWorkflow ? workflowId : null, {
-    enabled: hasWorkflow,
-  });
-
-  if (!hasWorkflow) {
-    return { steps: DEFAULT_WORKFLOW_STEPS, isLoading: false };
-  }
+  // Always fetch — when workflowId is null the endpoint returns the org's
+  // default intake workflow steps, which matches what the detail page shows.
+  // Only fall back to the hardcoded standard steps if the response is empty.
+  const { steps, isLoading } = useIntakeWorkflow(workflowId ?? null);
 
   const resolved: DisplayStep[] = (steps && steps.length > 0)
     ? steps.map(s => ({
