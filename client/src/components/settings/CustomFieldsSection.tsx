@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Loader2, Trash2, FileText, Pencil, Plus, Check, FolderKanban, ListTodo, Users, ClipboardList } from "lucide-react";
+import { Loader2, Trash2, FileText, Pencil, Plus, Check, FolderKanban, ListTodo, Users, ClipboardList, Search, X } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
@@ -71,6 +71,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
   const [mask, setMask] = useState("");
   const [startDateFieldId, setStartDateFieldId] = useState<string>("");
   const [endDateFieldId, setEndDateFieldId] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Intake and project share their custom-field pool: a definition typed
   // 'intake' shows on both intake forms and projects (it's carried forward at
@@ -83,10 +84,19 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
     return et === tab;
   };
 
-  const filteredFields = useMemo(() =>
-    fields.filter(f => matchesEntityTab(f, activeEntityTab)),
-    [fields, activeEntityTab]
-  );
+  const filteredFields = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return fields.filter(f => {
+      if (!matchesEntityTab(f, activeEntityTab)) return false;
+      if (!q) return true;
+      const typeLabel = FIELD_TYPES.find(t => t.value === f.fieldType)?.label.toLowerCase() || f.fieldType.toLowerCase();
+      return (
+        f.name.toLowerCase().includes(q)
+        || (f.description || "").toLowerCase().includes(q)
+        || typeLabel.includes(q)
+      );
+    });
+  }, [fields, activeEntityTab, searchQuery]);
 
   const resetForm = () => {
     setName("");
@@ -238,6 +248,27 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
         </Button>
       </CardHeader>
       <CardContent>
+        <div className="relative mb-4 max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search fields by name, description, or type..."
+            className="pl-8 pr-8"
+            data-testid="input-search-custom-fields"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label="Clear search"
+              data-testid="button-clear-custom-field-search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
         <Tabs value={activeEntityTab} onValueChange={setActiveEntityTab} className="w-full">
           <TabsList className="mb-4">
             {ENTITY_TYPES.map((et) => {
@@ -262,8 +293,17 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
               {filteredFields.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No custom fields defined for {et.label.toLowerCase()}s yet</p>
-                  <p className="text-sm">Add custom fields to capture additional information on {et.label.toLowerCase()}s</p>
+                  {searchQuery.trim() ? (
+                    <>
+                      <p>No fields match "{searchQuery}"</p>
+                      <p className="text-sm">Try a different search or clear the filter.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>No custom fields defined for {et.label.toLowerCase()}s yet</p>
+                      <p className="text-sm">Add custom fields to capture additional information on {et.label.toLowerCase()}s</p>
+                    </>
+                  )}
                 </div>
               ) : (
                 <Table>
