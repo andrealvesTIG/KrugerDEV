@@ -1,0 +1,105 @@
+ ❯ tests/intakeNotificationEmails.test.ts (10 tests | 2 failed) 1990ms
+     ✓ saves valid recipient lists with dedupe + lowercase normalization  808ms
+     ✓ treats null recipient lists as empty arrays 8ms
+     ✓ returns 400 when an invalid email address is provided 6ms
+     ✓ returns 400 when notifyOnExit contains an invalid email address 14ms
+     ✓ returns 400 when notifyOnEntry is not an array 6ms
+     × sends exit and entry emails when currentStep changes 1018ms
+     ✓ does not send any emails when currentStep and workflowId are unchanged 57ms
+     ✓ does not send emails when the only configured recipients are empty 55ms
+     × still returns the updated intake when an email send fails 11ms
+     ✓ uses fromSteps for both ends when previousWorkflowId equals nextWorkflowId 4ms
+ ✓ tests/orgUrl.test.ts (25 tests) 14ms
+ ✓ tests/numberingConcurrencyRoutes.test.ts (3 tests) 151ms
+ ✓ tests/multiTenantSecurity.test.ts (14 tests) 412ms
+stderr | tests/orgFridayAgentConfigRoute.test.ts > PUT /api/organizations/:id/friday-agent-config — Anthropic fields > persists the plaintext anthropicApiKey as ENCRYPTED ciphertext (never raw) and forwards the model + provider
+[SECURITY WARNING] SESSION_SECRET not set — using insecure fallback key. Set SESSION_SECRET before deploying.
+ ✓ tests/orgFridayAgentConfigRoute.test.ts (4 tests) 994ms
+     ✓ persists the plaintext anthropicApiKey as ENCRYPTED ciphertext (never raw) and forwards the model + provider  967ms
+stderr | tests/customAgentModelAllowlist.test.ts > custom-agent model allowlist (server-side enforcement) > POST /api/agents — accepts an allowed model (gpt-4o)
+[customAgent] Suggested-prompt generation failed for org 7: TypeError: Cannot read properties of undefined (reading 'completions')
+    at generateSuggestedPromptsForAgent (/home/runner/work/KrugerDEV/KrugerDEV/server/routes/customAgentRoutes.ts:152:42)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at refreshAgentPromptsAsync (/home/runner/work/KrugerDEV/KrugerDEV/server/routes/customAgentRoutes.ts:183:19)
+stderr | tests/customAgentModelAllowlist.test.ts > custom-agent model allowlist (server-side enforcement) > POST /api/agents — Azure-pinned org accepts ONLY its azureDeployment, rejects the static allowlist
+[customAgent] Suggested-prompt generation failed for org 7: TypeError: Cannot read properties of undefined (reading 'completions')
+    at generateSuggestedPromptsForAgent (/home/runner/work/KrugerDEV/KrugerDEV/server/routes/customAgentRoutes.ts:152:42)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at refreshAgentPromptsAsync (/home/runner/work/KrugerDEV/KrugerDEV/server/routes/customAgentRoutes.ts:183:19)
+ ✓ tests/customAgentModelAllowlist.test.ts (5 tests) 822ms
+     ✓ POST /api/agents — rejects an off-list model with 400 even when the UI sends it  783ms
+stderr | tests/authorizationMiddleware.test.ts
+[SECURITY WARNING] SESSION_SECRET not set — using insecure fallback key. Set SESSION_SECRET before deploying.
+ ✓ tests/aiCredits.test.ts (10 tests) 13ms
+ ✓ tests/authorizationMiddleware.test.ts (10 tests) 74ms
+ ✓ tests/fridayEmailTool.test.ts (6 tests) 714ms
+     ✓ returns a preview without sending when userConfirmed is false  708ms
+ ✓ tests/agentDashboardsDashboard.test.tsx (4 tests) 227ms
+ ✓ tests/organizationsResolve.test.ts (6 tests) 828ms
+     ✓ resolves a slug for a member and returns isMember: true  797ms
+ ✓ tests/numberingConcurrency.test.ts (6 tests) 90ms
+ ✓ tests/templateGanttPreview.test.ts (6 tests) 9ms
+ ✓ tests/openapiCoverage.test.ts (3 tests) 32ms
+ ✓ tests/fridayReportSanitizer.test.ts (23 tests) 332ms
+ ✓ tests/agentReportsDashboard.test.tsx (4 tests) 239ms
+stderr | tests/objectAccessRoutes.integration.test.ts > POST /api/uploads/request-url — file-type allow-list > accepts an allowed image type and returns an upload URL
+Object storage unavailable for upload, using local storage fallback: unavailable
+ ✓ tests/objectAccessRoutes.integration.test.ts (7 tests) 90ms
+ ✓ tests/authorization.test.ts (15 tests) 23ms
+ ✓ tests/decimalString.test.ts (9 tests) 17ms
+ ✓ tests/multiTenantSecurity.integration.test.ts (5 tests) 603ms
+     ✓ throws 403 when the referenced object belongs to a different organisation  394ms
+ ✓ tests/orgAccessGate.integration.test.tsx (2 tests) 103ms
+ ✓ tests/orgAccessDenied.test.tsx (3 tests) 24ms
+ ✓ tests/updateSchemaTenantFields.test.ts (45 tests) 13ms
+stderr | tests/customAgentPromptSandbox.test.ts
+[SECURITY WARNING] SESSION_SECRET not set — using insecure fallback key. Set SESSION_SECRET before deploying.
+stderr | tests/filterContextByScope.test.ts
+[SECURITY WARNING] SESSION_SECRET not set — using insecure fallback key. Set SESSION_SECRET before deploying.
+ ✓ tests/filterContextByScope.test.ts (3 tests) 6ms
+ ✓ tests/customAgentPromptSandbox.test.ts (3 tests) 5ms
+stderr | tests/selectChartableProjectIds.test.ts
+[SECURITY WARNING] SESSION_SECRET not set — using insecure fallback key. Set SESSION_SECRET before deploying.
+ ✓ tests/selectChartableProjectIds.test.ts (4 tests) 5ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/intakeNotificationEmails.test.ts > PUT /api/project-intakes/:id — step transition email triggering > sends exit and entry emails when currentStep changes
+Error: waitForCondition timed out after 1000ms waiting for 3 transition emails to be dispatched
+ ❯ waitForCondition tests/intakeNotificationEmails.test.ts:70:11
+     68|   }
+     69|   if (!predicate()) {
+     70|     throw new Error(`waitForCondition timed out after ${timeoutMs}ms w…
+       |           ^
+     71|   }
+     72| }
+ ❯ tests/intakeNotificationEmails.test.ts:272:5
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+ FAIL  tests/intakeNotificationEmails.test.ts > PUT /api/project-intakes/:id — step transition email triggering > still returns the updated intake when an email send fails
+AssertionError: expected 'triage' to be 'business_case' // Object.is equality
+Expected: "business_case"
+Received: "triage"
+ ❯ tests/intakeNotificationEmails.test.ts:381:34
+    379| 
+    380|     expect(res.status).toBe(200);
+    381|     expect(res.body.currentStep).toBe('business_case');
+       |                                  ^
+    382|     await waitForCondition(() => sendIntakeStepTransitionEmailMock.moc…
+    383|       description: 'at least one transition email attempt',
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+ Test Files  1 failed | 38 passed (39)
+      Tests  2 failed | 475 passed (477)
+   Start at  15:14:05
+   Duration  13.65s (transform 3.23s, setup 0ms, import 19.52s, tests 11.61s, environment 1.63s)
+Error: Error: waitForCondition timed out after 1000ms waiting for 3 transition emails to be dispatched
+ ❯ waitForCondition tests/intakeNotificationEmails.test.ts:70:11
+ ❯ tests/intakeNotificationEmails.test.ts:272:5
+
+
+Error: AssertionError: expected 'triage' to be 'business_case' // Object.is equality
+
+Expected: "business_case"
+Received: "triage"
+
+ ❯ tests/intakeNotificationEmails.test.ts:381:34
+
+
+Error: Process completed with exit code 1.
