@@ -2969,7 +2969,17 @@ export const insertProgramSchema = createInsertSchema(programs).omit({ id: true,
   benefit: z.union([z.string(), z.number(), z.null()]).optional(),
   roi: z.union([z.string(), z.number(), z.null()]).optional(),
 });
-export const updateProgramSchema = insertProgramSchema.partial();
+// Tenant/audit fields that must never be writable via an update schema.
+// Stripping them centrally on `update*Schema` ensures clients can't reparent
+// an entity to a different organization or rewrite audit columns by smuggling
+// fields through a PUT body. The corresponding test
+// (tests/updateSchemaTenantFields.test.ts) fails the build if any update
+// schema accepts these keys.
+export const updateProgramSchema = insertProgramSchema.partial().omit({
+  organizationId: true,
+  createdBy: true,
+  isDemo: true,
+});
 /**
  * Reusable Zod refinement: enforces "Finish Date cannot be before Start Date"
  * on any object that carries optional `startDate` / `endDate` fields (Date or
@@ -3004,7 +3014,15 @@ export const insertProjectSchema = createInsertSchema(projects).omit({ id: true,
 // Update schema for projects. Mirrors the route-layer validation in
 // `shared/routes.ts` so server-internal callers (storage, etc.) share the same
 // type contract. completionPercentage is clamped 0-100; health is enum-locked.
-export const updateProjectSchema = insertProjectSchema.partial().extend({
+// Strip tenant/audit fields so a PUT can't reparent the project to a
+// different organisation or rewrite audit columns. `insertProjectSchema`
+// already omits `id`, `createdAt`, `updatedAt`, `createdBy`, `updatedBy`;
+// here we additionally omit `organizationId`, `isDemo`. (`deletedAt` is
+// kept because the soft-delete flow uses this schema internally.)
+export const updateProjectSchema = insertProjectSchema.partial().omit({
+  organizationId: true,
+  isDemo: true,
+}).extend({
   completionPercentage: z.number().int().min(0).max(100).optional(),
   health: projectHealthEnum.optional(),
   // Date-typed columns are stored as strings in Drizzle. Accept Date objects
@@ -6243,6 +6261,28 @@ export const metaMigrations = pgTable("_meta_migrations", {
 });
 
 // ---------------------------------------------------------------------------
+// Uploaded object metadata — tenant ownership for /objects access control.
+// ---------------------------------------------------------------------------
+// Every successful call to /api/uploads/request-url records the resulting
+// objectPath here together with the uploading user. When the file is later
+// bound to an entity via a custom-field value, the `organizationId` is
+// stamped on first-use by `validateAttachmentValue`. `GET /objects/:path`
+// reads this row and only serves the file to the uploader or to members of
+// the bound organisation (super_admin bypasses).
+//
+// Rows are intentionally non-strict for backwards compatibility: pre-existing
+// files (no row) keep serving to authenticated callers so legacy uploads
+// don't 404 on read.
+export const objectUploads = pgTable("object_uploads", {
+  objectPath: text("object_path").primaryKey(),
+  uploadedBy: varchar("uploaded_by").notNull(),
+  organizationId: integer("organization_id"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+export type ObjectUpload = typeof objectUploads.$inferSelect;
+export type InsertObjectUpload = typeof objectUploads.$inferInsert;
+
+// ---------------------------------------------------------------------------
 // Enterprise Calendars (Phase 1 — schema + engine + admin UI; CPM rewire later)
 // ---------------------------------------------------------------------------
 // Working-time interval represented as minutes since midnight in the
@@ -6336,7 +6376,7 @@ export const insertCalendarSchema = createInsertSchema(calendars).omit({
   description: z.string().max(2000).optional().nullable(),
   timezone: z.string().max(80).optional().nullable(),
 });
-export const updateCalendarSchema = insertCalendarSchema.partial().omit({ organizationId: true });
+export const updateCalendarSchema = insertCalendarSchema.partial().omit({ organizationId: true, createdBy: true });
 
 export const insertCalendarWorkingShiftSchema = createInsertSchema(calendarWorkingShifts).omit({ id: true }).extend({
   dayOfWeek: z.number().int().min(0).max(6),

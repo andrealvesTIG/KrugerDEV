@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 import type { RequestHandler } from "express";
 import { ObjectStorageService, ObjectNotFoundError } from "./objectStorage";
 import { getUserIdFromRequest } from "../../routes/helpers";
+import { recordObjectUpload, canUserAccessObject } from "../../lib/objectAccess";
 
 // Unified auth check that works for both Replit OIDC and email/password
 // sessions. The OIDC-only `isAuthenticated` middleware in replitAuth.ts
@@ -30,8 +31,41 @@ function isAuthError(error: any): boolean {
 }
 
 const LOCAL_UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
-// Allow only safe filenames the server itself generated (uuid + optional extension)
-const SAFE_LOCAL_FILENAME = /^[A-Za-z0-9._-]+$/;
+// Local-fallback filenames are server-generated (uuid + safe extension). The
+// regex must reject `..`, leading dots, slashes, NUL etc. so it can never be
+// used to escape LOCAL_UPLOAD_DIR.
+// Strict shape: `<uuid>.<ext>` only. The fallback generates names via
+// `randomUUID()` + a sanitised extension, so any deviation from this pattern
+// indicates a client-supplied path we should refuse.
+const SAFE_LOCAL_FILENAME = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[A-Za-z0-9]{1,8}$/;
+
+// Extensions allowed on upload. Anything that can execute in a browser
+// context (`html`, `svg`, `xhtml`, scripts) is rejected here — and forced to
+// `Content-Disposition: attachment` on the off chance one slips through.
+const UPLOAD_EXTENSION_ALLOWLIST = new Set([
+  '.png','.jpg','.jpeg','.gif','.webp','.bmp','.ico','.tiff',
+  '.pdf','.txt','.csv','.json','.md','.log','.rtf',
+  '.doc','.docx','.xls','.xlsx','.ppt','.pptx','.odt','.ods','.odp',
+  '.zip','.tar','.gz','.7z',
+  '.mp3','.wav','.ogg','.mp4','.webm','.mov','.m4a',
+  '.mpp','.xer','.xml','.yaml','.yml',
+]);
+
+// MIME types that the browser will happily execute against our origin. We
+// either reject them at upload time or, when serving, force a download
+// disposition plus a restrictive CSP so they cannot run.
+const EXECUTABLE_EXTENSIONS = new Set([
+  '.html','.htm','.xhtml','.svg','.js','.mjs','.cjs','.css','.wasm','.xsl','.xslt',
+]);
+const EXECUTABLE_MIMES = new Set([
+  'text/html','application/xhtml+xml','image/svg+xml',
+  'application/javascript','text/javascript','application/ecmascript','text/css','application/wasm',
+]);
+
+function isExecutablePath(p: string): boolean {
+  const ext = path.extname(p).toLowerCase();
+  return EXECUTABLE_EXTENSIONS.has(ext);
+}
 
 function ensureLocalUploadDir(): void {
   if (!fs.existsSync(LOCAL_UPLOAD_DIR)) {
@@ -43,6 +77,24 @@ function sanitizeExtension(name: unknown): string {
   if (typeof name !== 'string') return '';
   const ext = path.extname(name).toLowerCase();
   return /^\.[A-Za-z0-9]{1,8}$/.test(ext) ? ext : '';
+}
+
+/**
+ * Reject path-traversal sequences and other obvious attacks. Returns the
+ * normalised path or null if it should not be served. Accepts only paths
+ * that begin with `/objects/` and contain a restricted character set.
+ */
+function safeObjectPath(rawPath: string): string | null {
+  if (typeof rawPath !== 'string' || rawPath.length === 0) return null;
+  if (rawPath.indexOf('\0') !== -1) return null;
+  if (!rawPath.startsWith('/objects/')) return null;
+  // Disallow `..`, backslashes, double-slash, leading slash inside segments.
+  if (rawPath.includes('..')) return null;
+  if (rawPath.includes('\\')) return null;
+  if (rawPath.includes('//')) return null;
+  // Allow only a safe set of URL-path characters.
+  if (!/^\/objects\/[A-Za-z0-9._/-]+$/.test(rawPath)) return null;
+  return rawPath;
 }
 
 /**
@@ -86,7 +138,7 @@ export function registerObjectStorageRoutes(app: Express): void {
     const userId = getUserIdFromRequest(req);
     if (!userId) return res.status(401).json({ error: "Authentication required" });
 
-    const { name, size, contentType } = req.body || {};
+    const { name, size, contentType, allowExecutable } = req.body || {};
 
     if (!name) {
       return res.status(400).json({
@@ -94,14 +146,54 @@ export function registerObjectStorageRoutes(app: Express): void {
       });
     }
 
-    try {
-      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
-      const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
-      return res.json({
-        uploadURL,
-        objectPath,
-        metadata: { name, size, contentType },
+    // Reject executable MIME types / extensions. The `allowExecutable`
+    // escape hatch is restricted to platform super_admins so a regular
+    // tenant user can't bypass the block by flipping a boolean in the
+    // request body. Anything that gets through still gets a forced
+    // download disposition + sandbox CSP on serve.
+    const ext = path.extname(String(name)).toLowerCase();
+    const mime = typeof contentType === "string" ? contentType.toLowerCase() : "";
+    const isExecutable = EXECUTABLE_EXTENSIONS.has(ext) || EXECUTABLE_MIMES.has(mime);
+    let executableOptIn = false;
+    if (isExecutable && allowExecutable) {
+      try {
+        const { db } = await import("../../db");
+        const { users } = await import("@shared/schema");
+        const { eq } = await import("drizzle-orm");
+        const [u] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId));
+        executableOptIn = u?.role === "super_admin";
+      } catch { executableOptIn = false; }
+    }
+    if (isExecutable && !executableOptIn) {
+      return res.status(400).json({
+        error: "Executable file types (.html, .svg, .xhtml, scripts) are not allowed",
       });
+    }
+    // Allowlist-gate non-empty extensions. Files with no extension are
+    // permitted because some legitimate uploads (binary blobs, e.g. .mpp
+    // exports) come through without one and the upstream code paths
+    // already restrict by content type.
+    if (ext && !UPLOAD_EXTENSION_ALLOWLIST.has(ext) && !isExecutable) {
+      return res.status(400).json({ error: `File extension ${ext} is not allowed` });
+    }
+
+    // Optional client-supplied org binding. We can't always know which org
+    // the upload is for at request time, so we accept `orgId` as a hint and
+    // verify membership before recording it. Without it the row is stored
+    // with a null org and gets stamped on first attachment-bind.
+    const reqOrgId = typeof (req.body || {}).orgId === "number" ? (req.body as any).orgId : null;
+    let boundOrgId: number | null = null;
+    if (reqOrgId !== null) {
+      const { enforceMembership } = await import("../../services/authorizationService");
+      if (await enforceMembership(req, res, userId, reqOrgId)) return;
+      boundOrgId = reqOrgId;
+    }
+
+    let uploadURL: string;
+    let objectPath: string;
+    try {
+      uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
     } catch (error) {
       // Object storage unavailable in this environment — fall back to local disk.
       console.warn(
@@ -111,18 +203,28 @@ export function registerObjectStorageRoutes(app: Express): void {
       try {
         ensureLocalUploadDir();
         const filename = `${randomUUID()}${sanitizeExtension(name)}`;
-        const uploadURL = `/api/uploads/local/${filename}`;
-        const objectPath = `/objects/uploads/${filename}`;
-        return res.json({
-          uploadURL,
-          objectPath,
-          metadata: { name, size, contentType },
-        });
+        uploadURL = `/api/uploads/local/${filename}`;
+        objectPath = `/objects/uploads/${filename}`;
       } catch (fallbackErr) {
         console.error("Error generating local upload URL:", fallbackErr);
         return res.status(500).json({ error: "Failed to generate upload URL" });
       }
     }
+    // Persist ownership BEFORE returning the URL. If this throws the upload
+    // is refused — otherwise we'd hand the caller a path that
+    // `canUserAccessObject` will deny-by-default for everyone (no metadata
+    // row means no readable file).
+    try {
+      await recordObjectUpload({ objectPath, uploadedBy: userId, organizationId: boundOrgId });
+    } catch (recordErr) {
+      console.error("Error recording object upload metadata:", recordErr);
+      return res.status(500).json({ error: "Failed to record upload metadata" });
+    }
+    return res.json({
+      uploadURL,
+      objectPath,
+      metadata: { name, size, contentType },
+    });
   });
 
   /**
@@ -164,19 +266,53 @@ export function registerObjectStorageRoutes(app: Express): void {
    * Tries object storage first, then falls back to the local upload directory
    * (used when object storage is unavailable in this environment).
    */
-  app.get("/objects/:objectPath(*)", async (req, res) => {
+  app.get("/objects/:objectPath(*)", isAuthenticated, async (req, res) => {
+    // Reject path traversal / NUL / backslash / `..` before doing any IO.
+    if (!safeObjectPath(req.path)) {
+      return res.status(400).json({ error: "Invalid object path" });
+    }
+
+    // Tenant-scoped access control. If we recorded ownership for this
+    // object, only the uploader or members of the bound organisation may
+    // read it. Legacy (unrecorded) uploads remain readable by any
+    // authenticated caller so pre-existing attachments don't break.
+    const callerId = getUserIdFromRequest(req);
+    if (!callerId) return res.status(401).json({ error: "Authentication required" });
+    if (!(await canUserAccessObject(callerId, req.path))) {
+      return res.status(403).json({ error: "Access denied to this object" });
+    }
+
+    // Force a download disposition + restrictive CSP whenever the served
+    // path looks executable. This stops a stored HTML/SVG/JS file from
+    // running scripts against our own origin even if it makes it through
+    // the upload allow-list.
+    const harden = () => {
+      if (isExecutablePath(req.path)) {
+        const filename = req.path.split("/").pop() || "file";
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        res.setHeader("Content-Security-Policy", "sandbox; default-src 'none'");
+        res.setHeader("X-Content-Type-Options", "nosniff");
+      }
+    };
+
     const tryServeLocal = (): boolean => {
       // Only the /objects/uploads/<file> shape is backed by the local fallback.
       const m = req.path.match(/^\/objects\/uploads\/([^/]+)$/);
       if (!m) return false;
       const filename = m[1];
       if (!SAFE_LOCAL_FILENAME.test(filename) || filename.includes("..")) return false;
+      // Final containment check — resolve the joined path and make sure it
+      // still lives under LOCAL_UPLOAD_DIR.
       const filePath = path.join(LOCAL_UPLOAD_DIR, filename);
-      if (!fs.existsSync(filePath)) return false;
-      res.sendFile(filePath);
+      const resolved = path.resolve(filePath);
+      if (!resolved.startsWith(path.resolve(LOCAL_UPLOAD_DIR) + path.sep)) return false;
+      if (!fs.existsSync(resolved)) return false;
+      harden();
+      res.sendFile(resolved);
       return true;
     };
 
+    harden();
     try {
       const objectFile = await objectStorageService.getObjectEntityFile(req.path);
       await objectStorageService.downloadObject(objectFile, res);

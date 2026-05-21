@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { storage } from "../storage";
+import { validateCustomFieldValue, CustomFieldValueError } from "../lib/customFieldValueValidator";
 import { db } from "../db";
 import { z } from "zod";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
@@ -921,13 +922,19 @@ export async function registerMiscRoutes(app: Express) {
         return res.status(400).json({ message: "Auto number fields are read-only and cannot be edited" });
       }
 
+      const project = await storage.getProject(projectId);
+      const validated = await validateCustomFieldValue(def?.fieldType, value, project?.organizationId ?? null);
+
       const fieldValue = await storage.upsertProjectCustomFieldValue({
         projectId,
         fieldDefinitionId,
-        value
+        value: validated as string | null,
       });
       res.json(fieldValue);
     } catch (error) {
+      if (error instanceof CustomFieldValueError) {
+        return res.status(error.statusCode).json({ message: error.message });
+      }
       console.error('Error updating custom field value:', error);
       const classified = classifyError(error);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update custom field value' : classified.message });
@@ -953,8 +960,20 @@ export async function registerMiscRoutes(app: Express) {
         return res.status(400).json({ message: "Auto number fields are read-only and cannot be edited", fieldDefinitionIds: autoIds });
       }
 
+      // Re-validate every attachment/resource value against the project's
+      // org. Without this an attacker could bulk-write a cross-org
+      // resourceId or a fabricated /objects/... path that the single-field
+      // route would otherwise reject.
+      const project = await storage.getProject(projectId);
+      const entityOrgId = (project as any)?.organizationId ?? null;
+      const defById = new Map(defs.filter(Boolean).map(d => [d!.id, d!] as const));
+      const validatedValues = await Promise.all((values as any[]).map(async (v) => {
+        const def = defById.get(v.fieldDefinitionId);
+        const validated = await validateCustomFieldValue(def?.fieldType, v.value, entityOrgId);
+        return { fieldDefinitionId: v.fieldDefinitionId, value: validated as string | null };
+      }));
       const results = await Promise.all(
-        (values as any[]).map((v: { fieldDefinitionId: number; value: string | null }) =>
+        validatedValues.map(v =>
           storage.upsertProjectCustomFieldValue({
             projectId,
             fieldDefinitionId: v.fieldDefinitionId,
@@ -964,6 +983,9 @@ export async function registerMiscRoutes(app: Express) {
       );
       res.json(results);
     } catch (error) {
+      if (error instanceof CustomFieldValueError) {
+        return res.status(error.statusCode).json({ message: error.message });
+      }
       console.error('Error updating custom field values:', error);
       const classified = classifyError(error);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update custom field values' : classified.message });
@@ -1022,9 +1044,14 @@ export async function registerMiscRoutes(app: Express) {
       if (def?.fieldType === 'autonumber') {
         return res.status(400).json({ message: "Auto number fields are read-only and cannot be edited" });
       }
-      const fieldValue = await storage.upsertIntakeCustomFieldValue({ intakeId, fieldDefinitionId, value });
+      const intake = await storage.getProjectIntake(intakeId);
+      const validated = await validateCustomFieldValue(def?.fieldType, value, (intake as any)?.organizationId ?? null);
+      const fieldValue = await storage.upsertIntakeCustomFieldValue({ intakeId, fieldDefinitionId, value: validated as string | null });
       res.json(fieldValue);
     } catch (error) {
+      if (error instanceof CustomFieldValueError) {
+        return res.status(error.statusCode).json({ message: error.message });
+      }
       console.error('Error updating intake custom field value:', error);
       const classified = classifyError(error);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update intake custom field value' : classified.message });
@@ -1043,13 +1070,24 @@ export async function registerMiscRoutes(app: Express) {
       if (autoIds.length > 0) {
         return res.status(400).json({ message: "Auto number fields are read-only and cannot be edited", fieldDefinitionIds: autoIds });
       }
+      const intake = await storage.getProjectIntake(intakeId);
+      const entityOrgId = (intake as any)?.organizationId ?? null;
+      const defById = new Map(defs.filter(Boolean).map(d => [d!.id, d!] as const));
+      const validatedValues = await Promise.all((values as any[]).map(async (v) => {
+        const def = defById.get(v.fieldDefinitionId);
+        const validated = await validateCustomFieldValue(def?.fieldType, v.value, entityOrgId);
+        return { fieldDefinitionId: v.fieldDefinitionId, value: validated as string | null };
+      }));
       const results = await Promise.all(
-        (values as Array<{ fieldDefinitionId: number; value: string | null }>).map(v =>
+        validatedValues.map(v =>
           storage.upsertIntakeCustomFieldValue({ intakeId, fieldDefinitionId: v.fieldDefinitionId, value: v.value })
         )
       );
       res.json(results);
     } catch (error) {
+      if (error instanceof CustomFieldValueError) {
+        return res.status(error.statusCode).json({ message: error.message });
+      }
       console.error('Error bulk updating intake custom field values:', error);
       const classified = classifyError(error);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update intake custom field values' : classified.message });
@@ -1118,9 +1156,15 @@ export async function registerMiscRoutes(app: Express) {
       if (def?.fieldType === 'autonumber') {
         return res.status(400).json({ message: "Auto number fields are read-only and cannot be edited" });
       }
-      const fieldValue = await storage.upsertTaskCustomFieldValue({ taskId, fieldDefinitionId, value });
+      const task = await storage.getTask(taskId);
+      const project = task?.projectId ? await storage.getProject(task.projectId) : undefined;
+      const validated = await validateCustomFieldValue(def?.fieldType, value, project?.organizationId ?? null);
+      const fieldValue = await storage.upsertTaskCustomFieldValue({ taskId, fieldDefinitionId, value: validated as string | null });
       res.json(fieldValue);
     } catch (error) {
+      if (error instanceof CustomFieldValueError) {
+        return res.status(error.statusCode).json({ message: error.message });
+      }
       console.error('Error updating task custom field value:', error);
       const classified = classifyError(error);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update task custom field value' : classified.message });
@@ -1139,13 +1183,25 @@ export async function registerMiscRoutes(app: Express) {
       if (autoIds.length > 0) {
         return res.status(400).json({ message: "Auto number fields are read-only and cannot be edited", fieldDefinitionIds: autoIds });
       }
+      const task = await storage.getTask(taskId);
+      const project = task?.projectId ? await storage.getProject(task.projectId) : undefined;
+      const entityOrgId = (project as any)?.organizationId ?? null;
+      const defById = new Map(defs.filter(Boolean).map(d => [d!.id, d!] as const));
+      const validatedValues = await Promise.all((values as any[]).map(async (v) => {
+        const def = defById.get(v.fieldDefinitionId);
+        const validated = await validateCustomFieldValue(def?.fieldType, v.value, entityOrgId);
+        return { fieldDefinitionId: v.fieldDefinitionId, value: validated as string | null };
+      }));
       const results = await Promise.all(
-        (values as any[]).map((v: { fieldDefinitionId: number; value: string | null }) =>
+        validatedValues.map(v =>
           storage.upsertTaskCustomFieldValue({ taskId, fieldDefinitionId: v.fieldDefinitionId, value: v.value })
         )
       );
       res.json(results);
     } catch (error) {
+      if (error instanceof CustomFieldValueError) {
+        return res.status(error.statusCode).json({ message: error.message });
+      }
       console.error('Error updating task custom field values:', error);
       const classified = classifyError(error);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update task custom field values' : classified.message });
@@ -1200,9 +1256,14 @@ export async function registerMiscRoutes(app: Express) {
       if (def?.fieldType === 'autonumber') {
         return res.status(400).json({ message: "Auto number fields are read-only and cannot be edited" });
       }
-      const fieldValue = await storage.upsertResourceCustomFieldValue({ resourceId, fieldDefinitionId, value });
+      const resource = await storage.getResource(resourceId);
+      const validated = await validateCustomFieldValue(def?.fieldType, value, resource?.organizationId ?? null);
+      const fieldValue = await storage.upsertResourceCustomFieldValue({ resourceId, fieldDefinitionId, value: validated as string | null });
       res.json(fieldValue);
     } catch (error) {
+      if (error instanceof CustomFieldValueError) {
+        return res.status(error.statusCode).json({ message: error.message });
+      }
       console.error('Error updating resource custom field value:', error);
       const classified = classifyError(error);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update resource custom field value' : classified.message });
@@ -1221,13 +1282,24 @@ export async function registerMiscRoutes(app: Express) {
       if (autoIds.length > 0) {
         return res.status(400).json({ message: "Auto number fields are read-only and cannot be edited", fieldDefinitionIds: autoIds });
       }
+      const resource = await storage.getResource(resourceId);
+      const entityOrgId = (resource as any)?.organizationId ?? null;
+      const defById = new Map(defs.filter(Boolean).map(d => [d!.id, d!] as const));
+      const validatedValues = await Promise.all((values as any[]).map(async (v) => {
+        const def = defById.get(v.fieldDefinitionId);
+        const validated = await validateCustomFieldValue(def?.fieldType, v.value, entityOrgId);
+        return { fieldDefinitionId: v.fieldDefinitionId, value: validated as string | null };
+      }));
       const results = await Promise.all(
-        (values as any[]).map((v: { fieldDefinitionId: number; value: string | null }) =>
+        validatedValues.map(v =>
           storage.upsertResourceCustomFieldValue({ resourceId, fieldDefinitionId: v.fieldDefinitionId, value: v.value })
         )
       );
       res.json(results);
     } catch (error) {
+      if (error instanceof CustomFieldValueError) {
+        return res.status(error.statusCode).json({ message: error.message });
+      }
       console.error('Error updating resource custom field values:', error);
       const classified = classifyError(error);
       res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to update resource custom field values' : classified.message });

@@ -19,6 +19,7 @@ import { cleanupDuplicateBillingCycles } from "./services/billing";
 import { backfillFinancialEntries } from "./migrations/backfillFinancialEntries";
 import { migrateMonthToCalendar } from "./migrations/migrateMonthToCalendar";
 import { runSchemaDriftCheck } from "./schemaDriftCheck";
+import { buildOriginGuard } from "./lib/originGuard";
 
 process.on('uncaughtException', (err) => {
   const msg = err instanceof Error ? err.message : String(err);
@@ -75,6 +76,12 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false }));
+
+// CSRF / Origin guard for cookie-authenticated state-changing requests. Must
+// run after body parsing so we still see the parsed body in handlers, and
+// before any route mounting so it covers every non-GET API call. Bearer
+// auth and GET/HEAD/OPTIONS bypass it.
+app.use(buildOriginGuard());
 
 // Allow embedding in Microsoft Teams iframes
 app.use((req, res, next) => {

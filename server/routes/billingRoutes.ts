@@ -245,15 +245,41 @@ export async function registerBillingRoutes(app: Express) {
       return res.status(401).json({ message: "Authentication required" });
     }
 
+    // Membership-gate when an explicit orgId is provided. Without this an
+    // authenticated user can read another org's AI-cost / quota info just by
+    // passing `?orgId=`. When the caller omits `orgId`, default it to the
+    // user's primary org membership so subsequent loads target the right
+    // tenant instead of leaking another org's data.
+    let effectiveOrgId: number | null = req.query.orgId ? parseInt(req.query.orgId as string) : NaN as any;
+    const { enforceMembership } = await import("../services/authorizationService");
+    if (Number.isFinite(effectiveOrgId)) {
+      if (await enforceMembership(req, res, userId, effectiveOrgId as number)) return;
+    } else {
+      const { storage } = await import("../storage");
+      const memberships = await storage.getUserOrganizations(userId);
+      effectiveOrgId = memberships[0]?.organizationId ?? null;
+    }
+
     try {
       const { billingProvider, getAllCreditCosts } = await import("../services/billing");
       const { meters, planMeterRules, usageRollups } = await import("@shared/schema");
       const { eq, and } = await import("drizzle-orm");
-      
-      // Get user's subscription
-      let subscription = await billingProvider.getSubscriptionForUser(userId);
-      if (!subscription) {
-        subscription = await billingProvider.createSubscription({ planCode: "FREE", userId });
+
+      // Prefer the org-scoped subscription when we resolved one (either via
+      // an explicit ?orgId= or by defaulting to the caller's primary org).
+      // Falls back to the user-scoped subscription only when the caller has
+      // no org membership.
+      let subscription = null as any;
+      if (effectiveOrgId != null && Number.isFinite(effectiveOrgId)) {
+        subscription = await billingProvider.getSubscriptionForOrg(effectiveOrgId as number);
+        if (!subscription) {
+          subscription = await billingProvider.createSubscription({ planCode: "FREE", orgId: effectiveOrgId as number });
+        }
+      } else {
+        subscription = await billingProvider.getSubscriptionForUser(userId);
+        if (!subscription) {
+          subscription = await billingProvider.createSubscription({ planCode: "FREE", userId });
+        }
       }
       
       // Get credits meter info
@@ -494,8 +520,20 @@ export async function registerBillingRoutes(app: Express) {
     try {
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
       const offset = parseInt(req.query.offset as string) || 0;
-      const orgId = req.query.orgId ? parseInt(req.query.orgId as string) : undefined;
-      
+      let orgId = req.query.orgId ? parseInt(req.query.orgId as string) : undefined;
+
+      // Membership-gate cross-org reads, and default an omitted orgId to the
+      // user's primary org so the route stays scoped to a tenant the caller
+      // actually belongs to.
+      const { enforceMembership } = await import("../services/authorizationService");
+      if (orgId !== undefined && Number.isFinite(orgId)) {
+        if (await enforceMembership(req, res, userId, orgId)) return;
+      } else {
+        const { storage } = await import("../storage");
+        const memberships = await storage.getUserOrganizations(userId);
+        orgId = memberships[0]?.organizationId ?? undefined;
+      }
+
       // Get subscription - if orgId is explicitly provided, only show that org's data (no fallback)
       const { billingProvider } = await import("../services/billing");
       let subscription = null;
