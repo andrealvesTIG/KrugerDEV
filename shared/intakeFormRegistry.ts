@@ -81,9 +81,10 @@ export const INTAKE_FIELDS: IntakeFieldDefinition[] = [
 
   // Read-only audit fields — populated by the server, surfaced through the
   // form layout editor like any other built-in field.
-  { key: "createdAt",      label: "Created on",       group: "Audit", inputType: "readonly", readonlyFormat: "datetime" },
-  { key: "updatedAt",      label: "Last modified on", group: "Audit", inputType: "readonly", readonlyFormat: "datetime" },
-  { key: "updatedByName",  label: "Last modified by", group: "Audit", inputType: "readonly", readonlyFormat: "text" },
+  { key: "createdAt",         label: "Created on",       group: "Audit", inputType: "readonly", readonlyFormat: "datetime" },
+  { key: "updatedAt",         label: "Last modified on", group: "Audit", inputType: "readonly", readonlyFormat: "datetime" },
+  { key: "updatedByName",     label: "Last modified by", group: "Audit", inputType: "readonly", readonlyFormat: "text" },
+  { key: "currentStepLabel",  label: "Current step",     group: "Audit", inputType: "readonly", readonlyFormat: "text" },
 ];
 
 export const INTAKE_FIELD_BY_KEY: Record<string, IntakeFieldDefinition> = Object.fromEntries(

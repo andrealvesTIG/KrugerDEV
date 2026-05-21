@@ -31,7 +31,28 @@ function formatUserDisplayName(u: { firstName: string | null; lastName: string |
   return composed || u.email || null;
 }
 
-async function enrichIntakeWithAuditNames<T extends ProjectIntake>(intake: T): Promise<T & { createdByName: string | null; updatedByName: string | null }> {
+// Resolve a friendly "Current step" label by looking up the workflow step
+// row that matches the intake's workflowId + currentStep key. Falls back to
+// any matching step row for the organization when no workflow is set, and
+// finally to the raw key so callers always get a non-null display string
+// when the intake has a current step.
+async function resolveCurrentStepLabel(intake: { organizationId: number; workflowId: number | null; currentStep: string | null }): Promise<string | null> {
+  if (!intake.currentStep) return null;
+  const conditions = [
+    eq(intakeWorkflowSteps.organizationId, intake.organizationId),
+    eq(intakeWorkflowSteps.stepKey, intake.currentStep),
+  ];
+  if (intake.workflowId != null) {
+    conditions.push(eq(intakeWorkflowSteps.workflowId, intake.workflowId));
+  }
+  const [row] = await db.select({ label: intakeWorkflowSteps.label })
+    .from(intakeWorkflowSteps)
+    .where(and(...conditions))
+    .limit(1);
+  return row?.label ?? intake.currentStep;
+}
+
+async function enrichIntakeWithAuditNames<T extends ProjectIntake>(intake: T): Promise<T & { createdByName: string | null; updatedByName: string | null; currentStepLabel: string | null }> {
   const ids = Array.from(new Set([intake.submitterId, intake.updatedBy].filter((v): v is string => !!v)));
   let byId = new Map<string, { firstName: string | null; lastName: string | null; email: string | null }>();
   if (ids.length > 0) {
@@ -43,10 +64,12 @@ async function enrichIntakeWithAuditNames<T extends ProjectIntake>(intake: T): P
     }).from(users).where(inArray(users.id, ids));
     byId = new Map(rows.map(r => [r.id, r]));
   }
+  const currentStepLabel = await resolveCurrentStepLabel(intake);
   return {
     ...intake,
     createdByName: formatUserDisplayName(intake.submitterId ? byId.get(intake.submitterId) : null),
     updatedByName: formatUserDisplayName(intake.updatedBy ? byId.get(intake.updatedBy) : null),
+    currentStepLabel,
   };
 }
 
@@ -72,10 +95,35 @@ export async function getProjectIntakes(organizationId: number): Promise<Project
     }).from(users).where(inArray(users.id, ids));
     byId = new Map(userRows.map(r => [r.id, r]));
   }
+  // Batch-load step labels keyed by (workflowId|null, stepKey) so list
+  // views can show "Current step" without an extra round-trip per row.
+  const stepKeys = Array.from(new Set(rows.map(r => r.currentStep).filter((v): v is string => !!v)));
+  const stepLabelByKey = new Map<string, string>();
+  if (stepKeys.length > 0) {
+    const stepRows = await db.select({
+      workflowId: intakeWorkflowSteps.workflowId,
+      stepKey: intakeWorkflowSteps.stepKey,
+      label: intakeWorkflowSteps.label,
+    }).from(intakeWorkflowSteps)
+      .where(and(
+        eq(intakeWorkflowSteps.organizationId, organizationId),
+        inArray(intakeWorkflowSteps.stepKey, stepKeys),
+      ));
+    for (const s of stepRows) {
+      stepLabelByKey.set(`${s.workflowId ?? "null"}|${s.stepKey}`, s.label);
+    }
+  }
+  const labelFor = (r: typeof rows[number]): string | null => {
+    if (!r.currentStep) return null;
+    return stepLabelByKey.get(`${r.workflowId ?? "null"}|${r.currentStep}`)
+      ?? stepLabelByKey.get(`null|${r.currentStep}`)
+      ?? r.currentStep;
+  };
   return rows.map(r => ({
     ...r,
     createdByName: formatUserDisplayName(r.submitterId ? byId.get(r.submitterId) : null),
     updatedByName: formatUserDisplayName(r.updatedBy ? byId.get(r.updatedBy) : null),
+    currentStepLabel: labelFor(r),
   })) as ProjectIntake[];
 }
 
