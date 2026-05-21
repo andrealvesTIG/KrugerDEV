@@ -600,8 +600,15 @@ export function registerIntakeRoutes(app: Express) {
         return res.status(400).json({ message: "Project intake is already approved" });
       }
 
+      // PM approval is only required when the intake's workflow has at least
+      // one step with `requiresPmApproval=true`. If admins have turned the
+      // toggle off on every step, conversion does not require pmoApproved.
       if (!existing.pmoApproved) {
-        return res.status(403).json({ message: "PM approval is required before converting to a project. Please ensure the PM has approved this intake." });
+        const workflowSteps = await storage.getIntakeWorkflowSteps(existing.organizationId, existing.workflowId ?? null);
+        const anyStepRequiresPmApproval = workflowSteps.some(s => (s as any).requiresPmApproval === true);
+        if (anyStepRequiresPmApproval) {
+          return res.status(403).json({ message: "PM approval is required before converting to a project. Please ensure the PM has approved this intake." });
+        }
       }
 
       const user = await storage.getUser(userId);

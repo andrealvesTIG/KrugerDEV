@@ -210,7 +210,6 @@ app.use((req, res, next) => {
       for (const org of orgs) {
         try {
           await storage.ensureDefaultIntakeWorkflow(org.id);
-          await storage.backfillRequiresPmApprovalForOrg(org.id);
           await storage.ensureDefaultProjectWorkflow(org.id);
           await seedDefaultRolesForOrg(org.id);
           seeded++;

@@ -649,19 +649,15 @@ export default function IntakeDetails() {
   const showCybersecurityForCurrentStep = stepsForVisibility.some(s => s.showCybersecurityQuestions === true);
   const showCostingChecklistForCurrentStep = stepsForVisibility.some(s => s.showCostingChecklist === true);
   // PM approval is tied to a specific workflow step (admin opts in via the
-  // "Requires PM approval" toggle in workflow settings). Locked intakes show
-  // the card whenever any step in the workflow requires it. Older orgs that
-  // never customized see the toggle preset on their "decision" step via the
-  // seed default + boot backfill. Safety fallback: when no step in the
-  // workflow has the toggle on at all, fall back to the current behaviour
-  // (card is shown) so admins who turn every toggle off do not create a
-  // dead-end for approvers.
+  // "Requires PM approval" toggle in workflow settings). The toggle is
+  // authoritative: if the admin turns it off on every step, the card is
+  // hidden and the "Approve & Convert" gate is bypassed. Locked intakes
+  // show the card whenever any step in the workflow requires it so
+  // approvers can still see the recorded approval state.
   const anyStepRequiresPmApproval = workflowSteps.some(s => (s as any).requiresPmApproval === true);
-  const requiresPmApprovalForCurrentStep = !anyStepRequiresPmApproval
-    ? true
-    : isLocked
-      ? true
-      : !!(currentStep as any)?.requiresPmApproval;
+  const requiresPmApprovalForCurrentStep = isLocked
+    ? anyStepRequiresPmApproval
+    : !!(currentStep as any)?.requiresPmApproval;
 
   return (
     <div className="space-y-6">
@@ -793,13 +789,13 @@ export default function IntakeDetails() {
                         <Button
                           size="sm"
                           onClick={() => approveIntake.mutate()}
-                          disabled={approveIntake.isPending || !(formData.pmoApproved ?? intake.pmoApproved)}
+                          disabled={approveIntake.isPending || (anyStepRequiresPmApproval && !(formData.pmoApproved ?? intake.pmoApproved))}
                           data-testid="button-approve-intake"
                         >
                           <Check className="h-4 w-4 mr-1" />
                           {approveIntake.isPending ? "Converting..." : "Approve & Convert"}
                         </Button>
-                        {!(formData.pmoApproved ?? intake.pmoApproved) && (
+                        {anyStepRequiresPmApproval && !(formData.pmoApproved ?? intake.pmoApproved) && (
                           <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md shadow-md whitespace-nowrap z-50 border">
                             Check "PM Approved" first
                           </div>
