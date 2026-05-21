@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { z } from "zod";
-import { streamJarvisResponse, executeJarvisAction, type JarvisMessage } from "../services/jarvisService";
+import { streamJarvisResponse, executeJarvisAction, getOrgLlmProvider, OrgLlmKeyError, type JarvisMessage } from "../services/jarvisService";
 import {
   getUserIdFromRequest,
   getUserOrgIds,
@@ -159,6 +159,25 @@ export function registerJarvisRoutes(app: Express) {
       const accessibleOrgIds = await getUserOrgIds(userId);
       if (!accessibleOrgIds.includes(organizationId)) {
         return res.status(403).json({ message: "You don't have access to this organization" });
+      }
+
+      // Pre-flight: resolve the org's LLM provider BEFORE we open the SSE
+      // stream so an undecryptable Anthropic key surfaces as a clean 400
+      // with a re-enter-your-key message instead of getting buried in an
+      // SSE error frame on a 200 response (which the front-end shows as
+      // a generic "stream failed"). The provider call is cheap and is
+      // repeated inside `streamJarvisResponse`; cost is one extra
+      // decrypt-and-compare per chat round.
+      try {
+        await getOrgLlmProvider(organizationId);
+      } catch (err) {
+        if (err instanceof OrgLlmKeyError) {
+          return res.status(400).json({
+            code: err.code,
+            message: `Your organisation's ${err.provider} API key needs to be re-entered in Org Settings → AI before this chat can continue.`,
+          });
+        }
+        throw err;
       }
 
       // Admission check: enforce BEFORE persisting anything so over-limit

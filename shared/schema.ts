@@ -517,6 +517,11 @@ export const organizationMembers = pgTable("organization_members", {
   userId: varchar("user_id").references(() => users.id).notNull(),
   role: text("role").notNull().default("member"), // 'org_admin', 'member', 'viewer'
   createdAt: timestamp("created_at").defaultNow(),
+  // Soft-delete: when set, this membership row is considered revoked. The
+  // authorization service filters these out so deactivated members lose
+  // access immediately, without losing the audit history of the membership.
+  deletedAt: timestamp("deleted_at"),
+  deletedBy: varchar("deleted_by"),
 }, (table) => ({
   uniqueOrgUser: uniqueIndex("unique_org_user").on(table.organizationId, table.userId),
 }));

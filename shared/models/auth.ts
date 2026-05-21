@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, jsonb, pgTable, timestamp, varchar, text, boolean } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, timestamp, varchar, text, boolean } from "drizzle-orm/pg-core";
 
 // Session storage table for express-session
 export const sessions = pgTable(
@@ -45,6 +45,11 @@ export const users = pgTable("users", {
   // Deactivation support
   deactivatedAt: timestamp("deactivated_at"),
   deactivatedBy: varchar("deactivated_by"),
+
+  // Bumped whenever the user's effective access changes server-side
+  // (e.g. they get soft-deleted from an org). Auth middlewares can compare
+  // this to the value stored in the session at login to force a re-auth.
+  permissionsVersion: integer("permissions_version").default(0).notNull(),
 
   // Email verification
   emailVerified: boolean("email_verified").default(false),

@@ -41,6 +41,12 @@ vi.mock("drizzle-orm", async () => {
     eq: (col: any, val: any) => ({ __op: "eq", col, val }),
     and: (...args: any[]) => ({ __op: "and", args: args.filter(Boolean) }),
     inArray: (col: any, vals: any[]) => ({ __op: "inArray", col, vals }),
+    isNull: (col: any) => ({ __op: "isNull", col }),
+    isNotNull: (col: any) => ({ __op: "isNotNull", col }),
+    sql: Object.assign(
+      (..._args: any[]) => ({ __op: "sql" }),
+      { raw: (..._args: any[]) => ({ __op: "sql" }) },
+    ),
   };
 });
 
@@ -78,6 +84,8 @@ function evalPred(pred: any, row: any): boolean {
   if (pred == null) return true;
   if (pred.__op === "eq") return row[jsKey(pred.col)] === pred.val;
   if (pred.__op === "inArray") return pred.vals.includes(row[jsKey(pred.col)]);
+  if (pred.__op === "isNull") return row[jsKey(pred.col)] == null;
+  if (pred.__op === "isNotNull") return row[jsKey(pred.col)] != null;
   if (pred.__op === "and") return pred.args.every((p: any) => evalPred(p, row));
   return true;
 }
@@ -224,6 +232,66 @@ describe("registerRoleRoutes — permission middleware integration", () => {
     expect(r.status).toBe(403);
     expect(r.body.code).toBe("FORBIDDEN_PERMISSION");
     expect(r.body.required).toBe("roles.view");
+  });
+
+  it("returns 403 when a previously-active member has been soft-deleted from the org", async () => {
+    // User exists and was an org member, but their membership row now has
+    // a non-null deletedAt. RBAC must treat them as a non-member, even
+    // if user_roles still grants the permission — that's the whole point
+    // of the soft-delete revocation flow.
+    rowsFor(schema.users).push({ id: "ex", role: null, deactivatedAt: null });
+    rowsFor(schema.organizationMembers).push({
+      id: 1,
+      userId: "ex",
+      organizationId: 5,
+      role: "member",
+      deletedAt: new Date(),
+      deletedBy: "admin",
+    });
+    rowsFor(schema.roles).push({
+      id: 1,
+      organizationId: 5,
+      key: "auditor",
+      name: "Auditor",
+      isSystem: false,
+    });
+    rowsFor(schema.rolePermissions).push({ roleId: 1, permissionKey: "roles.view" });
+    rowsFor(schema.userRoles).push({ organizationId: 5, userId: "ex", roleId: 1 });
+    nextRoleId = 2;
+
+    const app = buildApp();
+    const r = await request(app)
+      .get("/api/organizations/5/roles")
+      .set("x-test-user-id", "ex");
+    expect(r.status).toBe(403);
+    // Membership gate fires first, so no FORBIDDEN_PERMISSION code.
+    expect(r.body.code).toBeUndefined();
+  });
+
+  it("returns 403 when a user account is deactivated, even if membership + permission rows still grant access", async () => {
+    rowsFor(schema.users).push({ id: "frozen", role: null, deactivatedAt: new Date() });
+    rowsFor(schema.organizationMembers).push({
+      id: 1,
+      userId: "frozen",
+      organizationId: 5,
+      role: "member",
+    });
+    rowsFor(schema.roles).push({
+      id: 1,
+      organizationId: 5,
+      key: "auditor",
+      name: "Auditor",
+      isSystem: false,
+    });
+    rowsFor(schema.rolePermissions).push({ roleId: 1, permissionKey: "roles.view" });
+    rowsFor(schema.userRoles).push({ organizationId: 5, userId: "frozen", roleId: 1 });
+    nextRoleId = 2;
+
+    const app = buildApp();
+    const r = await request(app)
+      .get("/api/organizations/5/roles")
+      .set("x-test-user-id", "frozen");
+    expect(r.status).toBe(403);
   });
 
   it("returns 403 (without FORBIDDEN_PERMISSION) when the caller is not a member of the org", async () => {
@@ -394,6 +462,46 @@ describe("seedDefaultRolesForOrg — idempotency", () => {
     expect(deleteSpy).not.toHaveBeenCalled();
     expect(rowsFor(schema.roles).length).toBe(rolesAfterFirst);
     expect(rowsFor(schema.rolePermissions).length).toBe(rolePermsAfterFirst);
+  });
+
+  it("does NOT clobber an admin-edited built-in role on a subsequent boot", async () => {
+    // Boot 1: full seed populates every built-in role + its default
+    // permissions.
+    const orgId = 101;
+    await seedDefaultRolesForOrg(orgId);
+
+    // Admin edits the built-in `read_only` role (e.g. via a future
+    // direct-edit UI, or by manually patching rows): strip every default
+    // permission and replace with a single custom one.
+    const readOnly = rowsFor(schema.roles).find(
+      (r) => r.organizationId === orgId && r.key === "read_only",
+    );
+    expect(readOnly).toBeDefined();
+    state.set(
+      schema.rolePermissions,
+      rowsFor(schema.rolePermissions).filter((p) => p.roleId !== readOnly!.id),
+    );
+    rowsFor(schema.rolePermissions).push({
+      roleId: readOnly!.id,
+      permissionKey: "roles.view",
+    });
+
+    insertSpy.mockClear();
+    updateSpy.mockClear();
+    deleteSpy.mockClear();
+
+    // Boot 2: seeder runs again. The edited built-in role's permission
+    // rows must NOT be reverted to the BUILTIN_ROLES default.
+    await seedDefaultRolesForOrg(orgId);
+
+    const after = rowsFor(schema.rolePermissions)
+      .filter((p) => p.roleId === readOnly!.id)
+      .map((p) => p.permissionKey);
+    expect(after).toEqual(["roles.view"]);
+    // No inserts and no deletes touched the rolePermissions table for
+    // this role.
+    expect(insertSpy).not.toHaveBeenCalled();
+    expect(deleteSpy).not.toHaveBeenCalled();
   });
 
   it("backfills legacy organization_members.role into user_roles exactly once", async () => {

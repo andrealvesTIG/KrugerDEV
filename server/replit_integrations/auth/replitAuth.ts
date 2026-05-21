@@ -8,6 +8,9 @@ import memoize from "memoizee";
 import connectPgSimple from "connect-pg-simple";
 import { authStorage } from "./storage";
 import { ensureUserOrganization } from "../../services/onboarding";
+import { db } from "../../db";
+import { users } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 const PgSession = connectPgSimple(session);
 
@@ -92,6 +95,48 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
 
   if (!req.isAuthenticated() || !user.expires_at) {
     return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  // Active-user gate: even with a valid OIDC token, a deactivated account
+  // can't continue using the app. This matches the email-auth middleware
+  // so both auth paths reject deactivated users uniformly. The lookup is
+  // intentionally cheap (one indexed row) and only runs on authenticated
+  // requests, so it doesn't widen the surface for unauth traffic.
+  const sub = user?.claims?.sub;
+  if (!sub) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  // Fail closed: if we can't verify the user's revocation/version state
+  // against the live row, deny the request rather than letting a
+  // deactivated or version-bumped session ride through on a DB hiccup.
+  let liveUser: { deactivatedAt: Date | null; permissionsVersion: number | null } | undefined;
+  try {
+    const [u] = await db.select({
+      deactivatedAt: users.deactivatedAt,
+      permissionsVersion: (users as any).permissionsVersion,
+    }).from(users).where(eq(users.id, String(sub))).limit(1);
+    liveUser = u as any;
+  } catch (err) {
+    console.error("[auth] revocation lookup failed:", err);
+    return res.status(503).json({ message: "Auth verification unavailable" });
+  }
+  if (!liveUser) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  if (liveUser.deactivatedAt) {
+    req.logout?.(() => {});
+    return res.status(401).json({ message: "Account is deactivated" });
+  }
+  // Session-version gate (OIDC path): bumping `permissions_version` on
+  // revocation forces these sessions back through the login surface
+  // instead of riding stale RBAC. Stored on the passport `user` object
+  // (which sits inside the session) so it survives across requests.
+  const liveVersion: number = liveUser.permissionsVersion ?? 0;
+  if (user.permissionsVersion == null) {
+    user.permissionsVersion = liveVersion;
+  } else if (user.permissionsVersion !== liveVersion) {
+    req.logout?.(() => {});
+    return res.status(401).json({ message: "Session expired, please sign in again" });
   }
 
   const now = Math.floor(Date.now() / 1000);

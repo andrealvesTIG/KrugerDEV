@@ -21,7 +21,7 @@
  */
 
 import type { Request, Response, NextFunction } from "express";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "../db";
 import {
   permissions as permissionsTable,
@@ -49,8 +49,11 @@ async function userIsSuperAdmin(userId: string, req?: Request): Promise<boolean>
     const cached = (cache as any).__superAdmin?.get(userId);
     if (cached !== undefined) return cached;
   }
-  const [u] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId));
-  const result = !!u && SUPER_USER_ROLES.has(String(u.role));
+  const [u] = await db.select({ role: users.role, deactivatedAt: users.deactivatedAt })
+    .from(users).where(eq(users.id, userId));
+  // Deactivated user accounts can never be super-admin, even if their
+  // `users.role` still says so — the deactivation gate wins.
+  const result = !!u && !u.deactivatedAt && SUPER_USER_ROLES.has(String(u.role));
   if (req) {
     const cache = reqCache(req);
     if (!(cache as any).__superAdmin) (cache as any).__superAdmin = new Map();
@@ -59,7 +62,33 @@ async function userIsSuperAdmin(userId: string, req?: Request): Promise<boolean>
   return result;
 }
 
-async function userIsOrgMember(userId: string, orgId: number): Promise<boolean> {
+/**
+ * Confirm the user account still exists and has not been deactivated.
+ * Memoised onto the per-request permission cache so the same request only
+ * does one lookup. Returns `false` when the user row is missing or
+ * `deactivatedAt` is set — callers must treat that as a hard deny.
+ */
+export async function assertUserStillActive(userId: string, req?: Request): Promise<boolean> {
+  if (req) {
+    const cache = reqCache(req);
+    const map: Map<string, boolean> | undefined = (cache as any).__activeUser;
+    if (map?.has(userId)) return map.get(userId)!;
+  }
+  const [u] = await db.select({ id: users.id, deactivatedAt: users.deactivatedAt })
+    .from(users).where(eq(users.id, userId));
+  const result = !!u && !u.deactivatedAt;
+  if (req) {
+    const cache = reqCache(req);
+    if (!(cache as any).__activeUser) (cache as any).__activeUser = new Map<string, boolean>();
+    (cache as any).__activeUser.set(userId, result);
+  }
+  return result;
+}
+
+async function userIsOrgMember(userId: string, orgId: number, req?: Request): Promise<boolean> {
+  // Active user check first — a deactivated user is never a member of any
+  // org for RBAC purposes, even if their membership row is intact.
+  if (!(await assertUserStillActive(userId, req))) return false;
   const rows = await db
     .select({ id: organizationMembers.id })
     .from(organizationMembers)
@@ -67,6 +96,7 @@ async function userIsOrgMember(userId: string, orgId: number): Promise<boolean> 
       and(
         eq(organizationMembers.userId, userId),
         eq(organizationMembers.organizationId, orgId),
+        isNull(organizationMembers.deletedAt),
       ),
     );
   return rows.length > 0;
@@ -110,6 +140,14 @@ export async function seedDefaultRolesForOrg(orgId: number): Promise<void> {
   const existing = await db.select().from(rolesTable).where(eq(rolesTable.organizationId, orgId));
   const existingByKey = new Map(existing.map(r => [r.key, r] as const));
 
+  // Track which built-in roles we just created in *this* run so we only
+  // seed default permissions for them. Previously-existing rows — whether
+  // admins have edited them down to a smaller set, an empty set, or left
+  // them at the defaults — are left strictly alone. This is the only
+  // safe rule that survives the "admin edited to empty permissions" edge
+  // case (which a "skip when role_permissions is empty" heuristic would
+  // wrongly reseed on the next boot).
+  const newlyCreatedKeys = new Set<string>();
   for (const def of BUILTIN_ROLES) {
     const cur = existingByKey.get(def.key);
     if (!cur) {
@@ -120,6 +158,7 @@ export async function seedDefaultRolesForOrg(orgId: number): Promise<void> {
         description: def.description,
         isSystem: true,
       });
+      newlyCreatedKeys.add(def.key);
     } else if (!cur.isSystem) {
       // Promote a previously-created custom role with the same key to system.
       await db.update(rolesTable)
@@ -128,28 +167,20 @@ export async function seedDefaultRolesForOrg(orgId: number): Promise<void> {
     }
   }
 
-  // 2. Refresh role->permission rows for system roles only. Custom roles
-  // (isSystem=false) are left alone — admins own them.
+  // 2. Seed role->permission rows ONLY for built-in roles inserted by
+  // this exact invocation (`newlyCreatedKeys`). Custom roles
+  // (isSystem=false) were already left alone above; previously-existing
+  // built-in roles are never touched so admin edits — including
+  // deliberately empty permission sets — survive every subsequent boot.
   const allRoles = await db.select().from(rolesTable).where(eq(rolesTable.organizationId, orgId));
   for (const def of BUILTIN_ROLES) {
+    if (!newlyCreatedKeys.has(def.key)) continue;
     const role = allRoles.find(r => r.key === def.key);
     if (!role) continue;
-    const wantedSet = new Set(def.permissions);
-    const have = await db.select().from(rolePermissionsTable).where(eq(rolePermissionsTable.roleId, role.id));
-    const haveSet = new Set(have.map(rp => rp.permissionKey));
-
-    const toAdd = [...wantedSet].filter(k => !haveSet.has(k));
-    const toRemove = [...haveSet].filter(k => !wantedSet.has(k));
-    if (toAdd.length > 0) {
-      await db.insert(rolePermissionsTable).values(
-        toAdd.map(permissionKey => ({ roleId: role.id, permissionKey })),
-      ).onConflictDoNothing();
-    }
-    if (toRemove.length > 0) {
-      await db.delete(rolePermissionsTable).where(
-        and(eq(rolePermissionsTable.roleId, role.id), inArray(rolePermissionsTable.permissionKey, toRemove)),
-      );
-    }
+    if (def.permissions.length === 0) continue;
+    await db.insert(rolePermissionsTable).values(
+      def.permissions.map(permissionKey => ({ roleId: role.id, permissionKey })),
+    ).onConflictDoNothing();
   }
 
   // 3. Backfill user_roles from legacy organization_members.role for users
@@ -203,12 +234,30 @@ export async function getUserPermissions(
     if (c.has(cacheKey)) return c.get(cacheKey)!;
   }
 
+  // Active-user gate: a deactivated account has zero effective permissions
+  // anywhere in the system, even if it still holds super_admin on users.role
+  // or has user_roles rows lingering in an org.
+  if (!(await assertUserStillActive(userId, req))) {
+    const empty = new Set<string>();
+    if (req) reqCache(req).set(cacheKey, empty);
+    return empty;
+  }
+
   // Super-admin bypass.
   const [u] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId));
   if (u && SUPER_USER_ROLES.has(u.role || "")) {
     const all = new Set(PERMISSION_KEYS);
     if (req) reqCache(req).set(cacheKey, all);
     return all;
+  }
+
+  // Membership gate: a user with no active row in organization_members for
+  // this org has no permissions in it, even if user_roles still holds an
+  // assignment (e.g. they were soft-deleted from the org).
+  if (!(await userIsOrgMember(userId, orgId, req))) {
+    const empty = new Set<string>();
+    if (req) reqCache(req).set(cacheKey, empty);
+    return empty;
   }
 
   // Pull all roles for the user in this org, then their permissions.
@@ -280,7 +329,7 @@ export function requirePermission(permissionKey: string) {
     // without touching organization_members (they only need `ok=true`).
     const isSuperAdmin = await userIsSuperAdmin(userId, req);
     if (!isSuperAdmin) {
-      if (!(await userIsOrgMember(userId, orgId))) {
+      if (!(await userIsOrgMember(userId, orgId, req))) {
         return res.status(403).json({ message: "Access denied to this organization" });
       }
     }
@@ -316,7 +365,7 @@ export async function enforcePermission(
   const ok = await userHasPermission(userId, orgId, permissionKey, req);
   const isSuperAdmin = await userIsSuperAdmin(userId, req);
   if (!isSuperAdmin) {
-    if (!(await userIsOrgMember(userId, orgId))) {
+    if (!(await userIsOrgMember(userId, orgId, req))) {
       res.status(403).json({ message: "Access denied to this organization" });
       return true;
     }
@@ -347,8 +396,12 @@ export async function enforceMembership(
     res.status(401).json({ message: "Authentication required" });
     return true;
   }
+  if (!(await assertUserStillActive(userId, req))) {
+    res.status(401).json({ message: "Account is deactivated" });
+    return true;
+  }
   if (await userIsSuperAdmin(userId, req)) return false;
-  if (!(await userIsOrgMember(userId, orgId))) {
+  if (!(await userIsOrgMember(userId, orgId, req))) {
     res.status(403).json({ message: "Access denied to this organization" });
     return true;
   }

@@ -53,12 +53,19 @@ interface CanProps {
   permission?: string;
   anyOf?: string[];
   fallback?: ReactNode;
+  /**
+   * Optional node to render while the permissions query is still in
+   * flight. Defaults to `null` (renders nothing) so existing call sites
+   * keep their previous behaviour. Pass a skeleton or spinner here when
+   * the gated UI is large enough that a blank flash would be jarring.
+   */
+  loadingFallback?: ReactNode;
   children: ReactNode;
 }
 
-export function Can({ permission, anyOf, fallback = null, children }: CanProps) {
+export function Can({ permission, anyOf, fallback = null, loadingFallback = null, children }: CanProps) {
   const { has, hasAny, isLoading } = usePermissions();
-  if (isLoading) return null;
+  if (isLoading) return <>{loadingFallback}</>;
   const ok = permission ? has(permission) : anyOf ? hasAny(anyOf) : true;
   return <>{ok ? children : fallback}</>;
 }

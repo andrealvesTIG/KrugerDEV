@@ -220,13 +220,24 @@ export async function deleteOrganization(id: number): Promise<void> {
 }
 
 export async function getOrganizationMembers(organizationId: number): Promise<OrganizationMember[]> {
+  // Soft-deleted memberships (deletedAt set) are excluded by default —
+  // callers expect "active members only", and including tombstoned rows
+  // here would inflate seat counts, mis-fire the "user is already a
+  // member" branch in invite acceptance, and let removed users keep
+  // showing up in member pickers.
   return await db.select().from(organizationMembers)
-    .where(eq(organizationMembers.organizationId, organizationId));
+    .where(and(
+      eq(organizationMembers.organizationId, organizationId),
+      isNull(organizationMembers.deletedAt),
+    ));
 }
 
 export async function getUserOrganizations(userId: string): Promise<OrganizationMember[]> {
   return await db.select().from(organizationMembers)
-    .where(eq(organizationMembers.userId, userId));
+    .where(and(
+      eq(organizationMembers.userId, userId),
+      isNull(organizationMembers.deletedAt),
+    ));
 }
 
 export async function getUserOrganizationsWithDetails(userId: string): Promise<Organization[]> {
@@ -235,6 +246,7 @@ export async function getUserOrganizationsWithDetails(userId: string): Promise<O
     .innerJoin(organizations, eq(organizationMembers.organizationId, organizations.id))
     .where(and(
       eq(organizationMembers.userId, userId),
+      isNull(organizationMembers.deletedAt),
       isNull(organizations.deactivatedAt)
     ))
     .orderBy(organizations.name);
@@ -310,6 +322,10 @@ export async function acceptOrganizationInvite(id: number, userId: string): Prom
     return null;
   }
 
+  // Look up *all* rows including soft-deleted so we can decide between
+  // "already a member" (return as-is) and "previously removed → reactivate
+  // by clearing deletedAt/deletedBy". A hard insert would violate the
+  // org+user uniqueness constraint on the membership table.
   const existingMember = await db.select().from(organizationMembers)
     .where(and(
       eq(organizationMembers.organizationId, invite.organizationId),
@@ -317,10 +333,22 @@ export async function acceptOrganizationInvite(id: number, userId: string): Prom
     ));
 
   if (existingMember.length > 0) {
+    const row = existingMember[0];
+    let member = row;
+    if ((row as any).deletedAt) {
+      // Reactivate the tombstoned membership and reapply the role from
+      // the invite, so re-inviting a removed user actually restores
+      // their access (instead of silently returning the dead row).
+      const [reactivated] = await db.update(organizationMembers)
+        .set({ deletedAt: null, deletedBy: null, role: invite.role } as any)
+        .where(eq(organizationMembers.id, row.id))
+        .returning();
+      member = reactivated;
+    }
     await db.update(organizationInvites)
       .set({ status: "accepted", acceptedAt: new Date() })
       .where(eq(organizationInvites.id, id));
-    return existingMember[0];
+    return member;
   }
 
   const [member] = await db.insert(organizationMembers)

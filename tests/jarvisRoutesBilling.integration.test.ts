@@ -27,6 +27,15 @@ const executeJarvisActionMock = vi.fn();
 vi.mock("../server/services/jarvisService", () => ({
   streamJarvisResponse: (...args: any[]) => streamJarvisResponseMock(...args),
   executeJarvisAction: (...args: any[]) => executeJarvisActionMock(...args),
+  getOrgLlmProvider: vi.fn().mockResolvedValue({ provider: "openai", apiKey: "sk-test", model: "gpt-4o-mini" }),
+  OrgLlmKeyError: class OrgLlmKeyError extends Error {
+    readonly code = "ORG_LLM_KEY_DECRYPT_FAILED";
+    constructor(public orgId: number, public provider: "anthropic", cause?: unknown) {
+      super("org llm key decrypt failed");
+      this.name = "OrgLlmKeyError";
+      if (cause !== undefined) (this as any).cause = cause;
+    }
+  },
 }));
 
 const createConversationMock = vi.fn().mockResolvedValue({ id: 100 });

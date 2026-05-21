@@ -35,9 +35,14 @@ vi.mock("../server/db", async () => {
         from: (table: any) => ({
           where: () => {
             if (table === schema.users) {
-              return Promise.resolve(
-                mockUserPlatformRole ? [{ role: mockUserPlatformRole }] : [],
-              );
+              // Always return a user row — `mockUserPlatformRole === null`
+              // just means "regular user (no platform-level role)", not
+              // "row missing". The new active-user gate
+              // (`assertUserStillActive`) needs to see the row + a null
+              // `deactivatedAt` to let the request through.
+              return Promise.resolve([
+                { id: "u1", role: mockUserPlatformRole, deactivatedAt: null },
+              ]);
             }
             if (table === schema.userRoles) {
               return Promise.resolve(mockPermissions.size > 0 ? [{ roleId: 1 }] : []);

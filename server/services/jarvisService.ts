@@ -108,24 +108,51 @@ export type OrgLlmProvider =
   | { provider: "openai"; client: OpenAI; deployment: string; isAzure: boolean }
   | { provider: "anthropic"; apiKey: string; model: string };
 
+/**
+ * Thrown when the org has explicitly selected the Anthropic provider but
+ * the stored API key cannot be decrypted (rotated `API_KEY_ENCRYPTION_KEY`,
+ * corrupted ciphertext, etc.). Surfaced to callers so they can return a
+ * 4xx with an actionable message instead of silently falling back to
+ * platform OpenAI credits — which would burn the wrong meter and hide a
+ * misconfiguration that only an admin can fix.
+ */
+export class OrgLlmKeyError extends Error {
+  readonly code = "ORG_LLM_KEY_DECRYPT_FAILED";
+  constructor(public readonly orgId: number, public readonly provider: "anthropic", cause?: unknown) {
+    super(
+      `Your organisation's ${provider === "anthropic" ? "Anthropic" : provider} API key could not be decrypted. ` +
+      `An organisation admin needs to re-enter it under Settings → Organization → Friday Agent.`,
+    );
+    this.name = "OrgLlmKeyError";
+    if (cause !== undefined) (this as any).cause = cause;
+  }
+}
+
 export async function getOrgLlmProvider(orgId: number): Promise<OrgLlmProvider> {
   try {
     const [org] = await db.select({ fridayAgentConfig: organizations.fridayAgentConfig })
       .from(organizations).where(eq(organizations.id, orgId));
     const config = org?.fridayAgentConfig as FridayAgentConfig | null;
     if (config?.provider === "anthropic" && config.anthropicApiKey) {
+      let apiKey: string;
       try {
-        const apiKey = decryptApiKey(config.anthropicApiKey);
-        return {
-          provider: "anthropic",
-          apiKey,
-          model: config.anthropicModel || "claude-3-5-sonnet-latest",
-        };
+        apiKey = decryptApiKey(config.anthropicApiKey);
       } catch (err) {
-        console.error(`[jarvis] Failed to decrypt org ${orgId} Anthropic key, falling back to OpenAI:`, err);
+        console.error(`[jarvis] Failed to decrypt org ${orgId} Anthropic key:`, err);
+        // Don't silently fall back to OpenAI — the admin explicitly chose
+        // Anthropic, so falling back would charge the wrong meter and
+        // hide the misconfiguration. Throw a typed error the route turns
+        // into a clear 4xx response.
+        throw new OrgLlmKeyError(orgId, "anthropic", err);
       }
+      return {
+        provider: "anthropic",
+        apiKey,
+        model: config.anthropicModel || "claude-3-5-sonnet-latest",
+      };
     }
   } catch (err) {
+    if (err instanceof OrgLlmKeyError) throw err;
     console.error(`[jarvis] Failed to load org ${orgId} Friday Agent config for provider lookup:`, err);
   }
   const openai = await getOrgOpenAIClient(orgId);
@@ -2479,7 +2506,24 @@ CSV FILE IMPORT RULES:
     // Custom agents (and the scheduled-agent path) always use OpenAI today —
     // switching them to Anthropic is tracked as a future task. For the regular
     // Friday chat surface, honour the org-level provider choice.
-    const llmProvider = agentConfig ? null : await getOrgLlmProvider(orgId);
+    let llmProvider: OrgLlmProvider | null;
+    try {
+      llmProvider = agentConfig ? null : await getOrgLlmProvider(orgId);
+    } catch (err) {
+      if (err instanceof OrgLlmKeyError) {
+        // Surface the actionable "re-enter your key" message via onError so
+        // the route handler turns it into a clean 4xx (or SSE error event)
+        // instead of a generic 500. Silent OpenAI fallback is intentionally
+        // avoided — the admin chose Anthropic and we don't want to charge
+        // the wrong meter or hide the misconfiguration.
+        const enriched: JarvisEnrichedError = Object.assign(new Error(err.message), {
+          logDetails: `org ${orgId} anthropic key decrypt failed`,
+        });
+        onError(enriched);
+        return;
+      }
+      throw err;
+    }
 
     let fullResponse = "";
     const pendingPdfLinks: Array<{ filename: string; downloadUrl: string }> = [];

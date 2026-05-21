@@ -35,6 +35,14 @@ declare module "express-session" {
     userId: string;
     actingAsUserId?: string;
     actingAsOrgId?: number;
+    /**
+     * Snapshot of `users.permissions_version` at the time this session
+     * was minted. Bumped server-side on revocation (member soft-delete,
+     * deactivation, role changes). `isAuthenticated` compares this to
+     * the live value and force-logs-out the session on mismatch, so a
+     * removed user can't keep riding a live cookie.
+     */
+    permissionsVersion?: number;
   }
 }
 
@@ -259,6 +267,7 @@ export async function setupAuth(app: Express) {
       }
 
       req.session.userId = newUser.id;
+      req.session.permissionsVersion = (newUser as any).permissionsVersion ?? 0;
       void logUserActivity(newUser.id, 'auth.signup', 'user', undefined, { method: 'email_password' }, req);
 
       await new Promise<void>((resolve, reject) => {
@@ -328,6 +337,7 @@ export async function setupAuth(app: Express) {
       }
 
       req.session.userId = user.id;
+      req.session.permissionsVersion = (user as any).permissionsVersion ?? 0;
       void logUserActivity(user.id, 'auth.login', 'user', undefined, { method: 'email_password' }, req);
 
       await new Promise<void>((resolve, reject) => {
@@ -832,6 +842,7 @@ export async function setupAuth(app: Express) {
 
       // Create session
       req.session.userId = newUser.id;
+      req.session.permissionsVersion = (newUser as any).permissionsVersion ?? 0;
       void logUserActivity(newUser.id, 'auth.signup', 'user', undefined, { method: 'magic_link' }, req);
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
@@ -1012,6 +1023,7 @@ export async function setupAuth(app: Express) {
 
       // Create session
       req.session.userId = existingUser.id;
+      req.session.permissionsVersion = (existingUser as any).permissionsVersion ?? 0;
       void logUserActivity(existingUser.id, 'auth.login', 'user', undefined, { method: 'magic_link' }, req);
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
@@ -1260,6 +1272,7 @@ export async function setupAuth(app: Express) {
 
       // Log the user in by setting their session
       req.session.userId = currentUser.id;
+      req.session.permissionsVersion = (currentUser as any).permissionsVersion ?? 0;
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
           if (err) {
@@ -1408,10 +1421,31 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     if (!realUser) {
       return res.status(401).json({ message: "Unauthorized" });
     }
+    // Deactivated users must not continue to ride a live session. Tear the
+    // session down so they hit the login surface again rather than silently
+    // accumulating RBAC-blocked 403s on every request.
+    if (realUser.deactivatedAt) {
+      req.session.destroy(() => {});
+      return res.status(401).json({ message: "Account is deactivated" });
+    }
+    // Session-version gate: if the live `permissions_version` has moved
+    // past what was minted into this session (member soft-delete,
+    // deactivation, future revocation surfaces), force the user back
+    // through login so they pick up the new permission set instead of
+    // riding stale RBAC.
+    const liveVersion = (realUser as any).permissionsVersion ?? 0;
+    if (req.session.permissionsVersion == null) {
+      // Legacy session (created before the column existed) — seed it now
+      // so future bumps can be detected.
+      req.session.permissionsVersion = liveVersion;
+    } else if (req.session.permissionsVersion !== liveVersion) {
+      req.session.destroy(() => {});
+      return res.status(401).json({ message: "Session expired, please sign in again" });
+    }
 
     if (req.session.actingAsUserId) {
       const [delegateUser] = await db.select().from(users).where(eq(users.id, req.session.actingAsUserId)).limit(1);
-      if (delegateUser) {
+      if (delegateUser && !delegateUser.deactivatedAt) {
         (req as any).user = { id: delegateUser.id, claims: { sub: delegateUser.id } };
         (req as any).realUser = { id: realUser.id, claims: { sub: realUser.id } };
         return next();

@@ -398,6 +398,43 @@ describe("getOrgLlmProvider", () => {
     expect(provider.deployment).toBe("gpt-4.1-test-deployment");
   });
 
+  it("throws OrgLlmKeyError when provider=anthropic but the stored key cannot be decrypted (no silent OpenAI fallback)", async () => {
+    // Swap the decryptApiKey mock to one that throws — mirrors a rotated
+    // API_KEY_ENCRYPTION_KEY or a corrupted ciphertext in production.
+    vi.resetModules();
+    vi.doMock("../server/routes/helpers", () => ({
+      decryptApiKey: () => {
+        throw new Error("bad ciphertext");
+      },
+      requireEmailVerified: async () => ({ verified: true }),
+      getUserOrgRole: async () => "manager",
+      logUserActivity: vi.fn().mockResolvedValue(undefined),
+    }));
+    dbState.fridayAgentConfig = {
+      provider: "anthropic",
+      useOrgAzure: false,
+      azureEndpoint: "",
+      azureApiKey: "",
+      azureDeployment: "",
+      azureApiVersion: "2024-12-01-preview",
+      anthropicApiKey: "garbled-ciphertext",
+      anthropicModel: "claude-3-5-haiku-latest",
+    };
+    const { getOrgLlmProvider, OrgLlmKeyError } = await import("../server/services/jarvisService");
+    await expect(getOrgLlmProvider(TEST_ORG)).rejects.toBeInstanceOf(OrgLlmKeyError);
+    try {
+      await getOrgLlmProvider(TEST_ORG);
+    } catch (err: any) {
+      expect(err.code).toBe("ORG_LLM_KEY_DECRYPT_FAILED");
+      expect(err.provider).toBe("anthropic");
+      expect(String(err.message)).toMatch(/Anthropic/i);
+      expect(String(err.message)).toMatch(/re-enter/i);
+    }
+    // Restore the identity mock so later tests keep working.
+    vi.doUnmock("../server/routes/helpers");
+    vi.resetModules();
+  });
+
   it("returns the Anthropic provider with decrypted key + configured model when provider=anthropic", async () => {
     dbState.fridayAgentConfig = {
       provider: "anthropic",

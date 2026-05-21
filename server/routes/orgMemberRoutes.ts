@@ -2,8 +2,9 @@ import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
-import { users, organizationInvites, plans, subscriptions, billingAuditLogs, notifications, passwordResetTokens, roles as rolesTable, userRoles as userRolesTable, type Task } from "@shared/schema";
+import { eq, and, isNull } from "drizzle-orm";
+import { users, organizationInvites, plans, subscriptions, billingAuditLogs, notifications, passwordResetTokens, roles as rolesTable, userRoles as userRolesTable, organizationMembers as schemaOrganizationMembers, type Task } from "@shared/schema";
+import { sql } from "drizzle-orm";
 import { mapLegacyMemberRole } from "@shared/permissionDefaults";
 import crypto from "crypto";
 import { sendPasswordResetEmail } from "../services/email";
@@ -1291,7 +1292,31 @@ export function registerOrgMemberRoutes(app: Express) {
         }
       }
       
-      await storage.removeOrganizationMember(orgId, targetUserId);
+      // Soft-delete the membership row (only if it's still active — the
+      // `deletedAt IS NULL` predicate is what prevents this endpoint from
+      // being abused as an arbitrary-user session-invalidation primitive:
+      // calling it for a non-member or already-removed user matches zero
+      // rows, returns 404, and the `permissionsVersion` bump below never
+      // runs).
+      const removed = await db.update(schemaOrganizationMembers)
+        .set({ deletedAt: new Date(), deletedBy: currentUserId })
+        .where(and(
+          eq(schemaOrganizationMembers.organizationId, orgId),
+          eq(schemaOrganizationMembers.userId, targetUserId),
+          isNull(schemaOrganizationMembers.deletedAt),
+        ))
+        .returning({ id: schemaOrganizationMembers.id });
+      if (removed.length === 0) {
+        return res.status(404).json({ message: 'Member not found' });
+      }
+      // Bump the target's `permissionsVersion` so any active session for
+      // them revalidates on its next request. The auth middlewares
+      // compare the stored snapshot to this live value, so even if the
+      // session sticks around, every org-scoped route 403s on the next
+      // hop.
+      await db.update(users)
+        .set({ permissionsVersion: sql`COALESCE(${users.permissionsVersion}, 0) + 1` })
+        .where(eq(users.id, targetUserId));
       res.status(204).send();
     } catch (err) {
       const classified = classifyError(err);
