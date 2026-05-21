@@ -46,6 +46,9 @@ export interface IntakeFormRendererContext {
   showArchitectureForCurrentStep: boolean;
   showCybersecurityForCurrentStep: boolean;
   showCostingChecklistForCurrentStep: boolean;
+  // True when the intake's current workflow step has the "Requires PM
+  // approval" toggle on. Replaces the legacy `pm_approval` layout block.
+  requiresPmApprovalForCurrentStep: boolean;
   // Source panel renderer (kept inside parent file for now to avoid moving the component)
   renderSourcePanel: () => ReactNode;
   renderCustomFieldsBlock: (excludeDefinitionIds: number[]) => ReactNode;
@@ -62,6 +65,55 @@ export interface IntakeFormRendererProps {
   ctx: IntakeFormRendererContext;
 }
 
+/**
+ * Standalone PM Approval card. Rendered from IntakeDetails when the current
+ * workflow step has `requiresPmApproval = true` and the viewer can approve
+ * intakes. Decouples approval from the form layout so admins control it on
+ * the workflow itself, not by placing a block on a tab.
+ */
+export function PmApprovalCard({ ctx }: { ctx: IntakeFormRendererContext }) {
+  if (!ctx.canApproveIntakes) return null;
+  if (!ctx.requiresPmApprovalForCurrentStep) return null;
+  const approved = ctx.formData.pmoApproved ?? ctx.intake.pmoApproved;
+  return (
+    <Card className="border-primary/20" data-testid="card-pm-approval">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Gavel className="h-5 w-5 text-primary" />
+          PM Approval
+        </CardTitle>
+        <CardDescription>PM approval is required before this intake can be converted to a project</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-2 p-4 rounded-md bg-muted/50">
+          <Checkbox
+            id="pmoApproved"
+            checked={approved ?? false}
+            onCheckedChange={(checked) => ctx.onPmoApprovedChange(!!checked)}
+            disabled={ctx.isLocked}
+            data-testid="checkbox-pmo-approved"
+          />
+          <Label htmlFor="pmoApproved" className="text-sm cursor-pointer font-medium">
+            PM has reviewed and approved this intake for project conversion
+          </Label>
+        </div>
+        {approved && (
+          <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-2">
+            <Check className="h-4 w-4" />
+            PM approval granted. This intake is ready for conversion by an admin.
+          </p>
+        )}
+        {!approved && !ctx.isLocked && (
+          <p className="text-sm text-muted-foreground flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            PM approval is required before the "Approve &amp; Convert" button can be used.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function isItemVisibleForCurrentStep(item: IntakeTabLayoutItemFull, ctx: IntakeFormRendererContext): boolean {
   if (item.itemType !== "block") return true;
   switch (item.itemKey) {
@@ -69,7 +121,11 @@ function isItemVisibleForCurrentStep(item: IntakeTabLayoutItemFull, ctx: IntakeF
     case "architecture_questions":  return ctx.showArchitectureForCurrentStep;
     case "cybersecurity_questions": return ctx.showCybersecurityForCurrentStep;
     case "costing_checklist":       return ctx.showCostingChecklistForCurrentStep;
-    case "pm_approval":             return ctx.canApproveIntakes;
+    // The legacy `pm_approval` layout block is deprecated. PM approval is
+    // now rendered from the workflow step's `requiresPmApproval` toggle,
+    // outside the layout (see IntakeDetails). Hide any pre-existing block
+    // in saved layouts so it doesn't double-render.
+    case "pm_approval":             return false;
     default:                        return true;
   }
 }
@@ -240,44 +296,9 @@ function BlockRenderer({ blockKey, ctx, placedCustomFieldIds, bare }: { blockKey
     case "source_conversation":
       return <>{ctx.renderSourcePanel()}</>;
     case "pm_approval":
-      if (!ctx.canApproveIntakes) return null;
-      return (
-        <Card className={cn("border-primary/20", bare && "")}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Gavel className="h-5 w-5 text-primary" />
-              PM Approval
-            </CardTitle>
-            <CardDescription>PM approval is required before this intake can be converted to a project</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-2 p-4 rounded-md bg-muted/50">
-              <Checkbox
-                id="pmoApproved"
-                checked={ctx.formData.pmoApproved ?? ctx.intake.pmoApproved ?? false}
-                onCheckedChange={(checked) => ctx.onPmoApprovedChange(!!checked)}
-                disabled={ctx.isLocked}
-                data-testid="checkbox-pmo-approved"
-              />
-              <Label htmlFor="pmoApproved" className="text-sm cursor-pointer font-medium">
-                PM has reviewed and approved this intake for project conversion
-              </Label>
-            </div>
-            {(ctx.formData.pmoApproved ?? ctx.intake.pmoApproved) && (
-              <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-2">
-                <Check className="h-4 w-4" />
-                PM approval granted. This intake is ready for conversion by an admin.
-              </p>
-            )}
-            {!(ctx.formData.pmoApproved ?? ctx.intake.pmoApproved) && !ctx.isLocked && (
-              <p className="text-sm text-muted-foreground flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-amber-500" />
-                PM approval is required before the "Approve &amp; Convert" button can be used.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      );
+      // Deprecated: PM approval is now rendered from the workflow step's
+      // `requiresPmApproval` toggle, via <PmApprovalCard /> in IntakeDetails.
+      return null;
     default:
       return <MissingRefPlaceholder kind="block" itemKey={blockKey} />;
   }

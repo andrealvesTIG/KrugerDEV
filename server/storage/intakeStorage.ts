@@ -1039,6 +1039,11 @@ export async function resetIntakeWorkflowToDefaults(organizationId: number, work
       description: "Final PMO review and approval decision",
       helpText: "PMO reviews the complete intake and makes approval, deferral, or rejection decision.",
       requiredFields: [],
+      // The final "Decision" step is where PM approval naturally belongs.
+      // Defaulting it on for fresh / reset workflows means orgs see the PM
+      // Approval card in the same place it used to live (the legacy
+      // `pm_approval` layout block) without any admin action.
+      requiresPmApproval: true,
     },
   ];
   
@@ -1105,6 +1110,28 @@ export async function deleteIntakeWorkflow(id: number): Promise<void> {
  * adopted by the newly-created default workflow so existing customizations
  * are preserved.
  */
+export async function backfillRequiresPmApprovalForOrg(organizationId: number): Promise<number> {
+  const workflows = await db.select().from(intakeWorkflows)
+    .where(eq(intakeWorkflows.organizationId, organizationId));
+  let updated = 0;
+  for (const wf of workflows) {
+    const steps = await db.select().from(intakeWorkflowSteps)
+      .where(and(
+        eq(intakeWorkflowSteps.organizationId, organizationId),
+        eq(intakeWorkflowSteps.workflowId, wf.id),
+      ))
+      .orderBy(asc(intakeWorkflowSteps.position));
+    if (steps.length === 0) continue;
+    if (steps.some(s => s.requiresPmApproval)) continue;
+    const last = steps[steps.length - 1];
+    await db.update(intakeWorkflowSteps)
+      .set({ requiresPmApproval: true, updatedAt: new Date() })
+      .where(eq(intakeWorkflowSteps.id, last.id));
+    updated++;
+  }
+  return updated;
+}
+
 export async function ensureDefaultIntakeWorkflow(organizationId: number): Promise<IntakeWorkflow> {
   const existing = await db.select().from(intakeWorkflows)
     .where(eq(intakeWorkflows.organizationId, organizationId))

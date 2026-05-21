@@ -2014,6 +2014,7 @@ export const intakeWorkflowSteps = pgTable("intake_workflow_steps", {
   showArchitectureQuestions: boolean("show_architecture_questions").default(false).notNull(), // Whether to render the Architecture questionnaire grid on this step
   showCybersecurityQuestions: boolean("show_cybersecurity_questions").default(false).notNull(), // Whether to render the Cybersecurity questionnaire grid on this step
   showCostingChecklist: boolean("show_costing_checklist").default(false).notNull(), // Whether to render the Costing Checklist grid on this step
+  requiresPmApproval: boolean("requires_pm_approval").default(false).notNull(), // Whether the PM Approval card is rendered on this step (replaces the legacy pm_approval layout block)
   isActive: boolean("is_active").default(true), // Whether step is active
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

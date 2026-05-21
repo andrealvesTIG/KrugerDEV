@@ -85,6 +85,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
   const [editShowArchitectureQuestions, setEditShowArchitectureQuestions] = useState(false);
   const [editShowCybersecurityQuestions, setEditShowCybersecurityQuestions] = useState(false);
   const [editShowCostingChecklist, setEditShowCostingChecklist] = useState(false);
+  const [editRequiresPmApproval, setEditRequiresPmApproval] = useState(false);
   const [entryEmailDraft, setEntryEmailDraft] = useState("");
   const [exitEmailDraft, setExitEmailDraft] = useState("");
   const [entryEmailError, setEntryEmailError] = useState<string | null>(null);
@@ -249,6 +250,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     setEditShowArchitectureQuestions(!!step.showArchitectureQuestions);
     setEditShowCybersecurityQuestions(!!step.showCybersecurityQuestions);
     setEditShowCostingChecklist(!!(step as any).showCostingChecklist);
+    setEditRequiresPmApproval(!!(step as any).requiresPmApproval);
     setEntryEmailDraft("");
     setExitEmailDraft("");
     setEntryEmailError(null);
@@ -292,6 +294,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     showArchitectureQuestions: !!s.showArchitectureQuestions,
     showCybersecurityQuestions: !!s.showCybersecurityQuestions,
     showCostingChecklist: !!(s as any).showCostingChecklist,
+    requiresPmApproval: !!(s as any).requiresPmApproval,
     isActive: s.isActive,
   });
 
@@ -358,6 +361,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
           showArchitectureQuestions: editShowArchitectureQuestions,
           showCybersecurityQuestions: editShowCybersecurityQuestions,
           showCostingChecklist: editShowCostingChecklist,
+          requiresPmApproval: editRequiresPmApproval,
           isActive: s.isActive,
         };
       }
@@ -394,6 +398,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
       showArchitectureQuestions: false,
       showCybersecurityQuestions: false,
       showCostingChecklist: false,
+      requiresPmApproval: false,
       isActive: true,
     };
 
@@ -941,6 +946,22 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
                 </Label>
                 <p className="text-xs text-muted-foreground">
                   Render the bottom-up Costing Checklist grid (FTE permanent / consultant days × rate, plus Project / VT cost) on this step.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 rounded-md border p-3" data-testid="row-requires-pm-approval">
+              <Switch
+                id="step-requires-pm-approval"
+                checked={editRequiresPmApproval}
+                onCheckedChange={setEditRequiresPmApproval}
+                data-testid="switch-requires-pm-approval"
+              />
+              <div className="space-y-1">
+                <Label htmlFor="step-requires-pm-approval" className="cursor-pointer">
+                  Requires PM approval on this step
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Show the PM Approval card on this step. An approver must tick it before the "Approve &amp; Convert" button on the final step can be used.
                 </p>
               </div>
             </div>

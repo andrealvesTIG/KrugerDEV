@@ -105,7 +105,6 @@ export const INTAKE_BLOCKS: IntakeBlockDefinition[] = [
   { key: "cybersecurity_questions",  label: "Cybersecurity Questionnaire",  description: "Yes/No grid of cybersecurity questions." },
   { key: "costing_checklist",        label: "Costing Checklist",            description: "Bottom-up costing grid (FTE days × rate, project / VT cost) per cost question." },
   { key: "budget_summary",           label: "Budget Remaining Summary",     description: "Auto-calculated CapEx + OpEx vs. Estimated Budget warning." },
-  { key: "pm_approval",              label: "PM Approval Block",            description: "PM approval checkbox visible only to approvers." },
   { key: "source_conversation",      label: "Source & AI Conversation",     description: "AI agent conversation and original attachments." },
 ];
 

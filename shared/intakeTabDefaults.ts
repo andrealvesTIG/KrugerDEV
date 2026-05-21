@@ -97,7 +97,6 @@ export const DEFAULT_INTAKE_TABS: DefaultIntakeTab[] = [
           { itemType: "field", itemKey: "securityApproval",       width: "full" },
           { itemType: "block", itemKey: "architecture_questions", width: "full" },
           { itemType: "block", itemKey: "cybersecurity_questions",width: "full" },
-          { itemType: "block", itemKey: "pm_approval",            width: "full" },
         ],
       },
     ],

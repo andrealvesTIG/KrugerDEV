@@ -10,7 +10,7 @@ import { useIntakeWorkflow, AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-w
 import { INTAKE_FIELD_BY_KEY } from "@shared/intakeFormRegistry";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIntakeTabLayout } from "@/hooks/use-intake-tab-layout";
-import { IntakeFormRenderer, type IntakeFormRendererContext } from "@/components/intake/IntakeFormRenderer";
+import { IntakeFormRenderer, PmApprovalCard, type IntakeFormRendererContext } from "@/components/intake/IntakeFormRenderer";
 import { WorkflowStepRequirementsDialog } from "@/components/workflow/WorkflowStepRequirementsDialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -636,6 +636,14 @@ export default function IntakeDetails() {
   const showArchitectureForCurrentStep = stepsForVisibility.some(s => s.showArchitectureQuestions === true);
   const showCybersecurityForCurrentStep = stepsForVisibility.some(s => s.showCybersecurityQuestions === true);
   const showCostingChecklistForCurrentStep = stepsForVisibility.some(s => s.showCostingChecklist === true);
+  // PM approval is tied to a specific workflow step (admin opts in via the
+  // "Requires PM approval" toggle in workflow settings). For locked intakes
+  // we still want approvers to see the approval state, so fall back to the
+  // last step. Older orgs that never customized see the toggle preset on
+  // their "decision" step via the seed default + boot backfill.
+  const requiresPmApprovalForCurrentStep = isLocked
+    ? workflowSteps.some(s => (s as any).requiresPmApproval === true)
+    : !!(currentStep as any)?.requiresPmApproval;
 
   return (
     <div className="space-y-6">
@@ -821,11 +829,36 @@ export default function IntakeDetails() {
           showArchitectureForCurrentStep,
           showCybersecurityForCurrentStep,
           showCostingChecklistForCurrentStep,
+          requiresPmApprovalForCurrentStep,
           renderSourcePanel: () => <IntakeSourcePanel intakeId={id} />,
           renderCustomFieldsBlock: (excludeIds: number[]) => (
             <IntakeCustomFieldsSection intakeId={intake.id} organizationId={currentOrganization?.id} isLocked={isLocked} excludeDefinitionIds={excludeIds} />
           ),
           currentStepRequiredFields: (workflowSteps.find(s => s.stepKey === (intake.currentStep || "intake_capture"))?.requiredFields ?? []) as string[],
+        }}
+      />
+
+      <PmApprovalCard
+        ctx={{
+          intake,
+          formData,
+          onFieldChange: handleFieldChange,
+          isLocked,
+          portfolios: portfolios ?? [],
+          programs: programs ?? [],
+          organizationId: currentOrganization?.id,
+          canApproveIntakes,
+          onPmoApprovedChange: (v) => {
+            handleFieldChange('pmoApproved', v);
+            updateIntake.mutate({ pmoApproved: v });
+          },
+          showFinancialsForCurrentStep,
+          showArchitectureForCurrentStep,
+          showCybersecurityForCurrentStep,
+          showCostingChecklistForCurrentStep,
+          requiresPmApprovalForCurrentStep,
+          renderSourcePanel: () => null,
+          renderCustomFieldsBlock: () => null,
         }}
       />
 

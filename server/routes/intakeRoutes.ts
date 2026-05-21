@@ -828,6 +828,7 @@ export function registerIntakeRoutes(app: Express) {
           if ((step as any).showArchitectureQuestions !== undefined) (step as any).showArchitectureQuestions = !!(step as any).showArchitectureQuestions;
           if ((step as any).showCybersecurityQuestions !== undefined) (step as any).showCybersecurityQuestions = !!(step as any).showCybersecurityQuestions;
           if ((step as any).showCostingChecklist !== undefined) (step as any).showCostingChecklist = !!(step as any).showCostingChecklist;
+          if ((step as any).requiresPmApproval !== undefined) (step as any).requiresPmApproval = !!(step as any).requiresPmApproval;
         }
       } catch (e: any) {
         return res.status(400).json({ message: e?.message || "Invalid email address" });
