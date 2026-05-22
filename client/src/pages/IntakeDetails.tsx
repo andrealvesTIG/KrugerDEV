@@ -411,9 +411,18 @@ export default function IntakeDetails() {
     const errors: string[] = [];
     const currentData = { ...intake, ...formData };
     
-    // Get required fields from dynamic configuration
+    // Get required fields from dynamic configuration. If the admin has
+    // designated a "Completion field" checkbox for this step, treat it as an
+    // implicit required field — the step shouldn't be advanceable until the
+    // completion marker is ticked (the auto-tick helper will flip it once
+    // every other required field is filled).
     const step = getStepByKey(gateId);
-    const requiredFields = step?.requiredFields || [];
+    const baseRequired = step?.requiredFields || [];
+    const completionFieldId = (step as any)?.completionFieldId as number | null | undefined;
+    const completionKey = completionFieldId ? `cf:${completionFieldId}` : null;
+    const requiredFields = completionKey && !baseRequired.includes(completionKey)
+      ? [...baseRequired, completionKey]
+      : baseRequired;
     
     // Check each required field — supports both built-in entity fields and
     // custom fields (encoded as `cf:<definitionId>`).
