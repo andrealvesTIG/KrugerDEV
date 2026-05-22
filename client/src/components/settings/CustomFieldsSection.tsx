@@ -14,6 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useCustomFieldDefinitions, useCreateCustomFieldDefinition, useUpdateCustomFieldDefinition, useDeleteCustomFieldDefinition } from "@/hooks/use-custom-fields";
 import type { CustomFieldDefinition } from "@shared/schema";
+import { THRESHOLD_OPERATORS, isThresholdOperator, type ThresholdOperator } from "@shared/lib/thresholdCheck";
+import { evaluateFormula, extractFormulaReferences } from "@shared/lib/formula";
 
 const FIELD_TYPES = [
   { value: "text", label: "Text" },
@@ -35,6 +37,8 @@ const FIELD_TYPES = [
   { value: "days_between_dates", label: "Days Between Two Dates (computed)" },
   { value: "roi", label: "ROI % (computed from benefits / costs)" },
   { value: "rag_rollup", label: "RAG Rollup — Worst of selected statuses (computed)" },
+  { value: "threshold_check", label: "Threshold Check — Pass/Fail on a numeric field (computed)" },
+  { value: "formula", label: "Formula — Custom expression over other fields (computed)" },
 ] as const;
 
 const COMPUTED_FIELD_TYPES = new Set([
@@ -45,6 +49,20 @@ const COMPUTED_FIELD_TYPES = new Set([
   "days_between_dates",
   "roi",
   "rag_rollup",
+  "threshold_check",
+  "formula",
+]);
+
+const NUMERIC_FIELD_TYPES_FOR_THRESHOLD = new Set([
+  "number",
+  "percentage",
+  "days_since_updated",
+  "days_since_created",
+  "effort_completed_hours",
+  "effort_remaining_hours",
+  "days_between_dates",
+  "roi",
+  "formula",
 ]);
 
 const ENTITY_TYPES = [
@@ -76,6 +94,10 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
   const [startDateFieldId, setStartDateFieldId] = useState<string>("");
   const [endDateFieldId, setEndDateFieldId] = useState<string>("");
   const [ragSourceFieldIds, setRagSourceFieldIds] = useState<string[]>([]);
+  const [thresholdSourceFieldId, setThresholdSourceFieldId] = useState<string>("");
+  const [thresholdOperator, setThresholdOperator] = useState<ThresholdOperator>(">");
+  const [thresholdValue, setThresholdValue] = useState<string>("0");
+  const [formulaExpression, setFormulaExpression] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Intake and project share their custom-field pool: a definition typed
@@ -114,6 +136,10 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
     setStartDateFieldId("");
     setEndDateFieldId("");
     setRagSourceFieldIds([]);
+    setThresholdSourceFieldId("");
+    setThresholdOperator(">");
+    setThresholdValue("0");
+    setFormulaExpression("");
     setEditingField(null);
   };
 
@@ -138,6 +164,21 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
       setRagSourceFieldIds((field.options as string[]).filter(Boolean));
     } else {
       setRagSourceFieldIds([]);
+    }
+    if (field.fieldType === "threshold_check" && Array.isArray(field.options)) {
+      const opts = field.options as string[];
+      setThresholdSourceFieldId(opts[0] || "");
+      setThresholdOperator(isThresholdOperator(opts[1]) ? opts[1] : ">");
+      setThresholdValue(opts[2] != null && opts[2] !== "" ? String(opts[2]) : "0");
+    } else {
+      setThresholdSourceFieldId("");
+      setThresholdOperator(">");
+      setThresholdValue("0");
+    }
+    if (field.fieldType === "formula" && Array.isArray(field.options)) {
+      setFormulaExpression((field.options as string[])[0] || "");
+    } else {
+      setFormulaExpression("");
     }
     setShowAddDialog(true);
   };
@@ -170,6 +211,66 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
         return;
       }
       optionsArray = ragSourceFieldIds.slice();
+    }
+
+    if (fieldType === "threshold_check") {
+      if (!thresholdSourceFieldId) {
+        toast({ title: "Error", description: "Pick a numeric source field for the threshold check", variant: "destructive" });
+        return;
+      }
+      if (!isThresholdOperator(thresholdOperator)) {
+        toast({ title: "Error", description: "Pick a valid comparison operator", variant: "destructive" });
+        return;
+      }
+      const thresholdNum = parseFloat(thresholdValue);
+      if (!Number.isFinite(thresholdNum)) {
+        toast({ title: "Error", description: "Threshold must be a number", variant: "destructive" });
+        return;
+      }
+      optionsArray = [thresholdSourceFieldId, thresholdOperator, String(thresholdNum)];
+    }
+
+    if (fieldType === "formula") {
+      const expr = formulaExpression.trim();
+      if (!expr) {
+        toast({ title: "Error", description: "Formula expression is required", variant: "destructive" });
+        return;
+      }
+      // Every {ref} must be a numeric custom-field id, and that id must point
+      // at an existing custom field for this entity. Otherwise the formula
+      // would silently evaluate the unknown ref as 0 and produce misleading
+      // results.
+      const refs = extractFormulaReferences(expr);
+      const nonNumericRefs = refs.filter(r => !/^\d+$/.test(r));
+      if (nonNumericRefs.length > 0) {
+        toast({
+          title: "Invalid formula",
+          description: `Field references must be numeric ids. Use the "Insert field reference" buttons. Bad refs: ${nonNumericRefs.map(r => `{${r}}`).join(", ")}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      const referenceableIds = new Set(
+        fields
+          .filter(f => matchesEntityTab(f, entityType) && (!editingField || f.id !== editingField.id))
+          .map(f => String(f.id))
+      );
+      const unknown = refs.filter(r => !referenceableIds.has(r));
+      if (unknown.length > 0) {
+        toast({
+          title: "Invalid formula",
+          description: `Unknown field references: ${unknown.map(r => `{${r}}`).join(", ")}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      // Dry-run the parser with zeros so we catch syntax errors at save time.
+      const dry = evaluateFormula(expr, () => 0);
+      if (!dry.ok) {
+        toast({ title: "Invalid formula", description: dry.error, variant: "destructive" });
+        return;
+      }
+      optionsArray = [expr];
     }
 
     if (fieldType === "autonumber") {
@@ -540,6 +641,139 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
                     (<span className="font-medium">Red</span> &gt; <span className="font-medium">Yellow</span> &gt; <span className="font-medium">Green</span>).
                     Empty source values are ignored.
                   </p>
+                </div>
+              );
+            })()}
+            {fieldType === "threshold_check" && (() => {
+              const numericFields = fields.filter(f =>
+                NUMERIC_FIELD_TYPES_FOR_THRESHOLD.has(f.fieldType)
+                && matchesEntityTab(f, entityType)
+                && (!editingField || f.id !== editingField.id)
+              );
+              if (numericFields.length === 0) {
+                return (
+                  <p className="text-xs text-destructive">
+                    Need at least one numeric, percentage, or other numeric-computed custom field on this entity before you can create a threshold check.
+                  </p>
+                );
+              }
+              return (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="threshold-source">Source field *</Label>
+                    <Select value={thresholdSourceFieldId} onValueChange={setThresholdSourceFieldId}>
+                      <SelectTrigger id="threshold-source" data-testid="select-threshold-source-field">
+                        <SelectValue placeholder="Pick a numeric field..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {numericFields.map(f => (
+                          <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="threshold-operator">Operator *</Label>
+                      <Select
+                        value={thresholdOperator}
+                        onValueChange={(v) => isThresholdOperator(v) && setThresholdOperator(v)}
+                      >
+                        <SelectTrigger id="threshold-operator" data-testid="select-threshold-operator">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {THRESHOLD_OPERATORS.map(op => (
+                            <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="threshold-value">Threshold *</Label>
+                      <Input
+                        id="threshold-value"
+                        type="number"
+                        value={thresholdValue}
+                        onChange={(e) => setThresholdValue(e.target.value)}
+                        placeholder="0"
+                        data-testid="input-threshold-value"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Shows <span className="font-medium">Pass</span> when the source value satisfies the comparison,
+                    <span className="font-medium"> Fail</span> otherwise. Empty when the source has no value.
+                  </p>
+                </>
+              );
+            })()}
+            {fieldType === "formula" && (() => {
+              const referenceableFields = fields.filter(f =>
+                matchesEntityTab(f, entityType)
+                && (!editingField || f.id !== editingField.id)
+                && !["attachment", "resource", "autonumber"].includes(f.fieldType)
+              );
+              const refs = extractFormulaReferences(formulaExpression);
+              const knownIds = new Set(referenceableFields.map(f => String(f.id)));
+              const unknownRefs = refs.filter(r => !knownIds.has(r));
+              const dry = formulaExpression.trim() ? evaluateFormula(formulaExpression, () => 0) : null;
+              const insertRef = (id: number) => {
+                setFormulaExpression(prev => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}{${id}}`);
+              };
+              return (
+                <div className="space-y-2">
+                  <Label htmlFor="formula-expression">Expression *</Label>
+                  <textarea
+                    id="formula-expression"
+                    value={formulaExpression}
+                    onChange={(e) => setFormulaExpression(e.target.value)}
+                    placeholder="e.g. {12} + {13} - 100   or   {benefit} > {cost}"
+                    rows={3}
+                    className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    data-testid="input-formula-expression"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Reference other fields with <code className="px-1 rounded bg-muted">{`{fieldId}`}</code>.
+                    Supports <code className="px-1 rounded bg-muted">+ − × ÷ %</code>, parentheses, comparisons
+                    (<code className="px-1 rounded bg-muted">{`> >= < <= == !=`}</code>) and
+                    logical <code className="px-1 rounded bg-muted">{`&& || !`}</code>. Empty source values count as 0.
+                  </p>
+                  {referenceableFields.length > 0 && (
+                    <div className="rounded-md border p-2 max-h-40 overflow-y-auto" data-testid="formula-field-picker">
+                      <div className="text-xs font-medium mb-1">Insert field reference</div>
+                      <div className="flex flex-wrap gap-1">
+                        {referenceableFields.map(f => (
+                          <Button
+                            key={f.id}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-2 text-xs font-mono"
+                            onClick={() => insertRef(f.id)}
+                            data-testid={`button-insert-field-${f.id}`}
+                          >
+                            {`{${f.id}}`} {f.name}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {unknownRefs.length > 0 && (
+                    <p className="text-xs text-destructive">
+                      Unknown field references: {unknownRefs.map(r => `{${r}}`).join(", ")}
+                    </p>
+                  )}
+                  {dry && !dry.ok && (
+                    <p className="text-xs text-destructive" data-testid="text-formula-syntax-error">
+                      Syntax error: {dry.error}
+                    </p>
+                  )}
+                  {dry && dry.ok && (
+                    <p className="text-xs text-muted-foreground">
+                      Preview with all sources = 0: <span className="font-mono text-foreground">{String(dry.value)}</span>
+                    </p>
+                  )}
                 </div>
               );
             })()}

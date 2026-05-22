@@ -151,6 +151,8 @@ const COMPUTED_READONLY_FIELD_TYPES = new Set([
   "days_between_dates",
   "roi",
   "rag_rollup",
+  "threshold_check",
+  "formula",
 ]);
 
 export async function validateCustomFieldValue(

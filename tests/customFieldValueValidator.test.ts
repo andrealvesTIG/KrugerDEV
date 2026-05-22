@@ -12,6 +12,9 @@ describe("validateCustomFieldValue — computed read-only types", () => {
     "effort_remaining_hours",
     "days_between_dates",
     "roi",
+    "rag_rollup",
+    "threshold_check",
+    "formula",
   ];
 
   for (const fieldType of COMPUTED) {

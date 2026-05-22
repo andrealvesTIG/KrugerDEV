@@ -17,6 +17,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Info } from "lucide-react";
 import { computeRoi, formatRoiPercent } from "@shared/lib/roi";
 import { computeWorstRag } from "@shared/lib/ragRollup";
+import { parseThresholdConfig, evaluateThreshold, coerceNumeric, formatThresholdExpression } from "@shared/lib/thresholdCheck";
+import { evaluateFormula } from "@shared/lib/formula";
 import { findDatePairOrderError } from "@shared/lib/customFieldDateValidation";
 import type { CustomFieldDefinition } from "@shared/schema";
 
@@ -66,7 +68,11 @@ export function IntakeSingleCustomField({
   }
   const value = values.find(v => v.fieldDefinitionId === definitionId)?.value || "";
 
-  const isComputed = field.fieldType === "days_between_dates" || field.fieldType === "roi" || field.fieldType === "rag_rollup";
+  const isComputed = field.fieldType === "days_between_dates"
+    || field.fieldType === "roi"
+    || field.fieldType === "rag_rollup"
+    || field.fieldType === "threshold_check"
+    || field.fieldType === "formula";
   const startEdit = () => {
     if (isLocked || field.fieldType === "autonumber" || isComputed) return;
     setEditValue(value);
@@ -267,6 +273,105 @@ export function IntakeSingleCustomField({
               </button>
             </TooltipTrigger>
             <TooltipContent className="text-xs">{tooltipText}</TooltipContent>
+          </Tooltip>
+        </span>
+      );
+    }
+    if (field.fieldType === "threshold_check") {
+      const cfg = parseThresholdConfig(field.options as string[] | null | undefined);
+      if (!cfg) {
+        return (
+          <span className="text-muted-foreground text-sm italic" data-testid={`value-intake-threshold-misconfig-${field.id}`}>
+            Not configured
+          </span>
+        );
+      }
+      const source = allDefinitions.find(d => d.id === cfg.sourceFieldId);
+      const sourceRaw = values.find(v => v.fieldDefinitionId === cfg.sourceFieldId)?.value;
+      const sourceNum = coerceNumeric(sourceRaw);
+      const tooltipText = source
+        ? `Pass when ${formatThresholdExpression(source.name, cfg.operator, cfg.threshold)}`
+        : "Source field no longer exists";
+      if (sourceNum == null) {
+        return (
+          <span className="text-muted-foreground text-sm inline-flex items-center gap-1" data-testid={`value-intake-threshold-empty-${field.id}`}>
+            —
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-muted-foreground hover:text-foreground">
+                  <Info className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">{tooltipText}</TooltipContent>
+            </Tooltip>
+          </span>
+        );
+      }
+      const passed = evaluateThreshold(sourceNum, cfg.operator, cfg.threshold);
+      const cls = passed
+        ? "bg-green-100 text-green-800 border-green-300 dark:bg-green-900/40 dark:text-green-200"
+        : "bg-red-100 text-red-800 border-red-300 dark:bg-red-900/40 dark:text-red-200";
+      return (
+        <span className="inline-flex items-center gap-1.5" data-testid={`value-intake-threshold-${field.id}`}>
+          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}>
+            {passed ? "Pass" : "Fail"}
+          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="text-muted-foreground hover:text-foreground" data-testid={`tooltip-intake-threshold-${field.id}`}>
+                <Info className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="text-xs">{tooltipText} · current value {sourceNum}</TooltipContent>
+          </Tooltip>
+        </span>
+      );
+    }
+    if (field.fieldType === "formula") {
+      const expr = Array.isArray(field.options) && (field.options as string[])[0] ? (field.options as string[])[0] : "";
+      if (!expr) {
+        return (
+          <span className="text-muted-foreground text-sm italic" data-testid={`value-intake-formula-misconfig-${field.id}`}>
+            Not configured
+          </span>
+        );
+      }
+      const result = evaluateFormula(expr, (ref) => {
+        const id = parseInt(ref, 10);
+        if (!Number.isFinite(id)) return null;
+        return values.find(v => v.fieldDefinitionId === id)?.value ?? null;
+      });
+      if (!result.ok) {
+        return (
+          <span className="text-destructive text-xs inline-flex items-center gap-1" data-testid={`value-intake-formula-error-${field.id}`}>
+            Error
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-destructive hover:opacity-80">
+                  <Info className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">{result.error}</TooltipContent>
+            </Tooltip>
+          </span>
+        );
+      }
+      const display = typeof result.value === "boolean"
+        ? (result.value ? "True" : "False")
+        : (Number.isInteger(result.value) ? String(result.value) : Number(result.value).toFixed(2));
+      return (
+        <span className="text-sm inline-flex items-center gap-1" data-testid={`value-intake-formula-${field.id}`}>
+          <span className="font-medium">{display}</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="text-muted-foreground hover:text-foreground" data-testid={`tooltip-intake-formula-${field.id}`}>
+                <Info className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="text-xs max-w-xs">
+              <div className="font-medium mb-1">Formula</div>
+              <div className="font-mono">{expr}</div>
+            </TooltipContent>
           </Tooltip>
         </span>
       );

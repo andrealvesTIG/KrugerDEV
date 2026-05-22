@@ -3634,7 +3634,7 @@ export const customFieldDefinitions = pgTable("custom_field_definitions", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   name: text("name").notNull(),
-  fieldType: text("field_type").notNull(), // 'text', 'number', 'percentage', 'date', 'select', 'multiselect', 'checkbox', 'url', 'autonumber', 'resource', 'attachment', 'rag', 'rag_rollup', 'days_since_updated', 'days_since_created', 'effort_completed_hours', 'effort_remaining_hours', 'days_between_dates' (for days_between_dates, options stores [startDateFieldId, endDateFieldId] as strings; for rag_rollup, options stores source RAG field IDs as strings, e.g. ["12","13","14"])
+  fieldType: text("field_type").notNull(), // 'text', 'number', 'percentage', 'date', 'select', 'multiselect', 'checkbox', 'url', 'autonumber', 'resource', 'attachment', 'rag', 'rag_rollup', 'days_since_updated', 'days_since_created', 'effort_completed_hours', 'effort_remaining_hours', 'days_between_dates', 'threshold_check', 'formula' (for days_between_dates, options stores [startDateFieldId, endDateFieldId] as strings; for rag_rollup, options stores source RAG field IDs as strings, e.g. ["12","13","14"]; for threshold_check, options stores [sourceFieldId, operator, threshold] e.g. ["42",">","0"]; for formula, options stores [expression] e.g. ["{12} + {13} - 100"])
   entityType: text("entity_type").default("project").notNull(), // 'project', 'task', 'resource', 'intake' (intake-typed fields also appear on the resulting project after conversion)
   description: text("description"),
   isRequired: boolean("is_required").default(false),
