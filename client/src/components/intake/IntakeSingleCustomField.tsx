@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Info } from "lucide-react";
 import { computeRoi, formatRoiPercent } from "@shared/lib/roi";
+import { findDatePairOrderError } from "@shared/lib/customFieldDateValidation";
 import type { CustomFieldDefinition } from "@shared/schema";
 
 export function IntakeSingleCustomField({
@@ -77,6 +78,13 @@ export function IntakeSingleCustomField({
     if (normalized === previous) {
       closeEdit();
       return;
+    }
+    if (field.fieldType === "date") {
+      const err = findDatePairOrderError(allDefinitions, values, field.id, normalized);
+      if (err) {
+        toast({ title: "Invalid date", description: err, variant: "destructive" });
+        return;
+      }
     }
     try {
       await updateValue.mutateAsync({ intakeId, fieldDefinitionId: definitionId, value: normalized });
