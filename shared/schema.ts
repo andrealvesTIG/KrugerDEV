@@ -1928,6 +1928,7 @@ export const projectIntakes = pgTable("project_intakes", {
   
   // Financials tab data
   estimatedBudget: numeric("estimated_budget").default(0),
+  expectedBenefits: numeric("expected_benefits").default(0),
   capitalExpense: numeric("capital_expense").default(0),
   operatingExpense: numeric("operating_expense").default(0),
   financialJustification: text("financial_justification"),

@@ -43,6 +43,7 @@ import {
 import { format, addDays, differenceInDays, parseISO, startOfMonth, eachDayOfInterval } from "date-fns";
 import { formatCurrency } from "@/lib/format";
 import { CompactCurrency } from "@/components/CompactCurrency";
+import { computeRoi, formatRoiPercent } from "@shared/lib/roi";
 import { cn, normalizeSearch } from "@/lib/utils";
 import type { Project, Task } from "@shared/schema";
 import ProjectGanttView from "@/components/project/ProjectGanttView";
@@ -370,7 +371,26 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <Card data-testid="card-metric-roi">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">ROI</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {(() => {
+              const r = computeRoi({ totalCosts: metrics.totalBudget, totalBenefits: (metrics as any).totalBenefits ?? 0 });
+              const cls = r.roiPercent == null ? "" : r.roiPercent >= 0 ? "text-emerald-600" : "text-rose-600";
+              return (
+                <>
+                  <div className={cn("text-2xl font-bold", cls)} data-testid="text-portfolio-roi">{formatRoiPercent(r.roiPercent)}</div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Benefits <CompactCurrency value={r.totalBenefits} className="inline" /> · Costs <CompactCurrency value={r.totalCosts} className="inline" />
+                  </div>
+                </>
+              );
+            })()}
+          </CardContent>
+        </Card>
         <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => onNavigate("projects")} data-testid="card-metric-projects">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Projects</CardTitle>

@@ -65,6 +65,7 @@ export const INTAKE_FIELDS: IntakeFieldDefinition[] = [
   { key: "programId", label: "Related Program", group: "Basic Info", inputType: "program", helpText: "Lookup of programs defined for this organization." },
 
   { key: "estimatedBudget", label: "Estimated Total Budget", group: "Business Case", inputType: "number", placeholder: "0.00" },
+  { key: "expectedBenefits", label: "Expected Benefits ($)", group: "Business Case", inputType: "number", placeholder: "0.00", helpText: "Total expected financial benefit. Used to auto-compute ROI." },
   { key: "capitalExpense", label: "Capital Expense (CapEx)", group: "Business Case", inputType: "number", placeholder: "0.00" },
   { key: "operatingExpense", label: "Operating Expense (OpEx)", group: "Business Case", inputType: "number", placeholder: "0.00" },
   { key: "financialJustification", label: "Business Justification & Expected Benefits", group: "Business Case", inputType: "textarea", rows: 4, placeholder: "Describe the business case, expected ROI, cost savings, revenue impact, or strategic benefits..." },

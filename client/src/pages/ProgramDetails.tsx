@@ -7,6 +7,8 @@ import { useProgram, useProgramProjects, useUpdateProgram, useSetProgramProjects
 import { useProjects } from "@/hooks/use-projects";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { computeRoi, formatRoiPercent } from "@shared/lib/roi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,7 +114,10 @@ export default function ProgramDetails() {
       ownerId: form.ownerId,
       budget: toNumOrNull(form.budget) as any,
       benefit: toNumOrNull(form.benefit) as any,
-      roi: toNumOrNull(form.roi) as any,
+      // ROI is auto-computed from budget + benefit (never user-edited). We
+      // still persist it so downstream consumers reading `programs.roi`
+      // (reports, exports) see a value consistent with what's displayed.
+      roi: computeRoi({ totalCosts: form.budget, totalBenefits: form.benefit }).roiPercent as any,
     } as any, {
       onSuccess: () => toast({ title: "Saved" }),
       onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -213,7 +218,19 @@ export default function ProgramDetails() {
             </div>
             <div>
               <Label>ROI (%)</Label>
-              <Input data-testid="input-roi" type="number" step="0.01" value={form.roi} onChange={(e) => setForm({ ...form, roi: e.target.value })} />
+              {(() => {
+                const r = computeRoi({ totalCosts: form.budget, totalBenefits: form.benefit });
+                const cls = r.roiPercent == null ? "text-muted-foreground" : r.roiPercent >= 0 ? "text-emerald-600" : "text-rose-600";
+                return (
+                  <div
+                    className="flex h-10 items-center px-3 rounded-md border border-input bg-muted/30"
+                    data-testid="display-program-roi"
+                  >
+                    <span className={cn("font-semibold", cls)}>{formatRoiPercent(r.roiPercent)}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">Auto-computed from Budget &amp; Benefit</span>
+                  </div>
+                );
+              })()}
             </div>
           </CardContent>
         </Card>

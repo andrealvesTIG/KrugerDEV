@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { formatCurrency } from "@/lib/format";
+import { computeRoi, formatRoiPercent } from "@shared/lib/roi";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -760,6 +761,32 @@ export default function IntakeDetails() {
             })}
           </div>
           
+          {(() => {
+            const budget = parseFloat(String(formData.estimatedBudget ?? intake?.estimatedBudget ?? 0)) || 0;
+            const benefits = parseFloat(String(formData.expectedBenefits ?? intake?.expectedBenefits ?? 0)) || 0;
+            const r = computeRoi({ totalCosts: budget, totalBenefits: benefits });
+            const cls = r.roiPercent == null
+              ? "text-muted-foreground"
+              : r.roiPercent >= 0 ? "text-emerald-600" : "text-rose-600";
+            return (
+              <div
+                className="flex flex-wrap items-center gap-x-6 gap-y-1 mt-3 pt-3 border-t text-sm"
+                data-testid="section-intake-roi"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-xs uppercase tracking-wide text-muted-foreground">ROI</span>
+                  <span className={cn("font-semibold", cls)} data-testid="text-intake-roi">
+                    {formatRoiPercent(r.roiPercent)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">(auto)</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Estimated Budget {formatCurrency(budget)} · Expected Benefits {formatCurrency(benefits)}
+                </div>
+              </div>
+            );
+          })()}
+
           {!isLocked && (
             <div className="flex items-center justify-between gap-4 flex-wrap mt-4 pt-4 border-t">
               <Button

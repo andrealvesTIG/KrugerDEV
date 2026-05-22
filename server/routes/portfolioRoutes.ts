@@ -1119,6 +1119,21 @@ export function registerPortfolioRoutes(app: Express) {
       };
       
       const totalBudget = projects.reduce((sum, p) => sum + getEffectiveBudget(p), 0);
+
+      // Sum target benefits across all project_benefits rows for the
+      // portfolio's projects so the UI can show a calendar-agnostic ROI tile
+      // (benefits − costs / costs) without an extra round-trip per project.
+      let totalBenefits = 0;
+      if (projectIds.length > 0) {
+        const { db } = await import('../db');
+        const { projectBenefits } = await import('@shared/schema');
+        const { inArray, sql } = await import('drizzle-orm');
+        const [row] = await db
+          .select({ total: sql<string>`COALESCE(SUM(${projectBenefits.targetValue}), 0)` })
+          .from(projectBenefits)
+          .where(inArray(projectBenefits.projectId, projectIds));
+        totalBenefits = Number(row?.total ?? 0) || 0;
+      }
       const avgCompletion = projects.length > 0 
         ? Math.round(projects.reduce((sum, p) => sum + (p.completionPercentage || 0), 0) / projects.length)
         : 0;
@@ -1137,6 +1152,7 @@ export function registerPortfolioRoutes(app: Express) {
         metrics: {
           projectCount: projects.length,
           totalBudget,
+          totalBenefits,
           avgCompletion,
           healthCounts,
           riskCount: risks.length,

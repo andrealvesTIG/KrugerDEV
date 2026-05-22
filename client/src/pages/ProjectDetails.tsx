@@ -3,6 +3,7 @@ import { useTabOverflow } from "@/hooks/use-tab-overflow";
 import { formatDuration } from "@/lib/workingDays";
 import { formatCurrency } from "@/lib/format";
 import { CompactCurrency } from "@/components/CompactCurrency";
+import { computeRoi, formatRoiPercent } from "@shared/lib/roi";
 import plannerLogoPath from "@/assets/planner-logo.png";
 import { WorkflowStepRequirementsDialog } from "@/components/workflow/WorkflowStepRequirementsDialog";
 import { useRoute, Link } from "wouter";
@@ -806,6 +807,22 @@ export default function ProjectDetails() {
 
   // Use financial budget total if available, otherwise use project budget
   const displayBudget = financialBudgetTotal > 0 ? financialBudgetTotal : Number(project?.budget || 0);
+
+  // Total expected benefits = sum of project_benefits.targetValue. Drives the
+  // auto-computed ROI tile on the Summary tab. Lightweight fetch — only runs
+  // once the project id is known.
+  const { data: projectBenefitsForRoi } = useQuery<Array<{ targetValue: string | number | null }>>({
+    queryKey: ['/api/projects', project?.id, 'benefits'],
+    enabled: !!project?.id,
+  });
+  const totalProjectBenefits = useMemo(() => {
+    if (!projectBenefitsForRoi || projectBenefitsForRoi.length === 0) return 0;
+    return projectBenefitsForRoi.reduce((sum, b) => sum + (Number(b.targetValue ?? 0) || 0), 0);
+  }, [projectBenefitsForRoi]);
+  const projectRoi = useMemo(
+    () => computeRoi({ totalCosts: displayBudget, totalBenefits: totalProjectBenefits }),
+    [displayBudget, totalProjectBenefits],
+  );
 
   // Calculate progress based on task averages (always from tasks, never manual)
   const calculatedProgress = useMemo(() => {
@@ -2029,7 +2046,7 @@ export default function ProjectDetails() {
               </div>
             </Collapsible>
 
-            <div className="grid gap-3 md:grid-cols-4">
+            <div className="grid gap-3 md:grid-cols-5">
               <Card className="py-2">
                 <CardHeader className="py-1 px-4">
                   <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
@@ -2041,6 +2058,32 @@ export default function ProjectDetails() {
                 </CardHeader>
                 <CardContent className="py-1 px-4">
                   <div className="text-base font-semibold flex items-center"><CompactCurrency value={displayBudget} /></div>
+                </CardContent>
+              </Card>
+              <Card className="py-2" data-testid="card-project-roi">
+                <CardHeader className="py-1 px-4">
+                  <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
+                    ROI
+                    <Badge variant="outline" className="text-[9px] font-normal py-0">Auto</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="py-1 px-4">
+                  <div
+                    className={cn(
+                      "text-base font-semibold",
+                      projectRoi.roiPercent == null
+                        ? ""
+                        : projectRoi.roiPercent >= 0
+                          ? "text-emerald-600"
+                          : "text-rose-600",
+                    )}
+                    data-testid="text-project-roi"
+                  >
+                    {formatRoiPercent(projectRoi.roiPercent)}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                    Benefits <CompactCurrency value={projectRoi.totalBenefits} className="inline" />
+                  </div>
                 </CardContent>
               </Card>
               <Card className="py-2">
