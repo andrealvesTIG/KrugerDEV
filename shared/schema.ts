@@ -1910,6 +1910,11 @@ export const projectIntakes = pgTable("project_intakes", {
   businessUnit: text("business_unit"), // BU field
   programId: integer("program_id").references(() => programs.id),
   programName: text("program_name"), // Stored program name for display
+  // Proposed Project Manager. Stored as a resource id so the intake can pick
+  // any org resource (the resource may or may not be linked to a platform
+  // user). On approval the resource is copied to `projects.managerResourceId`
+  // and, when the resource has a `userId`, also to `projects.managerId`.
+  managerResourceId: integer("manager_resource_id").references(() => resources.id),
   
   // Workflow state
   currentStep: text("current_step").default("is_backlog"), // Workflow step

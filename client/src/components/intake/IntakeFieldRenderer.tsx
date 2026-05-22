@@ -9,9 +9,10 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Button } from "@/components/ui/button";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { INTAKE_FIELD_BY_KEY, type IntakeFieldDefinition } from "@shared/intakeFormRegistry";
 import { MissingRefPlaceholder } from "@/components/forms/MissingRefPlaceholder";
-import type { ProjectIntake, Portfolio, Program } from "@shared/schema";
+import type { ProjectIntake, Portfolio, Program, Resource } from "@shared/schema";
 import { useState } from "react";
 
 export interface IntakeFieldRendererProps {
@@ -22,19 +23,20 @@ export interface IntakeFieldRendererProps {
   /**
    * Optional autosave hook. Fires on blur for text / textarea / number inputs
    * and immediately on change for discrete inputs (select / checkbox /
-   * portfolio / program). Wired in IntakeDetails to persist the single
-   * changed field to the server so other surfaces (e.g. the workflow step
-   * requirements dialog) read the latest value.
+   * portfolio / program / resource). Wired in IntakeDetails to persist the
+   * single changed field to the server so other surfaces (e.g. the workflow
+   * step requirements dialog) read the latest value.
    */
   onCommit?: (field: string, value: any) => void;
   isLocked: boolean;
   portfolios?: Portfolio[];
   programs?: Program[];
+  resources?: Resource[];
   isRequired?: boolean;
   labelOverride?: string | null;
 }
 
-export function IntakeFieldRenderer({ fieldKey, intake, formData, onChange, onCommit, isLocked, portfolios, programs, isRequired, labelOverride }: IntakeFieldRendererProps) {
+export function IntakeFieldRenderer({ fieldKey, intake, formData, onChange, onCommit, isLocked, portfolios, programs, resources, isRequired, labelOverride }: IntakeFieldRendererProps) {
   const def = INTAKE_FIELD_BY_KEY[fieldKey];
   if (!def) {
     return <MissingRefPlaceholder kind="field" itemKey={fieldKey} testIdPrefix="field-unknown" />;
@@ -133,12 +135,31 @@ export function IntakeFieldRenderer({ fieldKey, intake, formData, onChange, onCo
         onChange={(v) => onChange(def.key, v)}
         onCommit={(v) => onCommit?.(def.key, v)}
         portfolios={portfolios}
+        resources={resources}
       />
     </div>
   );
 }
 
-function FieldInput({ def, value, disabled, onChange, onCommit, portfolios }: { def: IntakeFieldDefinition; value: any; disabled: boolean; onChange: (v: any) => void; onCommit?: (v: any) => void; portfolios?: Portfolio[]; }) {
+function FieldInput({ def, value, disabled, onChange, onCommit, portfolios, resources }: { def: IntakeFieldDefinition; value: any; disabled: boolean; onChange: (v: any) => void; onCommit?: (v: any) => void; portfolios?: Portfolio[]; resources?: Resource[]; }) {
+  if (def.inputType === "resource") {
+    const stringValue = value == null || value === "" ? "" : String(value);
+    return (
+      <SearchableSelect
+        value={stringValue}
+        onValueChange={(v) => {
+          const parsed = v === "" ? null : Number(v);
+          const next = Number.isFinite(parsed) ? parsed : null;
+          onChange(next);
+          onCommit?.(next);
+        }}
+        placeholder="Assign a resource…"
+        options={(resources ?? []).map(r => ({ value: String(r.id), label: r.displayName }))}
+        disabled={disabled}
+        testId={`select-${def.key}`}
+      />
+    );
+  }
   if (def.inputType === "textarea") {
     return (
       <AutoResizeTextarea

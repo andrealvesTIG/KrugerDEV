@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AlertTriangle, Check, Gavel, Lightbulb, FileText, Calculator, Shield, MessageSquare, ListChecks, ClipboardList, DollarSign, Settings as SettingsIcon, type LucideIcon } from "lucide-react";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { ProjectIntake, Portfolio, Program } from "@shared/schema";
+import type { ProjectIntake, Portfolio, Program, Resource } from "@shared/schema";
 import type { IntakeTabLayoutTabFull, IntakeTabLayoutSectionFull, IntakeTabLayoutItemFull } from "@/hooks/use-intake-tab-layout";
 import { IntakeFieldRenderer } from "./IntakeFieldRenderer";
 import { IntakeFinancialsSection } from "./IntakeFinancialsSection";
@@ -46,6 +46,7 @@ export interface IntakeFormRendererContext {
   isLocked: boolean;
   portfolios: Portfolio[];
   programs: Program[];
+  resources: Resource[];
   organizationId: number | undefined;
   canApproveIntakes: boolean;
   onPmoApprovedChange: (value: boolean) => void;
@@ -245,6 +246,7 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds, bare }: { item: IntakeT
         isLocked={ctx.isLocked}
         portfolios={ctx.portfolios}
         programs={ctx.programs}
+        resources={ctx.resources}
         isRequired={REQUIRED_FIELD_KEYS.has(item.itemKey) || requiredByStep}
         labelOverride={item.displayName}
       />

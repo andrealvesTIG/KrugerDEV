@@ -279,6 +279,10 @@ export default function IntakeDetails() {
   const { currentOrganization } = useOrganization();
   const { data: portfolios } = usePortfolios(currentOrganization?.id);
   const { data: programs } = usePrograms(currentOrganization?.id);
+  // Org resources power the new built-in "Project Manager" intake field
+  // (managerResourceId). Loaded once at the page level and threaded into the
+  // form renderer context so any resource picker on the layout can use it.
+  const { data: orgResources = [] } = useResources(currentOrganization?.id ?? null);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [activeTab, setActiveTab] = useState("details");
@@ -901,6 +905,7 @@ export default function IntakeDetails() {
           isLocked,
           portfolios: portfolios ?? [],
           programs: programs ?? [],
+          resources: orgResources ?? [],
           organizationId: currentOrganization?.id,
           canApproveIntakes,
           onPmoApprovedChange: (v) => {
@@ -929,6 +934,7 @@ export default function IntakeDetails() {
             isLocked,
             portfolios: portfolios ?? [],
             programs: programs ?? [],
+            resources: orgResources ?? [],
             organizationId: currentOrganization?.id,
             canApproveIntakes,
             onPmoApprovedChange: (v) => {

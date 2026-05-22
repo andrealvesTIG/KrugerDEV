@@ -183,6 +183,23 @@ export async function approveProjectIntake(id: number, approvedBy: string): Prom
       throw new Error("Project intake not found");
     }
 
+    // Resolve the proposed Project Manager from the intake's
+    // `managerResourceId` to the new project's `managerResourceId` (always)
+    // and `managerId` (only when the resource is linked to a platform user).
+    // Org-guarded so a tampered value pointing at another tenant is ignored.
+    let intakeManagerResourceId: number | null = null;
+    let intakeManagerUserId: string | null = null;
+    if (intake.managerResourceId) {
+      const [resource] = await tx.select().from(resources).where(and(
+        eq(resources.id, intake.managerResourceId),
+        eq(resources.organizationId, intake.organizationId),
+      ));
+      if (resource) {
+        intakeManagerResourceId = resource.id;
+        intakeManagerUserId = resource.userId ?? null;
+      }
+    }
+
     const [newProject] = await tx.insert(projects).values({
       organizationId: intake.organizationId,
       portfolioId: intake.portfolioId,
@@ -194,6 +211,8 @@ export async function approveProjectIntake(id: number, approvedBy: string): Prom
       status: "Initiation",
       priority: "Medium",
       health: "Green",
+      managerResourceId: intakeManagerResourceId,
+      managerId: intakeManagerUserId,
     }).returning();
 
     // Carry forward any custom field values captured on the intake (definitions
@@ -222,12 +241,16 @@ export async function approveProjectIntake(id: number, approvedBy: string): Prom
       const defs = defIds.length > 0
         ? await tx.select().from(customFieldDefinitions).where(inArray(customFieldDefinitions.id, defIds))
         : [];
+      // Only fall back to the legacy custom-field-based PM mapping when the
+      // new built-in `managerResourceId` field didn't already set the
+      // project's manager. Keeps existing orgs working without overwriting
+      // an explicit built-in selection.
       const pmDef = defs.find(d =>
         d.entityType === 'intake'
         && d.fieldType === 'resource'
         && (d.name || '').trim().toLowerCase() === 'project manager'
       );
-      if (pmDef) {
+      if (pmDef && !newProject.managerId) {
         const pmValueRow = intakeValues.find(v => v.fieldDefinitionId === pmDef.id);
         const resourceId = Number(pmValueRow?.value ?? '');
         if (Number.isFinite(resourceId) && resourceId > 0) {
