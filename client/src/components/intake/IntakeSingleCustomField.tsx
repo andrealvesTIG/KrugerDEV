@@ -103,7 +103,23 @@ export function IntakeSingleCustomField({
   };
   const handleContainerBlur = (e: React.FocusEvent<HTMLDivElement>) => {
     if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    const related = e.relatedTarget as HTMLElement | null;
+    if (related && related.closest('[data-radix-popper-content-wrapper],[data-radix-portal],[role="listbox"],[role="dialog"]')) return;
+    if (document.querySelector('[data-radix-popper-content-wrapper]')) return;
     save();
+  };
+  const commitImmediate = async (next: string) => {
+    const normalized = next || null;
+    const previous = value || null;
+    if (normalized === previous) { closeEdit(); return; }
+    try {
+      await updateValue.mutateAsync({ intakeId, fieldDefinitionId: definitionId, value: normalized });
+      toast({ title: "Saved" });
+      setIsEditing(false);
+      setEditValue("");
+    } catch {
+      toast({ title: "Error", description: "Failed to save", variant: "destructive" });
+    }
   };
   const handleContainerKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Escape") { e.preventDefault(); closeEdit(); }
@@ -123,7 +139,7 @@ export function IntakeSingleCustomField({
         return (
           <SearchableSelect
             value={editValue}
-            onValueChange={setEditValue}
+            onValueChange={(v) => { setEditValue(v); commitImmediate(v); }}
             placeholder="Select..."
             options={(field.options as string[] || []).map(o => ({ value: o, label: o }))}
             testId={`select-intake-cf-${field.id}`}
@@ -133,7 +149,7 @@ export function IntakeSingleCustomField({
         return (
           <SearchableSelect
             value={editValue}
-            onValueChange={setEditValue}
+            onValueChange={(v) => { setEditValue(v); commitImmediate(v); }}
             placeholder="Select resource..."
             options={orgResources.map(r => ({ value: String(r.id), label: r.displayName }))}
             testId={`select-intake-cf-resource-${field.id}`}
