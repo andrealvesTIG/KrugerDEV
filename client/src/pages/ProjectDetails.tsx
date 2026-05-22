@@ -8,6 +8,7 @@ import plannerLogoPath from "@/assets/planner-logo.png";
 import { WorkflowStepRequirementsDialog } from "@/components/workflow/WorkflowStepRequirementsDialog";
 import { useRoute, Link } from "wouter";
 import { useProject, useUpdateProject, useProjectHistory, useProjects, useDeleteProject } from "@/hooks/use-projects";
+import { useProjectBenefits } from "@/hooks/use-project-features";
 import { useProjectWorkflows } from "@/hooks/use-project-workflows";
 import { usePortfolios, useCreatePortfolio } from "@/hooks/use-portfolios";
 import { useCalendars } from "@/hooks/use-calendars";

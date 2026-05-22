@@ -44,7 +44,7 @@ import { Tooltip as UiTooltip, TooltipContent as UiTooltipContent, TooltipTrigge
 import { format, addDays, differenceInDays, parseISO, startOfMonth, eachDayOfInterval } from "date-fns";
 import { formatCurrency } from "@/lib/format";
 import { CompactCurrency } from "@/components/CompactCurrency";
-import { computeRoi, formatRoiPercent } from "@shared/lib/roi";
+import { computeRoi, formatRoiPercent, explainMissingRoi } from "@shared/lib/roi";
 import { cn, normalizeSearch } from "@/lib/utils";
 import type { Project, Task } from "@shared/schema";
 import ProjectGanttView from "@/components/project/ProjectGanttView";
@@ -387,7 +387,7 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
                   <div className="font-medium mb-1">How ROI is calculated</div>
                   <div>ROI(%) = ((Benefits − Costs) / Costs) × 100</div>
                   <div className="mt-1 text-muted-foreground">
-                    Costs = total budget across the portfolio's projects · Benefits = sum of each project's benefit target values
+                    Costs = Portfolio Budget Allocated · Benefits = sum of each project's benefit target values. Shows — when either input is missing or Costs ≤ 0.
                   </div>
                 </UiTooltipContent>
               </UiTooltip>
@@ -395,11 +395,29 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
           </CardHeader>
           <CardContent>
             {(() => {
-              const r = computeRoi({ totalCosts: metrics.totalBudget, totalBenefits: (metrics as any).totalBenefits ?? 0 });
+              const costSource = portfolio.budgetAllocated;
+              const benefitsSource = (metrics as any).totalBenefits;
+              const r = computeRoi({ totalCosts: costSource, totalBenefits: benefitsSource });
+              const reason = explainMissingRoi({ totalCosts: costSource, totalBenefits: benefitsSource });
               const cls = r.roiPercent == null ? "" : r.roiPercent >= 0 ? "text-emerald-600" : "text-rose-600";
               return (
                 <>
-                  <div className={cn("text-2xl font-bold", cls)} data-testid="text-portfolio-roi">{formatRoiPercent(r.roiPercent)}</div>
+                  <div className="flex items-center gap-1.5">
+                    <div className={cn("text-2xl font-bold", cls)} data-testid="text-portfolio-roi">{formatRoiPercent(r.roiPercent)}</div>
+                    {reason && (
+                      <UiTooltip>
+                        <UiTooltipTrigger asChild>
+                          <button type="button" className="text-muted-foreground hover:text-foreground" data-testid="tooltip-portfolio-roi-reason">
+                            <Info className="h-3.5 w-3.5" />
+                          </button>
+                        </UiTooltipTrigger>
+                        <UiTooltipContent className="max-w-xs text-xs">
+                          <div className="font-medium mb-1">ROI cannot be computed</div>
+                          <div>{reason}</div>
+                        </UiTooltipContent>
+                      </UiTooltip>
+                    )}
+                  </div>
                   <div className="text-xs text-muted-foreground mt-1">
                     Benefits <CompactCurrency value={r.totalBenefits} className="inline" /> · Costs <CompactCurrency value={r.totalCosts} className="inline" />
                   </div>

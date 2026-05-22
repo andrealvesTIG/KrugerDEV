@@ -24,18 +24,41 @@ describe("computeRoi", () => {
     expect(computeRoi({ totalCosts: undefined, totalBenefits: 100 }).roiPercent).toBeNull();
   });
 
-  it("treats missing benefits as zero", () => {
-    expect(computeRoi({ totalCosts: 100, totalBenefits: null }).roiPercent).toBe(-100);
-    expect(computeRoi({ totalCosts: 100, totalBenefits: undefined }).roiPercent).toBe(-100);
+  it("returns null when benefits are missing (no zero-coercion)", () => {
+    expect(computeRoi({ totalCosts: 100, totalBenefits: null }).roiPercent).toBeNull();
+    expect(computeRoi({ totalCosts: 100, totalBenefits: undefined }).roiPercent).toBeNull();
+    expect(computeRoi({ totalCosts: 100, totalBenefits: "" }).roiPercent).toBeNull();
   });
 
   it("coerces numeric strings", () => {
     expect(computeRoi({ totalCosts: "200", totalBenefits: "300" }).roiPercent).toBe(50);
   });
 
-  it("ignores non-numeric strings as zero", () => {
+  it("returns null for non-numeric strings", () => {
     expect(computeRoi({ totalCosts: "abc", totalBenefits: 100 }).roiPercent).toBeNull();
-    expect(computeRoi({ totalCosts: 100, totalBenefits: "abc" }).roiPercent).toBe(-100);
+    expect(computeRoi({ totalCosts: 100, totalBenefits: "abc" }).roiPercent).toBeNull();
+  });
+});
+
+describe("explainMissingRoi", () => {
+  it("returns null when ROI is computable", async () => {
+    const { explainMissingRoi } = await import("../shared/lib/roi");
+    expect(explainMissingRoi({ totalCosts: 100, totalBenefits: 150 })).toBeNull();
+  });
+
+  it("explains missing costs", async () => {
+    const { explainMissingRoi } = await import("../shared/lib/roi");
+    expect(explainMissingRoi({ totalCosts: null, totalBenefits: 100 })).toMatch(/Costs are missing/);
+  });
+
+  it("explains missing benefits", async () => {
+    const { explainMissingRoi } = await import("../shared/lib/roi");
+    expect(explainMissingRoi({ totalCosts: 100, totalBenefits: null })).toMatch(/Benefits are missing/);
+  });
+
+  it("explains zero costs", async () => {
+    const { explainMissingRoi } = await import("../shared/lib/roi");
+    expect(explainMissingRoi({ totalCosts: 0, totalBenefits: 100 })).toMatch(/greater than zero/);
   });
 });
 
