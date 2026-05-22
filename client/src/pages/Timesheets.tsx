@@ -384,33 +384,75 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   const hasChangesRef = useRef(hasChanges);
   hasChangesRef.current = hasChanges;
 
-  // Undo history
+  // Undo history.
+  // Previously, snapshots were only pushed by clearRow / clearAllRows, so the
+  // Undo button was effectively always disabled for ordinary hours/notes
+  // edits. We now snapshot before every user-driven gridData mutation, with
+  // two cheap dedupe guards so the 20-entry cap is not blown by per-keystroke
+  // snapshots:
+  //   - `lastEditedCellRef` collapses consecutive edits to the same cell into
+  //     a single undo step (one snapshot taken before the first keystroke of
+  //     the editing session for that cell).
+  //   - `lastSnapshotGridRef` skips snapshots when gridData hasn't changed
+  //     since the previous snapshot (e.g. focus-only events).
   const [undoHistory, setUndoHistory] = useState<Record<string, Record<string, { hours: string; notes: string; id?: number }>>[]>([]);
   const isUndoingRef = useRef(false);
-  
+  const lastEditedCellRef = useRef<string | null>(null);
+  const lastSnapshotGridRef = useRef<typeof gridData | null>(null);
+
   // Save current state to history before making changes
   const saveToHistory = useCallback(() => {
     if (isUndoingRef.current) return;
+    if (lastSnapshotGridRef.current === gridData) return;
     const snapshot = JSON.parse(JSON.stringify(gridData));
+    lastSnapshotGridRef.current = gridData;
     setUndoHistory(prev => {
       const newHistory = [...prev, snapshot];
       return newHistory.slice(-MAX_UNDO_HISTORY);
     });
   }, [gridData]);
-  
+
   const undo = useCallback(() => {
     if (undoHistory.length === 0) return;
-    
+
+    // Brief defensive flag in case any saveToHistory caller fires
+    // synchronously during this batch. Cleared immediately afterwards
+    // (no setTimeout) so a fast follow-up edit is still snapshotted —
+    // otherwise the post-undo edit would be silently dropped from the
+    // history and become non-undoable.
     isUndoingRef.current = true;
-    const previousState = undoHistory[undoHistory.length - 1];
-    setUndoHistory(prev => prev.slice(0, -1));
-    setGridData(previousState);
-    setHasChanges(true);
-    
-    setTimeout(() => {
+    try {
+      const previousState = undoHistory[undoHistory.length - 1];
+      setUndoHistory(prev => prev.slice(0, -1));
+      setGridData(previousState);
+      setHasChanges(true);
+      // Reset edit-session tracking so the next edit starts a fresh
+      // snapshot group instead of being silently merged with the
+      // undone session.
+      lastEditedCellRef.current = null;
+      lastSnapshotGridRef.current = null;
+    } finally {
       isUndoingRef.current = false;
-    }, 100);
+    }
   }, [undoHistory, setGridData, setHasChanges]);
+
+  // Keyboard shortcut: Ctrl/Cmd+Z to undo. Skipped while focus is in an
+  // input/textarea so the browser's native text-undo continues to work for
+  // in-progress cell edits (matches the ProjectFinancialGrid pattern).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tgt = e.target as HTMLElement | null;
+      const tag = tgt?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tgt?.isContentEditable) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.key.toLowerCase() === "z" && !e.shiftKey && undoHistory.length > 0) {
+        e.preventDefault();
+        undo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, undoHistory.length]);
 
   // Initialize collapsed projects to all collapsed by default
   useEffect(() => {
@@ -534,6 +576,8 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   // Quick time preset handler
   const applyQuickTime = (value: string) => {
     if (!selectedCell) return;
+    saveToHistory();
+    lastEditedCellRef.current = `${selectedCell.taskId}-${selectedCell.dateKey}`;
     setGridData(prev => ({
       ...prev,
       [selectedCell.taskId]: {
@@ -650,6 +694,14 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   }, [entries, assignedTasks, dates, setGridData]);
 
   const handleHoursChange = (taskId: number, dateKey: string, value: string) => {
+    // Snapshot once per cell-editing session so successive keystrokes in the
+    // same cell collapse into a single undo step. Switching to a different
+    // cell pushes a fresh snapshot covering the previous cell's final value.
+    const cellKey = `${taskId}-${dateKey}`;
+    if (lastEditedCellRef.current !== cellKey) {
+      saveToHistory();
+      lastEditedCellRef.current = cellKey;
+    }
     // Allow only numbers and one decimal point
     let numValue = value.replace(/[^0-9.]/g, "");
     
@@ -684,6 +736,10 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
   };
 
   const handleNoteSave = (taskId: number, dateKey: string) => {
+    saveToHistory();
+    // Notes save is a discrete, one-shot mutation — start a fresh
+    // edit-session afterwards so the next hours edit takes its own snapshot.
+    lastEditedCellRef.current = null;
     setGridData(prev => ({
       ...prev,
       [taskId]: {
@@ -703,6 +759,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
 
   const clearRow = (taskId: number) => {
     saveToHistory();
+    lastEditedCellRef.current = null;
     setGridData(prev => {
       const updated = { ...prev };
       if (updated[taskId]) {
@@ -722,6 +779,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
 
   const clearAllRows = () => {
     saveToHistory();
+    lastEditedCellRef.current = null;
     setGridData(prev => {
       const updated = { ...prev };
       for (const taskId of Object.keys(updated)) {
