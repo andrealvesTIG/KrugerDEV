@@ -65,7 +65,7 @@ export default function ProgramDetails() {
 
   const [form, setForm] = useState({
     name: "", status: "Active", description: "", businessCase: "",
-    ownerId: "", budget: "", benefit: "", roi: "",
+    ownerId: "",
   });
   const [manageOpen, setManageOpen] = useState(false);
   const [selectedProjectIds, setSelectedProjectIds] = useState<number[]>([]);
@@ -78,12 +78,16 @@ export default function ProgramDetails() {
         description: program.description ?? "",
         businessCase: program.businessCase ?? "",
         ownerId: program.ownerId,
-        budget: program.budget?.toString() ?? "",
-        benefit: program.benefit?.toString() ?? "",
-        roi: program.roi?.toString() ?? "",
       });
     }
   }, [program]);
+
+  // Budget and Benefit are rolled up server-side from the program's child
+  // projects (see GET /api/programs/:id). They are read-only here so the
+  // values always reflect the live sum of project budgets / project benefit
+  // target values. ROI is then derived from these rolled-up totals.
+  const rolledBudget = Number((program as any)?.totalBudget ?? 0);
+  const rolledBenefit = Number((program as any)?.totalBenefits ?? 0);
 
   useEffect(() => {
     if (manageOpen) {
@@ -113,10 +117,11 @@ export default function ProgramDetails() {
       description: form.description || null,
       businessCase: form.businessCase || null,
       ownerId: form.ownerId,
-      budget: toNumOrNull(form.budget) as any,
-      benefit: toNumOrNull(form.benefit) as any,
-      // ROI is computed at read time from budget + benefit and never stored
-      // — see shared/lib/roi.ts. Intentionally omitted from the save payload.
+      // Budget, Benefit, and ROI are all read-only roll-ups on the UI now:
+      // Budget = SUM(project.budget) and Benefit = SUM(project_benefits.targetValue)
+      // for this program's child projects (see GET /api/programs/:id). ROI is
+      // computed from those at read time. Intentionally omitted from the save
+      // payload so manual edits cannot drift from the rolled-up totals.
     } as any, {
       onSuccess: () => toast({ title: "Saved" }),
       onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -208,12 +213,48 @@ export default function ProgramDetails() {
           <CardHeader><CardTitle>Financials</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label>Budget</Label>
-              <Input data-testid="input-budget" type="number" step="0.01" value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })} />
+              <Label className="flex items-center gap-1.5">
+                Budget
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="text-muted-foreground hover:text-foreground" data-testid="tooltip-program-budget">
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs">
+                    Rolled up from the sum of <span className="font-medium">Budget</span> across all projects in this program. Read-only.
+                  </TooltipContent>
+                </Tooltip>
+              </Label>
+              <div
+                className="flex h-10 items-center px-3 rounded-md border border-input bg-muted/30"
+                data-testid="display-program-budget"
+              >
+                <span className="font-semibold">{formatCurrency(rolledBudget)}</span>
+                <span className="ml-2 text-xs text-muted-foreground">Auto-computed from project budgets</span>
+              </div>
             </div>
             <div>
-              <Label>Benefit</Label>
-              <Input data-testid="input-benefit" type="number" step="0.01" value={form.benefit} onChange={(e) => setForm({ ...form, benefit: e.target.value })} />
+              <Label className="flex items-center gap-1.5">
+                Benefit
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="text-muted-foreground hover:text-foreground" data-testid="tooltip-program-benefit">
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs">
+                    Rolled up from the sum of each project's <span className="font-medium">Benefit target values</span>. Read-only.
+                  </TooltipContent>
+                </Tooltip>
+              </Label>
+              <div
+                className="flex h-10 items-center px-3 rounded-md border border-input bg-muted/30"
+                data-testid="display-program-benefit"
+              >
+                <span className="font-semibold">{formatCurrency(rolledBenefit)}</span>
+                <span className="ml-2 text-xs text-muted-foreground">Auto-computed from project benefits</span>
+              </div>
             </div>
             <div>
               <Label className="flex items-center gap-1.5">
@@ -228,13 +269,13 @@ export default function ProgramDetails() {
                     <div className="font-medium mb-1">How ROI is calculated</div>
                     <div>ROI(%) = ((Benefits − Costs) / Costs) × 100</div>
                     <div className="mt-1 text-muted-foreground">
-                      Costs = Program Budget · Benefits = Program Benefit. Read-only; never stored.
+                      Costs = rolled-up Project Budgets · Benefits = rolled-up Project Benefits. Read-only; never stored.
                     </div>
                   </TooltipContent>
                 </Tooltip>
               </Label>
               {(() => {
-                const r = computeRoi({ totalCosts: form.budget, totalBenefits: form.benefit });
+                const r = computeRoi({ totalCosts: rolledBudget, totalBenefits: rolledBenefit });
                 const cls = r.roiPercent == null ? "text-muted-foreground" : r.roiPercent >= 0 ? "text-emerald-600" : "text-rose-600";
                 return (
                   <div

@@ -1,9 +1,9 @@
 import { db } from "../db";
 import {
-  programs, projects,
+  programs, projects, projectBenefits,
   type Program, type InsertProgram, type UpdateProgramRequest,
 } from "@shared/schema";
-import { eq, and, isNull, inArray } from "drizzle-orm";
+import { eq, and, isNull, inArray, sql } from "drizzle-orm";
 
 export async function getPrograms(organizationId?: number): Promise<Program[]> {
   if (organizationId) {
@@ -74,4 +74,35 @@ export async function removeProjectFromProgram(projectId: number): Promise<void>
   await db.update(projects)
     .set({ programId: null })
     .where(eq(projects.id, projectId));
+}
+
+/**
+ * Roll up Budget and Benefit totals for a program from its child projects:
+ *   totalBudget   = SUM(projects.budget) for active projects linked to the
+ *                   program
+ *   totalBenefits = SUM(project_benefits.target_value) across those same
+ *                   projects
+ *
+ * Mirrors the portfolio overview rollup (see
+ * `/api/portfolios/:id/overview`) so Program ROI uses the same definition.
+ * Returns zeros when the program has no projects.
+ */
+export async function getProgramFinancialTotals(
+  programId: number,
+): Promise<{ totalBudget: number; totalBenefits: number; projectCount: number }> {
+  const childProjects = await getProgramProjects(programId);
+  const projectIds = childProjects.map(p => p.id);
+  const totalBudget = childProjects.reduce(
+    (sum, p) => sum + Number(p.budget ?? 0),
+    0,
+  );
+  let totalBenefits = 0;
+  if (projectIds.length > 0) {
+    const [row] = await db
+      .select({ total: sql<string>`COALESCE(SUM(${projectBenefits.targetValue}), 0)` })
+      .from(projectBenefits)
+      .where(inArray(projectBenefits.projectId, projectIds));
+    totalBenefits = Number(row?.total ?? 0) || 0;
+  }
+  return { totalBudget, totalBenefits, projectCount: childProjects.length };
 }

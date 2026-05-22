@@ -387,7 +387,7 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
                   <div className="font-medium mb-1">How ROI is calculated</div>
                   <div>ROI(%) = ((Benefits − Costs) / Costs) × 100</div>
                   <div className="mt-1 text-muted-foreground">
-                    Costs = Portfolio Budget Allocated · Benefits = sum of each project's benefit target values. Shows — when either input is missing or Costs ≤ 0.
+                    Costs = sum of each project's Budget · Benefits = sum of each project's benefit target values. Both roll up live from this portfolio's projects. Shows — when either input is missing or Costs ≤ 0.
                   </div>
                 </UiTooltipContent>
               </UiTooltip>
@@ -395,7 +395,11 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
           </CardHeader>
           <CardContent>
             {(() => {
-              const costSource = portfolio.budgetAllocated;
+              // Cost source rolls up from the portfolio's child projects
+              // (sum of each project's effective Budget — financial-entries
+              // AOP when present, otherwise projects.budget). Matches the
+              // benefits roll-up so ROI is consistent across the page.
+              const costSource = (metrics as any).totalBudget;
               const benefitsSource = (metrics as any).totalBenefits;
               const r = computeRoi({ totalCosts: costSource, totalBenefits: benefitsSource });
               const reason = explainMissingRoi({ totalCosts: costSource, totalBenefits: benefitsSource });

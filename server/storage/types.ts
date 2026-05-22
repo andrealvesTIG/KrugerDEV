@@ -191,6 +191,7 @@ export interface IProgramStorage {
   setProgramProjects(programId: number, projectIds: number[]): Promise<void>;
   addProjectToProgram(programId: number, projectId: number): Promise<void>;
   removeProjectFromProgram(projectId: number): Promise<void>;
+  getProgramFinancialTotals(programId: number): Promise<{ totalBudget: number; totalBenefits: number; projectCount: number }>;
 }
 
 export interface IProjectStorage {

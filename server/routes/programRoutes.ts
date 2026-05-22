@@ -51,7 +51,13 @@ export function registerProgramRoutes(app: Express) {
       if (!await userHasOrgAccess(userId, program.organizationId)) {
         return res.status(403).json({ message: 'Access denied' });
       }
-      res.json(program);
+      // Budget and Benefit roll up from the program's child projects so the
+      // UI shows the same totals as the portfolio overview rollup. The
+      // legacy persisted `budget` / `benefit` columns are preserved for
+      // backwards compatibility but the rolled-up `totalBudget` and
+      // `totalBenefits` are the source of truth in the UI.
+      const totals = await storage.getProgramFinancialTotals(id);
+      res.json({ ...program, ...totals });
     } catch (err) {
       const c = classifyError(err);
       res.status(c.status).json({ message: c.status === 500 ? 'Error fetching program' : c.message });
