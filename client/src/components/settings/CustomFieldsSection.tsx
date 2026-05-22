@@ -34,6 +34,7 @@ const FIELD_TYPES = [
   { value: "effort_remaining_hours", label: "Effort Remaining in Hours (computed)" },
   { value: "days_between_dates", label: "Days Between Two Dates (computed)" },
   { value: "roi", label: "ROI % (computed from benefits / costs)" },
+  { value: "rag_rollup", label: "RAG Rollup — Worst of selected statuses (computed)" },
 ] as const;
 
 const COMPUTED_FIELD_TYPES = new Set([
@@ -43,6 +44,7 @@ const COMPUTED_FIELD_TYPES = new Set([
   "effort_remaining_hours",
   "days_between_dates",
   "roi",
+  "rag_rollup",
 ]);
 
 const ENTITY_TYPES = [
@@ -73,6 +75,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
   const [mask, setMask] = useState("");
   const [startDateFieldId, setStartDateFieldId] = useState<string>("");
   const [endDateFieldId, setEndDateFieldId] = useState<string>("");
+  const [ragSourceFieldIds, setRagSourceFieldIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
 
   // Intake and project share their custom-field pool: a definition typed
@@ -110,6 +113,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
     setMask("");
     setStartDateFieldId("");
     setEndDateFieldId("");
+    setRagSourceFieldIds([]);
     setEditingField(null);
   };
 
@@ -129,6 +133,11 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
     } else {
       setStartDateFieldId("");
       setEndDateFieldId("");
+    }
+    if (field.fieldType === "rag_rollup" && Array.isArray(field.options)) {
+      setRagSourceFieldIds((field.options as string[]).filter(Boolean));
+    } else {
+      setRagSourceFieldIds([]);
     }
     setShowAddDialog(true);
   };
@@ -153,6 +162,14 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
         return;
       }
       optionsArray = [startDateFieldId, endDateFieldId];
+    }
+
+    if (fieldType === "rag_rollup") {
+      if (ragSourceFieldIds.length < 2) {
+        toast({ title: "Error", description: "Pick at least two source RAG fields to roll up", variant: "destructive" });
+        return;
+      }
+      optionsArray = ragSourceFieldIds.slice();
     }
 
     if (fieldType === "autonumber") {
@@ -476,6 +493,54 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
                     </p>
                   </div>
                 </>
+              );
+            })()}
+            {fieldType === "rag_rollup" && (() => {
+              const ragFields = fields.filter(f =>
+                f.fieldType === "rag"
+                && matchesEntityTab(f, entityType)
+                && (!editingField || f.id !== editingField.id)
+              );
+              if (ragFields.length < 2) {
+                return (
+                  <p className="text-xs text-destructive">
+                    Need at least two RAG custom fields on this entity before you can create a RAG rollup field.
+                  </p>
+                );
+              }
+              const toggle = (id: string) => {
+                setRagSourceFieldIds(prev =>
+                  prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+                );
+              };
+              return (
+                <div className="space-y-2">
+                  <Label>Source RAG fields *</Label>
+                  <div className="space-y-1.5 rounded-md border p-3" data-testid="rag-rollup-source-picker">
+                    {ragFields.map(f => {
+                      const id = String(f.id);
+                      const checked = ragSourceFieldIds.includes(id);
+                      return (
+                        <div key={f.id} className="flex items-center gap-2">
+                          <Checkbox
+                            id={`rag-src-${f.id}`}
+                            checked={checked}
+                            onCheckedChange={() => toggle(id)}
+                            data-testid={`checkbox-rag-source-${f.id}`}
+                          />
+                          <Label htmlFor={`rag-src-${f.id}`} className="cursor-pointer font-normal">
+                            {f.name}
+                          </Label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Value is the worst status across the selected fields
+                    (<span className="font-medium">Red</span> &gt; <span className="font-medium">Yellow</span> &gt; <span className="font-medium">Green</span>).
+                    Empty source values are ignored.
+                  </p>
+                </div>
               );
             })()}
             {fieldType === "autonumber" && (

@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Info } from "lucide-react";
 import { computeRoi, formatRoiPercent } from "@shared/lib/roi";
+import { computeWorstRag } from "@shared/lib/ragRollup";
 import { findDatePairOrderError } from "@shared/lib/customFieldDateValidation";
 
 export function ProjectSingleCustomField({
@@ -76,7 +77,8 @@ export function ProjectSingleCustomField({
     || field.fieldType === "effort_completed_hours"
     || field.fieldType === "effort_remaining_hours"
     || field.fieldType === "days_between_dates"
-    || field.fieldType === "roi";
+    || field.fieldType === "roi"
+    || field.fieldType === "rag_rollup";
   const startEdit = () => {
     if (isLocked || field.fieldType === "autonumber" || isComputed) return;
     setEditValue(value);
@@ -280,6 +282,57 @@ export function ProjectSingleCustomField({
                 Costs = Project budget · Benefits = sum of Project Benefits target values
               </div>
             </TooltipContent>
+          </Tooltip>
+        </span>
+      );
+    }
+    if (field.fieldType === "rag_rollup") {
+      const opts = Array.isArray(field.options) ? (field.options as string[]) : [];
+      const rawSourceIds = opts.map(o => parseInt(o, 10)).filter(n => Number.isFinite(n));
+      // Only honour sources that still exist as active RAG fields. Soft-deleted
+      // or retyped sources are ignored so the rollup never reflects values the
+      // admin can no longer see in the picker.
+      const activeSources = rawSourceIds
+        .map(id => allDefinitions.find(d => d.id === id))
+        .filter((d): d is typeof allDefinitions[number] => !!d && d.fieldType === "rag");
+      const sourceValues = activeSources.map(d => values.find(v => v.fieldDefinitionId === d.id)?.value);
+      const worst = computeWorstRag(sourceValues);
+      const sourceLabels = activeSources.map(d => d.name);
+      const tooltipText = sourceLabels.length
+        ? `Worst of: ${sourceLabels.join(", ")}`
+        : "No source RAG fields configured";
+      if (!worst) {
+        return (
+          <span className="text-muted-foreground text-sm inline-flex items-center gap-1" data-testid={`value-project-rag-rollup-empty-${field.id}`}>
+            —
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-muted-foreground hover:text-foreground">
+                  <Info className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">{tooltipText}</TooltipContent>
+            </Tooltip>
+          </span>
+        );
+      }
+      const cls = worst === "Green" ? "bg-green-100 text-green-800 border-green-300 dark:bg-green-900/40 dark:text-green-200"
+        : worst === "Yellow" ? "bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/40 dark:text-yellow-200"
+        : "bg-red-100 text-red-800 border-red-300 dark:bg-red-900/40 dark:text-red-200";
+      const dot = worst === "Green" ? "bg-green-500" : worst === "Yellow" ? "bg-yellow-400" : "bg-red-500";
+      return (
+        <span className="inline-flex items-center gap-1.5" data-testid={`value-project-rag-rollup-${field.id}`}>
+          <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}>
+            <span className={`inline-block h-2 w-2 rounded-full ${dot}`} />
+            {worst}
+          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="text-muted-foreground hover:text-foreground" data-testid={`tooltip-project-rag-rollup-${field.id}`}>
+                <Info className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="text-xs">{tooltipText}</TooltipContent>
           </Tooltip>
         </span>
       );

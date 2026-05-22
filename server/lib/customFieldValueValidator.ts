@@ -150,6 +150,7 @@ const COMPUTED_READONLY_FIELD_TYPES = new Set([
   "effort_remaining_hours",
   "days_between_dates",
   "roi",
+  "rag_rollup",
 ]);
 
 export async function validateCustomFieldValue(
