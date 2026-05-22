@@ -27,6 +27,12 @@ import { PROJECT_FORM_FIELD_BY_KEY, type ProjectFieldDefinition } from "@shared/
 import { INTAKE_FIELD_BY_KEY } from "@shared/intakeFormRegistry";
 import type { CustomFieldDefinition } from "@shared/schema";
 import { parseFieldRules, evaluateFieldRule } from "@shared/lib/workflowFieldRules";
+import {
+  parseThresholdConfig,
+  evaluateThreshold,
+  coerceNumeric,
+  formatThresholdExpression,
+} from "@shared/lib/thresholdCheck";
 
 export type WorkflowEntityType = "intake" | "project";
 
@@ -190,8 +196,20 @@ export function WorkflowStepRequirementsDialog({
       if (!f.required) continue;
       const v = draft[f.key];
       if (f.isCustom) {
-        const trimmed = (v ?? "").toString().trim();
         const ft = f.customDef?.fieldType;
+        // Computed Pass/Fail field — value isn't stored; "satisfied" means the
+        // configured threshold passes against the current source field value.
+        if (ft === 'threshold_check' && f.customDef) {
+          const cfg = parseThresholdConfig(f.customDef.options as string[] | null | undefined);
+          if (!cfg) { errs.push(`${f.label} is not configured`); continue; }
+          const sourceRaw = cfValues.find(cv => cv.fieldDefinitionId === cfg.sourceFieldId)?.value;
+          const sourceNum = coerceNumeric(sourceRaw);
+          if (sourceNum == null || !evaluateThreshold(sourceNum, cfg.operator, cfg.threshold)) {
+            errs.push(`${f.label} must pass its threshold`);
+          }
+          continue;
+        }
+        const trimmed = (v ?? "").toString().trim();
         const empty = trimmed.length === 0
           || (ft === 'checkbox' && trimmed !== 'true')
           || (ft === 'multiselect' && (trimmed === '[]' || trimmed === 'null'))
@@ -238,9 +256,24 @@ export function WorkflowStepRequirementsDialog({
             const cfKey = `cf:${id}`;
             if (stepKeys.has(cfKey) || seen.has(cfKey)) continue;
             seen.add(cfKey);
+            const ft = def.fieldType;
+            if (ft === 'threshold_check') {
+              // Same treatment as the per-step validator: required = the
+              // configured threshold passes against the current source value.
+              const cfg = parseThresholdConfig(def.options as string[] | null | undefined);
+              if (!cfg) {
+                errs.push(`${item.displayName || def.name} is not configured (${tab.label})`);
+                continue;
+              }
+              const srcRaw = cfValues.find(cv => cv.fieldDefinitionId === cfg.sourceFieldId)?.value;
+              const srcNum = coerceNumeric(srcRaw);
+              if (srcNum == null || !evaluateThreshold(srcNum, cfg.operator, cfg.threshold)) {
+                errs.push(`${item.displayName || def.name} must pass its threshold (${tab.label})`);
+              }
+              continue;
+            }
             const raw = cfValues.find(cv => cv.fieldDefinitionId === id)?.value ?? '';
             const trimmed = String(raw ?? '').trim();
-            const ft = def.fieldType;
             const empty = trimmed.length === 0
               || (ft === 'checkbox' && trimmed !== 'true')
               || (ft === 'multiselect' && (trimmed === '[]' || trimmed === 'null'))
@@ -489,6 +522,42 @@ export function WorkflowStepRequirementsDialog({
         }
         case 'autonumber':
           return <Input value={String(v)} disabled readOnly placeholder="Auto-assigned on save" data-testid={`wsd-input-${f.key}`} />;
+        case 'threshold_check': {
+          // Computed Pass/Fail — read-only here. Reflects whether the
+          // configured source field currently meets the configured threshold.
+          const cfg = parseThresholdConfig(def.options as string[] | null | undefined);
+          if (!cfg) {
+            return (
+              <span className="text-muted-foreground text-sm italic" data-testid={`wsd-input-${f.key}`}>
+                Not configured
+              </span>
+            );
+          }
+          const source = cfDefs.find(d => d.id === cfg.sourceFieldId);
+          const sourceRaw = cfValues.find(cv => cv.fieldDefinitionId === cfg.sourceFieldId)?.value;
+          const sourceNum = coerceNumeric(sourceRaw);
+          const expr = source ? formatThresholdExpression(source.name, cfg.operator, cfg.threshold) : "source field missing";
+          if (sourceNum == null) {
+            return (
+              <span className="text-muted-foreground text-sm" data-testid={`wsd-input-${f.key}`} title={`Pass when ${expr}`}>
+                — (waiting for {source?.name || "source field"})
+              </span>
+            );
+          }
+          const passed = evaluateThreshold(sourceNum, cfg.operator, cfg.threshold);
+          const cls = passed
+            ? "bg-green-100 text-green-800 border-green-300 dark:bg-green-900/40 dark:text-green-200"
+            : "bg-red-100 text-red-800 border-red-300 dark:bg-red-900/40 dark:text-red-200";
+          return (
+            <span
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}
+              data-testid={`wsd-input-${f.key}`}
+              title={`Pass when ${expr} · current value ${sourceNum}`}
+            >
+              {passed ? "Pass" : "Fail"}
+            </span>
+          );
+        }
         default:
           return <Input value={String(v)} onChange={e => set(e.target.value)} disabled={disabled} data-testid={`wsd-input-${f.key}`} />;
       }

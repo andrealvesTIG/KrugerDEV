@@ -9,6 +9,7 @@ import { usePortfolios } from "@/hooks/use-portfolios";
 import { usePrograms } from "@/hooks/use-programs";
 import { useIntakeWorkflow, AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
 import { INTAKE_FIELD_BY_KEY } from "@shared/intakeFormRegistry";
+import { parseThresholdConfig, evaluateThreshold, coerceNumeric } from "@shared/lib/thresholdCheck";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIntakeTabLayout } from "@/hooks/use-intake-tab-layout";
 import { IntakeFormRenderer, PmApprovalCard, type IntakeFormRendererContext } from "@/components/intake/IntakeFormRenderer";
@@ -437,6 +438,18 @@ export default function IntakeDetails() {
           errors.push(`${label} is required`);
           continue;
         }
+        // threshold_check is a computed Pass/Fail field — value isn't stored,
+        // so "required" means the threshold passes against the source field.
+        if (def.fieldType === 'threshold_check') {
+          const cfg = parseThresholdConfig(def.options as string[] | null | undefined);
+          if (!cfg) { errors.push(`${label} is not configured`); continue; }
+          const srcRaw = intakeCustomFieldValues.find(v => v.fieldDefinitionId === cfg.sourceFieldId)?.value;
+          const srcNum = coerceNumeric(srcRaw);
+          if (srcNum == null || !evaluateThreshold(srcNum, cfg.operator, cfg.threshold)) {
+            errors.push(`${label} must pass its threshold`);
+          }
+          continue;
+        }
         const cfValue = intakeCustomFieldValues.find(v => v.fieldDefinitionId === defId)?.value;
         const trimmed = (cfValue ?? '').toString().trim();
         const isEmpty = trimmed.length === 0
@@ -487,6 +500,19 @@ export default function IntakeDetails() {
             const cfKey = `cf:${defId}`;
             if (stepKeys.has(cfKey) || seen.has(cfKey)) continue;
             seen.add(cfKey);
+            if (def.fieldType === 'threshold_check') {
+              const cfg = parseThresholdConfig(def.options as string[] | null | undefined);
+              if (!cfg) {
+                errors.push(`${item.displayName || def.name} is not configured (${tab.label})`);
+                continue;
+              }
+              const srcRaw = intakeCustomFieldValues.find(v => v.fieldDefinitionId === cfg.sourceFieldId)?.value;
+              const srcNum = coerceNumeric(srcRaw);
+              if (srcNum == null || !evaluateThreshold(srcNum, cfg.operator, cfg.threshold)) {
+                errors.push(`${item.displayName || def.name} must pass its threshold (${tab.label})`);
+              }
+              continue;
+            }
             const cfValue = intakeCustomFieldValues.find(v => v.fieldDefinitionId === defId)?.value;
             const trimmed = (cfValue ?? '').toString().trim();
             const isEmpty = trimmed.length === 0
