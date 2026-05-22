@@ -2021,6 +2021,12 @@ export const intakeWorkflowSteps = pgTable("intake_workflow_steps", {
   showCybersecurityQuestions: boolean("show_cybersecurity_questions").default(false).notNull(), // Whether to render the Cybersecurity questionnaire grid on this step
   showCostingChecklist: boolean("show_costing_checklist").default(false).notNull(), // Whether to render the Costing Checklist grid on this step
   requiresPmApproval: boolean("requires_pm_approval").default(false).notNull(), // Whether the PM Approval card is rendered on this step (replaces the legacy pm_approval layout block)
+  // Optional pointer to a checkbox custom_field_definitions row that acts as
+  // this step's "Completed" marker. When set, the intake page auto-ticks this
+  // field once every other field in `required_fields` for this step has a
+  // value. The user can still uncheck/recheck it manually — the auto-tick
+  // only fires once per (intake, step) on the empty->filled transition.
+  completionFieldId: integer("completion_field_id"),
   isActive: boolean("is_active").default(true), // Whether step is active
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

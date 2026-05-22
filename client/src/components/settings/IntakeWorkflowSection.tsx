@@ -86,6 +86,11 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
   const [editShowCybersecurityQuestions, setEditShowCybersecurityQuestions] = useState(false);
   const [editShowCostingChecklist, setEditShowCostingChecklist] = useState(false);
   const [editRequiresPmApproval, setEditRequiresPmApproval] = useState(false);
+  // Optional per-step "Completed" checkbox custom field. When set, the
+  // intake page auto-ticks this field once every other field in
+  // `requiredFields` for this step has a value. Stored as the
+  // custom_field_definitions row id; `null` = no auto-completion.
+  const [editCompletionFieldId, setEditCompletionFieldId] = useState<number | null>(null);
   const [entryEmailDraft, setEntryEmailDraft] = useState("");
   const [exitEmailDraft, setExitEmailDraft] = useState("");
   const [entryEmailError, setEntryEmailError] = useState<string | null>(null);
@@ -251,6 +256,10 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     setEditShowCybersecurityQuestions(!!step.showCybersecurityQuestions);
     setEditShowCostingChecklist(!!(step as any).showCostingChecklist);
     setEditRequiresPmApproval(!!(step as any).requiresPmApproval);
+    {
+      const cfid = (step as any).completionFieldId;
+      setEditCompletionFieldId(typeof cfid === "number" ? cfid : null);
+    }
     setEntryEmailDraft("");
     setExitEmailDraft("");
     setEntryEmailError(null);
@@ -295,6 +304,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
     showCybersecurityQuestions: !!s.showCybersecurityQuestions,
     showCostingChecklist: !!(s as any).showCostingChecklist,
     requiresPmApproval: !!(s as any).requiresPmApproval,
+    completionFieldId: (s as any).completionFieldId ?? null,
     isActive: s.isActive,
   });
 
@@ -362,6 +372,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
           showCybersecurityQuestions: editShowCybersecurityQuestions,
           showCostingChecklist: editShowCostingChecklist,
           requiresPmApproval: editRequiresPmApproval,
+          completionFieldId: editCompletionFieldId,
           isActive: s.isActive,
         };
       }
@@ -399,6 +410,7 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
       showCybersecurityQuestions: false,
       showCostingChecklist: false,
       requiresPmApproval: false,
+      completionFieldId: null,
       isActive: true,
     };
 
@@ -965,6 +977,39 @@ export function IntakeWorkflowSection({ organizationId }: { organizationId: numb
                 </p>
               </div>
             </div>
+            {(() => {
+              const checkboxFields = intakeCustomFields.filter(d => d.fieldType === "checkbox");
+              return (
+                <div className="space-y-2" data-testid="row-completion-field">
+                  <Label>Completion field</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Pick a checkbox custom field to auto-tick once every other field in this step's
+                    Required Fields list has a value. Users can still uncheck or re-check it manually.
+                  </p>
+                  <Select
+                    value={editCompletionFieldId == null ? "__none__" : String(editCompletionFieldId)}
+                    onValueChange={(v) => setEditCompletionFieldId(v === "__none__" ? null : Number(v))}
+                  >
+                    <SelectTrigger data-testid="select-completion-field">
+                      <SelectValue placeholder="No auto-completion" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">No auto-completion</SelectItem>
+                      {checkboxFields.map(def => (
+                        <SelectItem key={def.id} value={String(def.id)} data-testid={`option-completion-field-${def.id}`}>
+                          {def.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {checkboxFields.length === 0 && (
+                    <p className="text-xs text-muted-foreground italic">
+                      No checkbox custom fields exist yet. Add one in Custom Fields settings first.
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
             <div className="space-y-2">
               <Label>Required Fields</Label>
               <p className="text-sm text-muted-foreground mb-2">

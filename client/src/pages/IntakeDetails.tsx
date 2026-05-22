@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { formatCurrency } from "@/lib/format";
 import { computeRoi, formatRoiPercent } from "@shared/lib/roi";
 import { useRoute, useLocation } from "wouter";
@@ -336,6 +336,13 @@ export default function IntakeDetails() {
 
   const [formData, setFormData] = useState<Partial<ProjectIntake>>({});
 
+  // Auto-tick a step's "Completion field" (a checkbox custom field admins
+  // pick per intake workflow step) once every other required field for that
+  // step has a value. Helper only: we only auto-flip empty/false → true once
+  // per (intake, step) per session, so manual unchecks aren't fought.
+  const autoTickedCompletionRef = useRef<Record<string, boolean>>({});
+  const updateIntakeCompletionField = useUpdateIntakeCustomFieldValue();
+
   const updateIntake = useMutation({
     mutationFn: async (data: Partial<ProjectIntake>) => {
       const response = await apiRequest('PUT', `/api/project-intakes/${id}`, data);
@@ -591,6 +598,81 @@ export default function IntakeDetails() {
   const handleFieldChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+
+  // Drive the per-step auto-completion checkbox. Runs whenever the intake,
+  // its custom field values, the in-progress formData, or the workflow
+  // step configuration changes.
+  useEffect(() => {
+    if (!intake) return;
+    // Inline lock check — the `isLocked` const is declared later in this
+    // component, so referencing it here would hit a TDZ error on first render.
+    if (intake.status === "approved" || intake.status === "rejected") return;
+    const stepId = intake.currentStep || "intake_capture";
+    const step = getStepByKey(stepId);
+    if (!step) return;
+    const completionFieldId = (step as any).completionFieldId as number | null | undefined;
+    if (!completionFieldId) return;
+
+    // Don't re-auto-tick within the same session — once the helper has fired
+    // for this (intake, step) we leave the field entirely under user control.
+    const sessionKey = `${intake.id}:${stepId}`;
+    if (autoTickedCompletionRef.current[sessionKey]) return;
+
+    const currentCompletion = intakeCustomFieldValues.find(
+      v => v.fieldDefinitionId === completionFieldId,
+    )?.value;
+    if (currentCompletion === "true") {
+      // Field is already checked (manually or from a prior session). Mark the
+      // session as already-handled so a later manual uncheck won't get
+      // immediately auto-flipped back on by this helper.
+      autoTickedCompletionRef.current[sessionKey] = true;
+      return;
+    }
+
+    const otherRequired = (step.requiredFields || []).filter(
+      k => k !== `cf:${completionFieldId}`,
+    );
+    if (otherRequired.length === 0) return;
+
+    const currentData = { ...intake, ...formData };
+    const allFilled = otherRequired.every(field => {
+      if (field.startsWith("cf:")) {
+        const defId = Number(field.slice(3));
+        const def = allCustomFieldDefs.find(d => d.id === defId);
+        if (!def) return false;
+        const raw = intakeCustomFieldValues.find(v => v.fieldDefinitionId === defId)?.value;
+        const trimmed = (raw ?? "").toString().trim();
+        const empty = trimmed.length === 0
+          || (def.fieldType === "checkbox" && trimmed !== "true")
+          || (def.fieldType === "multiselect" && (trimmed === "[]" || trimmed === "null"))
+          || (def.fieldType === "number" && Number(trimmed) <= 0);
+        return !empty;
+      }
+      const value = currentData[field as keyof typeof currentData];
+      const isNumberField = INTAKE_FIELD_BY_KEY[field]?.inputType === "number";
+      const empty = value == null
+        || (typeof value === "string" && !value.trim())
+        || (typeof value === "number" && value <= 0)
+        || (isNumberField && typeof value === "string" && Number(value) <= 0);
+      return !empty;
+    });
+    if (!allFilled) return;
+
+    autoTickedCompletionRef.current[sessionKey] = true;
+    updateIntakeCompletionField.mutate({
+      intakeId: intake.id,
+      fieldDefinitionId: completionFieldId,
+      value: "true",
+    });
+  }, [
+    intake,
+    formData,
+    intakeCustomFieldValues,
+    allCustomFieldDefs,
+    workflowSteps,
+    getStepByKey,
+    updateIntakeCompletionField,
+  ]);
 
   // Autosave a single built-in field to the server on blur (text / textarea /
   // number) or on change (select / checkbox / pickers). Skips the write when
