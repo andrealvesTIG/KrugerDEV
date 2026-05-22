@@ -38,8 +38,9 @@ import {
   CheckCircle2, FolderOpen, TrendingUp, BarChart3, ArrowRight,
   Calendar, Users, Briefcase, AlertCircle, ChevronLeft, ChevronRight, List, GanttChart, Plus, Search, X, Table2, LayoutGrid, Map as MapIcon,
   Star, Award, FileCheck, Pencil, Trash2, Check, MoreHorizontal, MoreVertical, ArrowUpToLine,
-  Shield, Share2, Download, FileText, Sparkles, RefreshCw, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown
+  Shield, Share2, Download, FileText, Sparkles, RefreshCw, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Info
 } from "lucide-react";
+import { Tooltip as UiTooltip, TooltipContent as UiTooltipContent, TooltipTrigger as UiTooltipTrigger } from "@/components/ui/tooltip";
 import { format, addDays, differenceInDays, parseISO, startOfMonth, eachDayOfInterval } from "date-fns";
 import { formatCurrency } from "@/lib/format";
 import { CompactCurrency } from "@/components/CompactCurrency";
@@ -374,7 +375,23 @@ function SummaryTab({ metrics, portfolio, portfolioId, onNavigate, getRiskScoreC
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <Card data-testid="card-metric-roi">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">ROI</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+              ROI
+              <UiTooltip>
+                <UiTooltipTrigger asChild>
+                  <button type="button" className="text-muted-foreground hover:text-foreground" data-testid="tooltip-portfolio-roi">
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
+                </UiTooltipTrigger>
+                <UiTooltipContent className="max-w-xs text-xs">
+                  <div className="font-medium mb-1">How ROI is calculated</div>
+                  <div>ROI(%) = ((Benefits − Costs) / Costs) × 100</div>
+                  <div className="mt-1 text-muted-foreground">
+                    Costs = total budget across the portfolio's projects · Benefits = sum of each project's benefit target values
+                  </div>
+                </UiTooltipContent>
+              </UiTooltip>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {(() => {

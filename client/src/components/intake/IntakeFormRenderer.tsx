@@ -253,6 +253,7 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds, bare }: { item: IntakeT
         organizationId={ctx.organizationId}
         definitionId={defId}
         isLocked={ctx.isLocked}
+        intake={ctx.intake}
         labelOverride={item.displayName}
         isRequiredOverride={requiredByStep}
       />

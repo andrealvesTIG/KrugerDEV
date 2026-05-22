@@ -12,8 +12,12 @@ import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { useCustomFieldDefinitions, useProjectCustomFieldValues, useUpdateProjectCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useResources } from "@/hooks/use-resources";
 import { useTasks } from "@/hooks/use-tasks";
+import { useProjectBenefits } from "@/hooks/use-project-features";
 import { AttachmentFieldInput, AttachmentFieldDisplay } from "@/components/custom-fields/AttachmentField";
 import { useToast } from "@/hooks/use-toast";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
+import { computeRoi, formatRoiPercent } from "@shared/lib/roi";
 
 export function ProjectSingleCustomField({
   projectId,
@@ -28,7 +32,7 @@ export function ProjectSingleCustomField({
   organizationId: number | undefined;
   definitionId: number;
   isLocked: boolean;
-  project?: { createdAt?: string | Date | null; updatedAt?: string | Date | null } | null;
+  project?: { createdAt?: string | Date | null; updatedAt?: string | Date | null; budget?: string | number | null } | null;
   labelOverride?: string | null;
   isRequiredOverride?: boolean;
 }) {
@@ -43,6 +47,10 @@ export function ProjectSingleCustomField({
   const field = allDefinitions.find(d => d.id === definitionId);
   const needsTasks = field?.fieldType === "effort_completed_hours" || field?.fieldType === "effort_remaining_hours";
   const { data: projectTasks = [] } = useTasks(needsTasks ? projectId : 0);
+  // ROI needs the project's benefits to sum targetValue. Only fetch when the
+  // field is actually ROI to avoid a request on every other custom field.
+  const needsBenefits = field?.fieldType === "roi";
+  const { data: projectBenefits = [] } = useProjectBenefits(needsBenefits ? projectId : undefined);
 
   if (defsLoading || valsLoading) return null;
   if (!field) {
@@ -66,7 +74,8 @@ export function ProjectSingleCustomField({
     || field.fieldType === "days_since_created"
     || field.fieldType === "effort_completed_hours"
     || field.fieldType === "effort_remaining_hours"
-    || field.fieldType === "days_between_dates";
+    || field.fieldType === "days_between_dates"
+    || field.fieldType === "roi";
   const startEdit = () => {
     if (isLocked || field.fieldType === "autonumber" || isComputed) return;
     setEditValue(value);
@@ -226,6 +235,33 @@ export function ProjectSingleCustomField({
       }
       const days = Math.round((e.getTime() - s.getTime()) / 86_400_000);
       return <span className="text-sm" data-testid={`value-project-computed-${field.id}`}>{days} {days === 1 ? "day" : "days"}</span>;
+    }
+    if (field.fieldType === "roi") {
+      const totalBenefits = projectBenefits.reduce((sum: number, b: any) => {
+        const n = parseFloat(String(b?.targetValue ?? 0));
+        return sum + (Number.isFinite(n) ? n : 0);
+      }, 0);
+      const totalCosts = parseFloat(String(project?.budget ?? 0));
+      const { roiPercent } = computeRoi({ totalCosts, totalBenefits });
+      return (
+        <span className="text-sm inline-flex items-center gap-1" data-testid={`value-project-roi-${field.id}`}>
+          {formatRoiPercent(roiPercent)}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="text-muted-foreground hover:text-foreground" data-testid={`tooltip-project-roi-${field.id}`}>
+                <Info className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-xs">
+              <div className="font-medium mb-1">How ROI is calculated</div>
+              <div>ROI(%) = ((Benefits − Costs) / Costs) × 100</div>
+              <div className="mt-1 text-muted-foreground">
+                Costs = Project budget · Benefits = sum of Project Benefits target values
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </span>
+      );
     }
     if (field.fieldType === "autonumber") {
       if (!value) return <span className="text-muted-foreground text-sm italic" data-testid={`value-project-autonumber-pending-${field.id}`}>Pending…</span>;

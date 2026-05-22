@@ -139,11 +139,30 @@ export async function validateResourceValue(raw: string | null | undefined, enti
  * `resource` fields, asserts the referenced resource lives in the same org
  * as the entity. Other field types pass through unchanged.
  */
+// Field types whose values are always derived at read time and must never be
+// persisted to the value tables. Writes to these fields are rejected with a
+// 400. `autonumber` is intentionally NOT in this set — it is server-assigned,
+// but the value IS stored in the value table by the auto-numbering pipeline.
+const COMPUTED_READONLY_FIELD_TYPES = new Set([
+  "days_since_updated",
+  "days_since_created",
+  "effort_completed_hours",
+  "effort_remaining_hours",
+  "days_between_dates",
+  "roi",
+]);
+
 export async function validateCustomFieldValue(
   fieldType: string | null | undefined,
   rawValue: string | null | undefined,
   entityOrgId: number | null,
 ): Promise<string | null | undefined> {
+  if (fieldType && COMPUTED_READONLY_FIELD_TYPES.has(fieldType)) {
+    throw new CustomFieldValueError(
+      400,
+      `Computed field type "${fieldType}" is read-only and cannot be written`,
+    );
+  }
   if (fieldType === "attachment") {
     const out = await validateAttachmentValue(rawValue, entityOrgId);
     if (out && entityOrgId) {

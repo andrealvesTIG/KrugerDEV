@@ -33,6 +33,7 @@ const FIELD_TYPES = [
   { value: "effort_completed_hours", label: "Effort Completed in Hours (computed)" },
   { value: "effort_remaining_hours", label: "Effort Remaining in Hours (computed)" },
   { value: "days_between_dates", label: "Days Between Two Dates (computed)" },
+  { value: "roi", label: "ROI % (computed from benefits / costs)" },
 ] as const;
 
 const COMPUTED_FIELD_TYPES = new Set([
@@ -41,6 +42,7 @@ const COMPUTED_FIELD_TYPES = new Set([
   "effort_completed_hours",
   "effort_remaining_hours",
   "days_between_dates",
+  "roi",
 ]);
 
 const ENTITY_TYPES = [

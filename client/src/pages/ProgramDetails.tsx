@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Save, Plus, X, Layers, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Plus, X, Layers, Loader2, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useOrganization } from "@/hooks/use-organization";
 import { useProgram, useProgramProjects, useUpdateProgram, useSetProgramProjects } from "@/hooks/use-programs";
 import { useProjects } from "@/hooks/use-projects";
@@ -114,10 +115,8 @@ export default function ProgramDetails() {
       ownerId: form.ownerId,
       budget: toNumOrNull(form.budget) as any,
       benefit: toNumOrNull(form.benefit) as any,
-      // ROI is auto-computed from budget + benefit (never user-edited). We
-      // still persist it so downstream consumers reading `programs.roi`
-      // (reports, exports) see a value consistent with what's displayed.
-      roi: computeRoi({ totalCosts: form.budget, totalBenefits: form.benefit }).roiPercent as any,
+      // ROI is computed at read time from budget + benefit and never stored
+      // — see shared/lib/roi.ts. Intentionally omitted from the save payload.
     } as any, {
       onSuccess: () => toast({ title: "Saved" }),
       onError: (e: any) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -217,7 +216,23 @@ export default function ProgramDetails() {
               <Input data-testid="input-benefit" type="number" step="0.01" value={form.benefit} onChange={(e) => setForm({ ...form, benefit: e.target.value })} />
             </div>
             <div>
-              <Label>ROI (%)</Label>
+              <Label className="flex items-center gap-1.5">
+                ROI (%)
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button type="button" className="text-muted-foreground hover:text-foreground" data-testid="tooltip-program-roi">
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs text-xs">
+                    <div className="font-medium mb-1">How ROI is calculated</div>
+                    <div>ROI(%) = ((Benefits − Costs) / Costs) × 100</div>
+                    <div className="mt-1 text-muted-foreground">
+                      Costs = Program Budget · Benefits = Program Benefit. Read-only; never stored.
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </Label>
               {(() => {
                 const r = computeRoi({ totalCosts: form.budget, totalBenefits: form.benefit });
                 const cls = r.roiPercent == null ? "text-muted-foreground" : r.roiPercent >= 0 ? "text-emerald-600" : "text-rose-600";

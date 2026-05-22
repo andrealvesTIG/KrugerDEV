@@ -13,6 +13,9 @@ import { useCustomFieldDefinitions, useIntakeCustomFieldValues, useUpdateIntakeC
 import { useResources } from "@/hooks/use-resources";
 import { AttachmentFieldInput, AttachmentFieldDisplay } from "@/components/custom-fields/AttachmentField";
 import { useToast } from "@/hooks/use-toast";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
+import { computeRoi, formatRoiPercent } from "@shared/lib/roi";
 import type { CustomFieldDefinition } from "@shared/schema";
 
 export function IntakeSingleCustomField({
@@ -20,6 +23,7 @@ export function IntakeSingleCustomField({
   organizationId,
   definitionId,
   isLocked,
+  intake,
   labelOverride,
   isRequiredOverride,
 }: {
@@ -27,6 +31,9 @@ export function IntakeSingleCustomField({
   organizationId: number | undefined;
   definitionId: number;
   isLocked: boolean;
+  // The intake row, when available, lets us compute fields like ROI from
+  // `estimatedBudget` and `expectedBenefits` without an extra fetch.
+  intake?: { estimatedBudget?: string | number | null; expectedBenefits?: string | number | null } | null;
   labelOverride?: string | null;
   isRequiredOverride?: boolean;
 }) {
@@ -57,7 +64,7 @@ export function IntakeSingleCustomField({
   }
   const value = values.find(v => v.fieldDefinitionId === definitionId)?.value || "";
 
-  const isComputed = field.fieldType === "days_between_dates";
+  const isComputed = field.fieldType === "days_between_dates" || field.fieldType === "roi";
   const startEdit = () => {
     if (isLocked || field.fieldType === "autonumber" || isComputed) return;
     setEditValue(value);
@@ -166,6 +173,30 @@ export function IntakeSingleCustomField({
       }
       const days = Math.round((e.getTime() - s.getTime()) / 86_400_000);
       return <span className="text-sm" data-testid={`value-intake-computed-${field.id}`}>{days} {days === 1 ? "day" : "days"}</span>;
+    }
+    if (field.fieldType === "roi") {
+      const totalCosts = parseFloat(String(intake?.estimatedBudget ?? 0));
+      const totalBenefits = parseFloat(String(intake?.expectedBenefits ?? 0));
+      const { roiPercent } = computeRoi({ totalCosts, totalBenefits });
+      return (
+        <span className="text-sm inline-flex items-center gap-1" data-testid={`value-intake-roi-${field.id}`}>
+          {formatRoiPercent(roiPercent)}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="text-muted-foreground hover:text-foreground" data-testid={`tooltip-intake-roi-${field.id}`}>
+                <Info className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-xs">
+              <div className="font-medium mb-1">How ROI is calculated</div>
+              <div>ROI(%) = ((Benefits − Costs) / Costs) × 100</div>
+              <div className="mt-1 text-muted-foreground">
+                Costs = Estimated Budget · Benefits = Expected Benefits
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </span>
+      );
     }
     if (field.fieldType === "autonumber") {
       if (!value) return <span className="text-muted-foreground text-sm italic" data-testid={`value-intake-autonumber-pending-${field.id}`}>Pending…</span>;

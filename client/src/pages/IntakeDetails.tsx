@@ -27,7 +27,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, Shield, Calculator, Save, Lightbulb, Gavel, ChevronsUpDown, Paperclip, MessageSquare, Image as ImageIcon, Download, User as UserIcon, Bot, Pencil, X, ExternalLink } from "lucide-react";
+import { Loader2, Check, ChevronLeft, ChevronRight, XCircle, AlertTriangle, FileText, Shield, Calculator, Save, Lightbulb, Gavel, ChevronsUpDown, Paperclip, MessageSquare, Image as ImageIcon, Download, User as UserIcon, Bot, Pencil, X, ExternalLink, Info } from "lucide-react";
 import { useCustomFieldDefinitions, useIntakeCustomFieldValues, useUpdateIntakeCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useResources } from "@/hooks/use-resources";
 import { AttachmentFieldInput, AttachmentFieldDisplay } from "@/components/custom-fields/AttachmentField";
@@ -779,6 +779,20 @@ export default function IntakeDetails() {
                     {formatRoiPercent(r.roiPercent)}
                   </span>
                   <span className="text-xs text-muted-foreground">(auto)</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button type="button" className="text-muted-foreground hover:text-foreground" data-testid="tooltip-intake-roi-section">
+                        <Info className="h-3.5 w-3.5" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-xs">
+                      <div className="font-medium mb-1">How ROI is calculated</div>
+                      <div>ROI(%) = ((Benefits − Costs) / Costs) × 100</div>
+                      <div className="mt-1 text-muted-foreground">
+                        Costs = Estimated Budget · Benefits = Expected Benefits
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
                 <div className="text-xs text-muted-foreground">
                   Estimated Budget {formatCurrency(budget)} · Expected Benefits {formatCurrency(benefits)}
@@ -873,7 +887,7 @@ export default function IntakeDetails() {
           requiresPmApprovalForCurrentStep,
           renderSourcePanel: () => <IntakeSourcePanel intakeId={id} />,
           renderCustomFieldsBlock: (excludeIds: number[]) => (
-            <IntakeCustomFieldsSection intakeId={intake.id} organizationId={currentOrganization?.id} isLocked={isLocked} excludeDefinitionIds={excludeIds} />
+            <IntakeCustomFieldsSection intakeId={intake.id} organizationId={currentOrganization?.id} isLocked={isLocked} excludeDefinitionIds={excludeIds} intake={intake as any} />
           ),
           currentStepRequiredFields: (workflowSteps.find(s => s.stepKey === (intake.currentStep || "intake_capture"))?.requiredFields ?? []) as string[],
         }}
@@ -1027,7 +1041,7 @@ function DynamicLayoutWrapper({
   return <IntakeFormRenderer layout={layout} activeTab={activeTab} onActiveTabChange={onActiveTabChange} ctx={ctx} />;
 }
 
-function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked, excludeDefinitionIds = [] }: { intakeId: number; organizationId: number | undefined; isLocked: boolean; excludeDefinitionIds?: number[] }) {
+function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked, excludeDefinitionIds = [], intake }: { intakeId: number; organizationId: number | undefined; isLocked: boolean; excludeDefinitionIds?: number[]; intake?: { estimatedBudget?: number | string | null; expectedBenefits?: number | string | null } }) {
   const { toast } = useToast();
   const { data: allDefinitions = [], isLoading: definitionsLoading } = useCustomFieldDefinitions(organizationId);
   const excludeSet = new Set(excludeDefinitionIds);
@@ -1054,6 +1068,7 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked, exclude
     if (isLocked) return;
     if (field.fieldType === "autonumber") return;
     if (field.fieldType === "days_between_dates") return;
+    if (field.fieldType === "roi") return;
     setEditingFieldId(field.id);
     setEditValue(getFieldValue(field.id));
   };
@@ -1176,6 +1191,29 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked, exclude
 
   const renderFieldValue = (field: CustomFieldDefinition) => {
     const value = getFieldValue(field.id);
+    if (field.fieldType === "roi") {
+      const r = computeRoi({ totalCosts: intake?.estimatedBudget, totalBenefits: intake?.expectedBenefits });
+      const cls = r.roiPercent == null ? "text-muted-foreground" : r.roiPercent >= 0 ? "text-emerald-600" : "text-rose-600";
+      return (
+        <span className="flex items-center gap-1.5 text-sm" data-testid={`value-intake-roi-${field.id}`}>
+          <span className={cn("font-semibold", cls)}>{formatRoiPercent(r.roiPercent)}</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="text-muted-foreground hover:text-foreground" data-testid={`tooltip-intake-roi-cf-${field.id}`}>
+                <Info className="h-3 w-3" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-xs">
+              <div className="font-medium mb-1">How ROI is calculated</div>
+              <div>ROI(%) = ((Benefits − Costs) / Costs) × 100</div>
+              <div className="mt-1 text-muted-foreground">
+                Costs = Estimated Budget · Benefits = Expected Benefits. Auto-computed, read-only.
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </span>
+      );
+    }
     if (field.fieldType === "days_between_dates") {
       const opts = Array.isArray(field.options) ? (field.options as string[]) : [];
       const startId = parseInt(opts[0] ?? "", 10);

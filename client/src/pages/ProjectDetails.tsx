@@ -74,7 +74,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { Loader2, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Users, UserPlus, Flag, FlagTriangleRight, ImageDown, Mail, Briefcase, ZoomIn, ZoomOut, Maximize2, ListTodo, MoreVertical, UserMinus, PanelLeft, CircleDot } from "lucide-react";
+import { Loader2, Calendar as CalendarIcon, DollarSign, Plus, Trash2, FileText, Pencil, Check, X, LayoutGrid, GanttChart, History, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, ClipboardList, ExternalLink, Download, Upload, ArrowDownUp, Eye, EyeOff, CheckCircle2, Circle, ArrowRight, MessageSquare, Send, Reply, ArrowDown, Crown, Pin, PinOff, Lock as LockIcon, LockOpen, Cloud, GitBranch, Shield, User as UserIcon, Users, UserPlus, Flag, FlagTriangleRight, ImageDown, Mail, Briefcase, ZoomIn, ZoomOut, Maximize2, ListTodo, MoreVertical, UserMinus, PanelLeft, CircleDot, Info } from "lucide-react";
 import { toPng } from "html-to-image";
 import ExcelJS from "exceljs";
 import { GANTT_COLUMNS, type GanttColumn } from "@/components/project/ProjectGanttView";
@@ -2065,6 +2065,20 @@ export default function ProjectDetails() {
                   <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-2">
                     ROI
                     <Badge variant="outline" className="text-[9px] font-normal py-0">Auto</Badge>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button type="button" className="text-muted-foreground hover:text-foreground" data-testid="tooltip-project-roi-tile">
+                          <Info className="h-3 w-3" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs text-xs">
+                        <div className="font-medium mb-1">How ROI is calculated</div>
+                        <div>ROI(%) = ((Benefits − Costs) / Costs) × 100</div>
+                        <div className="mt-1 text-muted-foreground">
+                          Costs = Project budget · Benefits = sum of Project Benefits target values
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="py-1 px-4">
@@ -3462,7 +3476,7 @@ function HealthStatusHistoryLog({ projectId }: { projectId: number }) {
   );
 }
 
-function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: number; organizationId: number | undefined }) {
+function ProjectCustomFieldsSection({ projectId, organizationId, projectBudget }: { projectId: number; organizationId: number | undefined; projectBudget?: number | string | null }) {
   const { toast } = useToast();
   const { data: allDefinitions = [], isLoading: definitionsLoading } = useCustomFieldDefinitions(organizationId);
   const definitions = useMemo(() => allDefinitions.filter(d => {
@@ -3472,6 +3486,12 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
   const { data: values = [], isLoading: valuesLoading } = useProjectCustomFieldValues(projectId);
   const { data: orgResources = [] } = useResources(organizationId ?? null);
   const updateValue = useUpdateProjectCustomFieldValue();
+  const hasRoiField = useMemo(() => definitions.some(d => d.fieldType === 'roi'), [definitions]);
+  const { data: projectBenefits = [] } = useProjectBenefits(hasRoiField ? projectId : undefined);
+  const projectTotalBenefits = useMemo(
+    () => projectBenefits.reduce((s, b: any) => s + (Number(b.targetValue) || 0), 0),
+    [projectBenefits],
+  );
   const [editingFieldId, setEditingFieldId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState<string>("");
 
@@ -3487,6 +3507,7 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
   const handleEdit = (field: CustomFieldDefinition) => {
     if (field.fieldType === "autonumber") return;
     if (field.fieldType === "days_between_dates") return;
+    if (field.fieldType === "roi") return;
     setEditingFieldId(field.id);
     setEditValue(getFieldValue(field.id));
   };
@@ -3640,6 +3661,29 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
 
   const renderFieldValue = (field: CustomFieldDefinition) => {
     const value = getFieldValue(field.id);
+    if (field.fieldType === "roi") {
+      const r = computeRoi({ totalCosts: projectBudget, totalBenefits: projectTotalBenefits });
+      const cls = r.roiPercent == null ? "text-muted-foreground" : r.roiPercent >= 0 ? "text-emerald-600" : "text-rose-600";
+      return (
+        <span className="flex items-center gap-1.5 text-sm" data-testid={`value-roi-${field.id}`}>
+          <span className={cn("font-semibold", cls)}>{formatRoiPercent(r.roiPercent)}</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="text-muted-foreground hover:text-foreground" data-testid={`tooltip-roi-cf-${field.id}`}>
+                <Info className="h-3 w-3" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs text-xs">
+              <div className="font-medium mb-1">How ROI is calculated</div>
+              <div>ROI(%) = ((Benefits − Costs) / Costs) × 100</div>
+              <div className="mt-1 text-muted-foreground">
+                Costs = Project budget · Benefits = sum of Project Benefits target values. Auto-computed, read-only.
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </span>
+      );
+    }
     if (field.fieldType === "days_between_dates") {
       const opts = Array.isArray(field.options) ? (field.options as string[]) : [];
       const startId = parseInt(opts[0] ?? "", 10);
@@ -3724,7 +3768,7 @@ function ProjectCustomFieldsSection({ projectId, organizationId }: { projectId: 
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-            ) : field.fieldType === "autonumber" || field.fieldType === "days_between_dates" ? (
+            ) : field.fieldType === "autonumber" || field.fieldType === "days_between_dates" || field.fieldType === "roi" ? (
               <div
                 className="flex items-center justify-between p-1 rounded min-h-[28px] bg-muted/30"
                 data-testid={`display-computed-field-${field.id}`}
@@ -5324,7 +5368,7 @@ function ProjectSummaryTab({ project, onUpdate, tasks, readOnly = false }: { pro
             </span>
           )}
         </div>
-        <ProjectCustomFieldsSection projectId={project.id} organizationId={currentOrganization?.id} />
+        <ProjectCustomFieldsSection projectId={project.id} organizationId={currentOrganization?.id} projectBudget={(project as any).budget} />
       </CardContent>
     </Card>
 
