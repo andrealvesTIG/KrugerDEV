@@ -19,6 +19,14 @@ export interface IntakeFieldRendererProps {
   intake: ProjectIntake;
   formData: Partial<ProjectIntake>;
   onChange: (field: string, value: any) => void;
+  /**
+   * Optional autosave hook. Fires on blur for text / textarea / number inputs
+   * and immediately on change for discrete inputs (select / checkbox /
+   * portfolio / program). Wired in IntakeDetails to persist the single
+   * changed field to the server so other surfaces (e.g. the workflow step
+   * requirements dialog) read the latest value.
+   */
+  onCommit?: (field: string, value: any) => void;
   isLocked: boolean;
   portfolios?: Portfolio[];
   programs?: Program[];
@@ -26,7 +34,7 @@ export interface IntakeFieldRendererProps {
   labelOverride?: string | null;
 }
 
-export function IntakeFieldRenderer({ fieldKey, intake, formData, onChange, isLocked, portfolios, programs, isRequired, labelOverride }: IntakeFieldRendererProps) {
+export function IntakeFieldRenderer({ fieldKey, intake, formData, onChange, onCommit, isLocked, portfolios, programs, isRequired, labelOverride }: IntakeFieldRendererProps) {
   const def = INTAKE_FIELD_BY_KEY[fieldKey];
   if (!def) {
     return <MissingRefPlaceholder kind="field" itemKey={fieldKey} testIdPrefix="field-unknown" />;
@@ -41,7 +49,10 @@ export function IntakeFieldRenderer({ fieldKey, intake, formData, onChange, isLo
         <Checkbox
           id={def.key}
           checked={!!current}
-          onCheckedChange={(checked) => onChange(def.key, checked)}
+          onCheckedChange={(checked) => {
+            onChange(def.key, checked);
+            onCommit?.(def.key, checked);
+          }}
           disabled={isLocked}
           data-testid={`checkbox-${def.key}`}
         />
@@ -115,17 +126,25 @@ export function IntakeFieldRenderer({ fieldKey, intake, formData, onChange, isLo
         {effectiveLabel}
         {isRequired && <span className="text-destructive ml-1">*</span>}
       </Label>
-      <FieldInput def={def} value={current} disabled={isLocked} onChange={(v) => onChange(def.key, v)} portfolios={portfolios} />
+      <FieldInput
+        def={def}
+        value={current}
+        disabled={isLocked}
+        onChange={(v) => onChange(def.key, v)}
+        onCommit={(v) => onCommit?.(def.key, v)}
+        portfolios={portfolios}
+      />
     </div>
   );
 }
 
-function FieldInput({ def, value, disabled, onChange, portfolios }: { def: IntakeFieldDefinition; value: any; disabled: boolean; onChange: (v: any) => void; portfolios?: Portfolio[]; }) {
+function FieldInput({ def, value, disabled, onChange, onCommit, portfolios }: { def: IntakeFieldDefinition; value: any; disabled: boolean; onChange: (v: any) => void; onCommit?: (v: any) => void; portfolios?: Portfolio[]; }) {
   if (def.inputType === "textarea") {
     return (
       <AutoResizeTextarea
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={(e) => onCommit?.(e.target.value)}
         disabled={disabled}
         minRows={def.rows ?? 3}
         placeholder={def.placeholder}
@@ -139,6 +158,7 @@ function FieldInput({ def, value, disabled, onChange, portfolios }: { def: Intak
         type="number"
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={(e) => onCommit?.(e.target.value)}
         disabled={disabled}
         placeholder={def.placeholder}
         data-testid={`input-${def.key}`}
@@ -147,7 +167,11 @@ function FieldInput({ def, value, disabled, onChange, portfolios }: { def: Intak
   }
   if (def.inputType === "select") {
     return (
-      <Select value={value ?? ""} onValueChange={onChange} disabled={disabled}>
+      <Select
+        value={value ?? ""}
+        onValueChange={(v) => { onChange(v); onCommit?.(v); }}
+        disabled={disabled}
+      >
         <SelectTrigger data-testid={`select-${def.key}`}>
           <SelectValue placeholder="Select…" />
         </SelectTrigger>
@@ -160,7 +184,7 @@ function FieldInput({ def, value, disabled, onChange, portfolios }: { def: Intak
     );
   }
   if (def.inputType === "portfolio") {
-    return <PortfolioPicker value={value} onChange={onChange} disabled={disabled} portfolios={portfolios ?? []} />;
+    return <PortfolioPicker value={value} onChange={(v) => { onChange(v); onCommit?.(v); }} disabled={disabled} portfolios={portfolios ?? []} />;
   }
   if (def.inputType === "program") {
     // Handled by the parent so it can write both programId and programName.
@@ -170,6 +194,7 @@ function FieldInput({ def, value, disabled, onChange, portfolios }: { def: Intak
     <Input
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value)}
+      onBlur={(e) => onCommit?.(e.target.value)}
       disabled={disabled}
       placeholder={def.placeholder}
       data-testid={`input-${def.key}`}

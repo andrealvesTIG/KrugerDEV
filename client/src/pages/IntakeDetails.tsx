@@ -588,6 +588,32 @@ export default function IntakeDetails() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  // Autosave a single built-in field to the server on blur (text / textarea /
+  // number) or on change (select / checkbox / pickers). Skips the write when
+  // the value matches what's already persisted so a focus-in / focus-out
+  // without an edit doesn't generate a needless PUT. Errors are surfaced
+  // through a toast; successful saves are silent so typing through several
+  // fields doesn't spam the user.
+  const handleFieldCommit = (field: string, value: any) => {
+    if (!intake || isLocked) return;
+    const prev = (intake as any)[field];
+    const next = value === "" ? null : value;
+    const prevNorm = prev ?? null;
+    const nextNorm = next ?? null;
+    if (typeof prevNorm === "string" && typeof nextNorm === "string"
+        ? prevNorm === nextNorm
+        : String(prevNorm) === String(nextNorm)) {
+      return;
+    }
+    apiRequest('PUT', `/api/project-intakes/${id}`, { [field]: next })
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ['/api/project-intakes'] });
+      })
+      .catch((err: Error) => {
+        toast({ title: "Save failed", description: err.message, variant: "destructive" });
+      });
+  };
+
   const {
     data: architectureQuestions,
     isLoading: architectureQuestionsLoading,
@@ -871,6 +897,7 @@ export default function IntakeDetails() {
           intake,
           formData,
           onFieldChange: handleFieldChange,
+          onFieldCommit: handleFieldCommit,
           isLocked,
           portfolios: portfolios ?? [],
           programs: programs ?? [],

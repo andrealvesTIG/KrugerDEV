@@ -35,6 +35,14 @@ export interface IntakeFormRendererContext {
   intake: ProjectIntake;
   formData: Partial<ProjectIntake>;
   onFieldChange: (field: string, value: any) => void;
+  /**
+   * Optional autosave hook fired by IntakeFieldRenderer on blur (text /
+   * textarea / number) and on change (select / checkbox / pickers). Wired in
+   * IntakeDetails to persist the single changed field so other surfaces
+   * (e.g. the workflow step requirements dialog) reflect the latest value
+   * without a manual Save.
+   */
+  onFieldCommit?: (field: string, value: any) => void;
   isLocked: boolean;
   portfolios: Portfolio[];
   programs: Program[];
@@ -233,6 +241,7 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds, bare }: { item: IntakeT
         intake={ctx.intake}
         formData={ctx.formData}
         onChange={ctx.onFieldChange}
+        onCommit={ctx.onFieldCommit}
         isLocked={ctx.isLocked}
         portfolios={ctx.portfolios}
         programs={ctx.programs}
