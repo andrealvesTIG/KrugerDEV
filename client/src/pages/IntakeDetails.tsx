@@ -1074,11 +1074,18 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked, exclude
   };
 
   const handleSave = async (fieldId: number) => {
+    const normalized = editValue || null;
+    const previous = getFieldValue(fieldId) || null;
+    if (normalized === previous) {
+      setEditingFieldId(null);
+      setEditValue("");
+      return;
+    }
     try {
       await updateValue.mutateAsync({
         intakeId,
         fieldDefinitionId: fieldId,
-        value: editValue || null,
+        value: normalized,
       });
       toast({ title: "Saved" });
     } catch (error) {
@@ -1090,6 +1097,14 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked, exclude
   const handleCancel = () => {
     setEditingFieldId(null);
     setEditValue("");
+  };
+
+  const handleAutosaveBlur = (fieldId: number) => (e: React.FocusEvent<HTMLDivElement>) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    handleSave(fieldId);
+  };
+  const handleAutosaveKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape") { e.preventDefault(); handleCancel(); }
   };
 
   const parseMultiSelectValue = (value: string): string[] => {
@@ -1290,14 +1305,14 @@ function IntakeCustomFieldsSection({ intakeId, organizationId, isLocked, exclude
               {field.isRequired && <span className="text-destructive">*</span>}
             </Label>
             {editingFieldId === field.id ? (
-              <div className="flex items-center gap-2">
+              <div
+                className="flex items-center gap-2"
+                tabIndex={-1}
+                onBlur={handleAutosaveBlur(field.id)}
+                onKeyDown={handleAutosaveKeyDown}
+                data-testid={`edit-intake-field-${field.id}`}
+              >
                 {renderFieldInput(field)}
-                <Button size="icon" variant="ghost" onClick={() => handleSave(field.id)} data-testid={`button-save-intake-field-${field.id}`}>
-                  <Check className="h-4 w-4" />
-                </Button>
-                <Button size="icon" variant="ghost" onClick={handleCancel} data-testid={`button-cancel-intake-field-${field.id}`}>
-                  <X className="h-4 w-4" />
-                </Button>
               </div>
             ) : field.fieldType === "autonumber" || field.fieldType === "days_between_dates" ? (
               <div

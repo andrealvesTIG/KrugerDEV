@@ -70,15 +70,28 @@ export function IntakeSingleCustomField({
     setEditValue(value);
     setIsEditing(true);
   };
-  const cancelEdit = () => { setIsEditing(false); setEditValue(""); };
+  const closeEdit = () => { setIsEditing(false); setEditValue(""); };
   const save = async () => {
+    const normalized = editValue || null;
+    const previous = value || null;
+    if (normalized === previous) {
+      closeEdit();
+      return;
+    }
     try {
-      await updateValue.mutateAsync({ intakeId, fieldDefinitionId: definitionId, value: editValue || null });
+      await updateValue.mutateAsync({ intakeId, fieldDefinitionId: definitionId, value: normalized });
       toast({ title: "Saved" });
       setIsEditing(false);
     } catch {
       toast({ title: "Error", description: "Failed to save", variant: "destructive" });
     }
+  };
+  const handleContainerBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    save();
+  };
+  const handleContainerKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape") { e.preventDefault(); closeEdit(); }
   };
 
   const parseMulti = (v: string): string[] => { if (!v) return []; try { return JSON.parse(v); } catch { return v ? [v] : []; } };
@@ -239,14 +252,14 @@ export function IntakeSingleCustomField({
         {(field.isRequired || isRequiredOverride) && <span className="text-destructive">*</span>}
       </Label>
       {isEditing ? (
-        <div className="flex items-center gap-2">
+        <div
+          className="flex items-center gap-2"
+          tabIndex={-1}
+          onBlur={handleContainerBlur}
+          onKeyDown={handleContainerKeyDown}
+          data-testid={`edit-intake-cf-${field.id}`}
+        >
           {renderInput()}
-          <Button size="icon" variant="ghost" onClick={save} data-testid={`button-save-intake-cf-${field.id}`}>
-            <Check className="h-4 w-4" />
-          </Button>
-          <Button size="icon" variant="ghost" onClick={cancelEdit} data-testid={`button-cancel-intake-cf-${field.id}`}>
-            <X className="h-4 w-4" />
-          </Button>
         </div>
       ) : (
         <div className="flex items-center gap-2 group">
