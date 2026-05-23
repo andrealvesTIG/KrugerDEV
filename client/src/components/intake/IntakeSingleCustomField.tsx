@@ -101,7 +101,9 @@ export function IntakeSingleCustomField({
       toast({ title: "Error", description: "Failed to save", variant: "destructive" });
     }
   };
+  const commitsOnChange = field.fieldType === "select" || field.fieldType === "resource" || field.fieldType === "attachment";
   const handleContainerBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+    if (commitsOnChange) return;
     if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
     const related = e.relatedTarget as HTMLElement | null;
     if (related && related.closest('[data-radix-popper-content-wrapper],[data-radix-portal],[role="listbox"],[role="dialog"]')) return;
@@ -156,7 +158,7 @@ export function IntakeSingleCustomField({
           />
         );
       case "attachment":
-        return <AttachmentFieldInput value={editValue} onChange={setEditValue} testId={`attachment-intake-cf-${field.id}`} />;
+        return <AttachmentFieldInput value={editValue} onChange={(v) => { setEditValue(v); commitImmediate(v); }} testId={`attachment-intake-cf-${field.id}`} />;
       case "multiselect": {
         const sel = parseMulti(editValue);
         return (
