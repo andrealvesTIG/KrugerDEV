@@ -4,6 +4,8 @@ import { and, eq, asc, sql } from "drizzle-orm";
 import { db } from "../db";
 import { resources, insertProjectIntakeSchema, powerbiIntakeRequests, powerbiAgentConversations, powerbiAgentMessages, intakeGovernanceQuestions, intakeCostingChecklist, type InsertIntakeWorkflow, type InsertProjectWorkflow, type IntakeWorkflow } from "@shared/schema";
 import { DEFAULT_GOVERNANCE_QUESTIONS } from "@shared/intakeGovernanceDefaults";
+import { enforcePermission } from "../services/authorizationService";
+import { PERMISSIONS } from "@shared/permissionCatalog";
 import { parseFieldRules, evaluateFieldRule } from "@shared/lib/workflowFieldRules";
 import { DEFAULT_COSTING_CHECKLIST } from "@shared/intakeCostingDefaults";
 import { api } from "@shared/routes";
@@ -1523,9 +1525,7 @@ export function registerIntakeRoutes(app: Express) {
       const intakeId = Number(req.params.intakeId);
       const intake = await storage.getProjectIntake(intakeId);
       if (!intake) return res.status(404).json({ message: 'Intake not found' });
-      if (!await userHasOrgAccess(userId!, intake.organizationId)) {
-        return res.status(403).json({ message: 'Access denied to this organization' });
-      }
+      if (await enforcePermission(req, res, userId, intake.organizationId, PERMISSIONS.INTAKE_UPDATE)) return;
       const input = api.intakeGovernanceQuestions.create.input.parse(req.body);
       const created = await storage.createIntakeGovernanceQuestion({ ...input, intakeId });
       res.status(201).json(created);
@@ -1550,9 +1550,8 @@ export function registerIntakeRoutes(app: Express) {
       const existing = await storage.getIntakeGovernanceQuestion(id);
       if (!existing) return res.status(404).json({ message: 'Governance question not found' });
       const intake = await storage.getProjectIntake(existing.intakeId);
-      if (!intake || !await userHasOrgAccess(userId, intake.organizationId)) {
-        return res.status(403).json({ message: 'Access denied to this organization' });
-      }
+      if (!intake) return res.status(404).json({ message: 'Intake not found' });
+      if (await enforcePermission(req, res, userId, intake.organizationId, PERMISSIONS.INTAKE_UPDATE)) return;
       const updates = api.intakeGovernanceQuestions.update.input.parse(req.body);
       const updated = await storage.updateIntakeGovernanceQuestion(id, updates);
       res.json(updated);
@@ -1576,9 +1575,8 @@ export function registerIntakeRoutes(app: Express) {
       const existing = await storage.getIntakeGovernanceQuestion(id);
       if (!existing) return res.status(404).json({ message: 'Governance question not found' });
       const intake = await storage.getProjectIntake(existing.intakeId);
-      if (!intake || !await userHasOrgAccess(userId, intake.organizationId)) {
-        return res.status(403).json({ message: 'Access denied to this organization' });
-      }
+      if (!intake) return res.status(404).json({ message: 'Intake not found' });
+      if (await enforcePermission(req, res, userId, intake.organizationId, PERMISSIONS.INTAKE_UPDATE)) return;
       await storage.deleteIntakeGovernanceQuestion(id);
       res.status(204).send();
     } catch (err) {

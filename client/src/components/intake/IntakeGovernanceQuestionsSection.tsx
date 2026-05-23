@@ -12,6 +12,8 @@ import {
   useDeleteIntakeGovernanceQuestion,
 } from "@/hooks/use-intake-governance-questions";
 import type { IntakeGovernanceQuestion, IntakeGovernanceCategory } from "@shared/schema";
+import { usePermissions } from "@/hooks/use-permissions";
+import { PERMISSIONS } from "@shared/permissionCatalog";
 
 interface Props {
   intakeId: number;
@@ -34,9 +36,12 @@ const CATEGORY_LABELS: Record<IntakeGovernanceCategory, { title: string; descrip
   },
 };
 
-export function IntakeGovernanceQuestionsSection({ intakeId, category, readOnly = false }: Props) {
+export function IntakeGovernanceQuestionsSection({ intakeId, category, readOnly: readOnlyProp = false }: Props) {
   const { toast } = useToast();
   const labels = CATEGORY_LABELS[category];
+  const { has } = usePermissions();
+  const canEdit = has(PERMISSIONS.INTAKE_UPDATE);
+  const readOnly = readOnlyProp || !canEdit;
   const { data: rows, isLoading } = useIntakeGovernanceQuestions(intakeId, category);
   const createMut = useCreateIntakeGovernanceQuestion(intakeId);
   const updateMut = useUpdateIntakeGovernanceQuestion(intakeId);
