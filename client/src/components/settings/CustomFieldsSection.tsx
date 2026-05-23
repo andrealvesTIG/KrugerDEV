@@ -16,6 +16,7 @@ import { useCustomFieldDefinitions, useCreateCustomFieldDefinition, useUpdateCus
 import type { CustomFieldDefinition } from "@shared/schema";
 import { THRESHOLD_OPERATORS, isThresholdOperator, type ThresholdOperator } from "@shared/lib/thresholdCheck";
 import { evaluateFormula, extractFormulaReferences } from "@shared/lib/formula";
+import { REQUIRED_WHEN_OPERATORS, parseRequiredWhen, type RequiredWhenOperator, type RequiredWhenRule } from "@shared/lib/conditionalRequired";
 
 const FIELD_TYPES = [
   { value: "text", label: "Text" },
@@ -30,6 +31,7 @@ const FIELD_TYPES = [
   { value: "resource", label: "Resource" },
   { value: "attachment", label: "Attachment" },
   { value: "rag", label: "RAG Status (Green / Yellow / Red)" },
+  { value: "conditional", label: "Conditional Text (required based on another field)" },
   { value: "days_since_updated", label: "Days Since Last Update (computed)" },
   { value: "days_since_created", label: "Days Since Creation (computed)" },
   { value: "effort_completed_hours", label: "Effort Completed in Hours (computed)" },
@@ -98,6 +100,9 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
   const [thresholdOperator, setThresholdOperator] = useState<ThresholdOperator>(">");
   const [thresholdValue, setThresholdValue] = useState<string>("0");
   const [formulaExpression, setFormulaExpression] = useState<string>("");
+  const [requiredWhenFieldId, setRequiredWhenFieldId] = useState<string>("");
+  const [requiredWhenOperator, setRequiredWhenOperator] = useState<RequiredWhenOperator>("equals");
+  const [requiredWhenValue, setRequiredWhenValue] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Intake and project share their custom-field pool: a definition typed
@@ -140,6 +145,9 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
     setThresholdOperator(">");
     setThresholdValue("0");
     setFormulaExpression("");
+    setRequiredWhenFieldId("");
+    setRequiredWhenOperator("equals");
+    setRequiredWhenValue("");
     setEditingField(null);
   };
 
@@ -179,6 +187,16 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
       setFormulaExpression((field.options as string[])[0] || "");
     } else {
       setFormulaExpression("");
+    }
+    const rw = parseRequiredWhen((field as any).requiredWhen);
+    if (rw) {
+      setRequiredWhenFieldId(String(rw.fieldDefinitionId));
+      setRequiredWhenOperator(rw.operator);
+      setRequiredWhenValue(rw.value ?? "");
+    } else {
+      setRequiredWhenFieldId("");
+      setRequiredWhenOperator("equals");
+      setRequiredWhenValue("");
     }
     setShowAddDialog(true);
   };
@@ -286,6 +304,33 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
 
     const maskValue = fieldType === "autonumber" ? mask.trim() : null;
 
+    // Build the optional requiredWhen rule. We allow this for ANY field type
+    // (including the new 'conditional' type). When the trigger field is left
+    // blank we clear the rule so the field falls back to the static
+    // `isRequired` flag.
+    let requiredWhenPayload: RequiredWhenRule | null = null;
+    if (requiredWhenFieldId.trim()) {
+      const triggerId = Number(requiredWhenFieldId);
+      if (!Number.isFinite(triggerId)) {
+        toast({ title: "Error", description: "Pick a valid trigger field for the Required-when rule", variant: "destructive" });
+        return;
+      }
+      if (editingField && triggerId === editingField.id) {
+        toast({ title: "Error", description: "A field can't depend on itself for the Required-when rule", variant: "destructive" });
+        return;
+      }
+      const opMeta = REQUIRED_WHEN_OPERATORS.find(o => o.value === requiredWhenOperator);
+      if (opMeta?.needsValue && !requiredWhenValue.trim()) {
+        toast({ title: "Error", description: "Enter the value to compare against for the Required-when rule", variant: "destructive" });
+        return;
+      }
+      requiredWhenPayload = {
+        fieldDefinitionId: triggerId,
+        operator: requiredWhenOperator,
+        value: opMeta?.needsValue ? requiredWhenValue.trim() : null,
+      };
+    }
+
     try {
       if (editingField) {
         await updateMutation.mutateAsync({
@@ -298,6 +343,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
           isRequired,
           options: optionsArray,
           mask: maskValue,
+          requiredWhen: requiredWhenPayload,
         } as any);
         toast({ title: "Success", description: "Custom field updated" });
       } else {
@@ -310,6 +356,7 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
           isRequired,
           options: optionsArray,
           mask: maskValue,
+          requiredWhen: requiredWhenPayload,
           displayOrder: filteredFields.length,
         } as any);
         toast({ title: "Success", description: "Custom field created" });
@@ -826,6 +873,74 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
               <Label htmlFor="field-required" className="cursor-pointer">
                 Required field
               </Label>
+            </div>
+            <div className="space-y-2 rounded-md border border-border p-3">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-sm">Required only when…</Label>
+                {requiredWhenFieldId && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => { setRequiredWhenFieldId(""); setRequiredWhenValue(""); }}
+                    data-testid="button-clear-required-when"
+                  >
+                    Clear rule
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Optional. When set, this overrides the static "Required" checkbox above —
+                the field is only required when the chosen trigger field matches the rule.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Trigger field</Label>
+                  <Select
+                    value={requiredWhenFieldId || "__none__"}
+                    onValueChange={(v) => setRequiredWhenFieldId(v === "__none__" ? "" : v)}
+                  >
+                    <SelectTrigger data-testid="select-required-when-field">
+                      <SelectValue placeholder="None" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">None (use static Required)</SelectItem>
+                      {fields
+                        .filter(f => matchesEntityTab(f, entityType) && (!editingField || f.id !== editingField.id) && !COMPUTED_FIELD_TYPES.has(f.fieldType))
+                        .map(f => (
+                          <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Operator</Label>
+                  <Select
+                    value={requiredWhenOperator}
+                    onValueChange={(v) => setRequiredWhenOperator(v as RequiredWhenOperator)}
+                    disabled={!requiredWhenFieldId}
+                  >
+                    <SelectTrigger data-testid="select-required-when-operator">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {REQUIRED_WHEN_OPERATORS.map(op => (
+                        <SelectItem key={op.value} value={op.value}>{op.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Value</Label>
+                  <Input
+                    value={requiredWhenValue}
+                    onChange={(e) => setRequiredWhenValue(e.target.value)}
+                    placeholder={requiredWhenFieldId ? "e.g. Yes" : ""}
+                    disabled={!requiredWhenFieldId || !(REQUIRED_WHEN_OPERATORS.find(o => o.value === requiredWhenOperator)?.needsValue)}
+                    data-testid="input-required-when-value"
+                  />
+                </div>
+              </div>
             </div>
           </div>
           <DialogFooter>

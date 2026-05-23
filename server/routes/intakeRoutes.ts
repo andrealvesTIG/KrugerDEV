@@ -7,6 +7,7 @@ import { DEFAULT_GOVERNANCE_QUESTIONS } from "@shared/intakeGovernanceDefaults";
 import { enforcePermission, userHasPermission } from "../services/authorizationService";
 import { PERMISSIONS } from "@shared/permissionCatalog";
 import { parseFieldRules, evaluateFieldRule } from "@shared/lib/workflowFieldRules";
+import { parseRequiredWhen, evaluateRequiredWhen } from "@shared/lib/conditionalRequired";
 import { DEFAULT_COSTING_CHECKLIST } from "@shared/intakeCostingDefaults";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -386,7 +387,16 @@ export function registerIntakeRoutes(app: Express) {
                   || (def.fieldType === 'checkbox' && trimmed !== 'true')
                   || (def.fieldType === 'multiselect' && (trimmed === '[]' || trimmed === 'null'))
                   || (def.fieldType === 'number' && Number(trimmed) <= 0);
-                if (isRequired && isEmpty) errors.push(`${prefix}${label} is required`);
+                // Honour the field's own requiredWhen rule: if set, it
+                // supersedes both isRequired and the step's requiredFields
+                // list — the field is only required when the rule passes.
+                const rwRule = parseRequiredWhen((def as any).requiredWhen);
+                let effectiveRequired = isRequired;
+                if (rwRule) {
+                  effectiveRequired = evaluateRequiredWhen(rwRule, (otherId) =>
+                    cfValues.find(v => v.fieldDefinitionId === otherId)?.value);
+                }
+                if (effectiveRequired && isEmpty) errors.push(`${prefix}${label} is required`);
                 if (rule) {
                   const ruleErr = evaluateFieldRule(field, rule, label, raw, prefix);
                   if (ruleErr) errors.push(ruleErr.message);

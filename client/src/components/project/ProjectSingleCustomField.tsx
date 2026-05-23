@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
+import { isCustomFieldEffectivelyRequired } from "@shared/lib/conditionalRequired";
 import { Check, X, ExternalLink, Pencil } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -217,6 +218,8 @@ export function ProjectSingleCustomField({
         );
       case "url":
         return <Input type="url" value={editValue} onChange={(e) => setEditValue(e.target.value)} placeholder="https://..." data-testid={`input-project-cf-${field.id}`} />;
+      case "conditional":
+        return <Input value={editValue} onChange={(e) => setEditValue(e.target.value)} data-testid={`input-project-cf-${field.id}`} />;
       default:
         return (
           <AutoResizeTextarea
@@ -510,7 +513,7 @@ export function ProjectSingleCustomField({
     <div className="space-y-2" data-testid={`project-single-cf-${field.id}`}>
       <Label className="text-sm flex items-center gap-1">
         {labelOverride && labelOverride.trim() ? labelOverride.trim() : field.name}
-        {(field.isRequired || isRequiredOverride) && <span className="text-destructive">*</span>}
+        {(isCustomFieldEffectivelyRequired(field, (id) => values.find(v => v.fieldDefinitionId === id)?.value) || isRequiredOverride) && <span className="text-destructive">*</span>}
       </Label>
       {isEditing ? (
         <div

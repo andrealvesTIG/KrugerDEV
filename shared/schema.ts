@@ -3640,10 +3640,14 @@ export const customFieldDefinitions = pgTable("custom_field_definitions", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
   name: text("name").notNull(),
-  fieldType: text("field_type").notNull(), // 'text', 'number', 'percentage', 'date', 'select', 'multiselect', 'checkbox', 'url', 'autonumber', 'resource', 'attachment', 'rag', 'rag_rollup', 'days_since_updated', 'days_since_created', 'effort_completed_hours', 'effort_remaining_hours', 'days_between_dates', 'threshold_check', 'formula' (for days_between_dates, options stores [startDateFieldId, endDateFieldId] as strings; for rag_rollup, options stores source RAG field IDs as strings, e.g. ["12","13","14"]; for threshold_check, options stores [sourceFieldId, operator, threshold] e.g. ["42",">","0"]; for formula, options stores [expression] e.g. ["{12} + {13} - 100"])
+  fieldType: text("field_type").notNull(), // 'text', 'number', 'percentage', 'date', 'select', 'multiselect', 'checkbox', 'url', 'autonumber', 'resource', 'attachment', 'rag', 'conditional', 'rag_rollup', 'days_since_updated', 'days_since_created', 'effort_completed_hours', 'effort_remaining_hours', 'days_between_dates', 'threshold_check', 'formula' (for days_between_dates, options stores [startDateFieldId, endDateFieldId] as strings; for rag_rollup, options stores source RAG field IDs as strings, e.g. ["12","13","14"]; for threshold_check, options stores [sourceFieldId, operator, threshold] e.g. ["42",">","0"]; for formula, options stores [expression] e.g. ["{12} + {13} - 100"]; 'conditional' renders as a text input and is intended to be paired with a requiredWhen rule)
   entityType: text("entity_type").default("project").notNull(), // 'project', 'task', 'resource', 'intake' (intake-typed fields also appear on the resulting project after conversion)
   description: text("description"),
   isRequired: boolean("is_required").default(false),
+  // Optional rule that makes this field required only when another field's value matches.
+  // Shape: { fieldDefinitionId: number, operator: 'equals'|'not_equals'|'is_empty'|'is_not_empty'|'contains', value?: string }
+  // When set, this rule supersedes `isRequired`: the field is required only if the rule evaluates true.
+  requiredWhen: jsonb("required_when"),
   options: text("options").array(), // For select/multiselect types
   defaultValue: text("default_value"),
   // For fieldType='autonumber': the display mask. Use `#` as a digit placeholder

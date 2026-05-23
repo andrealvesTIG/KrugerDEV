@@ -10,6 +10,7 @@ import { usePrograms } from "@/hooks/use-programs";
 import { useIntakeWorkflow, AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
 import { INTAKE_FIELD_BY_KEY } from "@shared/intakeFormRegistry";
 import { parseThresholdConfig, evaluateThreshold, coerceNumeric } from "@shared/lib/thresholdCheck";
+import { parseRequiredWhen, evaluateRequiredWhen } from "@shared/lib/conditionalRequired";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIntakeTabLayout } from "@/hooks/use-intake-tab-layout";
 import { IntakeFormRenderer, PmApprovalCard, type IntakeFormRendererContext } from "@/components/intake/IntakeFormRenderer";
@@ -456,7 +457,13 @@ export default function IntakeDetails() {
           || (def.fieldType === 'checkbox' && trimmed !== 'true')
           || (def.fieldType === 'multiselect' && (trimmed === '[]' || trimmed === 'null'))
           || (def.fieldType === 'number' && Number(trimmed) <= 0);
-        if (isEmpty) {
+        // Honour the field's own requiredWhen rule: if set, the rule
+        // supersedes the step's requiredFields list and the static flag.
+        const rwRule = parseRequiredWhen((def as any).requiredWhen);
+        const effectiveRequired = rwRule
+          ? evaluateRequiredWhen(rwRule, (id) => intakeCustomFieldValues.find(v => v.fieldDefinitionId === id)?.value)
+          : true;
+        if (effectiveRequired && isEmpty) {
           errors.push(`${label} is required`);
         }
         continue;
@@ -495,7 +502,11 @@ export default function IntakeDetails() {
             if (!Number.isFinite(defId)) continue;
             const def = allCustomFieldDefs.find(d => d.id === defId);
             if (!def) continue;
-            const required = !!item.isRequired || !!def.isRequired;
+            const rwRule = parseRequiredWhen((def as any).requiredWhen);
+            const effectiveDefRequired = rwRule
+              ? evaluateRequiredWhen(rwRule, (id) => intakeCustomFieldValues.find(v => v.fieldDefinitionId === id)?.value)
+              : !!def.isRequired;
+            const required = !!item.isRequired || effectiveDefRequired;
             if (!required) continue;
             const cfKey = `cf:${defId}`;
             if (stepKeys.has(cfKey) || seen.has(cfKey)) continue;

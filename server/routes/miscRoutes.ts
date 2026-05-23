@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { validateCustomFieldValue, CustomFieldValueError } from "../lib/customFieldValueValidator";
+import { isValidRequiredWhenRule } from "@shared/lib/conditionalRequired";
 import { db } from "../db";
 import { z } from "zod";
 import { eq, and, desc, asc, sql } from "drizzle-orm";
@@ -758,7 +759,10 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const organizationId = parseInt(req.params.organizationId);
-      const { name, fieldType, entityType, description, isRequired, options, defaultValue, mask, displayOrder, isActive } = req.body;
+      const { name, fieldType, entityType, description, isRequired, options, defaultValue, mask, displayOrder, isActive, requiredWhen } = req.body;
+      if (requiredWhen !== undefined && requiredWhen !== null && !isValidRequiredWhenRule(requiredWhen)) {
+        return res.status(400).json({ message: "Invalid requiredWhen rule shape" });
+      }
       if (!name || typeof name !== "string" || !name.trim()) {
         return res.status(400).json({ message: "Field name is required" });
       }
@@ -782,7 +786,8 @@ export async function registerMiscRoutes(app: Express) {
         mask: fieldType === 'autonumber' ? mask.trim() : null,
         displayOrder,
         isActive,
-      });
+        requiredWhen: requiredWhen ?? null,
+      } as any);
       res.status(201).json(field);
     } catch (error) {
       console.error('Error creating custom field:', error);
@@ -800,8 +805,12 @@ export async function registerMiscRoutes(app: Express) {
 
     try {
       const id = parseInt(req.params.id);
-      const { name, fieldName, fieldType, fieldLabel, entityType, description, isRequired, options, defaultValue, mask, displayOrder, isActive } = req.body;
+      const { name, fieldName, fieldType, fieldLabel, entityType, description, isRequired, options, defaultValue, mask, displayOrder, isActive, requiredWhen } = req.body;
+      if (requiredWhen !== undefined && requiredWhen !== null && !isValidRequiredWhenRule(requiredWhen)) {
+        return res.status(400).json({ message: "Invalid requiredWhen rule shape" });
+      }
       const safeUpdate: Record<string, any> = {};
+      if (requiredWhen !== undefined) safeUpdate.requiredWhen = requiredWhen;
       const nameVal = name ?? fieldName;
       if (nameVal !== undefined) safeUpdate.name = nameVal;
       if (fieldType !== undefined) safeUpdate.fieldType = fieldType;
