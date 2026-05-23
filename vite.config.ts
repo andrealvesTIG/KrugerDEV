@@ -28,7 +28,7 @@ export default defineConfig({
             attrs: {},
             injectTo: "head-prepend",
             children: `(function () {
-  function isMeaningful(value) {
+  function isMeaningfulError(value) {
     if (value instanceof Error) return true;
     if (value == null) return false;
     if (typeof value === "string") return value.trim().length > 0;
@@ -37,16 +37,42 @@ export default defineConfig({
     }
     return true;
   }
+  // Known cross-origin / third-party noise messages that should never
+  // pop the Vite overlay.
+  var NOISY_MESSAGES = [
+    "Script error.",
+    "ResizeObserver loop limit exceeded",
+    "ResizeObserver loop completed with undelivered notifications.",
+    "Non-Error promise rejection captured",
+  ];
+  function isNoisyMessage(msg) {
+    if (typeof msg !== "string") return false;
+    for (var i = 0; i < NOISY_MESSAGES.length; i++) {
+      if (msg.indexOf(NOISY_MESSAGES[i]) !== -1) return true;
+    }
+    return false;
+  }
+  function suppress(label, payload) {
+    try { console.debug("[overlay-filter] suppressed " + label, payload); } catch (_) {}
+  }
   window.addEventListener("unhandledrejection", function (event) {
-    if (!isMeaningful(event.reason)) {
+    var reason = event.reason;
+    if (!isMeaningfulError(reason) || (reason && isNoisyMessage(reason.message || reason))) {
       event.preventDefault();
       event.stopImmediatePropagation();
+      suppress("rejection", reason);
     }
   }, true);
   window.addEventListener("error", function (event) {
-    if (!event.error && !isMeaningful(event.message)) {
+    // Cross-origin script errors arrive with error=null and
+    // message="Script error." — suppress those. Also suppress when both
+    // error and message are empty.
+    var hasRealError = event.error instanceof Error;
+    if (hasRealError) return;
+    if (!event.error && (isNoisyMessage(event.message) || !isMeaningfulError(event.message))) {
       event.preventDefault();
       event.stopImmediatePropagation();
+      suppress("error", { message: event.message, filename: event.filename, lineno: event.lineno });
     }
   }, true);
 })();`,
