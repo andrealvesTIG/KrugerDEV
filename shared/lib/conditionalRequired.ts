@@ -73,9 +73,16 @@ export function isCustomFieldEffectivelyRequired(
   def: { isRequired?: boolean | null; requiredWhen?: unknown },
   lookupValue: (fieldDefinitionId: number) => unknown,
 ): boolean {
-  const rule = parseRequiredWhen(def.requiredWhen);
-  if (rule) return evaluateRequiredWhen(rule, lookupValue);
-  return !!def.isRequired;
+  // Never throw out of this helper — it runs on every render of a custom
+  // field label. A malformed rule or a flaky lookup should fall back to the
+  // static `isRequired` flag rather than crash the page.
+  try {
+    const rule = parseRequiredWhen(def?.requiredWhen);
+    if (rule) return evaluateRequiredWhen(rule, lookupValue);
+  } catch {
+    // ignore and fall through
+  }
+  return !!def?.isRequired;
 }
 
 export const REQUIRED_WHEN_OPERATORS: { value: RequiredWhenOperator; label: string; needsValue: boolean }[] = [
