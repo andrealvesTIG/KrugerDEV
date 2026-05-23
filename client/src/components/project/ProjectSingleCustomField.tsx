@@ -118,9 +118,27 @@ export function ProjectSingleCustomField({
       toast({ title: "Error", description: "Failed to save", variant: "destructive" });
     }
   };
+  const commitsOnChange = field.fieldType === "select" || field.fieldType === "resource" || field.fieldType === "attachment" || field.fieldType === "rag";
   const handleContainerBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+    if (commitsOnChange) return;
     if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    const related = e.relatedTarget as HTMLElement | null;
+    if (related && related.closest('[data-radix-popper-content-wrapper],[data-radix-portal],[role="listbox"],[role="dialog"]')) return;
+    if (document.querySelector('[data-radix-popper-content-wrapper]')) return;
     save();
+  };
+  const commitImmediate = async (next: string) => {
+    const normalized = next || null;
+    const previous = value || null;
+    if (normalized === previous) { closeEdit(); return; }
+    try {
+      await updateValue.mutateAsync({ projectId, fieldDefinitionId: definitionId, value: normalized });
+      toast({ title: "Saved" });
+      setIsEditing(false);
+      setEditValue("");
+    } catch {
+      toast({ title: "Error", description: "Failed to save", variant: "destructive" });
+    }
   };
   const handleContainerKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Escape") { e.preventDefault(); closeEdit(); }
@@ -140,7 +158,7 @@ export function ProjectSingleCustomField({
         return (
           <SearchableSelect
             value={editValue}
-            onValueChange={setEditValue}
+            onValueChange={(v) => { setEditValue(v); commitImmediate(v); }}
             placeholder="Select..."
             options={(field.options as string[] || []).map(o => ({ value: o, label: o }))}
             testId={`select-project-cf-${field.id}`}
@@ -150,17 +168,17 @@ export function ProjectSingleCustomField({
         return (
           <SearchableSelect
             value={editValue}
-            onValueChange={setEditValue}
+            onValueChange={(v) => { setEditValue(v); commitImmediate(v); }}
             placeholder="Select resource..."
             options={orgResources.map(r => ({ value: String(r.id), label: r.displayName }))}
             testId={`select-project-cf-resource-${field.id}`}
           />
         );
       case "attachment":
-        return <AttachmentFieldInput value={editValue} onChange={setEditValue} testId={`attachment-project-cf-${field.id}`} />;
+        return <AttachmentFieldInput value={editValue} onChange={(v) => { setEditValue(v); commitImmediate(v); }} testId={`attachment-project-cf-${field.id}`} />;
       case "rag":
         return (
-          <Select value={editValue} onValueChange={setEditValue}>
+          <Select value={editValue} onValueChange={(v) => { setEditValue(v); commitImmediate(v); }}>
             <SelectTrigger data-testid={`select-project-cf-rag-${field.id}`}><SelectValue placeholder="Select status..." /></SelectTrigger>
             <SelectContent>
               <SelectItem value="Green"><span className="inline-flex items-center gap-2"><span className="inline-block h-2.5 w-2.5 rounded-full bg-green-500" />Green</span></SelectItem>
