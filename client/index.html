@@ -1,6 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
+    <!--
+      Install global error filters BEFORE any third-party analytics
+      scripts load. GA, Meta Pixel, Clarity and LinkedIn Insight have all
+      been observed to throw non-Error / empty rejections that would
+      otherwise trigger Vite's runtime-error-modal overlay with a useless
+      "(unknown runtime error)" message. We register on the capture phase
+      and call stopImmediatePropagation so Vite's listener never sees
+      these. Real Errors and non-empty rejections fall through normally.
+    -->
+    <script>
+      (function () {
+        function isMeaningful(value) {
+          if (value instanceof Error) return true;
+          if (value == null) return false;
+          if (typeof value === "string") return value.trim().length > 0;
+          if (typeof value === "object") {
+            try { return Object.keys(value).length > 0; } catch (_) { return true; }
+          }
+          return true;
+        }
+        window.addEventListener("unhandledrejection", function (event) {
+          if (!isMeaningful(event.reason)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
+        window.addEventListener("error", function (event) {
+          if (!event.error && !isMeaningful(event.message)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
+      })();
+    </script>
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-9MC103VBHQ"></script>
     <script>
