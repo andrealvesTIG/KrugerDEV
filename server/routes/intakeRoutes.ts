@@ -4,7 +4,7 @@ import { and, eq, asc, sql } from "drizzle-orm";
 import { db } from "../db";
 import { resources, insertProjectIntakeSchema, powerbiIntakeRequests, powerbiAgentConversations, powerbiAgentMessages, intakeGovernanceQuestions, intakeCostingChecklist, type InsertIntakeWorkflow, type InsertProjectWorkflow, type IntakeWorkflow } from "@shared/schema";
 import { DEFAULT_GOVERNANCE_QUESTIONS } from "@shared/intakeGovernanceDefaults";
-import { enforcePermission } from "../services/authorizationService";
+import { enforcePermission, userHasPermission } from "../services/authorizationService";
 import { PERMISSIONS } from "@shared/permissionCatalog";
 import { parseFieldRules, evaluateFieldRule } from "@shared/lib/workflowFieldRules";
 import { DEFAULT_COSTING_CHECKLIST } from "@shared/intakeCostingDefaults";
@@ -158,6 +158,32 @@ export function registerIntakeRoutes(app: Express) {
       console.error("Error fetching project intakes:", err);
       const classified = classifyError(err);
       res.status(classified.status).json({ message: classified.status === 500 ? "Error fetching project intakes" : classified.message });
+    }
+  });
+
+  apiRoute(app, 'get', '/api/project-intakes/by-project/:projectId', {
+    tag: 'Project Intakes',
+    summary: 'Get the intake that created a given project, if any',
+    parameters: [pathId('projectId')],
+    responses: { ...r200('Originating intake or null', ref('ProjectIntake')), ...idRes },
+  }, async (req, res) => {
+    try {
+      const userId = getUserIdFromRequest(req);
+      if (!userId) return res.status(401).json({ message: 'Authentication required' });
+      const projectId = Number(req.params.projectId);
+      if (!Number.isFinite(projectId)) return res.status(400).json({ message: 'Invalid project id' });
+      const intake = await storage.getProjectIntakeByCreatedProjectId(projectId);
+      if (!intake) return res.json(null);
+      if (!await userHasOrgAccess(userId, intake.organizationId)) {
+        return res.json(null);
+      }
+      if (!await userHasPermission(userId, intake.organizationId, PERMISSIONS.INTAKE_VIEW)) {
+        return res.json(null);
+      }
+      res.json({ id: intake.id, intakeNumber: intake.intakeNumber, projectName: intake.projectName });
+    } catch (err) {
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Error fetching originating intake' : classified.message });
     }
   });
 

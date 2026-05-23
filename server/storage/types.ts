@@ -463,6 +463,7 @@ export interface ITimesheetStorage {
 export interface IIntakeStorage {
   getProjectIntakes(organizationId: number): Promise<ProjectIntake[]>;
   getProjectIntake(id: number): Promise<ProjectIntake | undefined>;
+  getProjectIntakeByCreatedProjectId(projectId: number): Promise<ProjectIntake | undefined>;
   createProjectIntake(intake: InsertProjectIntake): Promise<ProjectIntake>;
   updateProjectIntake(id: number, updates: UpdateProjectIntakeRequest, actorUserId?: string | null): Promise<ProjectIntake>;
   deleteProjectIntake(id: number): Promise<void>;

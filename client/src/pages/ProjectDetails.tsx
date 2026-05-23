@@ -132,6 +132,28 @@ const DEFAULT_PROJECT_STAGES = [
 
 type ProjectStage = { value: string; label: string; description: string; isTerminal: boolean; helpText?: string | null; requiredFields?: string[] | null };
 
+function OriginatingIntakeLink({ projectId }: { projectId: number }) {
+  const { data: intake } = useQuery<{ id: number; projectName?: string | null; intakeNumber?: string | null } | null>({
+    queryKey: ["/api/project-intakes/by-project", projectId],
+    queryFn: async () => {
+      const res = await fetch(`/api/project-intakes/by-project/${projectId}`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: Number.isFinite(projectId),
+  });
+  if (!intake?.id) return null;
+  const label = intake.intakeNumber || intake.projectName || `Intake #${intake.id}`;
+  return (
+    <div className="mb-1 text-xs text-muted-foreground" data-testid="link-source-intake-wrapper">
+      <span>From intake: </span>
+      <Link href={`/intakes/${intake.id}`} className="text-primary hover:underline" data-testid="link-source-intake">
+        {label}
+      </Link>
+    </div>
+  );
+}
+
 function BusinessProcessFlow({ 
   currentStatus, 
   onStatusChange,
@@ -1499,6 +1521,8 @@ export default function ProjectDetails() {
               </BreadcrumbList>
             </Breadcrumb>
           )}
+          <OriginatingIntakeLink projectId={project.id} />
+
           <div className="flex items-center gap-3 flex-wrap">
             {isEditingName ? (
               <div className="flex items-center gap-2 max-w-full">

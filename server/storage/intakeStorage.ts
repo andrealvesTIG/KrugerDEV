@@ -133,6 +133,12 @@ export async function getProjectIntake(id: number): Promise<ProjectIntake | unde
   return await enrichIntakeWithAuditNames(intake) as ProjectIntake;
 }
 
+export async function getProjectIntakeByCreatedProjectId(projectId: number): Promise<ProjectIntake | undefined> {
+  const [intake] = await db.select().from(projectIntakes).where(eq(projectIntakes.createdProjectId, projectId));
+  if (!intake) return undefined;
+  return await enrichIntakeWithAuditNames(intake) as ProjectIntake;
+}
+
 export async function createProjectIntake(intake: InsertProjectIntake): Promise<ProjectIntake> {
   const year = new Date().getFullYear();
   const existingCount = await db.select({ count: sql<number>`count(*)` })
