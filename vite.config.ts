@@ -7,6 +7,53 @@ export default defineConfig({
   plugins: [
     react(),
     runtimeErrorOverlay(),
+    // Injects our `unhandledrejection` / `error` filter BEFORE the
+    // runtime-error-overlay plugin's own listener. Vite's plugin uses
+    // `transformIndexHtml` to head-prepend its <script>; by placing this
+    // plugin *after* runtime-error-overlay in the array and also using
+    // head-prepend, our tag ends up above theirs in the served HTML, so
+    // our listener registers (and runs) first. We then call
+    // stopImmediatePropagation for empty / non-Error throws (Google
+    // Analytics, Meta Pixel, Microsoft Clarity, LinkedIn Insight have
+    // all been seen throwing these), preventing Vite's listener from
+    // popping a useless "(unknown runtime error)" overlay. Real Errors
+    // fall through normally.
+    {
+      name: "suppress-empty-error-overlay",
+      apply: "serve",
+      transformIndexHtml() {
+        return [
+          {
+            tag: "script",
+            attrs: {},
+            injectTo: "head-prepend",
+            children: `(function () {
+  function isMeaningful(value) {
+    if (value instanceof Error) return true;
+    if (value == null) return false;
+    if (typeof value === "string") return value.trim().length > 0;
+    if (typeof value === "object") {
+      try { return Object.keys(value).length > 0; } catch (_) { return true; }
+    }
+    return true;
+  }
+  window.addEventListener("unhandledrejection", function (event) {
+    if (!isMeaningful(event.reason)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
+  window.addEventListener("error", function (event) {
+    if (!event.error && !isMeaningful(event.message)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }
+  }, true);
+})();`,
+          },
+        ];
+      },
+    },
     ...(process.env.NODE_ENV !== "production" &&
     process.env.REPL_ID !== undefined
       ? [
