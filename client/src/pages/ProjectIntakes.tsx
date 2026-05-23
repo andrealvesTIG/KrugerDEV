@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Link, useLocation } from "wouter";
 import { useIntakeWorkflows } from "@/hooks/use-intake-workflow";
+import { usePrograms } from "@/hooks/use-programs";
 import { Plus, Search, FileInput, Check, Clock, XCircle, ChevronRight, ChevronDown, MoreVertical, Trash2, Eye, Gavel, Calendar, DollarSign, AlertCircle, FolderOpen, ChevronsUpDown, BarChart3, Timer } from "lucide-react";
 import {
   WorkflowProgress,
@@ -76,6 +77,7 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, wo
   const [description, setDescription] = useState("");
   const [portfolioId, setPortfolioId] = useState<string>("");
   const [portfolioOpen, setPortfolioOpen] = useState(false);
+  const [programId, setProgramId] = useState<string>("");
   const [fundingSource, setFundingSource] = useState("");
   const [businessUnit, setBu] = useState("");
   const [limitError, setLimitError] = useState<{ resourceType: string } | null>(null);
@@ -110,10 +112,16 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, wo
     }
   });
 
+  const { data: programs = [] } = usePrograms(organizationId);
+  const filteredPrograms = portfolioId
+    ? programs.filter((pg: any) => pg.portfolioId === parseInt(portfolioId))
+    : programs;
+
   const resetForm = () => {
     setIntakeName("");
     setDescription("");
     setPortfolioId("");
+    setProgramId("");
     setFundingSource("");
     setBu("");
   };
@@ -129,6 +137,7 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, wo
       projectName: intakeName,
       description,
       portfolioId: portfolioId ? parseInt(portfolioId) : null,
+      programId: programId ? parseInt(programId) : null,
       fundingSource,
       businessUnit: businessUnit,
       submitterId: user?.id,
@@ -237,6 +246,25 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, wo
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Program</Label>
+            <Select value={programId || "none"} onValueChange={(v) => setProgramId(v === "none" ? "" : v)}>
+              <SelectTrigger data-testid="select-program">
+                <SelectValue placeholder={portfolioId ? "Assign to program" : "Assign to program (optional)"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No program</SelectItem>
+                {filteredPrograms.map((pg: any) => (
+                  <SelectItem key={pg.id} value={String(pg.id)}>{pg.name}</SelectItem>
+                ))}
+                {filteredPrograms.length === 0 && (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                    {portfolioId ? "No programs in this portfolio" : "No programs available"}
+                  </div>
+                )}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label htmlFor="bu">Requesting Business Unit</Label>
