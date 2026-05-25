@@ -1590,9 +1590,13 @@ function getUserIdFromRequest(req: any): string | undefined {
   // First check Replit OAuth format
   const replitUserId = req.user?.claims?.sub;
   if (replitUserId) return replitUserId;
-  
+
   // Fall back to session-based auth (email/password)
-  return req.session?.userId;
+  if (req.session?.userId) return req.session.userId;
+
+  // Per-request API bearer auth. Bound in routes.ts middleware. We do NOT
+  // mutate req.session for bearer callers — see comment there.
+  return req.bearerAuth?.userId;
 }
 
 function normalizeSearchStr(str: string | null | undefined): string {

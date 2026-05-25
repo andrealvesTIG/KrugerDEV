@@ -100,10 +100,16 @@ export async function registerRoutes(
           const tokenRecord = await storage.getApiTokenByToken(token);
           if (tokenRecord) {
             if (!tokenRecord.expiresAt || tokenRecord.expiresAt >= new Date()) {
-              if (!req.session) req.session = {};
-              req.session.userId = tokenRecord.userId;
+              // Bind the API caller to the *request only*. Do NOT write to
+              // req.session.userId — that would promote a stateless API
+              // token into a full Set-Cookie web session, letting a leaked
+              // token hijack the UI. `getUserIdFromRequest` consults
+              // `req.bearerAuth.userId` as a per-request fallback.
+              req.bearerAuth = { userId: tokenRecord.userId, organizationId: tokenRecord.organizationId };
               req.bearerOrgId = tokenRecord.organizationId;
-              storage.updateApiTokenLastUsed(tokenRecord.id);
+              await storage.updateApiTokenLastUsed(tokenRecord.id).catch((e) => {
+                console.error('[api-token] failed to update lastUsedAt:', e);
+              });
             }
           }
         } catch (err) {

@@ -173,13 +173,24 @@ export function registerProjectRoutes(app: Express) {
         updatedAt: new Date(),
         updatedBy: userId || null,
       };
-      const project = await storage.createProject(sanitizedInput);
+      let project = await storage.createProject(sanitizedInput);
 
-      await storage.assignAutonumberValuesForEntity({
-        organizationId: project.organizationId,
-        entityType: 'project',
-        entityId: project.id,
-      }).catch((e) => console.error('[autonumber] project assignment failed:', e));
+      // Assign autonumber values *before* responding so the client sees the
+      // fully-populated project (autonumber fields are common UI columns,
+      // e.g. "P-001"). Previously the .catch() swallowed the promise and
+      // the response went out with empty autonumber values, forcing the
+      // client to refetch.
+      try {
+        await storage.assignAutonumberValuesForEntity({
+          organizationId: project.organizationId,
+          entityType: 'project',
+          entityId: project.id,
+        });
+        const refreshed = await storage.getProject(project.id);
+        if (refreshed) project = refreshed;
+      } catch (e) {
+        console.error('[autonumber] project assignment failed:', e);
+      }
 
       if (userId) {
         await logUserActivity(userId, 'create_project', 'project', project.id, { name: project.name, organizationId: project.organizationId }, req).catch((e) => {

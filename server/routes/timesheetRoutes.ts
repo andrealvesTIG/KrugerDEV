@@ -1,8 +1,8 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { db } from "../db";
-import { eq, and } from "drizzle-orm";
-import { users, resources, tasks, timesheetReminderSettings, type Task } from "@shared/schema";
+import { eq, and, inArray } from "drizzle-orm";
+import { users, resources, resources as resourcesTable, tasks, timesheetReminderSettings, taskResourceAssignments, type Task } from "@shared/schema";
 import {
   classifyError,
   getUserIdFromRequest,
@@ -255,6 +255,34 @@ export function registerTimesheetRoutes(app: Express) {
           return rows as any;
         };
 
+        // Batch-load the current user's assignments for every visible task
+        // in a single query. The previous implementation issued one
+        // `getTaskResourceAssignments(taskId)` per task, which scaled
+        // linearly with the user's backlog (~50 round-trips for a busy
+        // user). Filter to `userResource.id` here so we don't pay for
+        // teammates' rows we'd discard anyway.
+        const taskIds = assignedTasks.map(t => t.task.id);
+        const assignmentRows = taskIds.length === 0
+          ? []
+          : await db.select({
+              taskId: taskResourceAssignments.taskId,
+              resourceId: taskResourceAssignments.resourceId,
+              allocationPercentage: taskResourceAssignments.allocationPercentage,
+              calendarId: resourcesTable.calendarId,
+            })
+            .from(taskResourceAssignments)
+            .innerJoin(resourcesTable, eq(taskResourceAssignments.resourceId, resourcesTable.id))
+            .where(and(
+              inArray(taskResourceAssignments.taskId, taskIds),
+              eq(taskResourceAssignments.resourceId, userResource!.id),
+            ));
+        const assignmentsByTaskId = new Map<number, typeof assignmentRows>();
+        for (const row of assignmentRows) {
+          const list = assignmentsByTaskId.get(row.taskId);
+          if (list) list.push(row);
+          else assignmentsByTaskId.set(row.taskId, [row]);
+        }
+
         for (const { task } of assignedTasks) {
           if (!task.startDate || !task.endDate) continue;
           const [sy, sm, sd] = String(task.startDate).slice(0, 10).split("-").map(Number);
@@ -269,8 +297,7 @@ export function registerTimesheetRoutes(app: Express) {
           // assignment on the task. Tasks where the user is the owner but
           // not an assignee (still surfaced by getAssignedTasksForResource)
           // legitimately show 0 planned hours.
-          const allAssignments = await storage.getTaskResourceAssignments(task.id);
-          const assignments = allAssignments.filter(a => a.resourceId === userResource!.id);
+          const assignments = assignmentsByTaskId.get(task.id) ?? [];
           if (assignments.length === 0) continue;
 
           let projCal: Awaited<ReturnType<typeof calStorage.getResolvedCalendarForProject>>;
@@ -285,7 +312,7 @@ export function registerTimesheetRoutes(app: Express) {
             projCal,
             assignments: assignments.map(a => ({
               resourceId: a.resourceId,
-              calendarId: a.resource?.calendarId ?? null,
+              calendarId: a.calendarId ?? null,
               allocationPercentage: Number(a.allocationPercentage),
             })),
             taskStart,

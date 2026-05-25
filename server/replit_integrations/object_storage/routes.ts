@@ -169,12 +169,18 @@ export function registerObjectStorageRoutes(app: Express): void {
         error: "Executable file types (.html, .svg, .xhtml, scripts) are not allowed",
       });
     }
-    // Allowlist-gate non-empty extensions. Files with no extension are
-    // permitted because some legitimate uploads (binary blobs, e.g. .mpp
-    // exports) come through without one and the upstream code paths
-    // already restrict by content type.
-    if (ext && !UPLOAD_EXTENSION_ALLOWLIST.has(ext) && !isExecutable) {
-      return res.status(400).json({ error: `File extension ${ext} is not allowed` });
+    // Allowlist-gate the extension. Empty extensions used to slip through
+    // (the old comment claimed .mpp exports needed it, but .mpp *has* an
+    // extension), which let an attacker upload `payload` with a spoofed
+    // MIME type and rely on downstream sniffing. Require a non-empty
+    // extension that's on the allowlist.
+    if (!isExecutable) {
+      if (!ext) {
+        return res.status(400).json({ error: "File must have an allowed extension" });
+      }
+      if (!UPLOAD_EXTENSION_ALLOWLIST.has(ext)) {
+        return res.status(400).json({ error: `File extension ${ext} is not allowed` });
+      }
     }
 
     // Optional client-supplied org binding. We can't always know which org

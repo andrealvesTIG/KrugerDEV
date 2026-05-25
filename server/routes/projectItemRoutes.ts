@@ -43,7 +43,7 @@ export function registerProjectItemRoutes(app: Express) {
       const project = await storage.getProject(projectId);
       if (!project) return res.status(404).json({ message: 'Project not found' });
       if (!await userHasOrgAccess(userId, project.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
       const risks = await storage.getRisks(projectId);
       const paginated = req.query.page !== undefined || req.query.pageSize !== undefined;
@@ -83,7 +83,7 @@ export function registerProjectItemRoutes(app: Express) {
       const riskProject = input.projectId ? await storage.getProject(input.projectId) : null;
       if (!riskProject) return res.status(404).json({ message: 'Project not found' });
       if (!await userHasOrgAccess(userId, riskProject.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
       const role = await getUserOrgRole(userId, riskProject.organizationId);
       if (role === 'viewer') {
@@ -144,7 +144,7 @@ export function registerProjectItemRoutes(app: Express) {
       const riskProject = await storage.getProject(existing.projectId);
       if (!riskProject) return res.status(404).json({ message: 'Project not found' });
       if (!await userHasOrgAccess(userId, riskProject.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
       const role = await getUserOrgRole(userId, riskProject.organizationId);
       if (role === 'viewer') {
@@ -207,7 +207,7 @@ export function registerProjectItemRoutes(app: Express) {
       if (!risk) return res.status(404).json({ message: "Risk not found" });
       const project = await storage.getProject(risk.projectId);
       if (project && !await userHasOrgAccess(userId, project.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
       await storage.softDeleteItem('risk', riskId, userId);
       if (project) invalidateOrganizationContextCache(project.organizationId);
@@ -236,7 +236,7 @@ export function registerProjectItemRoutes(app: Express) {
       const riskProject = await storage.getProject(risk.projectId);
       if (!riskProject) return res.status(404).json({ message: 'Project not found' });
       if (!await userHasOrgAccess(userId, riskProject.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
 
       const history = await storage.getRiskChangeLogs(riskId);
@@ -262,7 +262,7 @@ export function registerProjectItemRoutes(app: Express) {
       if (!risk) return res.status(404).json({ message: "Risk not found" });
       const riskProject = await storage.getProject(risk.projectId);
       if (riskProject && !await userHasOrgAccess(userId, riskProject.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
       
       const converted = await storage.convertRiskToIssue(riskId);
@@ -373,7 +373,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     const project = await storage.getProject(projectId);
     if (!project) return res.status(404).json({ message: 'Project not found' });
     if (!await userHasOrgAccess(userId, project.organizationId)) {
-      return res.status(403).json({ message: 'Access denied' });
+      return res.status(404).json({ message: 'Not found' });
     }
     const milestones = await storage.getMilestones(projectId);
     res.json(milestones);
@@ -438,7 +438,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const input = api.milestones.create.input.parse(req.body);
       const project = await storage.getProject(input.projectId);
       if (project && !await userHasOrgAccess(userId, project.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
       const milestone = await storage.createMilestone(input);
       if (project) invalidateOrganizationContextCache(project.organizationId);
@@ -464,7 +464,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (!existing) return res.status(404).json({ message: "Milestone not found" });
       const project = await storage.getProject(existing.projectId);
       if (project && !await userHasOrgAccess(userId, project.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
       const input = api.milestones.update.input.parse(req.body);
       const updated = await storage.updateMilestone(milestoneId, input);
@@ -491,7 +491,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (!existing) return res.status(404).json({ message: "Milestone not found" });
       const project = await storage.getProject(existing.projectId);
       if (project && !await userHasOrgAccess(userId, project.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
       await storage.softDeleteItem('milestone', milestoneId, userId);
       if (project) invalidateOrganizationContextCache(project.organizationId);
@@ -515,7 +515,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
     const project = await storage.getProject(projectId);
     if (!project) return res.status(404).json({ message: 'Project not found' });
     if (!await userHasOrgAccess(userId, project.organizationId)) {
-      return res.status(403).json({ message: 'Access denied' });
+      return res.status(404).json({ message: 'Not found' });
     }
     const issues = await storage.getIssues(projectId);
     const paginated = req.query.page !== undefined || req.query.pageSize !== undefined;
@@ -622,7 +622,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const issueProject = input.projectId ? await storage.getProject(input.projectId) : null;
       if (!issueProject) return res.status(404).json({ message: 'Project not found' });
       if (!await userHasOrgAccess(userId, issueProject.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
       const role = await getUserOrgRole(userId, issueProject.organizationId);
       if (role === 'viewer') {
@@ -689,7 +689,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const issueProject = await storage.getProject(existing.projectId);
       if (!issueProject) return res.status(404).json({ message: 'Project not found' });
       if (!await userHasOrgAccess(userId, issueProject.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
       const role = await getUserOrgRole(userId, issueProject.organizationId);
       if (role === 'viewer') {
@@ -754,7 +754,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const issueProject = await storage.getProject(issue.projectId);
       if (!issueProject) return res.status(404).json({ message: 'Project not found' });
       if (!await userHasOrgAccess(userId, issueProject.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
       const role = await getUserOrgRole(userId, issueProject.organizationId);
       if (role === 'viewer') {
@@ -787,7 +787,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const issueProject = await storage.getProject(issue.projectId);
       if (!issueProject) return res.status(404).json({ message: 'Project not found' });
       if (!await userHasOrgAccess(userId, issueProject.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
 
       const history = await storage.getIssueChangeLogs(issueId);
@@ -820,7 +820,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (!project) return res.status(404).json({ message: "Project not found" });
 
       if (!await userHasOrgAccess(userId, project.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
       const role = await getUserOrgRole(userId, project.organizationId);
       if (role === 'viewer') {
@@ -871,7 +871,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       const portfolio = await storage.getPortfolio(portfolioId);
       if (!portfolio) return res.status(404).json({ message: 'Portfolio not found' });
       if (!await userHasOrgAccess(userId, portfolio.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
       const portfolioProjects = await storage.getPortfolioProjects(portfolioId);
       const projectIds = portfolioProjects.map(p => p.id);
@@ -1247,7 +1247,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       }
       const taskProject = await storage.getProject(task.projectId);
       if (taskProject && !await userHasOrgAccess(userId, taskProject.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
       const [enriched] = await enrichTasksWithTimesheetHours([task]);
       res.json(enriched);
@@ -2216,7 +2216,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (!task) return res.status(404).json({ message: 'Task not found' });
       const project = await storage.getProject(task.projectId);
       if (project && !await userHasOrgAccess(userId, project.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
       
       await storage.softDeleteItem('task', taskId, userId);
@@ -2252,7 +2252,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (!task) return res.status(404).json({ message: 'Task not found' });
       const project = await storage.getProject(task.projectId);
       if (project && !await userHasOrgAccess(userId, project.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
       const history = await storage.getTaskChangeLogs(taskId);
       res.json(history);
@@ -2276,7 +2276,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (!task) return res.status(404).json({ message: 'Task not found' });
       const project = await storage.getProject(task.projectId);
       if (project && !await userHasOrgAccess(userId, project.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
       const history = await storage.getTaskNotesHistory(taskId);
       res.json(history);
@@ -2301,7 +2301,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (!task) return res.status(404).json({ message: 'Task not found' });
       const project = await storage.getProject(task.projectId);
       if (project && !await userHasOrgAccess(userId, project.organizationId)) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(404).json({ message: 'Not found' });
       }
       const dependencies = await storage.getTaskDependencies(taskId);
       res.json(dependencies);
@@ -2556,7 +2556,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
       if (project.organizationId) {
         const userOrgs = await storage.getUserOrganizations(userId);
         if (!userOrgs.find(m => m.organizationId === project.organizationId)) {
-          return res.status(403).json({ message: 'Access denied' });
+          return res.status(404).json({ message: 'Not found' });
         }
       }
       const dependencies = await storage.getProjectDependencies(projectId);
@@ -3114,7 +3114,7 @@ Format your response as a numbered list with clear, concise strategies. Do not i
         return res.status(401).json({ message: "Authentication required" });
       }
       if (!await userHasOrgAccess(userId, project.organizationId)) {
-        return res.status(403).json({ message: "Access denied to this project" });
+        return res.status(404).json({ message: "Not found" });
       }
 
       const emailCheck = await requireEmailVerified(userId);

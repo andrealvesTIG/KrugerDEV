@@ -134,31 +134,28 @@ export async function findTimesheetEntry(resourceId: number, taskId: number, ent
 }
 
 export async function createTimesheetEntry(entry: InsertTimesheetEntry): Promise<TimesheetEntry> {
-  try {
-    const [created] = await db.insert(timesheetEntries).values(entry).returning();
-    return created;
-  } catch (error: any) {
-    if (error?.code === '23505' || error?.message?.includes('unique constraint')) {
-      const [existing] = await db.select()
-        .from(timesheetEntries)
-        .where(and(
-          eq(timesheetEntries.resourceId, entry.resourceId),
-          eq(timesheetEntries.taskId, entry.taskId),
-          eq(timesheetEntries.entryDate, entry.entryDate)
-        ))
-        .limit(1);
-      
-      if (existing) {
-        const newHours = Number(existing.hours) + Number(entry.hours);
-        const [updated] = await db.update(timesheetEntries)
-          .set({ hours: newHours, notes: entry.notes || existing.notes, updatedAt: new Date() })
-          .where(eq(timesheetEntries.id, existing.id))
-          .returning();
-        return updated;
-      }
-    }
-    throw error;
-  }
+  // Atomic insert-or-add. The previous implementation caught the 23505
+  // duplicate-key error, then ran SELECT + UPDATE in two trips outside any
+  // transaction — two concurrent saves both read the same `existing.hours`
+  // and one write was silently lost (classic lost-update on a debounced
+  // auto-save). `onConflictDoUpdate` performs the increment atomically at
+  // the DB level using EXCLUDED + the existing row in a single statement.
+  const [row] = await db.insert(timesheetEntries)
+    .values(entry)
+    .onConflictDoUpdate({
+      target: [
+        timesheetEntries.resourceId,
+        timesheetEntries.taskId,
+        timesheetEntries.entryDate,
+      ],
+      set: {
+        hours: sql`${timesheetEntries.hours} + EXCLUDED.hours`,
+        notes: sql`COALESCE(EXCLUDED.notes, ${timesheetEntries.notes})`,
+        updatedAt: new Date(),
+      },
+    })
+    .returning();
+  return row;
 }
 
 export async function updateTimesheetEntry(id: number, updates: UpdateTimesheetEntryRequest): Promise<TimesheetEntry> {

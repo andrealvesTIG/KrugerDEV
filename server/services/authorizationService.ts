@@ -332,6 +332,15 @@ export function requirePermission(permissionKey: string) {
       if (!(await userIsOrgMember(userId, orgId, req))) {
         return res.status(403).json({ message: "Access denied to this organization" });
       }
+    } else if (!(await userIsOrgMember(userId, orgId, req))) {
+      // Structured audit trail when a super_admin acts on a tenant they
+      // are NOT a member of. Mutating routes show up here too — grep for
+      // `[super-admin-override]` to review.
+      console.warn('[super-admin-override]', JSON.stringify({
+        userId, orgId, permissionKey,
+        method: req.method, path: (req as any).originalUrl || req.url,
+        at: new Date().toISOString(),
+      }));
     }
 
     if (!ok) {
@@ -369,6 +378,12 @@ export async function enforcePermission(
       res.status(403).json({ message: "Access denied to this organization" });
       return true;
     }
+  } else if (!(await userIsOrgMember(userId, orgId, req))) {
+    console.warn('[super-admin-override]', JSON.stringify({
+      userId, orgId, permissionKey,
+      method: req.method, path: (req as any).originalUrl || req.url,
+      at: new Date().toISOString(),
+    }));
   }
   if (!ok) {
     res.status(403).json({
