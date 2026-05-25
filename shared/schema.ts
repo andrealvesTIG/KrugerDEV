@@ -496,7 +496,7 @@ export const organizations = pgTable("organizations", {
   billingHidden: boolean("billing_hidden").default(false),
   showPowerBiIntake: boolean("show_powerbi_intake").default(true).notNull(), // Whether to show the Power BI Requests tab on the Project Intakes page
   showAiMode: boolean("show_ai_mode").default(true).notNull(), // Whether AI Mode (default landing chat experience) is available to this org. When false, AI Mode is hidden entirely: no auto-landing, no top-right toggle.
-  hideProjectTimeline: boolean("hide_project_timeline").default(false).notNull(), // When true, the Timeline section on the Project Details summary tab is hidden for everyone in this org.
+  hideProjectWorkflow: boolean("hide_project_workflow").default(false).notNull(), // When true, the Project Workflow (Business Process Flow) section on the Project Details summary tab is hidden for everyone in this org.
   riskAssessmentConfig: jsonb("risk_assessment_config").$type<RiskAssessmentConfig>(),
   schedulingDefaults: jsonb("scheduling_defaults").$type<SchedulingDefaults>(),
   timezone: text("timezone").default("UTC"),

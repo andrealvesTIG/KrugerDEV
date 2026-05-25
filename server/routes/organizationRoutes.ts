@@ -234,7 +234,7 @@ export function registerOrganizationRoutes(app: Express) {
         return res.status(403).json({ message: 'Only organization admins can update settings' });
       }
       
-      const { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl, timezone, fiscalYearStartMonth, slug, showPowerBiIntake, showAiMode, hideProjectTimeline } = req.body;
+      const { name, description, hiddenModules, moduleOrder, hiddenGroups, sidebarStructure, logoUrl, timezone, fiscalYearStartMonth, slug, showPowerBiIntake, showAiMode, hideProjectWorkflow } = req.body;
       // Only include fields that were actually sent — avoids clobbering NOT NULL
       // columns (e.g. name) with undefined on partial-update PATCH-style calls.
       const updates: Record<string, unknown> = {};
@@ -252,8 +252,8 @@ export function registerOrganizationRoutes(app: Express) {
       if (showAiMode !== undefined) {
         updates.showAiMode = !!showAiMode;
       }
-      if (hideProjectTimeline !== undefined) {
-        updates.hideProjectTimeline = !!hideProjectTimeline;
+      if (hideProjectWorkflow !== undefined) {
+        updates.hideProjectWorkflow = !!hideProjectWorkflow;
       }
       if (fiscalYearStartMonth !== undefined) {
         const n = Number(fiscalYearStartMonth);

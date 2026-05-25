@@ -1992,7 +1992,8 @@ export default function ProjectDetails() {
 
         <div className="mt-6 min-w-0">
           <TabsContent value="summary" className="space-y-8">
-            {/* Business Process Flow */}
+            {/* Business Process Flow — can be hidden org-wide from Org Settings → General */}
+            {!currentOrganization?.hideProjectWorkflow && (
             <Collapsible open={!sectionsCollapsed.workflow} onOpenChange={() => toggleSection('workflow')}>
               <div className="bg-muted/50 border border-border rounded-lg">
                 <CollapsibleTrigger asChild>
@@ -2070,6 +2071,7 @@ export default function ProjectDetails() {
                 </CollapsibleContent>
               </div>
             </Collapsible>
+            )}
 
             <div className="grid gap-3 md:grid-cols-5">
               <Card className="py-2">
@@ -2153,19 +2155,17 @@ export default function ProjectDetails() {
               </Card>
             </div>
 
-            {/* Timeline Section — can be hidden org-wide from Org Settings → General */}
-            {!currentOrganization?.hideProjectTimeline && (
-              <ProjectTimeline 
-                projectId={project.id}
-                startDate={project.startDate}
-                endDate={project.endDate}
-                onMilestoneClick={(taskId) => {
-                  setActiveTab('tasks');
-                  window.history.replaceState(null, '', `?tab=tasks&taskId=${taskId}`);
-                  window.dispatchEvent(new CustomEvent('openTaskDialog', { detail: { taskId } }));
-                }}
-              />
-            )}
+            {/* Timeline Section */}
+            <ProjectTimeline 
+              projectId={project.id}
+              startDate={project.startDate}
+              endDate={project.endDate}
+              onMilestoneClick={(taskId) => {
+                setActiveTab('tasks');
+                window.history.replaceState(null, '', `?tab=tasks&taskId=${taskId}`);
+                window.dispatchEvent(new CustomEvent('openTaskDialog', { detail: { taskId } }));
+              }}
+            />
 
             <ProjectFormSummary
               project={project}
