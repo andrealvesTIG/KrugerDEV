@@ -4,13 +4,14 @@ import { db } from "../db";
 import { users } from "@shared/models/auth";
 import { getUserIdFromRequest } from "./helpers";
 
-type UiPreferences = { aiMode?: boolean };
+type UiPreferences = { aiMode?: boolean; timesheetShowPlanned?: boolean };
 
 function sanitize(input: unknown): UiPreferences {
   const out: UiPreferences = {};
   if (!input || typeof input !== "object") return out;
   const raw = input as Record<string, unknown>;
   if (typeof raw.aiMode === "boolean") out.aiMode = raw.aiMode;
+  if (typeof raw.timesheetShowPlanned === "boolean") out.timesheetShowPlanned = raw.timesheetShowPlanned;
   return out;
 }
 

@@ -74,7 +74,7 @@ export const users = pgTable("users", {
 
   // Per-user UI preferences that follow the user across devices. Sparse —
   // missing keys fall back to product defaults (AI Mode defaults on).
-  uiPreferences: jsonb("ui_preferences").$type<{ aiMode?: boolean }>().default({}),
+  uiPreferences: jsonb("ui_preferences").$type<{ aiMode?: boolean; timesheetShowPlanned?: boolean }>().default({}),
 
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

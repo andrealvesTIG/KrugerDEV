@@ -127,6 +127,9 @@ import { TeamReviewDashboard } from "@/components/TeamReviewDashboard";
 import { ApprovalDelegationDialog } from "@/components/ApprovalDelegationDialog";
 import { TimesheetCommentsThread } from "@/components/TimesheetCommentsThread";
 import { useTimesheetSettings, useRejectionTemplates, useIsActiveDelegate, useApprovalDelegations } from "@/hooks/use-timesheets";
+import { useTimesheetShowPlanned } from "@/hooks/use-timesheet-preferences";
+import { Switch } from "@/components/ui/switch";
+import { CalendarClock } from "lucide-react";
 
 type ViewMode = "workweek" | "week" | "day";
 
@@ -171,13 +174,30 @@ interface TaskRowProps {
   onViewAudit?: (entryId: number) => void;
   overtimeThreshold?: number;
   isDayView?: boolean;
+  showPlanned?: boolean;
+  plannedHoursByDate?: Record<string, number>;
 }
 
-function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, clearRow, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName, taskColumnWidth = 360, timesheetLocked = false, onViewAudit, overtimeThreshold = 40, isDayView = false }: TaskRowProps) {
+function formatPlanned(value: number | undefined): string {
+  if (!value || value <= 0) return "-";
+  // Tidy up: integers display as "8h", fractional as "4.5h" without
+  // trailing zeros so the row reads cleanly in the muted reference style.
+  const rounded = Math.round(value * 100) / 100;
+  const s = Number.isInteger(rounded) ? String(rounded) : String(rounded);
+  return `${s}h`;
+}
+
+function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, handleKeyDown, handleCellFocus, getRowTotal, getDayTotal, openNoteEditor, clearRow, index, indented, inputRefs, isDateInClosedPeriod, getClosedPeriodName, taskColumnWidth = 360, timesheetLocked = false, onViewAudit, overtimeThreshold = 40, isDayView = false, showPlanned = false, plannedHoursByDate }: TaskRowProps) {
   const rowTotal = getRowTotal(task.id);
   const isRowOvertime = rowTotal > overtimeThreshold;
-  
+  const plannedTotal = showPlanned && plannedHoursByDate
+    ? Math.round(
+        dates.reduce((sum, d) => sum + (plannedHoursByDate[formatDateKey(d)] ?? 0), 0) * 100,
+      ) / 100
+    : 0;
+
   return (
+    <React.Fragment>
     <motion.tr
       key={task.id}
       initial={{ opacity: 0, height: 0 }}
@@ -339,6 +359,45 @@ function TaskRow({ task, project, dates, entries, gridData, handleHoursChange, h
         </td>
       )}
     </motion.tr>
+    {showPlanned && (
+      <tr
+        className="bg-muted/10 border-t border-dashed border-border/40"
+        data-testid={`row-planned-${task.id}`}
+      >
+        <td
+          className={`px-3 py-1 ${indented ? 'pl-10' : ''} align-middle sticky left-0 z-10 bg-card`}
+          style={{ width: taskColumnWidth, minWidth: taskColumnWidth, maxWidth: taskColumnWidth }}
+        >
+          <div className="flex items-center gap-2 pl-5">
+            <CalendarClock className="h-3 w-3 text-muted-foreground/70 shrink-0" />
+            <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Planned</span>
+          </div>
+        </td>
+        {dates.map(date => {
+          const dateKey = formatDateKey(date);
+          const planned = plannedHoursByDate?.[dateKey];
+          const isTodayDate = isToday(date);
+          const isWeekendDay = isWeekend(date);
+          return (
+            <td
+              key={`planned-${dateKey}`}
+              className={`px-1.5 py-1 text-center text-xs tabular-nums text-muted-foreground ${
+                isTodayDate ? "bg-blue-500/5" : isWeekendDay ? "bg-muted/30" : ""
+              }`}
+              data-testid={`cell-planned-${task.id}-${dateKey}`}
+            >
+              {formatPlanned(planned)}
+            </td>
+          );
+        })}
+        {!isDayView && (
+          <td className="px-2 py-1 bg-emerald-500/5 text-center align-middle text-xs tabular-nums text-muted-foreground">
+            {plannedTotal > 0 ? `${plannedTotal}h` : "-"}
+          </td>
+        )}
+      </tr>
+    )}
+    </React.Fragment>
   );
 }
 
@@ -361,6 +420,7 @@ interface TimesheetGridProps {
   mandatoryNotes?: boolean;
   onViewAudit?: (entryId: number) => void;
   overtimeThreshold?: number;
+  showPlanned?: boolean;
 }
 
 const QUICK_TIME_PRESETS = [
@@ -372,7 +432,7 @@ const QUICK_TIME_PRESETS = [
 
 const MAX_UNDO_HISTORY = 20;
 
-function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMode, groupByProject, gridData, setGridData, hasChanges, setHasChanges, onAutoSave, isDateInClosedPeriod, getClosedPeriodName, isFullscreen = false, mandatoryNotes = false, onViewAudit, overtimeThreshold = 40 }: TimesheetGridProps) {
+function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMode, groupByProject, gridData, setGridData, hasChanges, setHasChanges, onAutoSave, isDateInClosedPeriod, getClosedPeriodName, isFullscreen = false, mandatoryNotes = false, onViewAudit, overtimeThreshold = 40, showPlanned = false }: TimesheetGridProps) {
   const [editingNote, setEditingNote] = useState<{ taskId: number; dateKey: string } | null>(null);
   const [noteText, setNoteText] = useState("");
   const [collapsedProjects, setCollapsedProjects] = useState<Set<number> | null>(null);
@@ -924,8 +984,17 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
     </div>
   );
 
+  const plannedByTaskId = useMemo(() => {
+    const m = new Map<number, Record<string, number>>();
+    for (const item of assignedTasks as any[]) {
+      if (item.plannedHoursByDate) m.set(item.task.id, item.plannedHoursByDate);
+    }
+    return m;
+  }, [assignedTasks]);
+
   const renderMobileTaskCard = (task: Task, project: Project, timesheetLocked?: boolean) => {
     const rowTotal = getRowTotal(task.id);
+    const planned = plannedByTaskId.get(task.id);
     return (
       <div key={`mobile-${task.id}`} className={`rounded-xl border border-border bg-card p-3 space-y-2 ${timesheetLocked ? "opacity-75" : ""}`}>
         <div className="flex items-start justify-between gap-2">
@@ -1006,6 +1075,14 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                     <StickyNote className="h-2.5 w-2.5" />
                   </button>
                 </div>
+                {showPlanned && (
+                  <span
+                    className="text-[10px] tabular-nums text-muted-foreground leading-none mt-0.5"
+                    data-testid={`mobile-planned-${task.id}-${dateKey}`}
+                  >
+                    {formatPlanned(planned?.[dateKey])}
+                  </span>
+                )}
               </div>
             );
           })}
@@ -1188,6 +1265,8 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                             onViewAudit={onViewAudit}
                             overtimeThreshold={overtimeThreshold}
                             isDayView={viewMode === "day"}
+                            showPlanned={showPlanned}
+                            plannedHoursByDate={(assignedTasks.find(a => a.task.id === task.id) as any)?.plannedHoursByDate}
                           />
                         );
                       })}
@@ -1196,7 +1275,7 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                 );
               })
             ) : (
-              assignedTasks.map(({ task, project, timesheetLocked }, index) => (
+              assignedTasks.map(({ task, project, timesheetLocked, ...rest }: any, index) => (
                 <TaskRow
                   key={task.id}
                   task={task}
@@ -1220,6 +1299,8 @@ function TimesheetGrid({ dates, assignedTasks, entries, onSave, isSaving, viewMo
                   onViewAudit={onViewAudit}
                   overtimeThreshold={overtimeThreshold}
                   isDayView={viewMode === "day"}
+                  showPlanned={showPlanned}
+                  plannedHoursByDate={rest?.plannedHoursByDate}
                 />
               ))
             )}
@@ -3293,9 +3374,11 @@ export default function Timesheets() {
     endDate
   );
   
+  const { showPlanned, toggleShowPlanned } = useTimesheetShowPlanned();
   const { data: assignedTasks = [], isLoading: tasksLoading } = useAssignedTasks(
     currentOrganization?.id || null, 
-    user?.id
+    user?.id,
+    showPlanned ? { from: startDate, to: endDate } : undefined,
   );
 
   const { data: currentResource, isLoading: currentResourceLoading } = useCurrentUserResource(currentOrganization?.id || null, user?.id);
@@ -3899,6 +3982,16 @@ export default function Timesheets() {
                 </SelectContent>
               </Select>
             )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <label className="flex items-center gap-1.5 px-2 py-1 rounded border cursor-pointer text-xs" data-testid="toggle-planned-hours-fullscreen">
+                  <CalendarClock className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="hidden sm:inline text-muted-foreground">Planned</span>
+                  <Switch checked={showPlanned} onCheckedChange={toggleShowPlanned} aria-label="Show planned hours row" />
+                </label>
+              </TooltipTrigger>
+              <TooltipContent>Show calendar-aware planned hours under each task</TooltipContent>
+            </Tooltip>
             {closedProjectCount > 0 && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -4190,6 +4283,7 @@ export default function Timesheets() {
                 mandatoryNotes={timesheetSettings?.mandatoryNotes ?? false}
                 onViewAudit={(entryId) => { setAuditEntryId(entryId); setShowAuditDialog(true); }}
                 overtimeThreshold={weeklyTarget}
+                showPlanned={showPlanned}
               />
             </div>
           )}
@@ -4554,6 +4648,17 @@ export default function Timesheets() {
                         </SelectContent>
                       </Select>
                     )}
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <label className="flex items-center gap-1.5 px-2 py-1 rounded border cursor-pointer text-xs" data-testid="toggle-planned-hours">
+                          <CalendarClock className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="hidden sm:inline text-muted-foreground">Planned</span>
+                          <Switch checked={showPlanned} onCheckedChange={toggleShowPlanned} aria-label="Show planned hours row" />
+                        </label>
+                      </TooltipTrigger>
+                      <TooltipContent>Show calendar-aware planned hours under each task</TooltipContent>
+                    </Tooltip>
 
                     {closedProjectCount > 0 && (
                       <Tooltip>
@@ -4938,6 +5043,7 @@ export default function Timesheets() {
                   isSaving={bulkUpsert.isPending}
                   viewMode={viewMode}
                   groupByProject={!filterProjectId}
+                  showPlanned={showPlanned}
                   gridData={gridData}
                   setGridData={setGridData}
                   hasChanges={hasChanges}

@@ -199,9 +199,112 @@ export function registerTimesheetRoutes(app: Express) {
       // Pass userId to also include tasks where user is the ownerId
       const assignedTasks = await storage.getAssignedTasksForResource(userResource.id, organizationId, userId);
 
+      // Optional calendar-aware planned hours window. Callers pass
+      // `from`/`to` (YYYY-MM-DD) to get a per-task per-date map of planned
+      // hours for that window so the Timesheets grid can render a reference
+      // "Planned" row beneath each task row. Skipped entirely when params
+      // are absent so the legacy callers stay on the cheap codepath.
+      const fromRaw = typeof req.query.from === "string" ? req.query.from : null;
+      const toRaw = typeof req.query.to === "string" ? req.query.to : null;
+      // When either of `from`/`to` is supplied, both must be valid and
+      // `from <= to`. We return 400 on bad input rather than silently
+      // dropping the planned-hours payload, so client bugs are surfaced.
+      if ((fromRaw && !toRaw) || (toRaw && !fromRaw)) {
+        return res.status(400).json({ message: 'Both `from` and `to` are required when requesting planned hours' });
+      }
+      let plannedRange: { start: Date; end: Date } | null = null;
+      if (fromRaw && toRaw) {
+        const dateRe = /^\d{4}-\d{2}-\d{2}/;
+        if (!dateRe.test(fromRaw) || !dateRe.test(toRaw)) {
+          return res.status(400).json({ message: '`from` and `to` must be YYYY-MM-DD' });
+        }
+        const [fy, fm, fd] = fromRaw.slice(0, 10).split("-").map(Number);
+        const [ty, tm, td] = toRaw.slice(0, 10).split("-").map(Number);
+        const start = new Date(fy, fm - 1, fd, 0, 0, 0, 0);
+        const end = new Date(ty, tm - 1, td, 23, 59, 59, 999);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+          return res.status(400).json({ message: 'Invalid `from`/`to` date' });
+        }
+        if (start > end) {
+          return res.status(400).json({ message: '`from` must be on or before `to`' });
+        }
+        plannedRange = { start, end };
+      }
+
+      let plannedByTaskId: Map<number, Record<string, number>> = new Map();
+      if (plannedRange) {
+        const calStorage = await import("../storage/calendarStorage");
+        const { computePlannedHoursByDate } = await import("@shared/lib/assignmentEstimation");
+
+        // Per-request caches: project calendar by projectId, resource
+        // calendar by calendarId, availability by resourceId. Each is
+        // resolved at most once even when many tasks share them.
+        const projCalCache = new Map<number, Awaited<ReturnType<typeof calStorage.getResolvedCalendarForProject>>>();
+        const resourceCalCache = new Map<number, Awaited<ReturnType<typeof calStorage.loadResolvedCalendar>>>();
+        const availabilityCache = new Map<number, Awaited<ReturnType<typeof storage.getResourceAvailability>>>();
+        const loadResourceCalendar = async (calendarId: number) => {
+          if (resourceCalCache.has(calendarId)) return resourceCalCache.get(calendarId)!;
+          const cal = await calStorage.loadResolvedCalendar(calendarId);
+          resourceCalCache.set(calendarId, cal);
+          return cal;
+        };
+        const loadResourceAvailability = async (resourceId: number) => {
+          if (availabilityCache.has(resourceId)) return availabilityCache.get(resourceId)!;
+          const rows = await storage.getResourceAvailability(resourceId);
+          availabilityCache.set(resourceId, rows);
+          return rows as any;
+        };
+
+        for (const { task } of assignedTasks) {
+          if (!task.startDate || !task.endDate) continue;
+          const [sy, sm, sd] = String(task.startDate).slice(0, 10).split("-").map(Number);
+          const [ey, em, ed] = String(task.endDate).slice(0, 10).split("-").map(Number);
+          if (!sy || !ey) continue;
+          const taskStart = new Date(sy, sm - 1, sd, 0, 0, 0, 0);
+          const taskEnd = new Date(ey, em - 1, ed, 23, 59, 59, 999);
+          // Skip when the task range doesn't intersect the requested window.
+          if (taskEnd < plannedRange.start || taskStart > plannedRange.end) continue;
+
+          // Planned hours are personal: only count the current user's own
+          // assignment on the task. Tasks where the user is the owner but
+          // not an assignee (still surfaced by getAssignedTasksForResource)
+          // legitimately show 0 planned hours.
+          const allAssignments = await storage.getTaskResourceAssignments(task.id);
+          const assignments = allAssignments.filter(a => a.resourceId === userResource!.id);
+          if (assignments.length === 0) continue;
+
+          let projCal: Awaited<ReturnType<typeof calStorage.getResolvedCalendarForProject>>;
+          if (projCalCache.has(task.projectId)) {
+            projCal = projCalCache.get(task.projectId)!;
+          } else {
+            projCal = await calStorage.getResolvedCalendarForProject(task.projectId);
+            projCalCache.set(task.projectId, projCal);
+          }
+
+          const planned = await computePlannedHoursByDate({
+            projCal,
+            assignments: assignments.map(a => ({
+              resourceId: a.resourceId,
+              calendarId: a.resource?.calendarId ?? null,
+              allocationPercentage: Number(a.allocationPercentage),
+            })),
+            taskStart,
+            taskEnd,
+            rangeStart: plannedRange.start,
+            rangeEnd: plannedRange.end,
+            loadResourceCalendar,
+            loadResourceAvailability,
+          });
+          if (Object.keys(planned).length > 0) {
+            plannedByTaskId.set(task.id, planned);
+          }
+        }
+      }
+
       const result = assignedTasks.map(item => ({
         ...item,
-        timesheetLocked: !!(item.task.timesheetBlocked || item.project.timesheetBlocked)
+        timesheetLocked: !!(item.task.timesheetBlocked || item.project.timesheetBlocked),
+        ...(plannedRange ? { plannedHoursByDate: plannedByTaskId.get(item.task.id) ?? {} } : {}),
       }));
 
       res.json(result);

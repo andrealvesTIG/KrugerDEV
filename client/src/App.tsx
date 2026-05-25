@@ -6,6 +6,7 @@ import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAiModeServerSync } from "@/hooks/use-ai-mode";
+import { useTimesheetShowPlannedServerSync } from "@/hooks/use-timesheet-preferences";
 import { OrganizationProvider, useOrganization } from "@/hooks/use-organization";
 import { OrgAccessDenied } from "@/components/OrgAccessDenied";
 import { useOrgAwareLocation, formatOrgHref } from "@/lib/orgRouter";
@@ -301,6 +302,7 @@ function Router() {
 
 function AiModeHydrator() {
   useAiModeServerSync();
+  useTimesheetShowPlannedServerSync();
   return null;
 }
 

@@ -53,15 +53,31 @@ export function useTeamTimesheetEntries(organizationId: number | null, startDate
   });
 }
 
-export function useAssignedTasks(organizationId: number | null, userId: string | undefined) {
-  return useQuery<{ task: Task; project: Project }[]>({
-    queryKey: ["/api/timesheets/assigned-tasks", organizationId, userId],
+export interface AssignedTaskItem {
+  task: Task;
+  project: Project;
+  timesheetLocked?: boolean;
+  plannedHoursByDate?: Record<string, number>;
+}
+
+export function useAssignedTasks(
+  organizationId: number | null,
+  userId: string | undefined,
+  options?: { from?: string; to?: string },
+) {
+  const from = options?.from ?? null;
+  const to = options?.to ?? null;
+  return useQuery<AssignedTaskItem[]>({
+    queryKey: ["/api/timesheets/assigned-tasks", organizationId, userId, from, to],
     enabled: !!organizationId && !!userId,
     staleTime: 0, // Always refetch to get latest blocking status
     gcTime: 1000 * 60 * 5, // Keep in cache for 5 minutes
     refetchOnMount: true, // Refetch when component mounts
     queryFn: async () => {
-      const response = await fetch(`/api/timesheets/assigned-tasks?organizationId=${organizationId}`);
+      const params = new URLSearchParams({ organizationId: String(organizationId) });
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      const response = await fetch(`/api/timesheets/assigned-tasks?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to fetch assigned tasks");
       return response.json();
     },
