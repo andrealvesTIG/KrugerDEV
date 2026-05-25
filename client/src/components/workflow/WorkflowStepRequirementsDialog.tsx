@@ -245,6 +245,7 @@ export function WorkflowStepRequirementsDialog({
       for (const section of tab.sections || []) {
         for (const item of section.items || []) {
           if (item.itemType === 'block') continue;
+          if (item.itemType === 'label') continue;
 
           if (item.itemType === 'custom_field') {
             const id = Number(item.itemKey);

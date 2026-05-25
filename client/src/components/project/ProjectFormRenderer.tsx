@@ -156,6 +156,18 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds }: { item: ProjectFormLa
       />
     );
   }
+  if (item.itemType === "label") {
+    const trimmed = (item.displayName ?? "").trim();
+    if (!trimmed) return null;
+    return (
+      <div
+        className="text-sm text-foreground whitespace-pre-wrap leading-relaxed py-1"
+        data-testid="project-layout-label"
+      >
+        {trimmed}
+      </div>
+    );
+  }
   // block
   if (item.itemKey === "custom_fields") {
     return <>{ctx.renderCustomFieldsBlock(placedCustomFieldIds)}</>;

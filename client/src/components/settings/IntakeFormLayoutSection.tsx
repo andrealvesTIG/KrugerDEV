@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -23,7 +24,7 @@ import { useCustomFieldDefinitions } from "@/hooks/use-custom-fields";
 import type { CustomFieldDefinition } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
-interface DraftItem { uid: string; itemType: "field" | "custom_field" | "block"; itemKey: string; width: "full" | "half" | "third"; displayName: string | null; isRequired: boolean; }
+interface DraftItem { uid: string; itemType: "field" | "custom_field" | "block" | "label"; itemKey: string; width: "full" | "half" | "third"; displayName: string | null; isRequired: boolean; }
 interface DraftSection { uid: string; title: string | null; description: string | null; items: DraftItem[]; }
 interface DraftTab { uid: string; key: string; label: string; icon: string | null; isActive: boolean; sections: DraftSection[]; }
 
@@ -72,6 +73,7 @@ export function IntakeFormLayoutSection({ organizationId }: { organizationId: nu
           if (i.itemType === "field") ok = !!INTAKE_FIELDS.find(f => f.key === i.itemKey);
           else if (i.itemType === "block") ok = !!INTAKE_BLOCKS.find(b => b.key === i.itemKey);
           else if (i.itemType === "custom_field") ok = !!intakeCustomFieldDefs.find(d => String(d.id) === i.itemKey);
+          else if (i.itemType === "label") ok = true;
           if (!ok) {
             out.push({ tab: t.label || t.key, section: s.title || "(untitled)", itemType: i.itemType, itemKey: i.itemKey });
           }
@@ -219,15 +221,22 @@ export function IntakeFormLayoutSection({ organizationId }: { organizationId: nu
   const addItem = (tabUid: string, secUid: string, itemType: DraftItem["itemType"], itemKey: string) => {
     const tab = draft.find(t => t.uid === tabUid); if (!tab) return;
     // Each built-in field, custom field, or block may only appear once across the form.
-    const usedKeys = new Set<string>();
-    draft.forEach(t => t.sections.forEach(s => s.items.forEach(i => { usedKeys.add(`${i.itemType}:${i.itemKey}`); })));
-    if (usedKeys.has(`${itemType}:${itemKey}`)) {
-      toast({ title: "Already placed", description: "This item is already on the form. Each item can only appear once.", variant: "destructive" });
-      return;
+    // Labels carry a synthetic per-instance itemKey so they're allowed to repeat.
+    if (itemType !== "label") {
+      const usedKeys = new Set<string>();
+      draft.forEach(t => t.sections.forEach(s => s.items.forEach(i => { usedKeys.add(`${i.itemType}:${i.itemKey}`); })));
+      if (usedKeys.has(`${itemType}:${itemKey}`)) {
+        toast({ title: "Already placed", description: "This item is already on the form. Each item can only appear once.", variant: "destructive" });
+        return;
+      }
     }
+    const defaultDisplayName = itemType === "label" ? "" : null;
     updateSection(tabUid, secUid, {
-      items: [...(tab.sections.find(s => s.uid === secUid)?.items ?? []), { uid: uid("itm"), itemType, itemKey, width: "full", displayName: null, isRequired: false }],
+      items: [...(tab.sections.find(s => s.uid === secUid)?.items ?? []), { uid: uid("itm"), itemType, itemKey, width: "full", displayName: defaultDisplayName, isRequired: false }],
     });
+  };
+  const addLabel = (tabUid: string, secUid: string) => {
+    addItem(tabUid, secUid, "label", `label-${Math.random().toString(36).slice(2, 10)}`);
   };
   const updateItem = (tabUid: string, secUid: string, itemUid: string, patch: Partial<DraftItem>) => {
     const tab = draft.find(t => t.uid === tabUid); if (!tab) return;
@@ -376,6 +385,7 @@ export function IntakeFormLayoutSection({ organizationId }: { organizationId: nu
             onDeleteTab={() => deleteTab(activeTab.uid)}
             onSectionDragEnd={(e) => handleSectionDragEnd(activeTab.uid, e)}
             onAddSection={() => addSection(activeTab.uid)}
+            onAddLabel={(su) => addLabel(activeTab.uid, su)}
             onUpdateSection={(su, p) => updateSection(activeTab.uid, su, p)}
             onDeleteSection={(su) => deleteSection(activeTab.uid, su)}
             onAddItem={(su, t, k) => addItem(activeTab.uid, su, t, k)}
@@ -422,6 +432,7 @@ function TabEditor(props: {
   onDeleteTab: () => void;
   onSectionDragEnd: (e: DragEndEvent) => void;
   onAddSection: () => void;
+  onAddLabel: (su: string) => void;
   onUpdateSection: (su: string, p: Partial<DraftSection>) => void;
   onDeleteSection: (su: string) => void;
   onAddItem: (su: string, t: DraftItem["itemType"], k: string) => void;
@@ -482,6 +493,7 @@ function TabEditor(props: {
                 onUpdateSection={(p) => props.onUpdateSection(section.uid, p)}
                 onDeleteSection={() => props.onDeleteSection(section.uid)}
                 onAddItem={(t, k) => props.onAddItem(section.uid, t, k)}
+                onAddLabel={() => props.onAddLabel(section.uid)}
                 onUpdateItem={(iu, p) => props.onUpdateItem(section.uid, iu, p)}
                 onDeleteItem={(iu) => props.onDeleteItem(section.uid, iu)}
                 onMoveItemTo={(itemUid, toTabUid, toSecUid) => props.onMoveItemTo(itemUid, toTabUid, toSecUid)}
@@ -512,6 +524,7 @@ function SectionEditor(props: {
   onUpdateSection: (p: Partial<DraftSection>) => void;
   onDeleteSection: () => void;
   onAddItem: (t: DraftItem["itemType"], k: string) => void;
+  onAddLabel: () => void;
   onUpdateItem: (iu: string, p: Partial<DraftItem>) => void;
   onDeleteItem: (iu: string) => void;
   onMoveItemTo: (itemUid: string, toTabUid: string, toSecUid: string) => void;
@@ -561,7 +574,12 @@ function SectionEditor(props: {
         </SectionDropZone>
       </SortableContext>
 
-      <AddItemPicker onAdd={props.onAddItem} customFieldDefs={customFieldDefs} placedItemKeys={placedItemKeys} />
+      <div className="mt-2 flex justify-end gap-2">
+        <Button variant="outline" size="sm" onClick={props.onAddLabel} data-testid={`button-add-label-${section.uid}`}>
+          <Plus className="h-4 w-4 mr-1" /> Add Label
+        </Button>
+        <AddItemPicker onAdd={props.onAddItem} customFieldDefs={customFieldDefs} placedItemKeys={placedItemKeys} />
+      </div>
     </div>
   );
 }
@@ -591,25 +609,36 @@ function ItemEditor({ item, currentSectionUid, currentTabUid, allTabs, customFie
   const fieldDef = item.itemType === "field" ? INTAKE_FIELDS.find(f => f.key === item.itemKey) : undefined;
   const blockDef = item.itemType === "block" ? INTAKE_BLOCKS.find(b => b.key === item.itemKey) : undefined;
   const cfDef = item.itemType === "custom_field" ? customFieldDefs.find(d => String(d.id) === item.itemKey) : undefined;
-  const label = fieldDef?.label ?? blockDef?.label ?? cfDef?.name ?? (item.itemType === "custom_field" ? `Custom field #${item.itemKey} (missing)` : item.itemKey);
-  const badgeText = item.itemType === "block" ? "block" : item.itemType === "custom_field" ? "custom" : "field";
+  const isLabel = item.itemType === "label";
+  const label = isLabel ? "Label" : (fieldDef?.label ?? blockDef?.label ?? cfDef?.name ?? (item.itemType === "custom_field" ? `Custom field #${item.itemKey} (missing)` : item.itemKey));
+  const badgeText = isLabel ? "label" : item.itemType === "block" ? "block" : item.itemType === "custom_field" ? "custom" : "field";
   const supportsDisplayName = item.itemType !== "block";
-  const supportsRequired = item.itemType !== "block";
+  const supportsRequired = item.itemType !== "block" && !isLabel;
   return (
-    <div ref={setNodeRef} style={style} className="flex items-center gap-2 p-2 border rounded bg-background" data-testid={`item-editor-${item.uid}`}>
-      <button {...attributes} {...listeners} className="cursor-grab text-muted-foreground touch-none" aria-label="Drag item">
+    <div ref={setNodeRef} style={style} className="flex items-start gap-2 p-2 border rounded bg-background" data-testid={`item-editor-${item.uid}`}>
+      <button {...attributes} {...listeners} className="cursor-grab text-muted-foreground touch-none mt-1" aria-label="Drag item">
         <GripVertical className="h-4 w-4" />
       </button>
-      <Badge variant="outline" className="text-[10px] uppercase">{badgeText}</Badge>
-      <span className="text-sm w-40 truncate shrink-0" title={label}>{label}</span>
+      <Badge variant="outline" className="text-[10px] uppercase mt-1">{badgeText}</Badge>
+      {!isLabel && <span className="text-sm w-40 truncate shrink-0 mt-1" title={label}>{label}</span>}
       {supportsDisplayName && (
-        <Input
-          value={item.displayName ?? ""}
-          onChange={(e) => onUpdate({ displayName: e.target.value })}
-          placeholder={`Display: ${label}`}
-          className="h-7 text-xs flex-1 min-w-[120px]"
-          data-testid={`input-item-display-name-${item.uid}`}
-        />
+        isLabel ? (
+          <Textarea
+            value={item.displayName ?? ""}
+            onChange={(e) => onUpdate({ displayName: e.target.value })}
+            placeholder="Static label / note text shown to users"
+            className="text-xs flex-1 min-w-[200px] min-h-[44px]"
+            data-testid={`input-item-display-name-${item.uid}`}
+          />
+        ) : (
+          <Input
+            value={item.displayName ?? ""}
+            onChange={(e) => onUpdate({ displayName: e.target.value })}
+            placeholder={`Display: ${label}`}
+            className="h-7 text-xs flex-1 min-w-[120px]"
+            data-testid={`input-item-display-name-${item.uid}`}
+          />
+        )
       )}
       {!supportsDisplayName && <div className="flex-1" />}
       {supportsRequired && (

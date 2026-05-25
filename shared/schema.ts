@@ -2732,9 +2732,10 @@ export type IntakeTabItem = typeof intakeTabItems.$inferSelect;
 export type InsertIntakeTabItem = typeof intakeTabItems.$inferInsert;
 
 // Nested DTO returned by the layout endpoint and accepted by the save endpoint.
+export type IntakeTabLayoutItemType = "field" | "custom_field" | "block" | "label";
 export interface IntakeTabLayoutItemDTO {
   id?: number;
-  itemType: "field" | "custom_field" | "block";
+  itemType: IntakeTabLayoutItemType;
   itemKey: string;
   width: "full" | "half" | "third";
   displayName?: string | null;
@@ -2818,9 +2819,10 @@ export type InsertProjectFormTabSection = typeof projectFormTabSections.$inferIn
 export type ProjectFormTabItem = typeof projectFormTabItems.$inferSelect;
 export type InsertProjectFormTabItem = typeof projectFormTabItems.$inferInsert;
 
+export type ProjectFormLayoutItemType = "field" | "custom_field" | "block" | "label";
 export interface ProjectFormLayoutItemDTO {
   id?: number;
-  itemType: "field" | "custom_field" | "block";
+  itemType: ProjectFormLayoutItemType;
   itemKey: string;
   width: "full" | "half" | "third";
   displayName?: string | null;

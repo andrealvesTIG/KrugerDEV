@@ -1821,10 +1821,14 @@ export function registerIntakeRoutes(app: Express) {
         title: z.string().max(120).nullish(),
         description: z.string().max(500).nullish(),
         items: z.array(z.object({
-          itemType: z.enum(['field', 'custom_field', 'block']),
+          itemType: z.enum(['field', 'custom_field', 'block', 'label']),
           itemKey: z.string().min(1).max(120),
           width: z.enum(['full', 'half', 'third']).default('full'),
-          displayName: z.string().max(120).nullish(),
+          // Bumped to 1000 so the "label" item type can carry longer
+          // notes/comments. Built-in field/custom-field labels are still
+          // expected to be short, but admins are free to use the extra
+          // room on those too.
+          displayName: z.string().max(1000).nullish(),
           isRequired: z.boolean().optional(),
         })).default([]),
       })).default([]),

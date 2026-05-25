@@ -124,6 +124,7 @@ export function PmApprovalCard({ ctx }: { ctx: IntakeFormRendererContext }) {
 }
 
 function isItemVisibleForCurrentStep(item: IntakeTabLayoutItemFull, ctx: IntakeFormRendererContext): boolean {
+  if (item.itemType === "label") return true;
   if (item.itemType !== "block") return true;
   switch (item.itemKey) {
     case "financials_grid":         return ctx.showFinancialsForCurrentStep;
@@ -270,7 +271,23 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds, bare }: { item: IntakeT
       />
     );
   }
+  if (item.itemType === "label") {
+    return <LabelItemRenderer text={item.displayName} />;
+  }
   return <BlockRenderer blockKey={item.itemKey} ctx={ctx} placedCustomFieldIds={placedCustomFieldIds} bare={bare} />;
+}
+
+function LabelItemRenderer({ text }: { text: string | null | undefined }) {
+  const trimmed = (text ?? "").trim();
+  if (!trimmed) return null;
+  return (
+    <div
+      className="text-sm text-foreground whitespace-pre-wrap leading-relaxed py-1"
+      data-testid="intake-layout-label"
+    >
+      {trimmed}
+    </div>
+  );
 }
 
 function BlockRenderer({ blockKey, ctx, placedCustomFieldIds, bare }: { blockKey: string; ctx: IntakeFormRendererContext; placedCustomFieldIds: number[]; bare?: boolean }) {
