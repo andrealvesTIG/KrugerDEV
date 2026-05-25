@@ -2153,17 +2153,19 @@ export default function ProjectDetails() {
               </Card>
             </div>
 
-            {/* Timeline Section */}
-            <ProjectTimeline 
-              projectId={project.id}
-              startDate={project.startDate}
-              endDate={project.endDate}
-              onMilestoneClick={(taskId) => {
-                setActiveTab('tasks');
-                window.history.replaceState(null, '', `?tab=tasks&taskId=${taskId}`);
-                window.dispatchEvent(new CustomEvent('openTaskDialog', { detail: { taskId } }));
-              }}
-            />
+            {/* Timeline Section — can be hidden org-wide from Org Settings → General */}
+            {!currentOrganization?.hideProjectTimeline && (
+              <ProjectTimeline 
+                projectId={project.id}
+                startDate={project.startDate}
+                endDate={project.endDate}
+                onMilestoneClick={(taskId) => {
+                  setActiveTab('tasks');
+                  window.history.replaceState(null, '', `?tab=tasks&taskId=${taskId}`);
+                  window.dispatchEvent(new CustomEvent('openTaskDialog', { detail: { taskId } }));
+                }}
+              />
+            )}
 
             <ProjectFormSummary
               project={project}

@@ -264,8 +264,9 @@ function OrgSettingsTabs({ currentOrganization }: { currentOrganization: Organiz
       </div>
 
       <div className="flex-1 min-w-0">
-        <TabsContent value="general" className="mt-0">
+        <TabsContent value="general" className="mt-0 space-y-4">
           <GeneralSection organization={currentOrganization} />
+          {isAdminOrOwner && <HideProjectTimelineCard />}
         </TabsContent>
         {(!currentOrganization.billingHidden || user?.role === 'super_admin') && (
           <TabsContent value="billing" className="mt-0">
@@ -425,6 +426,61 @@ function AiModeToggleCard() {
             checked={checked}
             onCheckedChange={handleToggle}
             data-testid="switch-show-ai-mode"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function HideProjectTimelineCard() {
+  const { currentOrganization } = useOrganization();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const checked = currentOrganization?.hideProjectTimeline ?? false;
+
+  const handleToggle = async (next: boolean) => {
+    if (!currentOrganization) return;
+    try {
+      await apiRequest("PUT", `/api/organizations/${currentOrganization.id}`, {
+        hideProjectTimeline: next,
+      });
+      await queryClient.invalidateQueries({ queryKey: ["/api/organizations"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      toast({
+        title: "Saved",
+        description: next
+          ? "The Timeline section is now hidden on the Project Details page."
+          : "The Timeline section is now visible on the Project Details page.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to update setting",
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Project Details — Timeline</CardTitle>
+        <CardDescription>
+          Hide the Timeline section that appears on the Summary tab of every
+          project. Affects all users in this organization.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor="hide-project-timeline" className="text-sm">
+            Hide the Timeline section on the Project Details page
+          </Label>
+          <Switch
+            id="hide-project-timeline"
+            checked={checked}
+            onCheckedChange={handleToggle}
+            data-testid="switch-hide-project-timeline"
           />
         </div>
       </CardContent>
