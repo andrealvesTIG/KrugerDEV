@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useOrganization } from "@/hooks/use-organization";
 import { useProgram, useProgramProjects, useUpdateProgram, useSetProgramProjects } from "@/hooks/use-programs";
 import { useProjects } from "@/hooks/use-projects";
+import { usePortfolios } from "@/hooks/use-portfolios";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -59,6 +60,11 @@ export default function ProgramDetails() {
     [allProjectsResp]
   );
   const { data: members = [] } = useOrgMembers(orgId);
+  const { data: portfoliosData } = usePortfolios(orgId);
+  const portfolios = useMemo(
+    () => (Array.isArray(portfoliosData) ? portfoliosData : []) as Array<{ id: number; name: string }>,
+    [portfoliosData]
+  );
   const updateProgram = useUpdateProgram();
   const setProgramProjects = useSetProgramProjects();
   const { toast } = useToast();
@@ -66,6 +72,7 @@ export default function ProgramDetails() {
   const [form, setForm] = useState({
     name: "", status: "Active", description: "", businessCase: "",
     ownerId: "",
+    portfolioId: "" as string,
   });
   const [manageOpen, setManageOpen] = useState(false);
   const [selectedProjectIds, setSelectedProjectIds] = useState<number[]>([]);
@@ -78,6 +85,7 @@ export default function ProgramDetails() {
         description: program.description ?? "",
         businessCase: program.businessCase ?? "",
         ownerId: program.ownerId,
+        portfolioId: (program as any).portfolioId ? String((program as any).portfolioId) : "",
       });
     }
   }, [program]);
@@ -117,6 +125,7 @@ export default function ProgramDetails() {
       description: form.description || null,
       businessCase: form.businessCase || null,
       ownerId: form.ownerId,
+      portfolioId: form.portfolioId ? Number(form.portfolioId) : null,
       // Budget, Benefit, and ROI are all read-only roll-ups on the UI now:
       // Budget = SUM(project.budget) and Benefit = SUM(project_benefits.targetValue)
       // for this program's child projects (see GET /api/programs/:id). ROI is
@@ -202,6 +211,23 @@ export default function ProgramDetails() {
                     <SelectItem key={m.userId} value={m.userId}>
                       {memberDisplayName(m)}
                     </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Portfolio</Label>
+              <Select
+                value={form.portfolioId || "__none__"}
+                onValueChange={(v) => setForm({ ...form, portfolioId: v === "__none__" ? "" : v })}
+              >
+                <SelectTrigger data-testid="select-portfolio">
+                  <SelectValue placeholder="No portfolio" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No portfolio</SelectItem>
+                  {portfolios.map(p => (
+                    <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
