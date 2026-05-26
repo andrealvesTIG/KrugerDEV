@@ -10,6 +10,7 @@ import { usePrograms } from "@/hooks/use-programs";
 import { useIntakeWorkflow, AVAILABLE_INTAKE_FIELDS } from "@/hooks/use-intake-workflow";
 import { INTAKE_FIELD_BY_KEY } from "@shared/intakeFormRegistry";
 import { parseThresholdConfig, evaluateThreshold, coerceNumeric } from "@shared/lib/thresholdCheck";
+import { parseFieldRules, evaluateFieldRule } from "@shared/lib/workflowFieldRules";
 import { parseRequiredWhen, evaluateRequiredWhen } from "@shared/lib/conditionalRequired";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIntakeTabLayout } from "@/hooks/use-intake-tab-layout";
@@ -555,6 +556,29 @@ export default function IntakeDetails() {
           }
         }
       }
+    }
+
+    // Acceptable-Values gate ("field must be one of these allowed values").
+    // Mirrors WorkflowStepRequirementsDialog.ruleValidationErrors and the
+    // server check in server/routes/intakeRoutes.ts so the page-level Next
+    // button can't bypass value-based gates configured on the step.
+    const fieldRules = parseFieldRules((step as any)?.fieldRules);
+    for (const key of Object.keys(fieldRules)) {
+      const rule = fieldRules[key];
+      let label = key;
+      let value: unknown;
+      if (key.startsWith('cf:')) {
+        const defId = Number(key.slice(3));
+        const def = allCustomFieldDefs.find(d => d.id === defId);
+        label = def?.name || key;
+        value = intakeCustomFieldValues.find(v => v.fieldDefinitionId === defId)?.value;
+      } else {
+        const f = AVAILABLE_INTAKE_FIELDS.find(x => x.key === key);
+        label = f?.label || key;
+        value = currentData[key as keyof typeof currentData];
+      }
+      const ruleErr = evaluateFieldRule(key, rule, label, value);
+      if (ruleErr) errors.push(ruleErr.message);
     }
 
     return { valid: errors.length === 0, errors };
