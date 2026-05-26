@@ -1009,22 +1009,41 @@ export default function IntakeDetails() {
                         <XCircle className="h-4 w-4 mr-1" />
                         Reject
                       </Button>
-                      <div className="relative group">
-                        <Button
-                          size="sm"
-                          onClick={() => approveIntake.mutate()}
-                          disabled={approveIntake.isPending || (anyStepRequiresPmApproval && !(formData.pmoApproved ?? intake.pmoApproved))}
-                          data-testid="button-approve-intake"
-                        >
-                          <Check className="h-4 w-4 mr-1" />
-                          {approveIntake.isPending ? "Converting..." : "Approve & Convert"}
-                        </Button>
-                        {anyStepRequiresPmApproval && !(formData.pmoApproved ?? intake.pmoApproved) && (
-                          <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md shadow-md whitespace-nowrap z-50 border">
-                            Check "PM Approved" first
+                      {(() => {
+                        const effectivePmoApproved = formData.pmoApproved ?? intake.pmoApproved;
+                        const effectiveManagerResourceId =
+                          (formData as any).managerResourceId ?? intake.managerResourceId;
+                        const needsPmApproval =
+                          anyStepRequiresPmApproval && !effectivePmoApproved;
+                        const needsPmAssigned = !effectiveManagerResourceId;
+                        const blockedReason = needsPmAssigned
+                          ? "Assign a Project Manager first"
+                          : needsPmApproval
+                            ? "Check \"PM Approved\" first"
+                            : null;
+                        return (
+                          <div className="relative group">
+                            <Button
+                              size="sm"
+                              onClick={() => approveIntake.mutate()}
+                              disabled={
+                                approveIntake.isPending ||
+                                needsPmAssigned ||
+                                needsPmApproval
+                              }
+                              data-testid="button-approve-intake"
+                            >
+                              <Check className="h-4 w-4 mr-1" />
+                              {approveIntake.isPending ? "Converting..." : "Approve & Convert"}
+                            </Button>
+                            {blockedReason && (
+                              <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md shadow-md whitespace-nowrap z-50 border">
+                                {blockedReason}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        );
+                      })()}
                     </>
                   ) : null
                 ) : (
