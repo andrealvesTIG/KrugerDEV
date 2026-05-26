@@ -336,6 +336,22 @@ export default function IntakeDetails() {
       )
     )
   );
+  // Detect whether the built-in `managerResourceId` field (the only field
+  // that actually satisfies the Approve & Convert PM-assigned gate) is
+  // placed anywhere on the configured intake form layout. If it isn't, a
+  // PM-Approval-blocked tooltip would just say "Assign a Project Manager
+  // first" with no on-screen field for the user to assign — usually
+  // because an admin added a custom field labelled "Project Manager"
+  // instead of the built-in one, which writes to a different table.
+  const layoutHasBuiltInPmField = (intakeFormLayout as any[]).some((tab: any) =>
+    (tab?.isActive !== false) &&
+    (tab?.sections ?? []).some((section: any) =>
+      (section?.isActive !== false) &&
+      (section?.items ?? []).some((item: any) =>
+        item?.itemType === "field" && item?.itemKey === "managerResourceId" && item?.isActive !== false
+      )
+    )
+  );
 
   const [formData, setFormData] = useState<Partial<ProjectIntake>>({});
 
@@ -1017,7 +1033,9 @@ export default function IntakeDetails() {
                           anyStepRequiresPmApproval && !effectivePmoApproved;
                         const needsPmAssigned = !effectiveManagerResourceId;
                         const blockedReason = needsPmAssigned
-                          ? "Assign a Project Manager first"
+                          ? (layoutHasBuiltInPmField
+                              ? "Assign a Project Manager first"
+                              : "The built-in 'Project Manager' field is missing from your intake form. Add it via Settings → Governance → Intake Form, then assign a resource.")
                           : needsPmApproval
                             ? "Check \"PM Approved\" first"
                             : null;
@@ -1037,7 +1055,7 @@ export default function IntakeDetails() {
                               {approveIntake.isPending ? "Converting..." : "Approve & Convert"}
                             </Button>
                             {blockedReason && (
-                              <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md shadow-md whitespace-nowrap z-50 border">
+                              <div className="invisible group-hover:visible absolute bottom-full right-0 mb-2 px-3 py-2 bg-popover text-popover-foreground text-xs rounded-md shadow-md z-50 border w-72 max-w-[min(18rem,calc(100vw-2rem))]">
                                 {blockedReason}
                               </div>
                             )}
