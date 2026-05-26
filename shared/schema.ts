@@ -679,6 +679,10 @@ export const portfolioKeyDates = pgTable("portfolio_key_dates", {
 export const programs = pgTable("programs", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  // Optional parent portfolio. Programs are still primarily org-scoped, but
+  // can be attached to a single portfolio so the New Intake dialog and other
+  // surfaces can scope program pickers by the selected portfolio.
+  portfolioId: integer("portfolio_id").references(() => portfolios.id),
   name: text("name").notNull(),
   status: text("status").default("Active"), // Active, On Hold, Closed, Archived
   description: text("description"),
@@ -696,6 +700,7 @@ export const programs = pgTable("programs", {
 }, (table) => [
   index("programs_organization_id_idx").on(table.organizationId),
   index("programs_owner_id_idx").on(table.ownerId),
+  index("programs_portfolio_id_idx").on(table.portfolioId),
 ]);
 
 // Custom Portfolio Projects - junction table for custom portfolios
@@ -2547,6 +2552,10 @@ export const programsRelations = relations(programs, ({ one, many }) => ({
   organization: one(organizations, {
     fields: [programs.organizationId],
     references: [organizations.id],
+  }),
+  portfolio: one(portfolios, {
+    fields: [programs.portfolioId],
+    references: [portfolios.id],
   }),
   owner: one(users, {
     fields: [programs.ownerId],

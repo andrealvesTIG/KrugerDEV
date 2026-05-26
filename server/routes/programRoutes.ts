@@ -75,6 +75,15 @@ export function registerProgramRoutes(app: Express) {
         return res.status(400).json({ message: 'Validation failed', errors: formatZodErrors(parsed.error) });
       }
       if (await enforcePermission(req, res, userId, parsed.data.organizationId, "program.create")) return;
+      // Tenant guard: ensure any portfolioId belongs to the same organization
+      // as the program being created. Without this check a user with program
+      // permissions in org A could attach a known portfolio id from org B.
+      if (parsed.data.portfolioId != null) {
+        const pf = await storage.getPortfolio(parsed.data.portfolioId);
+        if (!pf || pf.organizationId !== parsed.data.organizationId) {
+          return res.status(400).json({ message: 'Invalid portfolio for this organization' });
+        }
+      }
       const created = await storage.createProgram({ ...parsed.data, createdBy: userId } as any);
       res.status(201).json(created);
     } catch (err) {
@@ -99,6 +108,14 @@ export function registerProgramRoutes(app: Express) {
       const parsed = updateProgramSchema.safeParse(req.body);
       if (!parsed.success) {
         return res.status(400).json({ message: 'Validation failed', errors: formatZodErrors(parsed.error) });
+      }
+      // Tenant guard: if portfolioId is being changed, ensure the new
+      // portfolio belongs to the same organization as the existing program.
+      if (parsed.data.portfolioId != null) {
+        const pf = await storage.getPortfolio(parsed.data.portfolioId);
+        if (!pf || pf.organizationId !== existing.organizationId) {
+          return res.status(400).json({ message: 'Invalid portfolio for this organization' });
+        }
       }
       const updated = await storage.updateProgram(id, parsed.data);
       res.json(updated);

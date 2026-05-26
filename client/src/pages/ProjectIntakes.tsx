@@ -113,12 +113,15 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, wo
   });
 
   const { data: programs = [] } = usePrograms(organizationId);
-  // Programs are scoped per-organization, not per-portfolio (the `programs`
-  // table has no `portfolioId` column), so show every program in the org.
-  // The previous portfolio-based filter always evaluated to empty and made
-  // the Program dropdown unusable, which left the saved intake's
-  // "Related Program" field blank no matter what the user picked.
-  const filteredPrograms = programs;
+  // When a portfolio is selected, narrow the program picker to programs
+  // attached to that portfolio. Programs without a portfolio are still
+  // visible so users can pick an org-wide program. When no portfolio is
+  // selected we show every org program.
+  const filteredPrograms = portfolioId
+    ? (programs as any[]).filter(
+        (pg) => pg.portfolioId == null || pg.portfolioId === parseInt(portfolioId),
+      )
+    : programs;
 
   const resetForm = () => {
     setIntakeName("");

@@ -7,6 +7,7 @@ import { z } from "zod";
 import { Plus, Search, Layers, ArrowRight, MoreVertical, Trash2, Pencil } from "lucide-react";
 import { useOrganization } from "@/hooks/use-organization";
 import { usePrograms, useCreateProgram, useDeleteProgram, useUpdateProgram } from "@/hooks/use-programs";
+import { usePortfolios } from "@/hooks/use-portfolios";
 import { useProjects } from "@/hooks/use-projects";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/format";
@@ -54,6 +55,7 @@ const formSchema = z.object({
   description: z.string().optional().nullable(),
   businessCase: z.string().optional().nullable(),
   ownerId: z.string().min(1, "Owner is required"),
+  portfolioId: z.string().optional().nullable(),
   budget: z.string().optional().nullable(),
   benefit: z.string().optional().nullable(),
   roi: z.string().optional().nullable(),
@@ -64,6 +66,7 @@ type FormValues = z.infer<typeof formSchema>;
 function ProgramForm({
   defaultValues,
   members,
+  portfolios,
   submitLabel,
   onSubmit,
   onCancel,
@@ -71,6 +74,7 @@ function ProgramForm({
 }: {
   defaultValues: Partial<FormValues>;
   members: OrgMember[];
+  portfolios: { id: number; name: string }[];
   submitLabel: string;
   onSubmit: (v: FormValues) => void;
   onCancel: () => void;
@@ -84,6 +88,7 @@ function ProgramForm({
       description: "",
       businessCase: "",
       ownerId: "",
+      portfolioId: "",
       budget: "",
       benefit: "",
       roi: "",
@@ -123,6 +128,23 @@ function ProgramForm({
           {form.formState.errors.ownerId && <p className="text-xs text-destructive mt-1">{form.formState.errors.ownerId.message}</p>}
         </div>
         <div className="col-span-2">
+          <Label>Portfolio</Label>
+          <Select
+            value={form.watch("portfolioId") || "__none__"}
+            onValueChange={(v) => form.setValue("portfolioId", v === "__none__" ? "" : v)}
+          >
+            <SelectTrigger data-testid="select-program-portfolio">
+              <SelectValue placeholder="No portfolio" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">No portfolio</SelectItem>
+              {portfolios.map(p => (
+                <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="col-span-2">
           <Label>Description</Label>
           <Textarea data-testid="input-program-description" rows={2} {...form.register("description")} />
         </div>
@@ -158,6 +180,8 @@ export default function Programs() {
   const { data: projectsResp } = useProjects(orgId);
   const projects = Array.isArray(projectsResp) ? projectsResp : (projectsResp as any)?.projects ?? [];
   const { data: members = [] } = useOrgMembers(orgId);
+  const { data: portfoliosData } = usePortfolios(orgId);
+  const portfolios = (portfoliosData ?? []) as { id: number; name: string }[];
   const createProgram = useCreateProgram();
   const updateProgram = useUpdateProgram();
   const deleteProgram = useDeleteProgram();
@@ -186,11 +210,18 @@ export default function Programs() {
     return isNaN(n) ? null : n;
   }
 
+  function toIdOrNull(v: string | null | undefined) {
+    if (v === undefined || v === null || v === "") return null;
+    const n = Number(v);
+    return Number.isInteger(n) ? n : null;
+  }
+
   function handleCreate(values: FormValues) {
     if (!orgId) return;
     createProgram.mutate({
       ...values,
       organizationId: orgId,
+      portfolioId: toIdOrNull(values.portfolioId) as any,
       budget: toNumOrNull(values.budget) as any,
       benefit: toNumOrNull(values.benefit) as any,
       roi: toNumOrNull(values.roi) as any,
@@ -205,6 +236,7 @@ export default function Programs() {
     updateProgram.mutate({
       id: editProgram.id,
       ...values,
+      portfolioId: toIdOrNull(values.portfolioId) as any,
       budget: toNumOrNull(values.budget) as any,
       benefit: toNumOrNull(values.benefit) as any,
       roi: toNumOrNull(values.roi) as any,
@@ -309,6 +341,7 @@ export default function Programs() {
           <ProgramForm
             defaultValues={{}}
             members={members}
+            portfolios={portfolios}
             submitLabel="Create"
             onSubmit={handleCreate}
             onCancel={() => setCreateOpen(false)}
@@ -330,11 +363,13 @@ export default function Programs() {
                 description: editProgram.description ?? "",
                 businessCase: editProgram.businessCase ?? "",
                 ownerId: editProgram.ownerId,
+                portfolioId: editProgram.portfolioId ? String(editProgram.portfolioId) : "",
                 budget: editProgram.budget?.toString() ?? "",
                 benefit: editProgram.benefit?.toString() ?? "",
                 roi: editProgram.roi?.toString() ?? "",
               }}
               members={members}
+              portfolios={portfolios}
               submitLabel="Save"
               onSubmit={handleUpdate}
               onCancel={() => setEditProgram(null)}
