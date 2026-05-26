@@ -333,7 +333,6 @@ export async function setupDynamics365Routes(app: Express) {
     const authCodeUrlParameters = {
       scopes,
       redirectUri,
-      prompt: "consent" as const,
       state,
     };
 

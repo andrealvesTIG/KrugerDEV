@@ -113,7 +113,6 @@ export async function setupProjectOnlineRoutes(app: Express) {
         `${sharePointHost}/.default`
       ],
       redirectUri,
-      prompt: "consent" as const,
       state,
     };
 

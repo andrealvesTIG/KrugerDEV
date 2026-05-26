@@ -317,7 +317,6 @@ export async function setupPlannerRoutes(app: Express) {
     const authCodeUrlParameters = {
       scopes: PLANNER_SCOPES,
       redirectUri,
-      prompt: "consent" as const,
       state,
     };
 
@@ -497,7 +496,6 @@ export async function setupPlannerRoutes(app: Express) {
     const authCodeUrlParameters = {
       scopes: ENTRA_ID_SCOPES,
       redirectUri,
-      prompt: "consent" as const,
       state,
     };
 
