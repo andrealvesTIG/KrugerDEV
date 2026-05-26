@@ -113,9 +113,12 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, wo
   });
 
   const { data: programs = [] } = usePrograms(organizationId);
-  const filteredPrograms = portfolioId
-    ? programs.filter((pg: any) => pg.portfolioId === parseInt(portfolioId))
-    : programs;
+  // Programs are scoped per-organization, not per-portfolio (the `programs`
+  // table has no `portfolioId` column), so show every program in the org.
+  // The previous portfolio-based filter always evaluated to empty and made
+  // the Program dropdown unusable, which left the saved intake's
+  // "Related Program" field blank no matter what the user picked.
+  const filteredPrograms = programs;
 
   const resetForm = () => {
     setIntakeName("");
@@ -132,12 +135,19 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, wo
       return;
     }
 
+    const programIdNum = programId ? parseInt(programId) : null;
+    const pickedProgram = programIdNum
+      ? (programs as any[]).find((pg) => pg.id === programIdNum)
+      : null;
     createIntake.mutate({
       organizationId,
       projectName: intakeName,
       description,
       portfolioId: portfolioId ? parseInt(portfolioId) : null,
-      programId: programId ? parseInt(programId) : null,
+      programId: programIdNum,
+      // Keep the legacy text column in sync so analytics / older consumers
+      // that read programName keep working, matching IntakeFieldRenderer.
+      programName: pickedProgram?.name ?? null,
       fundingSource,
       businessUnit: businessUnit,
       submitterId: user?.id,
@@ -251,7 +261,7 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, wo
             <Label>Program</Label>
             <Select value={programId || "none"} onValueChange={(v) => setProgramId(v === "none" ? "" : v)}>
               <SelectTrigger data-testid="select-program">
-                <SelectValue placeholder={portfolioId ? "Assign to program" : "Assign to program (optional)"} />
+                <SelectValue placeholder="Assign to program (optional)" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">No program</SelectItem>
@@ -260,7 +270,7 @@ function CreateIntakeDialog({ open, onOpenChange, portfolios, organizationId, wo
                 ))}
                 {filteredPrograms.length === 0 && (
                   <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                    {portfolioId ? "No programs in this portfolio" : "No programs available"}
+                    No programs available
                   </div>
                 )}
               </SelectContent>
