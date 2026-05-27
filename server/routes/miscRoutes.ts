@@ -14,6 +14,8 @@ import {
   userHasOrgAccess,
   getUserOrgIds,
 } from "./helpers";
+import { enforcePermission } from "../services/authorizationService";
+import { PERMISSIONS } from "@shared/permissionCatalog";
 import { sendEmail } from "../services/email";
 import { getRequestEmailDomainExclusion } from "../lib/emailDomainFilter";
 import { apiRoute, pathId, body, ref, arrOf, r200, r201, r204, qInt, qStr, qBool, pathStr, authRes, stdRes, fullRes, inputRes, createRes, updateRes, idRes, e400, e404 } from "../route-registry";
@@ -277,9 +279,7 @@ export async function registerMiscRoutes(app: Express) {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
 
-      if (!await userHasOrgAccess(userId, orgId)) {
-        return res.status(403).json({ message: 'Access denied to this organization' });
-      }
+      if (await enforcePermission(req, res, userId, orgId, PERMISSIONS.ORG_RECYCLE_BIN_PURGE)) return;
 
       const result = await storage.emptyRecycleBin(orgId);
       res.json({ message: 'Recycle bin emptied', ...result });
@@ -295,9 +295,7 @@ export async function registerMiscRoutes(app: Express) {
       const orgId = Number(req.params.id);
       const userId = getUserIdFromRequest(req);
 
-      if (!await userHasOrgAccess(userId, orgId)) {
-        return res.status(403).json({ message: 'Access denied to this organization' });
-      }
+      if (await enforcePermission(req, res, userId, orgId, PERMISSIONS.ORG_RECYCLE_BIN_PURGE)) return;
 
       const { type, itemId } = req.params;
       const success = await storage.permanentlyDeleteItem(type as any, Number(itemId), orgId);

@@ -25,6 +25,7 @@ export const PERMISSIONS = {
   ORG_MANAGE_SETTINGS: "org.manage_settings",
   ORG_MANAGE_MEMBERS: "org.manage_members",
   ORG_MANAGE_BILLING: "org.manage_billing",
+  ORG_RECYCLE_BIN_PURGE: "org.recycle_bin_purge",
 
   // Roles & Permissions admin
   ROLES_VIEW: "roles.view",
@@ -101,6 +102,7 @@ export const PERMISSION_CATALOG: PermissionDef[] = [
   { key: PERMISSIONS.ORG_MANAGE_SETTINGS, area: "Organization", label: "Manage organization settings", description: "Edit branding, sidebar, governance, and other org-level settings." },
   { key: PERMISSIONS.ORG_MANAGE_MEMBERS, area: "Organization", label: "Manage members", description: "Invite, remove, and change roles of organization members." },
   { key: PERMISSIONS.ORG_MANAGE_BILLING, area: "Organization", label: "Manage billing", description: "View invoices and change the subscription plan." },
+  { key: PERMISSIONS.ORG_RECYCLE_BIN_PURGE, area: "Organization", label: "Permanently delete recycle bin items", description: "Permanently delete items from the recycle bin or empty it. Destructive and irreversible." },
 
   { key: PERMISSIONS.ROLES_VIEW, area: "Roles & Permissions", label: "View roles", description: "See the list of roles and the permission matrix." },
   { key: PERMISSIONS.ROLES_MANAGE, area: "Roles & Permissions", label: "Manage roles", description: "Create, edit, delete roles and assign permissions to them." },

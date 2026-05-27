@@ -10,11 +10,15 @@ import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import type { RecycleBinItem, RecycleBinItemType } from "@shared/schema";
+import { usePermissions } from "@/hooks/use-permissions";
+import { PERMISSIONS } from "@shared/permissionCatalog";
 
 export function RecycleBinSection({ organizationId }: { organizationId: number }) {
   const { toast } = useToast();
   const [itemToDelete, setItemToDelete] = useState<RecycleBinItem | null>(null);
   const [confirmEmpty, setConfirmEmpty] = useState(false);
+  const { has } = usePermissions();
+  const canPurge = has(PERMISSIONS.ORG_RECYCLE_BIN_PURGE);
 
   const { data: deletedItems, isLoading } = useQuery<RecycleBinItem[]>({
     queryKey: ['/api/organizations', organizationId, 'recycle-bin'],
@@ -113,16 +117,18 @@ export function RecycleBinSection({ organizationId }: { organizationId: number }
               Recently deleted items can be restored or permanently removed
             </CardDescription>
           </div>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => setConfirmEmpty(true)}
-            disabled={!deletedItems || deletedItems.length === 0 || emptyBinMutation.isPending}
-            data-testid="button-empty-recycle-bin"
-          >
-            {emptyBinMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
-            Empty Recycle Bin
-          </Button>
+          {canPurge && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setConfirmEmpty(true)}
+              disabled={!deletedItems || deletedItems.length === 0 || emptyBinMutation.isPending}
+              data-testid="button-empty-recycle-bin"
+            >
+              {emptyBinMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Empty Recycle Bin
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -165,16 +171,18 @@ export function RecycleBinSection({ organizationId }: { organizationId: number }
                       >
                         <RotateCcw className="h-4 w-4 text-green-600" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setItemToDelete(item)}
-                        disabled={permanentDeleteMutation.isPending}
-                        title="Delete permanently"
-                        data-testid={`button-delete-permanent-${item.type}-${item.id}`}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
+                      {canPurge && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setItemToDelete(item)}
+                          disabled={permanentDeleteMutation.isPending}
+                          title="Delete permanently"
+                          data-testid={`button-delete-permanent-${item.type}-${item.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
