@@ -19,6 +19,8 @@ import {
   useUpdateIntakeCustomFieldValue,
 } from "@/hooks/use-custom-fields";
 import { useResources } from "@/hooks/use-resources";
+import { usePortfolios } from "@/hooks/use-portfolios";
+import { usePrograms } from "@/hooks/use-programs";
 import { useProjectFormLayout } from "@/hooks/use-project-form-layout";
 import { useIntakeTabLayout } from "@/hooks/use-intake-tab-layout";
 import { useIntakeGovernanceQuestions } from "@/hooks/use-intake-governance-questions";
@@ -131,6 +133,12 @@ export function WorkflowStepRequirementsDialog({
   // Custom field defs scoped to this entity type. Intake fields share with project.
   const { data: allCfDefs = [] } = useCustomFieldDefinitions(organizationId);
   const { data: orgResources = [] } = useResources(organizationId);
+  const { data: orgPortfolios = [] } = usePortfolios(
+    open && entityType === 'intake' ? organizationId : undefined,
+  );
+  const { data: orgPrograms = [] } = usePrograms(
+    open && entityType === 'intake' ? organizationId : undefined,
+  );
   const { data: projectLayout = [] } = useProjectFormLayout(
     open && entityType === 'project' ? organizationId : undefined,
   );
@@ -626,6 +634,46 @@ export function WorkflowStepRequirementsDialog({
               {currentVal && <SelectItem value="__clear__">Clear selection</SelectItem>}
               {active.map(r => (
                 <SelectItem key={r.id} value={String(r.id)}>{r.displayName}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      }
+      case 'portfolio': {
+        const currentVal = v === null || v === undefined || v === "" ? "" : String(v);
+        return (
+          <Select
+            value={currentVal || undefined}
+            onValueChange={(val) => set(val === "__clear__" ? null : Number(val))}
+            disabled={disabled}
+          >
+            <SelectTrigger data-testid={`wsd-input-${f.key}`}>
+              <SelectValue placeholder="Select portfolio..." />
+            </SelectTrigger>
+            <SelectContent>
+              {currentVal && <SelectItem value="__clear__">Clear selection</SelectItem>}
+              {orgPortfolios.map(p => (
+                <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      }
+      case 'program': {
+        const currentVal = v === null || v === undefined || v === "" ? "" : String(v);
+        return (
+          <Select
+            value={currentVal || undefined}
+            onValueChange={(val) => set(val === "__clear__" ? null : Number(val))}
+            disabled={disabled}
+          >
+            <SelectTrigger data-testid={`wsd-input-${f.key}`}>
+              <SelectValue placeholder="Select program..." />
+            </SelectTrigger>
+            <SelectContent>
+              {currentVal && <SelectItem value="__clear__">Clear selection</SelectItem>}
+              {orgPrograms.map(p => (
+                <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
