@@ -223,11 +223,15 @@ const PLANNER_SCOPES = [
   "offline_access",
 ];
 
-// Entra ID scopes for directory/user lookup only
+// Entra ID scopes for directory/user lookup only.
+// We use Graph's `/.default` scope (mirrors how the Project Online flow uses
+// `${sharePointHost}/.default`) so Microsoft honours the admin-granted
+// consent already configured in the app registration and doesn't prompt the
+// user for incremental consent on every connect. The actual permissions
+// returned in the access token are exactly those configured on the app
+// registration in Entra (User.Read, User.Read.All, Directory.Read.All).
 const ENTRA_ID_SCOPES = [
-  "https://graph.microsoft.com/User.Read",
-  "https://graph.microsoft.com/User.Read.All",
-  "https://graph.microsoft.com/Directory.Read.All",
+  "https://graph.microsoft.com/.default",
   "offline_access",
 ];
 
