@@ -14,6 +14,7 @@ import type { RecycleBinItem, RecycleBinItemType } from "@shared/schema";
 export function RecycleBinSection({ organizationId }: { organizationId: number }) {
   const { toast } = useToast();
   const [itemToDelete, setItemToDelete] = useState<RecycleBinItem | null>(null);
+  const [confirmEmpty, setConfirmEmpty] = useState(false);
 
   const { data: deletedItems, isLoading } = useQuery<RecycleBinItem[]>({
     queryKey: ['/api/organizations', organizationId, 'recycle-bin'],
@@ -54,6 +55,25 @@ export function RecycleBinSection({ organizationId }: { organizationId: number }
     }
   });
 
+  const emptyBinMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('DELETE', `/api/organizations/${organizationId}/recycle-bin`);
+      return res.json() as Promise<{ deleted: number; failed: number }>;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organizations', organizationId, 'recycle-bin'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/portfolios'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tasks'] });
+      const failedNote = result.failed > 0 ? ` (${result.failed} could not be deleted)` : '';
+      toast({ title: "Recycle bin emptied", description: `${result.deleted} item${result.deleted === 1 ? '' : 's'} permanently deleted${failedNote}` });
+      setConfirmEmpty(false);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to empty recycle bin", variant: "destructive" });
+    }
+  });
+
   const getTypeIcon = (type: RecycleBinItemType) => {
     switch (type) {
       case 'portfolio': return <Folder className="h-4 w-4" />;
@@ -83,13 +103,27 @@ export function RecycleBinSection({ organizationId }: { organizationId: number }
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Trash2 className="h-5 w-5" />
-          Recycle Bin
-        </CardTitle>
-        <CardDescription>
-          Recently deleted items can be restored or permanently removed
-        </CardDescription>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Recycle Bin
+            </CardTitle>
+            <CardDescription>
+              Recently deleted items can be restored or permanently removed
+            </CardDescription>
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setConfirmEmpty(true)}
+            disabled={!deletedItems || deletedItems.length === 0 || emptyBinMutation.isPending}
+            data-testid="button-empty-recycle-bin"
+          >
+            {emptyBinMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+            Empty Recycle Bin
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {deletedItems && deletedItems.length > 0 ? (
@@ -153,6 +187,27 @@ export function RecycleBinSection({ organizationId }: { organizationId: number }
           </div>
         )}
       </CardContent>
+
+      <AlertDialog open={confirmEmpty} onOpenChange={(open) => !open && setConfirmEmpty(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Empty Recycle Bin?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all {deletedItems?.length ?? 0} item{(deletedItems?.length ?? 0) === 1 ? '' : 's'} in the recycle bin. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => emptyBinMutation.mutate()}
+              data-testid="button-confirm-empty-recycle-bin"
+            >
+              Empty Recycle Bin
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={itemToDelete !== null} onOpenChange={() => setItemToDelete(null)}>
         <AlertDialogContent>

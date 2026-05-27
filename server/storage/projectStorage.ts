@@ -1193,3 +1193,26 @@ export async function permanentlyDeleteItem(type: RecycleBinItemType, id: number
   }
   return true;
 }
+
+export async function emptyRecycleBin(organizationId: number): Promise<{ deleted: number; failed: number }> {
+  const items = await getDeletedItems(organizationId);
+  // Delete children before parents so cascading parent deletes don't strand
+  // child rows that we still want to account for individually.
+  const order: Record<string, number> = { issue: 0, risk: 0, milestone: 1, task: 2, project: 3, portfolio: 4 };
+  const sorted = [...items].sort((a, b) => (order[a.type] ?? 99) - (order[b.type] ?? 99));
+  let deleted = 0;
+  let failed = 0;
+  for (const item of sorted) {
+    try {
+      const ok = await permanentlyDeleteItem(item.type, item.id, organizationId);
+      // A `false` here means the row was already gone (likely cascaded away by
+      // an earlier parent delete). For bulk empty that's a success, not a failure.
+      deleted += 1;
+      void ok;
+    } catch (err) {
+      console.error(`[recycle-bin] failed to permanently delete ${item.type} ${item.id}:`, err);
+      failed += 1;
+    }
+  }
+  return { deleted, failed };
+}

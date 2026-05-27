@@ -272,6 +272,24 @@ export async function registerMiscRoutes(app: Express) {
     }
   });
 
+  apiRoute(app, 'delete', '/api/organizations/:id/recycle-bin', { tag: 'Recycle Bin', summary: 'Empty the recycle bin (permanently delete all items)', parameters: [pathId()], responses: { ...r200('Recycle bin emptied', { type: 'object', properties: { deleted: { type: 'integer' }, failed: { type: 'integer' } } }), ...fullRes } }, async (req, res) => {
+    try {
+      const orgId = Number(req.params.id);
+      const userId = getUserIdFromRequest(req);
+
+      if (!await userHasOrgAccess(userId, orgId)) {
+        return res.status(403).json({ message: 'Access denied to this organization' });
+      }
+
+      const result = await storage.emptyRecycleBin(orgId);
+      res.json({ message: 'Recycle bin emptied', ...result });
+    } catch (err) {
+      console.error('Failed to empty recycle bin:', err);
+      const classified = classifyError(err);
+      res.status(classified.status).json({ message: classified.status === 500 ? 'Failed to empty recycle bin' : classified.message });
+    }
+  });
+
   apiRoute(app, 'delete', '/api/organizations/:id/recycle-bin/:type/:itemId', { tag: 'Recycle Bin', summary: 'Permanently delete an item', parameters: [pathId(), pathStr('type'), pathId('itemId')], responses: { ...r200('Item permanently deleted', { type: 'object', properties: { message: { type: 'string' } } }), ...fullRes } }, async (req, res) => {
     try {
       const orgId = Number(req.params.id);

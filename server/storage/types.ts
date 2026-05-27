@@ -570,6 +570,7 @@ export interface IMiscStorage {
   softDeleteItem(type: RecycleBinItemType, id: number, userId: string, organizationId?: number): Promise<boolean>;
   restoreItem(type: RecycleBinItemType, id: number, organizationId: number): Promise<boolean>;
   permanentlyDeleteItem(type: RecycleBinItemType, id: number, organizationId: number): Promise<boolean>;
+  emptyRecycleBin(organizationId: number): Promise<{ deleted: number; failed: number }>;
   getProjectViews(organizationId: number, userId: string, mode: string, portfolioId?: number | null): Promise<ProjectView[]>;
   getProjectView(id: number): Promise<ProjectView | undefined>;
   createProjectView(view: InsertProjectView): Promise<ProjectView>;
