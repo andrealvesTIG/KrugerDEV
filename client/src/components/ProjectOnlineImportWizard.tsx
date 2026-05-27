@@ -46,6 +46,7 @@ export function ProjectOnlineImportWizard({
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [targetPortfolioId, setTargetPortfolioId] = useState<string>("none");
   const [importedCount, setImportedCount] = useState(0);
+  const [failedImports, setFailedImports] = useState<{ projectId: string; error: string }[]>([]);
   const { toast } = useToast();
 
   const { data: status, refetch: refetchStatus } = useQuery<ProjectOnlineStatus>({
@@ -106,6 +107,7 @@ export function ProjectOnlineImportWizard({
     },
     onSuccess: (data: any) => {
       setImportedCount(data.imported || 0);
+      setFailedImports(Array.isArray(data.failures) ? data.failures : []);
       setStep("complete");
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolios"] });
@@ -139,6 +141,7 @@ export function ProjectOnlineImportWizard({
       setStep(status?.connected ? "select" : "connect");
       setSelectedProjects([]);
       setImportedCount(0);
+      setFailedImports([]);
     }, 300);
   };
 
@@ -332,15 +335,29 @@ export function ProjectOnlineImportWizard({
     }
 
     if (step === "complete") {
+      const failedCount = failedImports.length;
       return (
-        <div className="flex flex-col items-center justify-center py-12 space-y-4">
+        <div className="flex flex-col items-center justify-center py-8 space-y-4">
           <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center">
             <CheckCircle2 className="h-10 w-10 text-green-500" />
           </div>
-          <p className="text-lg font-medium">Import Complete!</p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-lg font-medium">Import Complete</p>
+          <p className="text-sm text-muted-foreground text-center">
             Successfully imported {importedCount} project{importedCount !== 1 ? "s" : ""} with their tasks and milestones.
+            {failedCount > 0 && (
+              <> {failedCount} project{failedCount !== 1 ? "s" : ""} could not be imported.</>
+            )}
           </p>
+          {failedCount > 0 && (
+            <div className="w-full max-h-48 overflow-y-auto rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs space-y-1" data-testid="list-failed-imports">
+              <p className="font-medium text-destructive mb-1">Failed imports:</p>
+              {failedImports.map((f, i) => (
+                <div key={i} className="text-muted-foreground">
+                  <span className="font-mono">{f.projectId}</span>: {f.error}
+                </div>
+              ))}
+            </div>
+          )}
           <Button onClick={handleClose} data-testid="button-close-wizard">
             Close
           </Button>

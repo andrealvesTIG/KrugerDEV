@@ -295,101 +295,139 @@ export async function setupProjectOnlineRoutes(app: Express) {
       return res.status(400).json({ message: "Organization ID is required" });
     }
 
+    // Bulk imports can run long. Disable per-request timeouts so the proxy
+    // and Node don't terminate mid-batch when the user selects many projects.
+    req.setTimeout(0);
+    res.setTimeout(0);
+
+    const fetchWithTimeout = async (url: string, ms = 30000) => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), ms);
+      try {
+        return await fetch(url, {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json;odata=verbose",
+          },
+          signal: ctrl.signal,
+        });
+      } finally {
+        clearTimeout(t);
+      }
+    };
+
     try {
       const { storage } = await import("../storage");
       const importedProjects: any[] = [];
+      const failedProjects: { projectId: string; name?: string; error: string }[] = [];
 
       for (const projectId of projectIds) {
-        const projectUrl = `${siteUrl}/_api/ProjectServer/Projects('${projectId}')`;
-        const projectResponse = await fetch(projectUrl, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Accept": "application/json;odata=verbose",
-          },
-        });
-
-        if (!projectResponse.ok) continue;
-        
-        const projectData = await projectResponse.json();
-        const p = projectData.d;
-
-        const newProject = await storage.createProject({
-          organizationId,
-          portfolioId: portfolioId || null,
-          name: p.Name,
-          description: p.Description || null,
-          status: "Execution",
-          priority: "Medium",
-          health: "Green",
-          startDate: p.StartDate ? new Date(p.StartDate).toISOString().split("T")[0] : null,
-          endDate: p.FinishDate ? new Date(p.FinishDate).toISOString().split("T")[0] : null,
-          budget: 0,
-          completionPercentage: Math.round(p.PercentComplete || 0),
-          source: "imported",
-        });
-
-        await storage.createProjectChangeLog({
-          projectId: newProject.id,
-          changedBy: null,
-          changedByName: 'System',
-          changeType: 'created',
-          changeSummary: `Project "${newProject.name}" created by System — imported from Microsoft Project Online`,
-          previousValues: null,
-          newValues: null,
-        });
-
-        const tasksUrl = `${siteUrl}/_api/ProjectServer/Projects('${projectId}')/Tasks`;
-        const tasksResponse = await fetch(tasksUrl, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Accept": "application/json;odata=verbose",
-          },
-        });
-
-        if (tasksResponse.ok) {
-          const tasksData = await tasksResponse.json();
-          const tasks = tasksData.d?.results || [];
-
-          for (const task of tasks) {
-            if (task.IsSummary) continue;
-            
-            const taskName = task.Name || task.Title || `Task ${task.Id || 'Unknown'}`;
-            if (!taskName) continue;
-
-            if (task.IsMilestone) {
-              const milestoneDueDate = task.Finish ? new Date(task.Finish).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
-              await storage.createMilestone({
-                projectId: newProject.id,
-                title: taskName,
-                dueDate: milestoneDueDate,
-                status: task.PercentComplete >= 100 ? "Completed" : "Pending",
-              });
-            } else {
-              const today = new Date().toISOString().split("T")[0];
-              const taskData: any = {
-                projectId: newProject.id,
-                name: taskName,
-                description: null,
-                status: task.PercentComplete >= 100 ? "Completed" : task.PercentComplete > 0 ? "In Progress" : "Not Started",
-                progress: Math.round(task.PercentComplete || 0),
-                startDate: task.Start ? new Date(task.Start).toISOString().split("T")[0] : today,
-                endDate: task.Finish ? new Date(task.Finish).toISOString().split("T")[0] : today,
-              };
-              await storage.createTask(taskData);
-            }
+        // Wrap each project so one failure can't abort the whole batch.
+        try {
+          const projectUrl = `${siteUrl}/_api/ProjectServer/Projects('${projectId}')`;
+          let projectResponse: Awaited<ReturnType<typeof fetch>>;
+          try {
+            projectResponse = await fetchWithTimeout(projectUrl);
+          } catch (e: any) {
+            failedProjects.push({ projectId, error: `Fetch failed: ${e?.message || e}` });
+            continue;
           }
-        }
 
-        importedProjects.push({
-          id: newProject.id,
-          name: newProject.name,
-        });
+          if (!projectResponse.ok) {
+            failedProjects.push({ projectId, error: `Project Online responded ${projectResponse.status}` });
+            continue;
+          }
+
+          const projectData = await projectResponse.json();
+          const p = projectData.d;
+
+          const newProject = await storage.createProject({
+            organizationId,
+            portfolioId: portfolioId || null,
+            name: p.Name,
+            description: p.Description || null,
+            status: "Execution",
+            priority: "Medium",
+            health: "Green",
+            startDate: p.StartDate ? new Date(p.StartDate).toISOString().split("T")[0] : null,
+            endDate: p.FinishDate ? new Date(p.FinishDate).toISOString().split("T")[0] : null,
+            budget: 0,
+            completionPercentage: Math.round(p.PercentComplete || 0),
+            source: "imported",
+          });
+
+          await storage.createProjectChangeLog({
+            projectId: newProject.id,
+            changedBy: null,
+            changedByName: 'System',
+            changeType: 'created',
+            changeSummary: `Project "${newProject.name}" created by System — imported from Microsoft Project Online`,
+            previousValues: null,
+            newValues: null,
+          });
+
+          // Tasks are best-effort — if they fail we still count the project as imported.
+          try {
+            const tasksUrl = `${siteUrl}/_api/ProjectServer/Projects('${projectId}')/Tasks`;
+            const tasksResponse = await fetchWithTimeout(tasksUrl, 60000);
+
+            if (tasksResponse.ok) {
+              const tasksData = await tasksResponse.json();
+              const tasks = tasksData.d?.results || [];
+
+              for (const task of tasks) {
+                try {
+                  if (task.IsSummary) continue;
+
+                  const taskName = task.Name || task.Title || `Task ${task.Id || 'Unknown'}`;
+                  if (!taskName) continue;
+
+                  if (task.IsMilestone) {
+                    const milestoneDueDate = task.Finish ? new Date(task.Finish).toISOString().split("T")[0] : new Date().toISOString().split("T")[0];
+                    await storage.createMilestone({
+                      projectId: newProject.id,
+                      title: taskName,
+                      dueDate: milestoneDueDate,
+                      status: task.PercentComplete >= 100 ? "Completed" : "Pending",
+                    });
+                  } else {
+                    const today = new Date().toISOString().split("T")[0];
+                    const taskData: any = {
+                      projectId: newProject.id,
+                      name: taskName,
+                      description: null,
+                      status: task.PercentComplete >= 100 ? "Completed" : task.PercentComplete > 0 ? "In Progress" : "Not Started",
+                      progress: Math.round(task.PercentComplete || 0),
+                      startDate: task.Start ? new Date(task.Start).toISOString().split("T")[0] : today,
+                      endDate: task.Finish ? new Date(task.Finish).toISOString().split("T")[0] : today,
+                    };
+                    await storage.createTask(taskData);
+                  }
+                } catch (taskErr) {
+                  console.error(`[project-online] failed to import task for project ${projectId}:`, taskErr);
+                }
+              }
+            }
+          } catch (tasksErr) {
+            console.error(`[project-online] failed to fetch tasks for project ${projectId}:`, tasksErr);
+          }
+
+          importedProjects.push({
+            id: newProject.id,
+            name: newProject.name,
+          });
+        } catch (projErr: any) {
+          console.error(`[project-online] failed to import project ${projectId}:`, projErr);
+          failedProjects.push({ projectId, error: projErr?.message || String(projErr) });
+        }
       }
 
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         imported: importedProjects.length,
+        failed: failedProjects.length,
         projects: importedProjects,
+        failures: failedProjects,
       });
     } catch (error) {
       console.error("Error importing projects:", error);
