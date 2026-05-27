@@ -430,6 +430,8 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
                 description: data.description,
                 probability: data.probability,
                 impact: data.impact,
+                category: (data as any).category || null,
+                ownerId: (data as any).ownerId || null,
                 status: data.status,
                 mitigationPlan: data.mitigationPlan,
                 dueDate: data.dueDate || null,
@@ -510,12 +512,12 @@ function RisksTab({ projectId, projectName, portfolioId, urlRiskId, readOnly = f
                    <span className="font-semibold truncate max-w-[200px]" title={risk.title}>{risk.title}</span>
                    <Badge variant="outline" className={cn(
                      "shrink-0",
-                     risk.probability === 'High' ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-slate-50 dark:bg-slate-800"
-                   )}>{risk.probability} Prob</Badge>
+                     risk.probability === 'Certain' || risk.probability === 'Likely' ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-slate-50 dark:bg-slate-800"
+                   )}>{risk.probability} Likelihood</Badge>
                    <Badge variant="outline" className={cn(
                      "shrink-0",
-                     risk.impact === 'High' ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-slate-50 dark:bg-slate-800"
-                   )}>{risk.impact} Impact</Badge>
+                     risk.impact === 'Critical' || risk.impact === 'Catastrophic' ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-slate-50 dark:bg-slate-800"
+                   )}>{risk.impact} Consequence</Badge>
                    <Badge variant="outline" className={cn(
                      "shrink-0",
                      risk.status === 'Open' ? "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :

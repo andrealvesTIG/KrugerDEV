@@ -1040,8 +1040,8 @@ const jarvisTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           title: { type: "string", description: "The risk title" },
           description: { type: "string", description: "Risk description" },
           priority: { type: "string", enum: ["Low", "Medium", "High", "Critical"] },
-          probability: { type: "string", enum: ["Very Low", "Low", "Medium", "High", "Very High"] },
-          impact: { type: "string", enum: ["Very Low", "Low", "Medium", "High", "Very High"] },
+          probability: { type: "string", enum: ["Rare", "Unlikely", "Possible", "Likely", "Certain"] },
+          impact: { type: "string", enum: ["Minor", "Moderate", "Major", "Critical", "Catastrophic"] },
           responseStrategy: { type: "string", enum: ["Avoid", "Transfer", "Mitigate", "Accept"] },
           mitigationPlan: { type: "string", description: "The mitigation plan" },
         },
@@ -1407,8 +1407,8 @@ const jarvisTools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           description: { type: "string" },
           priority: { type: "string", enum: ["Low", "Medium", "High", "Critical"] },
           status: { type: "string" },
-          probability: { type: "string", enum: ["Very Low", "Low", "Medium", "High", "Very High"] },
-          impact: { type: "string", enum: ["Very Low", "Low", "Medium", "High", "Very High"] },
+          probability: { type: "string", enum: ["Rare", "Unlikely", "Possible", "Likely", "Certain"] },
+          impact: { type: "string", enum: ["Minor", "Moderate", "Major", "Critical", "Catastrophic"] },
           responseStrategy: { type: "string", enum: ["Avoid", "Transfer", "Mitigate", "Accept"] },
           mitigationPlan: { type: "string" },
           contingencyPlan: { type: "string" },
@@ -2985,7 +2985,8 @@ const ADMIN_ONLY_ACTION_TYPES = new Set<JarvisActionType>([
 ]);
 
 const PRIORITIES = ["Low", "Medium", "High", "Critical"];
-const PROBABILITY_LEVELS = ["Very Low", "Low", "Medium", "High", "Very High"];
+const PROBABILITY_LEVELS = ["Certain", "Likely", "Possible", "Unlikely", "Rare"];
+const IMPACT_LEVELS = ["Catastrophic", "Critical", "Major", "Moderate", "Minor"];
 const RESPONSE_STRATEGIES = ["Avoid", "Transfer", "Mitigate", "Accept"];
 const PROJECT_STATUSES = ["Initiation", "Planning", "Execution", "Monitoring", "Closing"];
 const METHODOLOGIES = ["Waterfall", "Agile", "Hybrid", "Scrum", "Kanban"];
@@ -3176,8 +3177,8 @@ export async function executeJarvisAction(
           status: "Identified",
           responseStrategy: pickEnum(action.data.responseStrategy, RESPONSE_STRATEGIES, "Mitigate")!,
           mitigationPlan: clipString(action.data.mitigationPlan, 5000),
-          probability: pickEnum(action.data.probability, PROBABILITY_LEVELS, "Medium")!,
-          impact: pickEnum(action.data.impact, PROBABILITY_LEVELS, "Medium")!,
+          probability: pickEnum(action.data.probability, PROBABILITY_LEVELS, "Possible")!,
+          impact: pickEnum(action.data.impact, IMPACT_LEVELS, "Moderate")!,
         }).returning();
         await recordResourceUsage(userId, "risks" as any, newRisk.id, 1, orgId);
         await logUserActivity(userId, "create_risk_via_friday", "risk", newRisk.id, { projectId: action.projectId, title: newRisk.title });
@@ -3193,7 +3194,7 @@ export async function executeJarvisAction(
         if (action.data.priority) updates.priority = pickEnum(action.data.priority, PRIORITIES);
         if (action.data.status) updates.status = String(action.data.status).slice(0, 100);
         if (action.data.probability) updates.probability = pickEnum(action.data.probability, PROBABILITY_LEVELS);
-        if (action.data.impact) updates.impact = pickEnum(action.data.impact, PROBABILITY_LEVELS);
+        if (action.data.impact) updates.impact = pickEnum(action.data.impact, IMPACT_LEVELS);
         if (action.data.responseStrategy) updates.responseStrategy = pickEnum(action.data.responseStrategy, RESPONSE_STRATEGIES);
         if (action.data.mitigationPlan !== undefined) updates.mitigationPlan = clipString(action.data.mitigationPlan, 5000);
         if (action.data.contingencyPlan !== undefined) updates.contingencyPlan = clipString(action.data.contingencyPlan, 5000);

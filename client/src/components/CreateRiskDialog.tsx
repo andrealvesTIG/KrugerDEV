@@ -13,8 +13,9 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
-import { RISK_STATUSES, PROBABILITY_LEVELS, IMPACT_LEVELS } from "@shared/schema";
+import { RISK_STATUSES, PROBABILITY_LEVELS, IMPACT_LEVELS, RISK_CATEGORIES } from "@shared/schema";
 import { applyServerErrorsToForm } from "@/lib/serverErrors";
+import { useResources } from "@/hooks/use-resources";
 
 // Form schema mirrors what the server's insertRiskSchema accepts. We keep a
 // local definition (rather than importing insertRiskSchema directly) because
@@ -26,6 +27,8 @@ const riskFormSchema = z.object({
   description: z.string().optional(),
   probability: z.enum(PROBABILITY_LEVELS),
   impact: z.enum(IMPACT_LEVELS),
+  category: z.string().optional(),
+  ownerId: z.string().optional(),
   status: z.string(),
   dueDate: z.string().optional(),
   // costExposure is `numeric` server-side -> string in the wire format.
@@ -61,12 +64,16 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
   const [limitDialogOpen, setLimitDialogOpen] = useState(false);
   const [limitError, setLimitError] = useState<{ message?: string; resourceType?: string } | null>(null);
 
+  const { data: orgResources = [] } = useResources(organizationId);
+
   const defaultValues = {
     projectId: (projectId || undefined) as unknown as number,
     title: "",
     description: "",
-    probability: "Medium" as (typeof PROBABILITY_LEVELS)[number],
-    impact: "Medium" as (typeof IMPACT_LEVELS)[number],
+    probability: "Possible" as (typeof PROBABILITY_LEVELS)[number],
+    impact: "Moderate" as (typeof IMPACT_LEVELS)[number],
+    category: "",
+    ownerId: "",
     status: "Open",
     dueDate: "",
     costExposure: "",
@@ -105,6 +112,8 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
       ...data,
       dueDate: data.dueDate || null,
       costExposure: data.costExposure || null,
+      category: data.category || null,
+      ownerId: data.ownerId || null,
       itemType: "risk" as const,
     };
     createRisk.mutate(payload, {
@@ -215,12 +224,12 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Probability</Label>
+                <Label>Likelihood</Label>
                 <Controller
                   control={form.control}
                   name="probability"
                   render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value || "Medium"}>
+                    <Select onValueChange={field.onChange} value={field.value || "Possible"}>
                       <SelectTrigger data-testid="select-risk-probability">
                         <SelectValue />
                       </SelectTrigger>
@@ -234,12 +243,12 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
                 />
               </div>
               <div className="space-y-2">
-                <Label>Impact</Label>
+                <Label>Consequence</Label>
                 <Controller
                   control={form.control}
                   name="impact"
                   render={({ field }) => (
-                    <Select onValueChange={field.onChange} value={field.value || "Medium"}>
+                    <Select onValueChange={field.onChange} value={field.value || "Moderate"}>
                       <SelectTrigger data-testid="select-risk-impact">
                         <SelectValue />
                       </SelectTrigger>
@@ -250,6 +259,58 @@ export function CreateRiskDialog({ open, onOpenChange, organizationId, projectId
                       </SelectContent>
                     </Select>
                   )}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <Controller
+                  control={form.control}
+                  name="category"
+                  render={({ field }) => (
+                    <Select
+                      onValueChange={(v) => field.onChange(v === "__clear__" ? "" : v)}
+                      value={field.value || undefined}
+                    >
+                      <SelectTrigger data-testid="select-risk-category">
+                        <SelectValue placeholder="Select category..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {field.value && <SelectItem value="__clear__">Clear selection</SelectItem>}
+                        {RISK_CATEGORIES.map(cat => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Owner</Label>
+                <Controller
+                  control={form.control}
+                  name="ownerId"
+                  render={({ field }) => {
+                    const active = orgResources.filter(r => r.isActive && r.userId);
+                    return (
+                      <Select
+                        onValueChange={(v) => field.onChange(v === "__clear__" ? "" : v)}
+                        value={field.value || undefined}
+                      >
+                        <SelectTrigger data-testid="select-risk-owner">
+                          <SelectValue placeholder="Select owner..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {field.value && <SelectItem value="__clear__">Clear selection</SelectItem>}
+                          {active.map(r => (
+                            <SelectItem key={r.id} value={r.userId!}>{r.displayName}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    );
+                  }}
                 />
               </div>
             </div>

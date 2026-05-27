@@ -23,6 +23,12 @@ const SEVERITY_COLORS = {
 };
 
 const PROBABILITY_MAP: Record<string, number> = {
+  'Certain': 5,
+  'Likely': 4,
+  'Possible': 3,
+  'Unlikely': 2,
+  'Rare': 1,
+  // Legacy values kept for older records not yet re-saved.
   'Very High': 5,
   'High': 4,
   'Medium': 3,
@@ -31,7 +37,13 @@ const PROBABILITY_MAP: Record<string, number> = {
 };
 
 const IMPACT_MAP: Record<string, number> = {
-  'Critical': 5,
+  'Catastrophic': 5,
+  'Critical': 4,
+  'Major': 3,
+  'Moderate': 2,
+  'Minor': 1,
+  // Legacy values.
+  'Very High': 5,
   'High': 4,
   'Medium': 3,
   'Low': 2,
@@ -63,8 +75,8 @@ export function RiskMatrixDashboard() {
     
     const avgRiskScore = openRisks.length > 0
       ? Math.round(openRisks.reduce((sum, r) => {
-          const prob = PROBABILITY_MAP[r.probability || 'Medium'] || 3;
-          const impact = IMPACT_MAP[r.severity || 'Medium'] || 3;
+          const prob = PROBABILITY_MAP[r.probability || 'Possible'] || 3;
+          const impact = IMPACT_MAP[(r as any).impact || r.severity || 'Major'] || 3;
           return sum + (prob * impact);
         }, 0) / openRisks.length)
       : 0;
@@ -83,14 +95,19 @@ export function RiskMatrixDashboard() {
   }, [allRisks, openRisks]);
 
   const matrixData = useMemo(() => {
-    return openRisks.map(r => ({
-      name: r.title?.substring(0, 20) || 'Risk',
-      probability: PROBABILITY_MAP[r.probability || 'Medium'] || 3,
-      impact: IMPACT_MAP[r.severity || 'Medium'] || 3,
-      score: (PROBABILITY_MAP[r.probability || 'Medium'] || 3) * (IMPACT_MAP[r.severity || 'Medium'] || 3),
-      severity: r.severity || 'Medium',
-      z: 200,
-    }));
+    return openRisks.map(r => {
+      const impactValue = (r as any).impact || r.severity || 'Major';
+      const prob = PROBABILITY_MAP[r.probability || 'Possible'] || 3;
+      const impact = IMPACT_MAP[impactValue] || 3;
+      return {
+        name: r.title?.substring(0, 20) || 'Risk',
+        probability: prob,
+        impact,
+        score: prob * impact,
+        severity: r.severity || 'Medium',
+        z: 200,
+      };
+    });
   }, [openRisks]);
 
   const severityDistribution = useMemo(() => {
@@ -244,7 +261,7 @@ export function RiskMatrixDashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-              Probability-Impact Matrix
+              Likelihood-Consequence Matrix
             </CardTitle>
             <CardDescription className="text-xs">
               <a 
@@ -268,16 +285,16 @@ export function RiskMatrixDashboard() {
                     dataKey="probability" 
                     domain={[0, 6]} 
                     fontSize={10}
-                    label={{ value: 'Probability', position: 'bottom', fontSize: 10 }}
-                    tickFormatter={(v) => ['', 'Very Low', 'Low', 'Medium', 'High', 'Very High'][v] || ''}
+                    label={{ value: 'Likelihood', position: 'bottom', fontSize: 10 }}
+                    tickFormatter={(v) => ['', 'Rare', 'Unlikely', 'Possible', 'Likely', 'Certain'][v] || ''}
                   />
                   <YAxis 
                     type="number" 
                     dataKey="impact" 
                     domain={[0, 6]} 
                     fontSize={10}
-                    label={{ value: 'Impact', angle: -90, position: 'left', fontSize: 10 }}
-                    tickFormatter={(v) => ['', 'V.Low', 'Low', 'Med', 'High', 'Crit'][v] || ''}
+                    label={{ value: 'Consequence', angle: -90, position: 'left', fontSize: 10 }}
+                    tickFormatter={(v) => ['', 'Minor', 'Moderate', 'Major', 'Critical', 'Catast.'][v] || ''}
                   />
                   <ZAxis type="number" dataKey="z" range={[100, 400]} />
                   <Tooltip 

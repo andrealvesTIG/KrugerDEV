@@ -56,10 +56,27 @@ export const RISK_STATUSES = ["Identified", "Open", "In Mitigation", "Mitigated"
 // the create- and edit-risk dialogs so the UI cannot drift from the API
 // contract (which previously hid 'Very Low' / 'Very High' from users and
 // crashed the edit dialog when an outlier value loaded).
-export const PROBABILITY_LEVELS = ["Very Low", "Low", "Medium", "High", "Very High"] as const;
-export const IMPACT_LEVELS = ["Very Low", "Low", "Medium", "High", "Very High"] as const;
+export const PROBABILITY_LEVELS = ["Certain", "Likely", "Possible", "Unlikely", "Rare"] as const;
+export const IMPACT_LEVELS = ["Catastrophic", "Critical", "Major", "Moderate", "Minor"] as const;
 export type ProbabilityLevel = typeof PROBABILITY_LEVELS[number];
 export type ImpactLevel = typeof IMPACT_LEVELS[number];
+
+// Categories surfaced in the Risk dialogs' Category dropdown.
+export const RISK_CATEGORIES = [
+  "Scope Creep",
+  "Inadequate Cyber Risk Assessment",
+  "Resource-Related Risks",
+  "Stakeholder-Related Risks: Misalignment / Engagement",
+  "Schedule Risks",
+  "Vendor and Third-Party Risks",
+  "Organizational Change Management Risks",
+  "Ineffective Project Governance",
+  "Failure to Define Clear Project Objectives / Business Strategy",
+  "Budget Overruns",
+  "Poor Quality Assurance",
+  "Other",
+] as const;
+export type RiskCategory = typeof RISK_CATEGORIES[number];
 export const RISK_PRIORITIES = ["Low", "Medium", "High", "Critical"] as const;
 export type RiskStatus = (typeof RISK_STATUSES)[number];
 export type RiskPriority = (typeof RISK_PRIORITIES)[number];

@@ -13,14 +13,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Loader2, History, ChevronDown, ChevronUp, Sparkles, ArrowUpToLine } from "lucide-react";
 import { Link } from "wouter";
-import { RISK_STATUSES, PROBABILITY_LEVELS, IMPACT_LEVELS, type Risk } from "@shared/schema";
+import { RISK_STATUSES, PROBABILITY_LEVELS, IMPACT_LEVELS, RISK_CATEGORIES, type Risk } from "@shared/schema";
 import { applyServerErrorsToForm } from "@/lib/serverErrors";
+import { useResources } from "@/hooks/use-resources";
 
 const riskFormSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string(),
   probability: z.string(),
   impact: z.string(),
+  category: z.string().optional(),
+  ownerId: z.string().optional(),
   status: z.string(),
   dueDate: z.string().optional(),
   costExposure: z.string().optional(),
@@ -105,13 +108,17 @@ export function EditRiskDialog({
   const isIssue = risk?.itemType === 'issue';
   const itemLabel = isIssue ? 'Issue' : 'Risk';
 
+  const { data: orgResources = [] } = useResources(organizationId ?? null);
+
   const form = useForm<RiskFormData>({
     resolver: zodResolver(riskFormSchema),
     defaultValues: {
       title: "",
       description: "",
-      probability: "Medium",
-      impact: "Medium",
+      probability: "Possible",
+      impact: "Moderate",
+      category: "",
+      ownerId: "",
       status: "Open",
       dueDate: "",
       costExposure: "",
@@ -125,8 +132,10 @@ export function EditRiskDialog({
       form.reset({
         title: risk.title || "",
         description: risk.description || "",
-        probability: risk.probability || "Medium",
-        impact: risk.impact || "Medium",
+        probability: risk.probability || "Possible",
+        impact: risk.impact || "Moderate",
+        category: (risk as any).category || "",
+        ownerId: (risk as any).ownerId || "",
         status: risk.status || "Open",
         dueDate: risk.dueDate ? risk.dueDate.substring(0, 10) : "",
         costExposure: risk.costExposure != null ? String(risk.costExposure) : "",
@@ -159,7 +168,14 @@ export function EditRiskDialog({
   }, [submitError]);
 
   const handleSubmit = (data: RiskFormData) => {
-    onSubmit({ ...data, dueDate: data.dueDate || null, costExposure: data.costExposure || null, riskScore: data.riskScore ? parseInt(data.riskScore) : null } as any);
+    onSubmit({
+      ...data,
+      dueDate: data.dueDate || null,
+      costExposure: data.costExposure || null,
+      riskScore: data.riskScore ? parseInt(data.riskScore) : null,
+      category: data.category || null,
+      ownerId: data.ownerId || null,
+    } as any);
   };
 
   const handleAiSuggest = async () => {
@@ -226,7 +242,7 @@ export function EditRiskDialog({
 
             <div className="grid grid-cols-3 gap-3 pb-2">
               <div className="space-y-1.5">
-                <Label>Probability</Label>
+                <Label>Likelihood</Label>
                 <Controller control={form.control} name="probability" render={({ field }) => (
                   <Select onValueChange={field.onChange} value={field.value}>
                     <SelectTrigger data-testid="select-risk-probability"><SelectValue /></SelectTrigger>
@@ -239,7 +255,7 @@ export function EditRiskDialog({
                 )} />
               </div>
               <div className="space-y-1.5">
-                <Label>Impact</Label>
+                <Label>Consequence</Label>
                 <Controller control={form.control} name="impact" render={({ field }) => (
                   <Select onValueChange={field.onChange} value={field.value}>
                     <SelectTrigger data-testid="select-risk-impact"><SelectValue /></SelectTrigger>
@@ -273,6 +289,50 @@ export function EditRiskDialog({
                     )}
                   </>
                 )} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pb-2">
+              <div className="space-y-1.5">
+                <Label>Category</Label>
+                <Controller control={form.control} name="category" render={({ field }) => (
+                  <Select
+                    onValueChange={(v) => field.onChange(v === "__clear__" ? "" : v)}
+                    value={field.value || undefined}
+                  >
+                    <SelectTrigger data-testid="select-risk-category">
+                      <SelectValue placeholder="Select category..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {field.value && <SelectItem value="__clear__">Clear selection</SelectItem>}
+                      {RISK_CATEGORIES.map(cat => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Owner</Label>
+                <Controller control={form.control} name="ownerId" render={({ field }) => {
+                  const active = orgResources.filter(r => r.isActive && r.userId);
+                  return (
+                    <Select
+                      onValueChange={(v) => field.onChange(v === "__clear__" ? "" : v)}
+                      value={field.value || undefined}
+                    >
+                      <SelectTrigger data-testid="select-risk-owner">
+                        <SelectValue placeholder="Select owner..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {field.value && <SelectItem value="__clear__">Clear selection</SelectItem>}
+                        {active.map(r => (
+                          <SelectItem key={r.id} value={r.userId!}>{r.displayName}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  );
+                }} />
               </div>
             </div>
 
