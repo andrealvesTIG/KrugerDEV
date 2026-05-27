@@ -173,10 +173,15 @@ export async function setupMicrosoftAuth(app: Express) {
     });
 
     const redirectUri = getRedirectUri(req);
+    // No `prompt` parameter — matches the Project Online flow. Lets MSAL use
+    // the default behaviour: silent SSO when the user already has a valid
+    // Microsoft session and consent for this app, and only show the account
+    // picker / consent screen when one is genuinely required. Passing
+    // `select_account` here was forcing the picker (and re-consent in some
+    // tenants) on every sign-in even though the app is already approved.
     const authCodeUrlParameters = {
       scopes: ["openid", "profile", "email", "User.Read"],
       redirectUri,
-      prompt: "select_account" as const,
       state,
       nonce,
     };
