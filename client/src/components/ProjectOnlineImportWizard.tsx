@@ -9,15 +9,18 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ExternalLink, CheckCircle2, AlertCircle, Cloud, FolderOpen, Import, XCircle } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Loader2, ExternalLink, CheckCircle2, AlertCircle, Cloud, FolderOpen, Import, XCircle, SkipForward, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ProgressEntry {
   projectId: string;
   name?: string;
-  status: "done" | "failed";
+  status: "done" | "failed" | "skipped" | "updated";
   error?: string;
 }
+
+type ImportMode = "skip" | "update" | "duplicate";
 
 interface ProjectOnlineImportWizardProps {
   open: boolean;
@@ -53,7 +56,11 @@ export function ProjectOnlineImportWizard({
   const [siteUrl, setSiteUrl] = useState("");
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [targetPortfolioId, setTargetPortfolioId] = useState<string>("none");
+  const [importMode, setImportMode] = useState<ImportMode>("skip");
   const [importedCount, setImportedCount] = useState(0);
+  const [updatedCount, setUpdatedCount] = useState(0);
+  const [skippedCount, setSkippedCount] = useState(0);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [failedImports, setFailedImports] = useState<{ projectId: string; error: string }[]>([]);
   const [progressTotal, setProgressTotal] = useState(0);
   const [progressCurrent, setProgressCurrent] = useState(0);
@@ -123,6 +130,7 @@ export function ProjectOnlineImportWizard({
           projectIds: selectedProjects,
           organizationId,
           portfolioId: targetPortfolioId !== "none" ? parseInt(targetPortfolioId) : null,
+          importMode,
         }),
       });
 
@@ -166,12 +174,27 @@ export function ProjectOnlineImportWizard({
               name: evt.name,
               status: "done",
             }]);
+          } else if (evt.type === "project-updated") {
+            setProgressEntries(prev => [...prev, {
+              projectId: evt.projectId,
+              name: evt.name,
+              status: "updated",
+            }]);
+          } else if (evt.type === "project-skipped") {
+            setProgressEntries(prev => [...prev, {
+              projectId: evt.projectId,
+              name: evt.name,
+              status: "skipped",
+            }]);
           } else if (evt.type === "project-failed") {
             setProgressEntries(prev => [...prev, {
               projectId: evt.projectId,
               status: "failed",
               error: evt.error,
             }]);
+          } else if (evt.type === "session-expired") {
+            setSessionExpired(true);
+            throw new Error(evt.message || "Project Online session expired. Please reconnect.");
           } else if (evt.type === "done") {
             final = evt;
           } else if (evt.type === "error") {
@@ -184,6 +207,8 @@ export function ProjectOnlineImportWizard({
     },
     onSuccess: (data: any) => {
       setImportedCount(data.imported || 0);
+      setUpdatedCount(data.updated || 0);
+      setSkippedCount(data.skipped || 0);
       setFailedImports(Array.isArray(data.failures) ? data.failures : []);
       setCurrentProjectId(null);
       setStep("complete");
@@ -193,6 +218,9 @@ export function ProjectOnlineImportWizard({
     onError: (err: any) => {
       toast({ title: "Import Failed", description: err.message, variant: "destructive" });
       setStep("select");
+      if (sessionExpired) {
+        refetchStatus();
+      }
     },
   });
 
@@ -219,6 +247,9 @@ export function ProjectOnlineImportWizard({
       setStep(status?.connected ? "select" : "connect");
       setSelectedProjects([]);
       setImportedCount(0);
+      setUpdatedCount(0);
+      setSkippedCount(0);
+      setSessionExpired(false);
       setFailedImports([]);
       setProgressTotal(0);
       setProgressCurrent(0);
@@ -324,6 +355,49 @@ export function ProjectOnlineImportWizard({
 
           <div className="space-y-4">
             <div className="space-y-2">
+              <Label>If a project was already imported</Label>
+              <RadioGroup
+                value={importMode}
+                onValueChange={(v) => setImportMode(v as ImportMode)}
+                className="grid gap-2"
+              >
+                <label
+                  htmlFor="import-mode-skip"
+                  className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover-elevate"
+                  data-testid="radio-import-mode-skip"
+                >
+                  <RadioGroupItem value="skip" id="import-mode-skip" className="mt-0.5" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">Skip if already imported</div>
+                    <div className="text-xs text-muted-foreground">Leave the existing project alone. Don't make any changes.</div>
+                  </div>
+                </label>
+                <label
+                  htmlFor="import-mode-update"
+                  className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover-elevate"
+                  data-testid="radio-import-mode-update"
+                >
+                  <RadioGroupItem value="update" id="import-mode-update" className="mt-0.5" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">Update existing (don't duplicate)</div>
+                    <div className="text-xs text-muted-foreground">Refresh the existing project with the latest details, tasks, and milestones from Project Online.</div>
+                  </div>
+                </label>
+                <label
+                  htmlFor="import-mode-duplicate"
+                  className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover-elevate"
+                  data-testid="radio-import-mode-duplicate"
+                >
+                  <RadioGroupItem value="duplicate" id="import-mode-duplicate" className="mt-0.5" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">Always create a new copy</div>
+                    <div className="text-xs text-muted-foreground">Import again as a brand new project even if one already exists.</div>
+                  </div>
+                </label>
+              </RadioGroup>
+            </div>
+
+            <div className="space-y-2">
               <Label>Import to Portfolio (optional)</Label>
               <Select value={targetPortfolioId} onValueChange={setTargetPortfolioId}>
                 <SelectTrigger data-testid="select-target-portfolio">
@@ -412,6 +486,8 @@ export function ProjectOnlineImportWizard({
       const pct = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
       const currentProject = projectsData?.projects.find(p => p.id === currentProjectId);
       const doneCount = progressEntries.filter(e => e.status === "done").length;
+      const updatedCountLive = progressEntries.filter(e => e.status === "updated").length;
+      const skippedCountLive = progressEntries.filter(e => e.status === "skipped").length;
       const failedCount = progressEntries.filter(e => e.status === "failed").length;
       return (
         <div className="flex flex-col py-6 space-y-4">
@@ -423,7 +499,7 @@ export function ProjectOnlineImportWizard({
                 {currentProject?.name ? `: ${currentProject.name}` : ""}
               </p>
               <p className="text-xs text-muted-foreground">
-                {doneCount} done · {failedCount} failed
+                {doneCount} added · {updatedCountLive} updated · {skippedCountLive} skipped · {failedCount} failed
               </p>
             </div>
           </div>
@@ -437,11 +513,19 @@ export function ProjectOnlineImportWizard({
                 <div key={`${e.projectId}-${i}`} className="flex items-start gap-2">
                   {e.status === "done" ? (
                     <CheckCircle2 className="h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0" />
+                  ) : e.status === "updated" ? (
+                    <RefreshCw className="h-3.5 w-3.5 text-blue-500 mt-0.5 shrink-0" />
+                  ) : e.status === "skipped" ? (
+                    <SkipForward className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
                   ) : (
                     <XCircle className="h-3.5 w-3.5 text-destructive mt-0.5 shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="truncate">{e.name || e.projectId}</p>
+                    <p className="truncate">
+                      {e.name || e.projectId}
+                      {e.status === "updated" && <span className="text-muted-foreground"> (updated)</span>}
+                      {e.status === "skipped" && <span className="text-muted-foreground"> (already imported, skipped)</span>}
+                    </p>
                     {e.error && (
                       <p className="text-destructive/80 truncate">{e.error}</p>
                     )}
@@ -456,18 +540,19 @@ export function ProjectOnlineImportWizard({
 
     if (step === "complete") {
       const failedCount = failedImports.length;
+      const parts: string[] = [];
+      if (importedCount > 0) parts.push(`${importedCount} added`);
+      if (updatedCount > 0) parts.push(`${updatedCount} updated`);
+      if (skippedCount > 0) parts.push(`${skippedCount} skipped (already imported)`);
+      if (failedCount > 0) parts.push(`${failedCount} failed`);
+      const summary = parts.length > 0 ? parts.join(" · ") : "Nothing to import.";
       return (
         <div className="flex flex-col items-center justify-center py-8 space-y-4">
           <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center">
             <CheckCircle2 className="h-10 w-10 text-green-500" />
           </div>
           <p className="text-lg font-medium">Import Complete</p>
-          <p className="text-sm text-muted-foreground text-center">
-            Successfully imported {importedCount} project{importedCount !== 1 ? "s" : ""} with their tasks and milestones.
-            {failedCount > 0 && (
-              <> {failedCount} project{failedCount !== 1 ? "s" : ""} could not be imported.</>
-            )}
-          </p>
+          <p className="text-sm text-muted-foreground text-center">{summary}</p>
           {failedCount > 0 && (
             <div className="w-full max-h-48 overflow-y-auto rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs space-y-1" data-testid="list-failed-imports">
               <p className="font-medium text-destructive mb-1">Failed imports:</p>

@@ -7,6 +7,8 @@ declare module "express-session" {
     projectOnlineState?: string;
     projectOnlineToken?: string;
     projectOnlineSiteUrl?: string;
+    projectOnlineTokenCache?: string;
+    projectOnlineHomeAccountId?: string;
   }
 }
 
@@ -169,7 +171,16 @@ export async function setupProjectOnlineRoutes(app: Express) {
       }
 
       req.session.projectOnlineToken = response.accessToken;
-      
+      // Persist the MSAL token cache + account id so we can silently refresh
+      // the access token (using the cached refresh token) during long bulk
+      // imports without forcing the user to reconnect.
+      try {
+        req.session.projectOnlineTokenCache = client.getTokenCache().serialize();
+        req.session.projectOnlineHomeAccountId = response.account?.homeAccountId;
+      } catch (cacheErr) {
+        console.error("Project Online token cache serialize error:", cacheErr);
+      }
+
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
           if (err) reject(err);
@@ -279,9 +290,13 @@ export async function setupProjectOnlineRoutes(app: Express) {
   });
 
   app.post("/api/project-online/import", async (req, res) => {
-    const token = req.session.projectOnlineToken;
+    let token = req.session.projectOnlineToken;
     const siteUrl = req.session.projectOnlineSiteUrl;
     const { projectIds, organizationId, portfolioId } = req.body;
+    const importMode: 'skip' | 'update' | 'duplicate' =
+      req.body.importMode === 'update' || req.body.importMode === 'duplicate'
+        ? req.body.importMode
+        : 'skip';
 
     if (!token || !siteUrl) {
       return res.status(401).json({ message: "Not connected to Project Online" });
@@ -293,6 +308,15 @@ export async function setupProjectOnlineRoutes(app: Express) {
 
     if (!organizationId) {
       return res.status(400).json({ message: "Organization ID is required" });
+    }
+
+    // Verify the caller is actually a member of the target organization before
+    // doing anything else. Without this, a forged organizationId could write
+    // into another tenant on top of a valid Project Online integration session.
+    const { enforceMembership } = await import("./authorizationService");
+    const userId = (req as any).user?.claims?.sub || (req as any).user?.id;
+    if (await enforceMembership(req, res, userId, Number(organizationId))) {
+      return;
     }
 
     // Bulk imports can run long. Disable per-request timeouts so the proxy
@@ -315,28 +339,75 @@ export async function setupProjectOnlineRoutes(app: Express) {
       }
     };
 
-    const fetchWithTimeout = async (url: string, ms = 30000) => {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), ms);
+    // Silently refresh the access token using the cached refresh token. Bulk
+    // imports often run longer than the access-token lifetime, which caused
+    // 401s mid-batch before this was wired in.
+    const refreshAccessToken = async (): Promise<string | null> => {
       try {
-        return await fetch(url, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Accept": "application/json;odata=verbose",
-          },
-          signal: ctrl.signal,
+        const client = getProjectOnlineMsalClient();
+        if (!client || !req.session.projectOnlineHomeAccountId || !req.session.projectOnlineTokenCache) {
+          return null;
+        }
+        const cache = client.getTokenCache();
+        await cache.deserialize(req.session.projectOnlineTokenCache);
+        const account = await cache.getAccountByHomeId(req.session.projectOnlineHomeAccountId);
+        if (!account) return null;
+        const sharePointHost = new URL(siteUrl).origin;
+        const refreshed = await client.acquireTokenSilent({
+          account,
+          scopes: [`${sharePointHost}/.default`],
         });
-      } finally {
-        clearTimeout(t);
+        if (!refreshed?.accessToken) return null;
+        req.session.projectOnlineToken = refreshed.accessToken;
+        req.session.projectOnlineTokenCache = cache.serialize();
+        // Persist the refreshed token so a subsequent request in the same
+        // session doesn't fall back to the stale one.
+        await new Promise<void>((resolve) => {
+          req.session.save(() => resolve());
+        });
+        return refreshed.accessToken;
+      } catch (err) {
+        console.error('[project-online] token refresh failed:', err);
+        return null;
       }
+    };
+
+    const fetchWithTimeout = async (url: string, ms = 30000): Promise<Awaited<ReturnType<typeof fetch>>> => {
+      const doFetch = async (bearer: string) => {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), ms);
+        try {
+          return await fetch(url, {
+            headers: {
+              "Authorization": `Bearer ${bearer}`,
+              "Accept": "application/json;odata=verbose",
+            },
+            signal: ctrl.signal,
+          });
+        } finally {
+          clearTimeout(t);
+        }
+      };
+      let resp = await doFetch(token!);
+      if (resp.status === 401) {
+        const fresh = await refreshAccessToken();
+        if (fresh) {
+          token = fresh;
+          resp = await doFetch(fresh);
+        }
+      }
+      return resp;
     };
 
     try {
       const { storage } = await import("../storage");
       const importedProjects: any[] = [];
+      const skippedProjects: { projectId: string; name?: string; existingId: number }[] = [];
+      const updatedProjects: { projectId: string; name?: string; id: number }[] = [];
       const failedProjects: { projectId: string; name?: string; error: string }[] = [];
+      const EXTERNAL_SOURCE = 'project_online';
 
-      send({ type: "start", total: projectIds.length });
+      send({ type: "start", total: projectIds.length, importMode });
 
       let index = 0;
       for (const projectId of projectIds) {
@@ -344,6 +415,23 @@ export async function setupProjectOnlineRoutes(app: Express) {
         send({ type: "progress", current: index, total: projectIds.length, projectId });
         // Wrap each project so one failure can't abort the whole batch.
         try {
+          // Look up an existing import of this Project Online project so we can
+          // honour the user's chosen importMode (skip / update / duplicate).
+          const existing = await storage.getProjectByExternalId(organizationId, EXTERNAL_SOURCE, String(projectId));
+
+          if (existing && importMode === 'skip') {
+            skippedProjects.push({ projectId, name: existing.name, existingId: existing.id });
+            send({
+              type: 'project-skipped',
+              current: index,
+              total: projectIds.length,
+              projectId,
+              id: existing.id,
+              name: existing.name,
+            });
+            continue;
+          }
+
           const projectUrl = `${siteUrl}/_api/ProjectServer/Projects('${projectId}')`;
           let projectResponse: Awaited<ReturnType<typeof fetch>>;
           try {
@@ -354,37 +442,93 @@ export async function setupProjectOnlineRoutes(app: Express) {
           }
 
           if (!projectResponse.ok) {
+            if (projectResponse.status === 401) {
+              // Token refresh already attempted inside fetchWithTimeout — if
+              // we still see 401, the session is unrecoverable. Stop the
+              // batch cleanly so the user can reconnect.
+              send({
+                type: 'session-expired',
+                current: index,
+                total: projectIds.length,
+                message: 'Project Online session expired. Please reconnect and re-run the import.',
+              });
+              delete req.session.projectOnlineToken;
+              break;
+            }
             failedProjects.push({ projectId, error: `Project Online responded ${projectResponse.status}` });
+            send({
+              type: 'project-failed',
+              current: index,
+              total: projectIds.length,
+              projectId,
+              error: `Project Online responded ${projectResponse.status}`,
+            });
             continue;
           }
 
           const projectData = await projectResponse.json();
           const p = projectData.d;
 
-          const newProject = await storage.createProject({
-            organizationId,
-            portfolioId: portfolioId || null,
-            name: p.Name,
-            description: p.Description || null,
-            status: "Execution",
-            priority: "Medium",
-            health: "Green",
-            startDate: p.StartDate ? new Date(p.StartDate).toISOString().split("T")[0] : null,
-            endDate: p.FinishDate ? new Date(p.FinishDate).toISOString().split("T")[0] : null,
-            budget: 0,
-            completionPercentage: Math.round(p.PercentComplete || 0),
-            source: "imported",
-          });
+          let newProject;
+          let wasUpdated = false;
+          if (existing && importMode === 'update') {
+            newProject = await storage.updateProject(existing.id, {
+              name: p.Name,
+              description: p.Description || null,
+              startDate: p.StartDate ? new Date(p.StartDate).toISOString().split("T")[0] : null,
+              endDate: p.FinishDate ? new Date(p.FinishDate).toISOString().split("T")[0] : null,
+              completionPercentage: Math.round(p.PercentComplete || 0),
+            } as any);
+            wasUpdated = true;
+          } else {
+            newProject = await storage.createProject({
+              organizationId,
+              portfolioId: portfolioId || null,
+              name: p.Name,
+              description: p.Description || null,
+              status: "Execution",
+              priority: "Medium",
+              health: "Green",
+              startDate: p.StartDate ? new Date(p.StartDate).toISOString().split("T")[0] : null,
+              endDate: p.FinishDate ? new Date(p.FinishDate).toISOString().split("T")[0] : null,
+              budget: 0,
+              completionPercentage: Math.round(p.PercentComplete || 0),
+              source: "imported",
+              // In `duplicate` mode we deliberately omit externalId so future
+              // `skip` / `update` runs aren't ambiguous about which copy to
+              // target. Only mark the canonical first import with the
+              // external link.
+              externalSource: importMode === 'duplicate' ? null : EXTERNAL_SOURCE,
+              externalId: importMode === 'duplicate' ? null : String(projectId),
+            } as any);
+          }
 
           await storage.createProjectChangeLog({
             projectId: newProject.id,
             changedBy: null,
             changedByName: 'System',
-            changeType: 'created',
-            changeSummary: `Project "${newProject.name}" created by System — imported from Microsoft Project Online`,
+            changeType: wasUpdated ? 'updated' : 'created',
+            changeSummary: wasUpdated
+              ? `Project "${newProject.name}" updated by System — re-imported from Microsoft Project Online`
+              : `Project "${newProject.name}" created by System — imported from Microsoft Project Online`,
             previousValues: null,
             newValues: null,
           });
+
+          // On update, wipe the previous tasks/milestones so the re-import
+          // doesn't pile up duplicates underneath the project.
+          if (wasUpdated) {
+            // If we can't clear the previous children, abort this project so
+            // the user doesn't end up with both stale and re-imported rows.
+            const existingTasks = await storage.getTasks(newProject.id);
+            for (const t of existingTasks) {
+              await storage.deleteTask(t.id);
+            }
+            const existingMilestones = await storage.getMilestones(newProject.id);
+            for (const m of existingMilestones) {
+              await storage.deleteMilestone(m.id);
+            }
+          }
 
           // Tasks are best-effort — if they fail we still count the project as imported.
           try {
@@ -432,12 +576,13 @@ export async function setupProjectOnlineRoutes(app: Express) {
             console.error(`[project-online] failed to fetch tasks for project ${projectId}:`, tasksErr);
           }
 
-          importedProjects.push({
-            id: newProject.id,
-            name: newProject.name,
-          });
+          if (wasUpdated) {
+            updatedProjects.push({ projectId, name: newProject.name, id: newProject.id });
+          } else {
+            importedProjects.push({ id: newProject.id, name: newProject.name });
+          }
           send({
-            type: "project-done",
+            type: wasUpdated ? "project-updated" : "project-done",
             current: index,
             total: projectIds.length,
             projectId,
@@ -462,9 +607,14 @@ export async function setupProjectOnlineRoutes(app: Express) {
         type: "done",
         success: true,
         imported: importedProjects.length,
+        updated: updatedProjects.length,
+        skipped: skippedProjects.length,
         failed: failedProjects.length,
         projects: importedProjects,
+        updatedProjects,
+        skippedProjects,
         failures: failedProjects,
+        importMode,
       });
       res.end();
     } catch (error: any) {

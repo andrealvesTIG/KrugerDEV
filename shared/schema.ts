@@ -786,6 +786,8 @@ export const projects = pgTable("projects", {
   businessValue: text("business_value"), // Expected business value/ROI
   riskLevel: text("risk_level"), // Low, Medium, High - overall risk assessment
   source: text("source").default("manual"), // "manual" = created in app, "imported" = from MPP/external file, "planner" = from Microsoft Planner
+  externalSource: text("external_source"), // e.g. "project_online" — source system for imported projects
+  externalId: text("external_id"), // ID in the external source system (e.g. Project Online GUID)
   plannerPlanId: text("planner_plan_id"), // Microsoft Planner plan ID for syncing
   dataverseOrgId: text("dataverse_org_id"), // Dataverse organization ID for Planner Premium URL construction
   dataverseTenantId: text("dataverse_tenant_id"), // Microsoft tenant ID for Planner Premium URL construction

@@ -59,6 +59,22 @@ export async function getProject(id: number): Promise<Project | undefined> {
   return project;
 }
 
+export async function getProjectByExternalId(
+  organizationId: number,
+  externalSource: string,
+  externalId: string,
+): Promise<Project | undefined> {
+  const [project] = await db.select().from(projects).where(
+    and(
+      eq(projects.organizationId, organizationId),
+      eq(projects.externalSource, externalSource),
+      eq(projects.externalId, externalId),
+      isNull(projects.deletedAt),
+    ),
+  ).limit(1);
+  return project;
+}
+
 export async function findActiveProjectByNameInOrg(
   organizationId: number,
   name: string,
