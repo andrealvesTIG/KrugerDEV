@@ -558,16 +558,31 @@ export async function setupPlannerRoutes(app: Express) {
         throw new Error("No access token received");
       }
 
-      // Store tokens in organization-scoped integration
-      const userId = (req.session as any)?.passport?.user?.id || req.session.userId;
-      await upsertOrgIntegration(organizationId, "entra", {
-        accessToken: response.accessToken,
-        refreshToken: null,
-        tokenExpiry: response.expiresOn || null,
-        connectionStatus: "connected",
-        connectedBy: userId,
-        connectedAt: new Date(),
-      });
+      // Store tokens in organization-scoped integration. Resolve userId across
+      // every supported auth path (Replit OIDC, passport session, email/pwd
+      // session, bearer auth) so `connected_by` isn't silently dropped.
+      const userId =
+        (req as any).user?.claims?.sub ||
+        (req as any).user?.id ||
+        (req.session as any)?.passport?.user?.id ||
+        req.session.userId ||
+        (req as any).bearerAuth?.userId ||
+        null;
+      try {
+        await upsertOrgIntegration(organizationId, "entra", {
+          accessToken: response.accessToken,
+          refreshToken: null,
+          tokenExpiry: response.expiresOn || null,
+          connectionStatus: "connected",
+          connectedBy: userId ?? undefined,
+          connectedAt: new Date(),
+        });
+      } catch (dbErr) {
+        console.error("[entra] failed to persist integration row:", dbErr);
+        return res.redirect(
+          `/integrations?error=${encodeURIComponent('Connected to Microsoft, but saving the integration failed. Please try again.')}`,
+        );
+      }
       
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
@@ -577,9 +592,13 @@ export async function setupPlannerRoutes(app: Express) {
       });
 
       res.redirect("/integrations?entraConnected=true");
-    } catch (error) {
-      console.error("Entra token error:", error);
-      res.redirect("/integrations?error=Failed to complete authentication");
+    } catch (error: any) {
+      console.error("[entra] token exchange failed:", error);
+      // Surface the real reason so the user can tell admin consent / scope
+      // problems apart from session / network problems.
+      const reason =
+        error?.errorMessage || error?.message || 'Failed to complete authentication';
+      res.redirect(`/integrations?error=${encodeURIComponent(reason)}`);
     }
   });
 
