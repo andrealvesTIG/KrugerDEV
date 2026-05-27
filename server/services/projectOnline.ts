@@ -314,7 +314,14 @@ export async function setupProjectOnlineRoutes(app: Express) {
     // doing anything else. Without this, a forged organizationId could write
     // into another tenant on top of a valid Project Online integration session.
     const { enforceMembership } = await import("./authorizationService");
-    const userId = (req as any).user?.claims?.sub || (req as any).user?.id;
+    const userId =
+      (req as any).user?.claims?.sub ||
+      (req as any).user?.id ||
+      (req as any).session?.userId ||
+      (req as any).bearerAuth?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
     if (await enforceMembership(req, res, userId, Number(organizationId))) {
       return;
     }
