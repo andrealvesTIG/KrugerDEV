@@ -1146,68 +1146,111 @@ export async function restoreItem(type: RecycleBinItemType, id: number, organiza
   return true;
 }
 
-export async function permanentlyDeleteItem(type: RecycleBinItemType, id: number, organizationId: number): Promise<boolean> {
-  switch (type) {
-    case 'portfolio': {
-      const [p] = await db.select().from(portfolios).where(and(eq(portfolios.id, id), eq(portfolios.organizationId, organizationId)));
-      if (!p) return false;
-      await db.delete(portfolios).where(eq(portfolios.id, id));
-      break;
-    }
-    case 'project': {
-      const [proj] = await db.select().from(projects).where(and(eq(projects.id, id), eq(projects.organizationId, organizationId)));
-      if (!proj) return false;
-      const projectTasks2 = await db.select().from(tasks).where(eq(tasks.projectId, id));
-      for (const task of projectTasks2) {
-        await db.delete(taskDependencies).where(eq(taskDependencies.taskId, task.id));
-        await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, task.id));
-        await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, task.id));
-      }
-      await db.delete(tasks).where(eq(tasks.projectId, id));
-      await db.delete(issues).where(eq(issues.projectId, id));
-      await db.delete(milestones).where(eq(milestones.projectId, id));
-      await db.delete(projectFinancials).where(eq(projectFinancials.projectId, id));
-      await db.delete(projects).where(eq(projects.id, id));
-      break;
-    }
-    case 'task': {
-      const [t] = await db.select().from(tasks).where(eq(tasks.id, id));
-      if (!t) return false;
-      const [p] = await db.select().from(projects).where(and(eq(projects.id, t.projectId), eq(projects.organizationId, organizationId)));
-      if (!p) return false;
-      await db.delete(taskDependencies).where(eq(taskDependencies.taskId, id));
-      await db.delete(taskDependencies).where(eq(taskDependencies.dependsOnTaskId, id));
-      await db.delete(taskChangeLogs).where(eq(taskChangeLogs.taskId, id));
-      await db.delete(tasks).where(eq(tasks.id, id));
-      break;
-    }
-    case 'risk': {
-      const [r] = await db.select().from(issues).where(and(eq(issues.id, id), eq(issues.itemType, 'risk')));
-      if (!r) return false;
-      const [p] = await db.select().from(projects).where(and(eq(projects.id, r.projectId), eq(projects.organizationId, organizationId)));
-      if (!p) return false;
-      await db.delete(issues).where(and(eq(issues.id, id), eq(issues.itemType, 'risk')));
-      break;
-    }
-    case 'milestone': {
-      const [m] = await db.select().from(tasks).where(and(eq(tasks.id, id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone')));
-      if (!m) return false;
-      const [p] = await db.select().from(projects).where(and(eq(projects.id, m.projectId), eq(projects.organizationId, organizationId)));
-      if (!p) return false;
-      await db.delete(notifications).where(eq(notifications.milestoneId, id));
-      await db.delete(tasks).where(and(eq(tasks.id, id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone')));
-      break;
-    }
-    case 'issue': {
-      const [i] = await db.select().from(issues).where(eq(issues.id, id));
-      if (!i) return false;
-      const [p] = await db.select().from(projects).where(and(eq(projects.id, i.projectId), eq(projects.organizationId, organizationId)));
-      if (!p) return false;
-      await db.delete(issues).where(eq(issues.id, id));
-      break;
+// Dynamically discover every FK pointing at the given table and clean up the
+// referencing rows before deleting the parent. Required-NOT-NULL FK columns
+// recursively cascade-delete via a subquery predicate (no assumption that
+// child tables have an `id` column — composite-PK tables like
+// `financial_counters` would otherwise blow up). Nullable FK columns get set
+// to NULL instead so we don't wipe unrelated data. FKs that already declare
+// ON DELETE CASCADE are skipped — Postgres handles them.
+const MAX_CASCADE_DEPTH = 24;
+
+function quoteIdent(name: string): string {
+  // Postgres-safe identifier quoting.
+  return `"${name.replace(/"/g, '""')}"`;
+}
+
+async function cascadeHardDelete(
+  tx: any,
+  tableName: string,
+  predicate: any,
+  depth = 0,
+): Promise<void> {
+  if (depth > MAX_CASCADE_DEPTH) {
+    throw new Error(`cascadeHardDelete: max depth exceeded at ${tableName} (likely FK cycle)`);
+  }
+  const parentTable = sql.raw(quoteIdent(tableName));
+  const fkRowsResult = await tx.execute(sql`
+    SELECT c.conrelid::regclass::text AS child_table,
+           a.attname AS child_col,
+           pa.attname AS parent_col,
+           a.attnotnull AS not_null,
+           c.confdeltype AS confdeltype
+    FROM pg_constraint c
+    JOIN pg_attribute a  ON a.attrelid  = c.conrelid  AND a.attnum  = c.conkey[1]
+    JOIN pg_attribute pa ON pa.attrelid = c.confrelid AND pa.attnum = c.confkey[1]
+    WHERE c.confrelid = ${tableName}::regclass
+      AND c.contype = 'f'
+  `);
+  const rows: any[] = (fkRowsResult as any).rows ?? (fkRowsResult as any) ?? [];
+  for (const fk of rows) {
+    // Postgres already cleans these up for us.
+    if (fk.confdeltype === 'c') continue;
+    const childTable = sql.raw(quoteIdent(fk.child_table));
+    const childCol = sql.raw(quoteIdent(fk.child_col));
+    const parentCol = sql.raw(quoteIdent(fk.parent_col));
+    // Predicate that selects child rows linked to the parent rows being
+    // deleted. Reused both for recursive cascade and SET NULL.
+    const childPredicate = sql`${childCol} IN (SELECT ${parentCol} FROM ${parentTable} WHERE ${predicate})`;
+    if (fk.not_null) {
+      await cascadeHardDelete(tx, fk.child_table, childPredicate, depth + 1);
+    } else {
+      await tx.execute(sql`UPDATE ${childTable} SET ${childCol} = NULL WHERE ${childPredicate}`);
     }
   }
-  return true;
+  await tx.execute(sql`DELETE FROM ${parentTable} WHERE ${predicate}`);
+}
+
+export async function permanentlyDeleteItem(type: RecycleBinItemType, id: number, organizationId: number): Promise<boolean> {
+  return await db.transaction(async (tx) => {
+    switch (type) {
+      case 'portfolio': {
+        const [p] = await tx.select().from(portfolios).where(and(eq(portfolios.id, id), eq(portfolios.organizationId, organizationId)));
+        if (!p) return false;
+        await cascadeHardDelete(tx, 'portfolios', sql`id = ${id}`);
+        return true;
+      }
+      case 'project': {
+        const [proj] = await tx.select().from(projects).where(and(eq(projects.id, id), eq(projects.organizationId, organizationId)));
+        if (!proj) return false;
+        await cascadeHardDelete(tx, 'projects', sql`id = ${id}`);
+        return true;
+      }
+      case 'task': {
+        const [t] = await tx.select().from(tasks).where(eq(tasks.id, id));
+        if (!t) return false;
+        const [p] = await tx.select().from(projects).where(and(eq(projects.id, t.projectId), eq(projects.organizationId, organizationId)));
+        if (!p) return false;
+        await cascadeHardDelete(tx, 'tasks', sql`id = ${id}`);
+        return true;
+      }
+      case 'risk': {
+        const [r] = await tx.select().from(issues).where(and(eq(issues.id, id), eq(issues.itemType, 'risk')));
+        if (!r) return false;
+        const [p] = await tx.select().from(projects).where(and(eq(projects.id, r.projectId), eq(projects.organizationId, organizationId)));
+        if (!p) return false;
+        await cascadeHardDelete(tx, 'issues', sql`id = ${id}`);
+        return true;
+      }
+      case 'milestone': {
+        const [m] = await tx.select().from(tasks).where(and(eq(tasks.id, id), eq(tasks.isMilestone, true), eq(tasks.taskType, 'Milestone')));
+        if (!m) return false;
+        const [p] = await tx.select().from(projects).where(and(eq(projects.id, m.projectId), eq(projects.organizationId, organizationId)));
+        if (!p) return false;
+        await cascadeHardDelete(tx, 'tasks', sql`id = ${id}`);
+        return true;
+      }
+      case 'issue': {
+        const [i] = await tx.select().from(issues).where(eq(issues.id, id));
+        if (!i) return false;
+        const [p] = await tx.select().from(projects).where(and(eq(projects.id, i.projectId), eq(projects.organizationId, organizationId)));
+        if (!p) return false;
+        await cascadeHardDelete(tx, 'issues', sql`id = ${id}`);
+        return true;
+      }
+    }
+    return true;
+  });
 }
 
 export async function emptyRecycleBin(organizationId: number): Promise<{ deleted: number; failed: number }> {
