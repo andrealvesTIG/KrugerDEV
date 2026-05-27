@@ -610,6 +610,27 @@ export function WorkflowStepRequirementsDialog({
           </Select>
         );
       }
+      case 'resource': {
+        const active = orgResources.filter(r => r.isActive);
+        const currentVal = v === null || v === undefined || v === "" ? "" : String(v);
+        return (
+          <Select
+            value={currentVal || undefined}
+            onValueChange={(val) => set(val === "__clear__" ? null : Number(val))}
+            disabled={disabled}
+          >
+            <SelectTrigger data-testid={`wsd-input-${f.key}`}>
+              <SelectValue placeholder="Select resource..." />
+            </SelectTrigger>
+            <SelectContent>
+              {currentVal && <SelectItem value="__clear__">Clear selection</SelectItem>}
+              {active.map(r => (
+                <SelectItem key={r.id} value={String(r.id)}>{r.displayName}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      }
       default: {
         // Fallback to the previous text/textarea heuristic for keys not in
         // the rich registry (kept so legacy keys keep their old shape).
