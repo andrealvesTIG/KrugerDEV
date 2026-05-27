@@ -508,16 +508,22 @@ export function registerOrgMemberRoutes(app: Express) {
       const integration = await getOrgIntegration(orgId, 'entra');
       
       if (integration?.connectionStatus === 'connected' && integration.accessToken) {
-        // Search Microsoft Graph API for users
+        // Search Microsoft Graph API for users. We use $search (with the
+        // required ConsistencyLevel: eventual header) so substring matches
+        // like "negah" inside a displayName work; $filter+startswith only
+        // matches prefixes.
         try {
-          const searchQuery = encodeURIComponent(q);
-          // Use $filter to search by displayName or mail containing the search term
-          const graphUrl = `https://graph.microsoft.com/v1.0/users?$filter=startswith(displayName,'${searchQuery}') or startswith(mail,'${searchQuery}') or startswith(givenName,'${searchQuery}') or startswith(surname,'${searchQuery}')&$top=15&$select=id,displayName,mail,givenName,surname,userPrincipalName,jobTitle,department`;
-          
+          const searchTerm = q.replace(/"/g, '');
+          const searchClause = encodeURIComponent(
+            `"displayName:${searchTerm}" OR "mail:${searchTerm}" OR "givenName:${searchTerm}" OR "surname:${searchTerm}" OR "userPrincipalName:${searchTerm}"`,
+          );
+          const graphUrl = `https://graph.microsoft.com/v1.0/users?$search=${searchClause}&$top=15&$select=id,displayName,mail,givenName,surname,userPrincipalName,jobTitle,department`;
+
           const graphResponse = await fetch(graphUrl, {
             headers: {
               'Authorization': `Bearer ${integration.accessToken}`,
               'Content-Type': 'application/json',
+              'ConsistencyLevel': 'eventual',
             },
           });
           
@@ -545,14 +551,40 @@ export function registerOrgMemberRoutes(app: Express) {
             
             return res.json({ users: graphUsers, source: 'microsoft_entra' });
           } else {
-            // Log error but fall back to internal search
+            // Surface the real Graph failure to the client instead of
+            // silently masquerading as "not connected". A 403 here almost
+            // always means admin consent for User.Read.All / Directory.Read.All
+            // hasn't been granted on the Entra app registration.
             const errorText = await graphResponse.text();
-            console.error('Microsoft Graph API error:', graphResponse.status, errorText);
-            // Token might be expired or insufficient permissions - fall back to internal
+            console.error('[entra search] Microsoft Graph API error:', graphResponse.status, errorText);
+            let graphMessage = errorText;
+            try {
+              const parsed = JSON.parse(errorText);
+              graphMessage = parsed?.error?.message || graphMessage;
+            } catch {
+              /* keep raw text */
+            }
+            return res.json({
+              users: [],
+              source: 'entra_error',
+              error: {
+                status: graphResponse.status,
+                code: graphResponse.status === 403 ? 'admin_consent_required' : 'graph_error',
+                message: graphMessage,
+              },
+            });
           }
-        } catch (graphErr) {
-          console.error('Failed to search Microsoft Graph:', graphErr);
-          // Fall back to internal search
+        } catch (graphErr: any) {
+          console.error('[entra search] Failed to call Microsoft Graph:', graphErr);
+          return res.json({
+            users: [],
+            source: 'entra_error',
+            error: {
+              status: 0,
+              code: 'graph_unreachable',
+              message: graphErr?.message || 'Failed to reach Microsoft Graph',
+            },
+          });
         }
       }
       

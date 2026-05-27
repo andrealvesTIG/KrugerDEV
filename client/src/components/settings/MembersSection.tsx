@@ -136,7 +136,7 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
     source: 'internal' | 'entra';
   }
 
-  const { data: directoryResults, isLoading: isSearchingDirectory } = useQuery<{ users: DirectoryUser[]; source: 'microsoft_entra' | 'internal' }>({
+  const { data: directoryResults, isLoading: isSearchingDirectory } = useQuery<{ users: DirectoryUser[]; source: 'microsoft_entra' | 'internal' | 'entra_error'; error?: { status: number; code: string; message: string } }>({
     queryKey: [`/api/organizations/${organizationId}/directory/search`, directorySearchQuery],
     queryFn: async () => {
       const res = await fetch(`/api/organizations/${organizationId}/directory/search?q=${encodeURIComponent(directorySearchQuery)}`, { credentials: 'include' });
@@ -879,6 +879,26 @@ export function MembersSection({ organizationId, orgName }: { organizationId: nu
                   <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md text-sm text-amber-700 dark:text-amber-300">
                     <div className="font-medium">Microsoft Entra ID not connected</div>
                     <div className="text-xs mt-1">Go to <Link href="/integrations" className="underline font-medium">Integrations &gt; Identity & Directory</Link> to connect Microsoft Entra ID and search your organization's Active Directory.</div>
+                  </div>
+                )}
+                {directoryResults?.source === 'entra_error' && !isSearchingDirectory && (
+                  <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-md text-sm text-red-700 dark:text-red-300">
+                    <div className="font-medium">
+                      {directoryResults.error?.code === 'admin_consent_required'
+                        ? 'Microsoft Entra ID is connected, but the directory search was denied'
+                        : 'Microsoft Entra ID search failed'}
+                    </div>
+                    <div className="text-xs mt-1">
+                      {directoryResults.error?.code === 'admin_consent_required' ? (
+                        <>
+                          A Microsoft tenant administrator needs to grant admin consent for
+                          <span className="font-mono"> User.Read.All</span> and
+                          <span className="font-mono"> Directory.Read.All</span> on the Entra app registration, then reconnect from <Link href="/integrations" className="underline font-medium">Integrations</Link>.
+                        </>
+                      ) : (
+                        <>Graph error ({directoryResults.error?.status}): {directoryResults.error?.message}</>
+                      )}
+                    </div>
                   </div>
                 )}
                 {directoryResults?.source === 'microsoft_entra' && !isSearchingDirectory && (
