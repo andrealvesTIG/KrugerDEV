@@ -300,6 +300,21 @@ export async function setupProjectOnlineRoutes(app: Express) {
     req.setTimeout(0);
     res.setTimeout(0);
 
+    // Stream NDJSON progress events to the client so the wizard can show a
+    // live progress bar instead of waiting for the entire batch to finish.
+    res.setHeader("Content-Type", "application/x-ndjson");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("X-Accel-Buffering", "no");
+    (res as any).flushHeaders?.();
+    const send = (obj: any) => {
+      try {
+        res.write(JSON.stringify(obj) + "\n");
+        (res as any).flush?.();
+      } catch {
+        /* client may have disconnected */
+      }
+    };
+
     const fetchWithTimeout = async (url: string, ms = 30000) => {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), ms);
@@ -321,7 +336,12 @@ export async function setupProjectOnlineRoutes(app: Express) {
       const importedProjects: any[] = [];
       const failedProjects: { projectId: string; name?: string; error: string }[] = [];
 
+      send({ type: "start", total: projectIds.length });
+
+      let index = 0;
       for (const projectId of projectIds) {
+        index += 1;
+        send({ type: "progress", current: index, total: projectIds.length, projectId });
         // Wrap each project so one failure can't abort the whole batch.
         try {
           const projectUrl = `${siteUrl}/_api/ProjectServer/Projects('${projectId}')`;
@@ -416,22 +436,41 @@ export async function setupProjectOnlineRoutes(app: Express) {
             id: newProject.id,
             name: newProject.name,
           });
+          send({
+            type: "project-done",
+            current: index,
+            total: projectIds.length,
+            projectId,
+            id: newProject.id,
+            name: newProject.name,
+          });
         } catch (projErr: any) {
           console.error(`[project-online] failed to import project ${projectId}:`, projErr);
-          failedProjects.push({ projectId, error: projErr?.message || String(projErr) });
+          const errMsg = projErr?.message || String(projErr);
+          failedProjects.push({ projectId, error: errMsg });
+          send({
+            type: "project-failed",
+            current: index,
+            total: projectIds.length,
+            projectId,
+            error: errMsg,
+          });
         }
       }
 
-      res.json({
+      send({
+        type: "done",
         success: true,
         imported: importedProjects.length,
         failed: failedProjects.length,
         projects: importedProjects,
         failures: failedProjects,
       });
-    } catch (error) {
+      res.end();
+    } catch (error: any) {
       console.error("Error importing projects:", error);
-      res.status(500).json({ message: "Failed to import projects" });
+      send({ type: "error", message: error?.message || "Failed to import projects" });
+      res.end();
     }
   });
 }

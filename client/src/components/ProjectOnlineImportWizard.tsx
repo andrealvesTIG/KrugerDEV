@@ -7,9 +7,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, ExternalLink, CheckCircle2, AlertCircle, Cloud, FolderOpen, Import } from "lucide-react";
+import { Loader2, ExternalLink, CheckCircle2, AlertCircle, Cloud, FolderOpen, Import, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+interface ProgressEntry {
+  projectId: string;
+  name?: string;
+  status: "done" | "failed";
+  error?: string;
+}
 
 interface ProjectOnlineImportWizardProps {
   open: boolean;
@@ -47,6 +55,10 @@ export function ProjectOnlineImportWizard({
   const [targetPortfolioId, setTargetPortfolioId] = useState<string>("none");
   const [importedCount, setImportedCount] = useState(0);
   const [failedImports, setFailedImports] = useState<{ projectId: string; error: string }[]>([]);
+  const [progressTotal, setProgressTotal] = useState(0);
+  const [progressCurrent, setProgressCurrent] = useState(0);
+  const [progressEntries, setProgressEntries] = useState<ProgressEntry[]>([]);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const { data: status, refetch: refetchStatus } = useQuery<ProjectOnlineStatus>({
@@ -98,16 +110,82 @@ export function ProjectOnlineImportWizard({
 
   const importMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/project-online/import", {
-        projectIds: selectedProjects,
-        organizationId,
-        portfolioId: targetPortfolioId !== "none" ? parseInt(targetPortfolioId) : null,
+      setProgressTotal(selectedProjects.length);
+      setProgressCurrent(0);
+      setProgressEntries([]);
+      setCurrentProjectId(null);
+
+      const response = await fetch("/api/project-online/import", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "Accept": "application/x-ndjson" },
+        body: JSON.stringify({
+          projectIds: selectedProjects,
+          organizationId,
+          portfolioId: targetPortfolioId !== "none" ? parseInt(targetPortfolioId) : null,
+        }),
       });
-      return response.json();
+
+      if (!response.ok || !response.body) {
+        let msg = `Import failed (${response.status})`;
+        try {
+          const txt = await response.text();
+          if (txt) msg = txt;
+        } catch {}
+        throw new Error(msg);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let final: any = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          let evt: any;
+          try {
+            evt = JSON.parse(trimmed);
+          } catch {
+            continue;
+          }
+          if (evt.type === "start") {
+            setProgressTotal(evt.total || 0);
+          } else if (evt.type === "progress") {
+            setProgressCurrent(evt.current || 0);
+            setCurrentProjectId(evt.projectId || null);
+          } else if (evt.type === "project-done") {
+            setProgressEntries(prev => [...prev, {
+              projectId: evt.projectId,
+              name: evt.name,
+              status: "done",
+            }]);
+          } else if (evt.type === "project-failed") {
+            setProgressEntries(prev => [...prev, {
+              projectId: evt.projectId,
+              status: "failed",
+              error: evt.error,
+            }]);
+          } else if (evt.type === "done") {
+            final = evt;
+          } else if (evt.type === "error") {
+            throw new Error(evt.message || "Import failed");
+          }
+        }
+      }
+
+      return final ?? { imported: 0, failures: [] };
     },
     onSuccess: (data: any) => {
       setImportedCount(data.imported || 0);
       setFailedImports(Array.isArray(data.failures) ? data.failures : []);
+      setCurrentProjectId(null);
       setStep("complete");
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
       queryClient.invalidateQueries({ queryKey: ["/api/portfolios"] });
@@ -142,6 +220,10 @@ export function ProjectOnlineImportWizard({
       setSelectedProjects([]);
       setImportedCount(0);
       setFailedImports([]);
+      setProgressTotal(0);
+      setProgressCurrent(0);
+      setProgressEntries([]);
+      setCurrentProjectId(null);
     }, 300);
   };
 
@@ -325,11 +407,49 @@ export function ProjectOnlineImportWizard({
     }
 
     if (step === "importing") {
+      const total = progressTotal || selectedProjects.length;
+      const current = progressCurrent;
+      const pct = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
+      const currentProject = projectsData?.projects.find(p => p.id === currentProjectId);
+      const doneCount = progressEntries.filter(e => e.status === "done").length;
+      const failedCount = progressEntries.filter(e => e.status === "failed").length;
       return (
-        <div className="flex flex-col items-center justify-center py-12 space-y-4">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
-          <p className="text-lg font-medium">Importing Projects...</p>
-          <p className="text-sm text-muted-foreground">This may take a few moments</p>
+        <div className="flex flex-col py-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-primary shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">
+                Importing {current} of {total}
+                {currentProject?.name ? `: ${currentProject.name}` : ""}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {doneCount} done · {failedCount} failed
+              </p>
+            </div>
+          </div>
+          <Progress value={pct} data-testid="progress-import" />
+          {progressEntries.length > 0 && (
+            <div
+              className="w-full max-h-60 overflow-y-auto rounded-md border bg-muted/30 p-3 text-xs space-y-1"
+              data-testid="list-import-progress"
+            >
+              {[...progressEntries].reverse().map((e, i) => (
+                <div key={`${e.projectId}-${i}`} className="flex items-start gap-2">
+                  {e.status === "done" ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500 mt-0.5 shrink-0" />
+                  ) : (
+                    <XCircle className="h-3.5 w-3.5 text-destructive mt-0.5 shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="truncate">{e.name || e.projectId}</p>
+                    {e.error && (
+                      <p className="text-destructive/80 truncate">{e.error}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       );
     }
