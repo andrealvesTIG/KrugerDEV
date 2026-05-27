@@ -281,6 +281,12 @@ export async function registerMiscRoutes(app: Express) {
 
       if (await enforcePermission(req, res, userId, orgId, PERMISSIONS.ORG_RECYCLE_BIN_PURGE)) return;
 
+      // Bulk empty can touch tens of thousands of rows across ~70 FK tables.
+      // Disable per-request timeouts so neither Node nor the proxy kills it
+      // mid-cascade.
+      req.setTimeout(0);
+      res.setTimeout(0);
+
       const result = await storage.emptyRecycleBin(orgId);
       res.json({ message: 'Recycle bin emptied', ...result });
     } catch (err) {

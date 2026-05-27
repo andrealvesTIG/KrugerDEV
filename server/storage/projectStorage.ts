@@ -1254,24 +1254,48 @@ export async function permanentlyDeleteItem(type: RecycleBinItemType, id: number
 }
 
 export async function emptyRecycleBin(organizationId: number): Promise<{ deleted: number; failed: number }> {
+  // Set-based purge: one cascade per parent table, scoped to this org, in a
+  // single transaction. This replaces the old per-item loop that opened a
+  // transaction per row and timed out on large recycle bins (thousands of
+  // tasks * dozens of FK tables = minutes of round-trips).
+  //
+  // Order: clean orphan tasks/issues first (rows whose project is still live
+  // but the task/issue itself is soft-deleted), then projects (whose cascade
+  // sweeps up all remaining child tasks/issues/etc.), then portfolios.
   const items = await getDeletedItems(organizationId);
-  // Delete children before parents so cascading parent deletes don't strand
-  // child rows that we still want to account for individually.
-  const order: Record<string, number> = { issue: 0, risk: 0, milestone: 1, task: 2, project: 3, portfolio: 4 };
-  const sorted = [...items].sort((a, b) => (order[a.type] ?? 99) - (order[b.type] ?? 99));
-  let deleted = 0;
-  let failed = 0;
-  for (const item of sorted) {
-    try {
-      const ok = await permanentlyDeleteItem(item.type, item.id, organizationId);
-      // A `false` here means the row was already gone (likely cascaded away by
-      // an earlier parent delete). For bulk empty that's a success, not a failure.
-      deleted += 1;
-      void ok;
-    } catch (err) {
-      console.error(`[recycle-bin] failed to permanently delete ${item.type} ${item.id}:`, err);
-      failed += 1;
-    }
+  const total = items.length;
+  if (total === 0) return { deleted: 0, failed: 0 };
+
+  try {
+    await db.transaction(async (tx) => {
+      // Tasks (incl. milestones) belonging to org-owned projects.
+      await cascadeHardDelete(
+        tx,
+        'tasks',
+        sql`deleted_at IS NOT NULL AND project_id IN (SELECT id FROM projects WHERE organization_id = ${organizationId})`,
+      );
+      // Issues / risks belonging to org-owned projects.
+      await cascadeHardDelete(
+        tx,
+        'issues',
+        sql`deleted_at IS NOT NULL AND project_id IN (SELECT id FROM projects WHERE organization_id = ${organizationId})`,
+      );
+      // Projects in this org.
+      await cascadeHardDelete(
+        tx,
+        'projects',
+        sql`deleted_at IS NOT NULL AND organization_id = ${organizationId}`,
+      );
+      // Portfolios in this org.
+      await cascadeHardDelete(
+        tx,
+        'portfolios',
+        sql`deleted_at IS NOT NULL AND organization_id = ${organizationId}`,
+      );
+    });
+    return { deleted: total, failed: 0 };
+  } catch (err) {
+    console.error('[recycle-bin] bulk empty failed:', err);
+    return { deleted: 0, failed: total };
   }
-  return { deleted, failed };
 }
