@@ -56,8 +56,18 @@ export function IntakeFormLayoutSection({ organizationId }: { organizationId: nu
   const [activeTabUid, setActiveTabUid] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const { data: allCustomFieldDefs = [] } = useCustomFieldDefinitions(organizationId);
+  // Intake and project share a custom-field pool: a field typed 'intake' shows
+  // on both intake forms and (after conversion) on the project, and a field
+  // typed 'project' is also editable on the intake form so the value is
+  // captured before conversion. Mirror that here so admins can place either
+  // kind on the intake layout — otherwise project-typed fields like
+  // "Business Case" appear in Custom Fields settings but are missing from the
+  // intake form picker.
   const intakeCustomFieldDefs = useMemo(
-    () => allCustomFieldDefs.filter(d => (d.entityType || 'project') === 'intake'),
+    () => allCustomFieldDefs.filter(d => {
+      const et = d.entityType || 'project';
+      return et === 'intake' || et === 'project';
+    }),
     [allCustomFieldDefs],
   );
 
