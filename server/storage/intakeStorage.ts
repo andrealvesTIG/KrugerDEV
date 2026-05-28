@@ -585,14 +585,19 @@ export async function convertMppImportToProject(
         if (!depTaskId) continue;
         if (depTaskId === newTaskId) { skippedSelfRefs++; continue; }
 
-        const key = `${newTaskId}->${depTaskId}`;
+        // Include dependency type in the dedupe key. MPP/XER files commonly
+        // express more than one relationship between the same task pair
+        // (e.g. both SS and FF), and collapsing them by pair alone was
+        // silently dropping the second and later relationships.
+        const depType = depTypeMap[pred.type] || 'finish-to-start';
+        const key = `${newTaskId}->${depTaskId}|${depType}`;
         if (seenDepKeys.has(key)) { skippedDupes++; continue; }
         seenDepKeys.add(key);
 
         allDepRows.push({
           taskId: newTaskId,
           dependsOnTaskId: depTaskId,
-          dependencyType: depTypeMap[pred.type] || 'finish-to-start',
+          dependencyType: depType,
           // taskDependencies.lagDays is an integer column. The XER parser keeps
           // sub-day precision (e.g. 3.75 days for a 30-hour lag), so round to
           // the nearest whole day to satisfy the column type. MS Project XML
@@ -845,14 +850,17 @@ export async function syncMppImportToProject(
       if (!depTaskId) continue;
       if (depTaskId === newTaskId) continue;
 
-      const key = `${newTaskId}->${depTaskId}`;
+      // Include dependency type in the dedupe key so multiple relationship
+      // types between the same task pair (e.g. SS + FF) are preserved.
+      const depType = syncDepTypeMap[pred.type] || 'finish-to-start';
+      const key = `${newTaskId}->${depTaskId}|${depType}`;
       if (syncSeenDepKeys.has(key)) continue;
       syncSeenDepKeys.add(key);
 
       syncDepRows.push({
         taskId: newTaskId,
         dependsOnTaskId: depTaskId,
-        dependencyType: syncDepTypeMap[pred.type] || 'finish-to-start',
+        dependencyType: depType,
         // Same integer-coercion as convertMppImportToProject above — XER
         // predecessors can carry sub-day lag values that must be rounded.
         lagDays: Math.round(Number(pred.lagDays) || 0),
