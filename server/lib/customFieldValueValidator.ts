@@ -153,6 +153,7 @@ const COMPUTED_READONLY_FIELD_TYPES = new Set([
   "rag_rollup",
   "threshold_check",
   "formula",
+  "rollup",
 ]);
 
 export async function validateCustomFieldValue(

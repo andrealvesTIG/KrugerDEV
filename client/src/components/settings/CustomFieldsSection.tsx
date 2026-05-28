@@ -41,6 +41,18 @@ const FIELD_TYPES = [
   { value: "rag_rollup", label: "RAG Rollup — Worst of selected statuses (computed)" },
   { value: "threshold_check", label: "Threshold Check — Pass/Fail on a numeric field (computed)" },
   { value: "formula", label: "Formula — Custom expression over other fields (computed)" },
+  { value: "rollup", label: "Rollup — Aggregate from the Intake Estimates grid (computed, intake only)" },
+] as const;
+
+const ROLLUP_SOURCES = [
+  { value: "intake_financials", label: "Intake Estimates grid" },
+] as const;
+
+const ROLLUP_AGGREGATES = [
+  { value: "total_capex", label: "Total CapEx (sum across all years)" },
+  { value: "total_opex", label: "Total OpEx (sum across all years)" },
+  { value: "grand_total", label: "Grand Total (CapEx + OpEx across all years)" },
+  { value: "year_count", label: "Number of fiscal years entered" },
 ] as const;
 
 const COMPUTED_FIELD_TYPES = new Set([
@@ -53,6 +65,7 @@ const COMPUTED_FIELD_TYPES = new Set([
   "rag_rollup",
   "threshold_check",
   "formula",
+  "rollup",
 ]);
 
 const NUMERIC_FIELD_TYPES_FOR_THRESHOLD = new Set([
@@ -65,6 +78,7 @@ const NUMERIC_FIELD_TYPES_FOR_THRESHOLD = new Set([
   "days_between_dates",
   "roi",
   "formula",
+  "rollup",
 ]);
 
 const ENTITY_TYPES = [
@@ -100,6 +114,8 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
   const [thresholdOperator, setThresholdOperator] = useState<ThresholdOperator>(">");
   const [thresholdValue, setThresholdValue] = useState<string>("0");
   const [formulaExpression, setFormulaExpression] = useState<string>("");
+  const [rollupSource, setRollupSource] = useState<string>("intake_financials");
+  const [rollupAggregate, setRollupAggregate] = useState<string>("grand_total");
   const [requiredWhenFieldId, setRequiredWhenFieldId] = useState<string>("");
   const [requiredWhenOperator, setRequiredWhenOperator] = useState<RequiredWhenOperator>("equals");
   const [requiredWhenValue, setRequiredWhenValue] = useState<string>("");
@@ -145,6 +161,8 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
     setThresholdOperator(">");
     setThresholdValue("0");
     setFormulaExpression("");
+    setRollupSource("intake_financials");
+    setRollupAggregate("grand_total");
     setRequiredWhenFieldId("");
     setRequiredWhenOperator("equals");
     setRequiredWhenValue("");
@@ -187,6 +205,14 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
       setFormulaExpression((field.options as string[])[0] || "");
     } else {
       setFormulaExpression("");
+    }
+    if (field.fieldType === "rollup" && Array.isArray(field.options)) {
+      const opts = field.options as string[];
+      setRollupSource(opts[0] || "intake_financials");
+      setRollupAggregate(opts[1] || "grand_total");
+    } else {
+      setRollupSource("intake_financials");
+      setRollupAggregate("grand_total");
     }
     const rw = parseRequiredWhen((field as any).requiredWhen);
     if (rw) {
@@ -289,6 +315,22 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
         return;
       }
       optionsArray = [expr];
+    }
+
+    if (fieldType === "rollup") {
+      if (entityType !== "intake") {
+        toast({ title: "Error", description: "Rollup fields can only be created on the Intake entity", variant: "destructive" });
+        return;
+      }
+      if (!ROLLUP_SOURCES.some(s => s.value === rollupSource)) {
+        toast({ title: "Error", description: "Pick a rollup source", variant: "destructive" });
+        return;
+      }
+      if (!ROLLUP_AGGREGATES.some(a => a.value === rollupAggregate)) {
+        toast({ title: "Error", description: "Pick what to aggregate", variant: "destructive" });
+        return;
+      }
+      optionsArray = [rollupSource, rollupAggregate];
     }
 
     if (fieldType === "autonumber") {
@@ -824,6 +866,45 @@ export function CustomFieldsSection({ organizationId }: { organizationId: number
                 </div>
               );
             })()}
+            {fieldType === "rollup" && (
+              <div className="space-y-2">
+                {entityType !== "intake" && (
+                  <p className="text-xs text-destructive">
+                    Rollup fields can only be created on the Intake entity. Change the entity above to "Intake".
+                  </p>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="rollup-source">Source *</Label>
+                  <Select value={rollupSource} onValueChange={setRollupSource}>
+                    <SelectTrigger id="rollup-source" data-testid="select-rollup-source">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROLLUP_SOURCES.map(s => (
+                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rollup-aggregate">Aggregate *</Label>
+                  <Select value={rollupAggregate} onValueChange={setRollupAggregate}>
+                    <SelectTrigger id="rollup-aggregate" data-testid="select-rollup-aggregate">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROLLUP_AGGREGATES.map(a => (
+                        <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Value is computed live from the rows of the Intake Estimates grid on each intake.
+                    Read-only — admins manage the source rows, not this field.
+                  </p>
+                </div>
+              </div>
+            )}
             {fieldType === "autonumber" && (
               <div className="space-y-2">
                 <Label htmlFor="field-mask">Mask *</Label>

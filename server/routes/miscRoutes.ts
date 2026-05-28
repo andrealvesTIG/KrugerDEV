@@ -796,6 +796,20 @@ export async function registerMiscRoutes(app: Express) {
           return res.status(400).json({ message: "Mask may only contain one run of '#' digit placeholders" });
         }
       }
+      if (fieldType === 'rollup') {
+        if ((entityType || 'project') !== 'intake') {
+          return res.status(400).json({ message: "Rollup fields can only be created on the Intake entity" });
+        }
+        const opts = Array.isArray(options) ? options : [];
+        const source = opts[0];
+        const aggregate = opts[1];
+        if (source !== 'intake_financials') {
+          return res.status(400).json({ message: "Rollup source must be 'intake_financials'" });
+        }
+        if (!['total_capex', 'total_opex', 'grand_total', 'year_count'].includes(aggregate)) {
+          return res.status(400).json({ message: "Rollup aggregate must be one of total_capex, total_opex, grand_total, year_count" });
+        }
+      }
       const field = await storage.createCustomFieldDefinition({
         organizationId,
         name: name.trim(),
@@ -861,6 +875,22 @@ export async function registerMiscRoutes(app: Express) {
       } else if (safeUpdate.fieldType !== undefined && safeUpdate.fieldType !== 'autonumber') {
         // Switching away from autonumber — clear the stored mask.
         safeUpdate.mask = null;
+      }
+      if (effectiveType === 'rollup') {
+        const effectiveEntity = safeUpdate.entityType ?? existing?.entityType ?? 'project';
+        if (effectiveEntity !== 'intake') {
+          return res.status(400).json({ message: "Rollup fields can only be used on the Intake entity" });
+        }
+        const effectiveOpts = (safeUpdate.options !== undefined ? safeUpdate.options : (existing as any)?.options) as unknown;
+        const opts = Array.isArray(effectiveOpts) ? effectiveOpts : [];
+        const source = opts[0];
+        const aggregate = opts[1];
+        if (source !== 'intake_financials') {
+          return res.status(400).json({ message: "Rollup source must be 'intake_financials'" });
+        }
+        if (!['total_capex', 'total_opex', 'grand_total', 'year_count'].includes(aggregate)) {
+          return res.status(400).json({ message: "Rollup aggregate must be one of total_capex, total_opex, grand_total, year_count" });
+        }
       }
       const field = await storage.updateCustomFieldDefinition(id, safeUpdate);
       res.json(field);

@@ -228,15 +228,32 @@ export async function approveProjectIntake(id: number, approvedBy: string): Prom
     const intakeValues = await tx.select().from(intakeCustomFieldValues)
       .where(eq(intakeCustomFieldValues.intakeId, id));
     if (intakeValues.length > 0) {
-      await tx.insert(projectCustomFieldValues).values(
-        intakeValues.map(v => ({
-          projectId: newProject.id,
-          fieldDefinitionId: v.fieldDefinitionId,
-          value: v.value,
-        }))
-      ).onConflictDoNothing({
-        target: [projectCustomFieldValues.projectId, projectCustomFieldValues.fieldDefinitionId],
-      });
+      // Filter out computed field types — their values are derived at read time
+      // and must never be persisted onto the project. Otherwise a stale snapshot
+      // would override the live computation on the project side.
+      const COMPUTED_FIELD_TYPES = new Set([
+        "days_since_updated", "days_since_created",
+        "effort_completed_hours", "effort_remaining_hours",
+        "days_between_dates", "roi", "rag_rollup",
+        "threshold_check", "formula", "rollup",
+      ]);
+      const allDefIds = Array.from(new Set(intakeValues.map(v => v.fieldDefinitionId)));
+      const allDefs = allDefIds.length > 0
+        ? await tx.select().from(customFieldDefinitions).where(inArray(customFieldDefinitions.id, allDefIds))
+        : [];
+      const computedDefIds = new Set(allDefs.filter(d => COMPUTED_FIELD_TYPES.has(d.fieldType)).map(d => d.id));
+      const persistable = intakeValues.filter(v => !computedDefIds.has(v.fieldDefinitionId));
+      if (persistable.length > 0) {
+        await tx.insert(projectCustomFieldValues).values(
+          persistable.map(v => ({
+            projectId: newProject.id,
+            fieldDefinitionId: v.fieldDefinitionId,
+            value: v.value,
+          }))
+        ).onConflictDoNothing({
+          target: [projectCustomFieldValues.projectId, projectCustomFieldValues.fieldDefinitionId],
+        });
+      }
 
       // Map intake-typed `resource` custom fields named "Project Manager" onto
       // the project's built-in `managerId` user column. The custom field stores

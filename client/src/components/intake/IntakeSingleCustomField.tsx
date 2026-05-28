@@ -12,6 +12,8 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { useCustomFieldDefinitions, useIntakeCustomFieldValues, useUpdateIntakeCustomFieldValue } from "@/hooks/use-custom-fields";
 import { useResources } from "@/hooks/use-resources";
+import { useIntakeFinancials } from "@/hooks/use-intake-financials";
+import { formatCurrency } from "@/lib/format";
 import { AttachmentFieldInput, AttachmentFieldDisplay } from "@/components/custom-fields/AttachmentField";
 import { useToast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -46,6 +48,7 @@ export function IntakeSingleCustomField({
   const { data: allDefinitions = [], isLoading: defsLoading } = useCustomFieldDefinitions(organizationId);
   const { data: values = [], isLoading: valsLoading } = useIntakeCustomFieldValues(intakeId);
   const { data: orgResources = [] } = useResources(organizationId ?? null);
+  const { data: intakeFinancials = [] } = useIntakeFinancials(intakeId);
   const updateValue = useUpdateIntakeCustomFieldValue();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState<string>("");
@@ -73,7 +76,8 @@ export function IntakeSingleCustomField({
     || field.fieldType === "roi"
     || field.fieldType === "rag_rollup"
     || field.fieldType === "threshold_check"
-    || field.fieldType === "formula";
+    || field.fieldType === "formula"
+    || field.fieldType === "rollup";
   const startEdit = () => {
     if (isLocked || field.fieldType === "autonumber" || isComputed) return;
     setEditValue(value);
@@ -393,6 +397,75 @@ export function IntakeSingleCustomField({
               <div className="font-medium mb-1">Formula</div>
               <div className="font-mono">{expr}</div>
             </TooltipContent>
+          </Tooltip>
+        </span>
+      );
+    }
+    if (field.fieldType === "rollup") {
+      const opts = Array.isArray(field.options) ? (field.options as string[]) : [];
+      const source = opts[0] || "intake_financials";
+      const aggregate = opts[1] || "grand_total";
+      if (source !== "intake_financials") {
+        return (
+          <span className="text-muted-foreground text-sm italic" data-testid={`value-intake-rollup-misconfig-${field.id}`}>
+            Not configured
+          </span>
+        );
+      }
+      const rows = intakeFinancials ?? [];
+      let computed: number = 0;
+      let display: string = "";
+      let tooltipText: string = "";
+      const totalCapex = rows.reduce((sum, r) => sum + Number(r.capexAmount || 0), 0);
+      const totalOpex = rows.reduce((sum, r) => sum + Number(r.opexAmount || 0), 0);
+      switch (aggregate) {
+        case "total_capex":
+          computed = totalCapex;
+          display = formatCurrency(computed);
+          tooltipText = `Sum of CapEx across ${rows.length} fiscal year${rows.length === 1 ? "" : "s"} in the Intake Estimates grid`;
+          break;
+        case "total_opex":
+          computed = totalOpex;
+          display = formatCurrency(computed);
+          tooltipText = `Sum of OpEx across ${rows.length} fiscal year${rows.length === 1 ? "" : "s"} in the Intake Estimates grid`;
+          break;
+        case "year_count":
+          computed = rows.length;
+          display = String(rows.length);
+          tooltipText = "Number of fiscal year rows in the Intake Estimates grid";
+          break;
+        case "grand_total":
+        default:
+          computed = totalCapex + totalOpex;
+          display = formatCurrency(computed);
+          tooltipText = `CapEx + OpEx across ${rows.length} fiscal year${rows.length === 1 ? "" : "s"} in the Intake Estimates grid`;
+          break;
+      }
+      if (rows.length === 0) {
+        return (
+          <span className="text-muted-foreground text-sm inline-flex items-center gap-1" data-testid={`value-intake-rollup-empty-${field.id}`}>
+            —
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="text-muted-foreground hover:text-foreground">
+                  <Info className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">No rows in the Intake Estimates grid yet</TooltipContent>
+            </Tooltip>
+          </span>
+        );
+      }
+      return (
+        <span className="text-sm inline-flex items-center gap-1" data-testid={`value-intake-rollup-${field.id}`}>
+          <span className="font-medium">{display}</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="text-muted-foreground hover:text-foreground" data-testid={`tooltip-intake-rollup-${field.id}`}>
+                <Info className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="text-xs">{tooltipText}</TooltipContent>
           </Tooltip>
         </span>
       );
