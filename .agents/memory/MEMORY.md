@@ -1,0 +1,1 @@
+- [Computed custom fields](computed-custom-fields.md) — rollup/roi/formula/etc. are never stored in customFieldValues; threshold/gate logic must compute them via resolveSourceNumericValue, not read stored values.

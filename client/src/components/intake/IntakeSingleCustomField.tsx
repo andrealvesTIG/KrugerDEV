@@ -20,7 +20,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Info } from "lucide-react";
 import { computeRoi, formatRoiPercent } from "@shared/lib/roi";
 import { computeWorstRag } from "@shared/lib/ragRollup";
-import { parseThresholdConfig, evaluateThreshold, coerceNumeric, formatThresholdExpression } from "@shared/lib/thresholdCheck";
+import { parseThresholdConfig, evaluateThreshold, formatThresholdExpression } from "@shared/lib/thresholdCheck";
+import { resolveSourceNumericValue } from "@shared/lib/computedSourceValue";
 import { evaluateFormula } from "@shared/lib/formula";
 import { findDatePairOrderError } from "@shared/lib/customFieldDateValidation";
 import type { CustomFieldDefinition } from "@shared/schema";
@@ -312,8 +313,12 @@ export function IntakeSingleCustomField({
         );
       }
       const source = allDefinitions.find(d => d.id === cfg.sourceFieldId);
-      const sourceRaw = values.find(v => v.fieldDefinitionId === cfg.sourceFieldId)?.value;
-      const sourceNum = coerceNumeric(sourceRaw);
+      const sourceNum = resolveSourceNumericValue(cfg.sourceFieldId, {
+        definitions: allDefinitions,
+        values,
+        financials: intakeFinancials,
+        entity: intake,
+      });
       const tooltipText = source
         ? `Pass when ${formatThresholdExpression(source.name, cfg.operator, cfg.threshold)}`
         : "Source field no longer exists";

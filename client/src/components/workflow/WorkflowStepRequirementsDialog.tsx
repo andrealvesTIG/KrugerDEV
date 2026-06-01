@@ -32,9 +32,10 @@ import { parseFieldRules, evaluateFieldRule } from "@shared/lib/workflowFieldRul
 import {
   parseThresholdConfig,
   evaluateThreshold,
-  coerceNumeric,
   formatThresholdExpression,
 } from "@shared/lib/thresholdCheck";
+import { resolveSourceNumericValue } from "@shared/lib/computedSourceValue";
+import { useIntakeFinancials } from "@/hooks/use-intake-financials";
 
 export type WorkflowEntityType = "intake" | "project";
 
@@ -154,6 +155,12 @@ export function WorkflowStepRequirementsDialog({
   const intakeCfValuesQ = useIntakeCustomFieldValues(entityType === 'intake' ? entityId : null);
   const cfValues = (entityType === 'project' ? projectCfValuesQ.data : intakeCfValuesQ.data) || [];
 
+  // Intake Estimates grid — needed to resolve `rollup` source fields that feed
+  // a threshold_check gate. Only fetched for intakes.
+  const { data: intakeFinancials = [] } = useIntakeFinancials(
+    open && entityType === 'intake' ? entityId : 0,
+  );
+
   const bulkUpdateProjectCfs = useBulkUpdateProjectCustomFieldValues();
   const updateIntakeCf = useUpdateIntakeCustomFieldValue();
 
@@ -210,8 +217,12 @@ export function WorkflowStepRequirementsDialog({
         if (ft === 'threshold_check' && f.customDef) {
           const cfg = parseThresholdConfig(f.customDef.options as string[] | null | undefined);
           if (!cfg) { errs.push(`${f.label} is not configured`); continue; }
-          const sourceRaw = cfValues.find(cv => cv.fieldDefinitionId === cfg.sourceFieldId)?.value;
-          const sourceNum = coerceNumeric(sourceRaw);
+          const sourceNum = resolveSourceNumericValue(cfg.sourceFieldId, {
+            definitions: cfDefs,
+            values: cfValues,
+            financials: intakeFinancials,
+            entity: entityType === 'intake' ? (entity as { estimatedBudget?: unknown; expectedBenefits?: unknown } | null) : null,
+          });
           if (sourceNum == null || !evaluateThreshold(sourceNum, cfg.operator, cfg.threshold)) {
             errs.push(`${f.label} must pass its threshold`);
           }
@@ -232,7 +243,7 @@ export function WorkflowStepRequirementsDialog({
       }
     }
     return errs;
-  }, [draft, fields]);
+  }, [draft, fields, cfDefs, cfValues, intakeFinancials, entity, entityType]);
 
   // Validate ALL required fields placed anywhere on the configured form tabs
   // (project Summary tabs / intake tabs) — not just those listed in this gate's
@@ -274,8 +285,12 @@ export function WorkflowStepRequirementsDialog({
                 errs.push(`${item.displayName || def.name} is not configured (${tab.label})`);
                 continue;
               }
-              const srcRaw = cfValues.find(cv => cv.fieldDefinitionId === cfg.sourceFieldId)?.value;
-              const srcNum = coerceNumeric(srcRaw);
+              const srcNum = resolveSourceNumericValue(cfg.sourceFieldId, {
+                definitions: cfDefs,
+                values: cfValues,
+                financials: intakeFinancials,
+                entity: entityType === 'intake' ? (entity as { estimatedBudget?: unknown; expectedBenefits?: unknown } | null) : null,
+              });
               if (srcNum == null || !evaluateThreshold(srcNum, cfg.operator, cfg.threshold)) {
                 errs.push(`${item.displayName || def.name} must pass its threshold (${tab.label})`);
               }
@@ -320,7 +335,7 @@ export function WorkflowStepRequirementsDialog({
       }
     }
     return errs;
-  }, [entity, entityType, projectLayout, intakeLayout, cfDefs, cfValues, step.requiredFields]);
+  }, [entity, entityType, projectLayout, intakeLayout, cfDefs, cfValues, intakeFinancials, step.requiredFields]);
 
   // Governance Y/N questionnaires (intake only). Once seeded for an intake,
   // every row must have answer === 'yes' or 'no' before the user can advance.
@@ -543,8 +558,12 @@ export function WorkflowStepRequirementsDialog({
             );
           }
           const source = cfDefs.find(d => d.id === cfg.sourceFieldId);
-          const sourceRaw = cfValues.find(cv => cv.fieldDefinitionId === cfg.sourceFieldId)?.value;
-          const sourceNum = coerceNumeric(sourceRaw);
+          const sourceNum = resolveSourceNumericValue(cfg.sourceFieldId, {
+            definitions: cfDefs,
+            values: cfValues,
+            financials: intakeFinancials,
+            entity: entityType === 'intake' ? (entity as { estimatedBudget?: unknown; expectedBenefits?: unknown } | null) : null,
+          });
           const expr = source ? formatThresholdExpression(source.name, cfg.operator, cfg.threshold) : "source field missing";
           if (sourceNum == null) {
             return (
