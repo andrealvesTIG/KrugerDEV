@@ -746,7 +746,7 @@ export async function setupProjectOnlineRoutes(app: Express) {
     if (!client) return res.status(401).json({ message: "Not connected to Project Online" });
 
     try {
-      const { normalizeActualRows, matchActuals, applyResourceEmails } = await import("./projectOnlineTimesheetSync");
+      const { normalizeActualRows, matchActuals, applyResourceEmails, findResourcesToCreate } = await import("./projectOnlineTimesheetSync");
       const { rows, status, truncated } = await fetchAllActuals(client, body.startDate, body.endDate);
       if (status === 401) {
         delete req.session.projectOnlineToken;
@@ -761,7 +761,22 @@ export async function setupProjectOnlineRoutes(app: Express) {
       const emailMap = await fetchResourceEmailMap(client);
       const normalized = applyResourceEmails(normalizeActualRows(rows), emailMap);
       const ctx = await buildMatchContext(body.organizationId);
-      const result = matchActuals(normalized, ctx);
+      const toCreate = findResourcesToCreate(normalized, ctx.resources);
+      // Simulate the people import would auto-create so the preview's unmatched
+      // count reflects only truly unknown projects/tasks — matching what import does.
+      const simulatedCtx = {
+        ...ctx,
+        resources: [
+          ...ctx.resources,
+          ...toCreate.map((person, i) => ({
+            id: -1 - i,
+            name: person.name,
+            email: person.email,
+            userId: `preview-${i}`,
+          })),
+        ],
+      };
+      const result = matchActuals(normalized, simulatedCtx);
       res.json({
         totalRows: result.totalRows,
         matchedRows: result.matchedRows,
@@ -770,6 +785,8 @@ export async function setupProjectOnlineRoutes(app: Express) {
         matchedHours: result.matchedHours,
         unmatched: result.unmatched.slice(0, 200),
         unmatchedCount: result.unmatched.length,
+        resourcesToCreate: toCreate.slice(0, 200).map((r) => r.name),
+        resourcesToCreateCount: toCreate.length,
       });
     } catch (error: any) {
       console.error("[project-online] timesheet preview failed:", error);
@@ -805,7 +822,7 @@ export async function setupProjectOnlineRoutes(app: Express) {
 
     try {
       const { storage } = await import("../storage");
-      const { normalizeActualRows, matchActuals, applyResourceEmails, PROJECT_ONLINE_TIMESHEET_SOURCE } = await import("./projectOnlineTimesheetSync");
+      const { normalizeActualRows, matchActuals, applyResourceEmails, findResourcesToCreate, PROJECT_ONLINE_TIMESHEET_SOURCE } = await import("./projectOnlineTimesheetSync");
 
       send({ type: "start" });
       const { rows, status, truncated } = await fetchAllActuals(client, body.startDate, body.endDate);
@@ -826,9 +843,46 @@ export async function setupProjectOnlineRoutes(app: Express) {
       const emailMap = await fetchResourceEmailMap(client);
       const normalized = applyResourceEmails(normalizeActualRows(rows), emailMap);
       const ctx = await buildMatchContext(body.organizationId);
+
+      // Auto-create people who appear in the feed but aren't in this workspace,
+      // each with a lightweight account, then add them to the match context so
+      // their hours import in the same run.
+      const toCreate = findResourcesToCreate(normalized, ctx.resources);
+      let resourcesCreated = 0;
+      let resourcesCreateFailed = 0;
+      if (toCreate.length > 0) {
+        send({ type: "creating-resources", total: toCreate.length });
+        let createIndex = 0;
+        for (const person of toCreate) {
+          createIndex += 1;
+          try {
+            const created = await storage.ensureImportedResource({
+              organizationId: body.organizationId,
+              displayName: person.name,
+              email: person.email,
+              externalId: person.externalResourceId,
+              externalSource: PROJECT_ONLINE_TIMESHEET_SOURCE,
+            });
+            ctx.resources.push({
+              id: created.resourceId,
+              name: person.name,
+              email: person.email,
+              userId: created.userId,
+            });
+            if (created.createdResource) resourcesCreated += 1;
+          } catch (err) {
+            resourcesCreateFailed += 1;
+            console.error("[project-online] failed to create imported resource:", err);
+          }
+          if (createIndex % 10 === 0 || createIndex === toCreate.length) {
+            send({ type: "creating-resources-progress", current: createIndex, total: toCreate.length });
+          }
+        }
+      }
+
       const result = matchActuals(normalized, ctx);
 
-      send({ type: "matched", total: result.matched.length, unmatched: result.unmatched.length });
+      send({ type: "matched", total: result.matched.length, unmatched: result.unmatched.length, resourcesCreated });
 
       let inserted = 0;
       let updated = 0;
@@ -878,6 +932,8 @@ export async function setupProjectOnlineRoutes(app: Express) {
             conflicts,
             failed,
             unmatched: result.unmatched.length,
+            resourcesCreated,
+            resourcesCreateFailed,
           },
         } as any);
       } catch (auditErr) {
@@ -894,6 +950,8 @@ export async function setupProjectOnlineRoutes(app: Express) {
         unmatched: result.unmatched.length,
         unmatchedSample: result.unmatched.slice(0, 50),
         totalHours: result.matchedHours,
+        resourcesCreated,
+        resourcesCreateFailed,
       });
       res.end();
     } catch (error: any) {

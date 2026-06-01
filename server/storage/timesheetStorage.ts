@@ -1,5 +1,6 @@
 import { db } from "../db";
 import {
+  users,
   timesheetEntries, tasks, projects, resources,
   timesheetPeriods, timesheetSettings,
   timesheetAuditLog, timeCategories, nonProjectTimeEntries,
@@ -212,6 +213,96 @@ export async function upsertImportedTimesheetEntry(entry: ImportedTimesheetUpser
     notes: entry.notes ?? null,
   });
   return "inserted";
+}
+
+function splitName(full: string): { firstName: string | null; lastName: string | null } {
+  const s = (full || "").trim();
+  if (!s) return { firstName: null, lastName: null };
+  if (s.includes(",")) {
+    const [last, first] = s.split(",").map((x) => x.trim());
+    return { firstName: first || null, lastName: last || null };
+  }
+  const parts = s.split(/\s+/);
+  if (parts.length === 1) return { firstName: parts[0], lastName: null };
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+}
+
+export type EnsureImportedResourceInput = {
+  organizationId: number;
+  displayName: string;
+  email: string | null;
+  externalId: string | null; // source resource UID, used for a stable synthetic email
+  externalSource: string;
+};
+
+export type EnsureImportedResourceResult = {
+  resourceId: number;
+  userId: string;
+  createdResource: boolean;
+  createdUser: boolean;
+};
+
+/**
+ * Create a workspace resource (and a lightweight user account) for a person who
+ * exists in an external feed but not in this workspace, so their imported hours
+ * can be attributed. The caller (sync) guarantees the resource doesn't already
+ * exist. A user is reused if one already has the email; otherwise a placeholder
+ * account is created. When the feed has no email, a stable synthetic address is
+ * derived from the source UID so re-runs reuse the same account. The created
+ * account has no password and can't sign in until the person logs in normally.
+ */
+export async function ensureImportedResource(
+  input: EnsureImportedResourceInput,
+): Promise<EnsureImportedResourceResult> {
+  const realEmail = input.email?.trim() ? input.email.trim().toLowerCase() : null;
+  const syntheticBase =
+    (input.externalId?.trim() ||
+      input.displayName.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")) ||
+    "resource";
+  const effectiveEmail = realEmail || `po-${syntheticBase}@imported.local`;
+
+  let [user] = await db.select().from(users).where(eq(users.email, effectiveEmail));
+  let createdUser = false;
+  if (!user) {
+    const { firstName, lastName } = splitName(input.displayName);
+    try {
+      [user] = await db
+        .insert(users)
+        .values({ email: effectiveEmail, firstName, lastName, role: "user", emailVerified: false })
+        .returning();
+      createdUser = true;
+    } catch {
+      // Concurrent run inserted the same email first — reuse it.
+      [user] = await db.select().from(users).where(eq(users.email, effectiveEmail));
+    }
+  }
+  if (!user) {
+    throw new Error(`Failed to find or create user for imported resource "${input.displayName}"`);
+  }
+
+  // Idempotency: if a resource already exists in this org for this user, reuse it
+  // instead of inserting a duplicate on re-runs.
+  const [existing] = await db
+    .select()
+    .from(resources)
+    .where(and(eq(resources.organizationId, input.organizationId), eq(resources.userId, user.id)));
+  if (existing) {
+    return { resourceId: existing.id, userId: user.id, createdResource: false, createdUser };
+  }
+
+  const [resource] = await db
+    .insert(resources)
+    .values({
+      organizationId: input.organizationId,
+      userId: user.id,
+      displayName: input.displayName,
+      email: realEmail,
+      resourceType: "Employee",
+      isActive: true,
+    })
+    .returning();
+
+  return { resourceId: resource.id, userId: user.id, createdResource: true, createdUser };
 }
 
 export async function updateTimesheetEntry(id: number, updates: UpdateTimesheetEntryRequest): Promise<TimesheetEntry> {

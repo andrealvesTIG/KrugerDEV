@@ -297,6 +297,56 @@ export function matchActuals(rows: NormalizedActual[], ctx: MatchContext): Match
   };
 }
 
+/** A resource present in the actuals feed but absent from this workspace. */
+export interface ResourceToCreate {
+  externalResourceId: string | null;
+  name: string;
+  email: string | null;
+}
+
+/**
+ * Collect the distinct resources that appear in the actuals feed but don't
+ * match any existing workspace resource (by email, else by display name).
+ * The import flow creates these people (plus a lightweight user account) before
+ * matching, so their hours import too. Rows with no resource identity at all
+ * are ignored, and each person is returned once (keyed by email, else name).
+ */
+export function findResourcesToCreate(
+  rows: NormalizedActual[],
+  existing: MatchResource[],
+): ResourceToCreate[] {
+  const existingEmails = new Set<string>();
+  const existingNames = new Set<string>();
+  for (const r of existing) {
+    const e = norm(r.email);
+    if (e) existingEmails.add(e);
+    const n = norm(r.name);
+    if (n) existingNames.add(n);
+  }
+
+  const out: ResourceToCreate[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const email = norm(row.resourceEmail);
+    const name = norm(row.resourceName);
+    if (!email && !name) continue; // no usable identity
+    // Mirror matchActuals: a resource counts as existing if its email OR its
+    // display name matches, so we never duplicate someone who already matches.
+    if (email && existingEmails.has(email)) continue;
+    if (name && existingNames.has(name)) continue;
+
+    const key = email || name;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      externalResourceId: row.externalResourceId,
+      name: row.resourceName || row.resourceEmail || "(unknown resource)",
+      email: row.resourceEmail,
+    });
+  }
+  return out;
+}
+
 /**
  * Build the OData reporting URL for actuals in a date range. `$filter` uses
  * `TimeByDay` so we only pull the requested window. Ordered for stable paging.
