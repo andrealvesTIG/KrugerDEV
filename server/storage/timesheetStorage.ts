@@ -158,6 +158,62 @@ export async function createTimesheetEntry(entry: InsertTimesheetEntry): Promise
   return row;
 }
 
+export type ImportedTimesheetUpsert = {
+  organizationId: number;
+  userId: string;
+  resourceId: number;
+  taskId: number;
+  projectId: number;
+  entryDate: string;
+  hours: number;
+  status: string;
+  externalSource: string;
+  externalId: string;
+  notes?: string | null;
+};
+
+export type ImportedTimesheetResult = "inserted" | "updated" | "conflict";
+
+/**
+ * Upsert a timesheet entry that originates from an external sync (e.g. Project
+ * Online). Unlike `createTimesheetEntry`, hours are SET (not added) since the
+ * source is authoritative. A pre-existing manually-entered row (no
+ * externalSource) is left untouched and reported as a conflict so the sync
+ * never clobbers hand-keyed time.
+ */
+export async function upsertImportedTimesheetEntry(entry: ImportedTimesheetUpsert): Promise<ImportedTimesheetResult> {
+  const existing = await findTimesheetEntry(entry.resourceId, entry.taskId, entry.entryDate);
+  if (existing) {
+    if (existing.externalSource !== entry.externalSource) {
+      return "conflict";
+    }
+    await db.update(timesheetEntries)
+      .set({
+        hours: entry.hours,
+        status: entry.status,
+        externalId: entry.externalId,
+        notes: entry.notes ?? existing.notes,
+        updatedAt: new Date(),
+      })
+      .where(eq(timesheetEntries.id, existing.id));
+    return "updated";
+  }
+  await db.insert(timesheetEntries).values({
+    organizationId: entry.organizationId,
+    userId: entry.userId,
+    resourceId: entry.resourceId,
+    taskId: entry.taskId,
+    projectId: entry.projectId,
+    entryDate: entry.entryDate,
+    hours: entry.hours,
+    status: entry.status,
+    externalSource: entry.externalSource,
+    externalId: entry.externalId,
+    notes: entry.notes ?? null,
+  });
+  return "inserted";
+}
+
 export async function updateTimesheetEntry(id: number, updates: UpdateTimesheetEntryRequest): Promise<TimesheetEntry> {
   const [updated] = await db.update(timesheetEntries)
     .set({ ...updates, updatedAt: new Date() })

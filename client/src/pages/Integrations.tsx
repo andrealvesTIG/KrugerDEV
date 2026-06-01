@@ -17,6 +17,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { useLocation } from "wouter";
 import type { MppImport, MppImportTask, Portfolio, Project } from "@shared/schema";
 import { ProjectOnlineImportWizard } from "@/components/ProjectOnlineImportWizard";
+import { ProjectOnlineTimesheetWizard } from "@/components/ProjectOnlineTimesheetWizard";
 import { PlannerImportWizard } from "@/components/PlannerImportWizard";
 import { PlannerPremiumBulkImportWizard } from "@/components/PlannerPremiumBulkImportWizard";
 import { Cloud } from "lucide-react";
@@ -54,6 +55,7 @@ const integrations: Integration[] = [
   { id: "planner", name: "Microsoft Planner", description: "Import tasks and plans from Microsoft Planner", icon: <Calendar className="h-6 w-6" />, category: "project", status: "active", bgColor: "bg-indigo-100 dark:bg-indigo-900" },
   { id: "planner-premium", name: "Planner Premium", description: "Bulk import plans from Project for the Web / Planner Premium", icon: <Rocket className="h-6 w-6" />, category: "project", status: "active", bgColor: "bg-purple-100 dark:bg-purple-900" },
   { id: "project-online", name: "Project Online", description: "Import projects from Microsoft Project Online", icon: <Cloud className="h-6 w-6" />, category: "project", status: "active", bgColor: "bg-blue-100 dark:bg-blue-900" },
+  { id: "project-online-timesheets", name: "Project Online Timesheets", description: "Sync resource actual hours from Project Online into timesheets", icon: <Clock className="h-6 w-6" />, category: "project", status: "active", bgColor: "bg-blue-100 dark:bg-blue-900" },
   { id: "notion", name: "Notion", description: "Connect databases from Notion", icon: <SiNotion className="h-6 w-6" />, category: "project", status: "coming_soon", bgColor: "bg-stone-100 dark:bg-stone-900" },
   { id: "clickup", name: "ClickUp", description: "Sync tasks and spaces from ClickUp", icon: <SiClickup className="h-6 w-6" />, category: "project", status: "coming_soon", bgColor: "bg-violet-100 dark:bg-violet-900" },
   { id: "basecamp", name: "Basecamp", description: "Import projects from Basecamp", icon: <Briefcase className="h-6 w-6" />, category: "project", status: "coming_soon", bgColor: "bg-emerald-100 dark:bg-emerald-900" },
@@ -135,6 +137,7 @@ export default function Integrations() {
   
   // Project Online integration states
   const [showProjectOnlineWizard, setShowProjectOnlineWizard] = useState(false);
+  const [showProjectOnlineTimesheetWizard, setShowProjectOnlineTimesheetWizard] = useState(false);
   
   // Microsoft Planner integration states
   const [showPlannerWizard, setShowPlannerWizard] = useState(false);
@@ -572,6 +575,8 @@ export default function Integrations() {
       setPowerBiDetailOpen(true);
     } else if (integration.id === "project-online") {
       setShowProjectOnlineWizard(true);
+    } else if (integration.id === "project-online-timesheets") {
+      setShowProjectOnlineTimesheetWizard(true);
     } else if (integration.id === "planner") {
       setShowPlannerWizard(true);
     } else if (integration.id === "planner-premium") {
@@ -1711,6 +1716,13 @@ export default function Integrations() {
         onOpenChange={setShowProjectOnlineWizard}
         organizationId={currentOrganization?.id || 0}
         portfolios={portfolios || []}
+      />
+
+      {/* Project Online Timesheet Sync Wizard */}
+      <ProjectOnlineTimesheetWizard
+        open={showProjectOnlineTimesheetWizard}
+        onOpenChange={setShowProjectOnlineTimesheetWizard}
+        organizationId={currentOrganization?.id || 0}
       />
       
       {/* Microsoft Planner Import Wizard */}

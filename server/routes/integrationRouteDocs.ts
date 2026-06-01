@@ -36,6 +36,8 @@ export function registerIntegrationRouteDocs(): void {
     ['get',  '/api/project-online/projects',                     'Project Online', 'List Project Online projects'],
     ['get',  '/api/project-online/projects/:projectId/tasks',    'Project Online', 'List tasks for a Project Online project'],
     ['post', '/api/project-online/import',                       'Project Online', 'Import a project from Project Online'],
+    ['post', '/api/project-online/timesheets/preview',           'Project Online', 'Preview a timesheet sync from Project Online actuals'],
+    ['post', '/api/project-online/timesheets/import',            'Project Online', 'Sync resource actual hours from Project Online into timesheets'],
 
     // Dynamics 365 Sales
     ['get',  '/api/dynamics365/status',                          'Dynamics 365', 'Get Dynamics 365 connection status'],

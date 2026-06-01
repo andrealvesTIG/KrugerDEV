@@ -630,4 +630,356 @@ export async function setupProjectOnlineRoutes(app: Express) {
       res.end();
     }
   });
+
+  // --- Timesheet sync (actual hours for all resources) --------------------
+
+  const resolveTimesheetActor = async (
+    req: Request,
+    res: Response,
+    organizationId: number,
+  ): Promise<string | null> => {
+    const { enforceMembership, enforcePermission } = await import("./authorizationService");
+    const { PERMISSIONS } = await import("@shared/permissionCatalog");
+    const userId =
+      (req as any).user?.claims?.sub ||
+      (req as any).user?.id ||
+      (req as any).session?.userId ||
+      (req as any).bearerAuth?.userId;
+    if (!userId) {
+      res.status(401).json({ message: "Authentication required" });
+      return null;
+    }
+    if (await enforceMembership(req, res, userId, organizationId)) return null;
+    if (await enforcePermission(req, res, userId, organizationId, PERMISSIONS.TIMESHEET_APPROVE)) {
+      return null;
+    }
+    return userId;
+  };
+
+  const fetchAllActuals = async (
+    client: ProjectOnlineClient,
+    startDate: string,
+    endDate: string,
+  ): Promise<{ rows: any[]; status: number; truncated: boolean }> => {
+    const { buildActualsODataUrl } = await import("./projectOnlineTimesheetSync");
+    return fetchAllPages(client, buildActualsODataUrl(client.siteUrl, startDate, endDate));
+  };
+
+  // Page through an OData feed following $skiptoken/__next links. A generous
+  // page cap guards against an infinite loop; if it's hit while more pages
+  // remain we report `truncated` so the caller can fail loudly rather than
+  // silently importing partial data.
+  const fetchAllPages = async (
+    client: ProjectOnlineClient,
+    firstUrl: string,
+  ): Promise<{ rows: any[]; status: number; truncated: boolean }> => {
+    const PAGE_CAP = 5000;
+    const rows: any[] = [];
+    let url: string | null = firstUrl;
+    let guard = 0;
+    let lastStatus = 200;
+    while (url) {
+      if (guard >= PAGE_CAP) return { rows, status: lastStatus, truncated: true };
+      guard += 1;
+      const { ok, status, data } = await client.fetchJson(url, 60000);
+      lastStatus = status;
+      if (!ok) return { rows, status, truncated: false };
+      // OData verbose puts results under d.results; OData v4 under value.
+      const batch: any[] = data?.d?.results ?? data?.value ?? data?.d ?? [];
+      if (Array.isArray(batch)) rows.push(...batch);
+      url = data?.d?.__next ?? data?.["@odata.nextLink"] ?? null;
+    }
+    return { rows, status: lastStatus, truncated: false };
+  };
+
+  // Pull the Resources directory so we can match resources by email (display
+  // names aren't unique). Email failures are non-fatal — we fall back to
+  // name-based matching, so we return an empty map on any error.
+  const fetchResourceEmailMap = async (client: ProjectOnlineClient): Promise<Record<string, string>> => {
+    try {
+      const { buildResourcesODataUrl, buildResourceEmailMap } = await import("./projectOnlineTimesheetSync");
+      const { rows, status } = await fetchAllPages(client, buildResourcesODataUrl(client.siteUrl));
+      if (status >= 400) return {};
+      return buildResourceEmailMap(rows);
+    } catch (err) {
+      console.error("[project-online] failed to load resource email map:", err);
+      return {};
+    }
+  };
+
+  const buildMatchContext = async (organizationId: number) => {
+    const { storage } = await import("../storage");
+    const [resources, projects] = await Promise.all([
+      storage.getResources(organizationId),
+      storage.getProjects(organizationId),
+    ]);
+    const tasksNested = await Promise.all(projects.map((p) => storage.getTasks(p.id)));
+    const tasks = tasksNested.flat();
+    return {
+      resources: resources.map((r) => ({ id: r.id, name: r.displayName, email: r.email, userId: r.userId })),
+      projects: projects.map((p) => ({ id: p.id, name: p.name, externalSource: p.externalSource, externalId: p.externalId })),
+      tasks: tasks.map((t) => ({ id: t.id, name: t.name, projectId: t.projectId, externalId: t.externalId })),
+    };
+  };
+
+  const parseSyncBody = (req: Request): { organizationId: number; startDate: string; endDate: string; status: string } | null => {
+    const organizationId = Number(req.body?.organizationId);
+    const startDate = String(req.body?.startDate || "");
+    const endDate = String(req.body?.endDate || "");
+    const allowed = ["Draft", "Submitted", "Approved"];
+    const status = allowed.includes(req.body?.status) ? req.body.status : "Submitted";
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    if (!organizationId || !dateRe.test(startDate) || !dateRe.test(endDate)) return null;
+    if (startDate > endDate) return null;
+    return { organizationId, startDate, endDate, status };
+  };
+
+  app.post("/api/project-online/timesheets/preview", async (req, res) => {
+    const body = parseSyncBody(req);
+    if (!body) {
+      return res.status(400).json({ message: "organizationId, startDate and endDate (YYYY-MM-DD, start ≤ end) are required" });
+    }
+    const actor = await resolveTimesheetActor(req, res, body.organizationId);
+    if (!actor) return;
+
+    const client = await getProjectOnlineClient(req);
+    if (!client) return res.status(401).json({ message: "Not connected to Project Online" });
+
+    try {
+      const { normalizeActualRows, matchActuals, applyResourceEmails } = await import("./projectOnlineTimesheetSync");
+      const { rows, status, truncated } = await fetchAllActuals(client, body.startDate, body.endDate);
+      if (status === 401) {
+        delete req.session.projectOnlineToken;
+        return res.status(401).json({ message: "Project Online session expired. Please reconnect." });
+      }
+      if (status >= 400) {
+        return res.status(502).json({ message: `Project Online reporting feed responded ${status}` });
+      }
+      if (truncated) {
+        return res.status(502).json({ message: "Project Online returned too many rows for one sync. Please narrow the date range." });
+      }
+      const emailMap = await fetchResourceEmailMap(client);
+      const normalized = applyResourceEmails(normalizeActualRows(rows), emailMap);
+      const ctx = await buildMatchContext(body.organizationId);
+      const result = matchActuals(normalized, ctx);
+      res.json({
+        totalRows: result.totalRows,
+        matchedRows: result.matchedRows,
+        entriesToWrite: result.matched.length,
+        totalHours: result.totalHours,
+        matchedHours: result.matchedHours,
+        unmatched: result.unmatched.slice(0, 200),
+        unmatchedCount: result.unmatched.length,
+      });
+    } catch (error: any) {
+      console.error("[project-online] timesheet preview failed:", error);
+      res.status(500).json({ message: error?.message || "Failed to preview timesheet sync" });
+    }
+  });
+
+  app.post("/api/project-online/timesheets/import", async (req, res) => {
+    const body = parseSyncBody(req);
+    if (!body) {
+      return res.status(400).json({ message: "organizationId, startDate and endDate (YYYY-MM-DD, start ≤ end) are required" });
+    }
+    const actor = await resolveTimesheetActor(req, res, body.organizationId);
+    if (!actor) return;
+
+    const client = await getProjectOnlineClient(req);
+    if (!client) return res.status(401).json({ message: "Not connected to Project Online" });
+
+    req.setTimeout(0);
+    res.setTimeout(0);
+    res.setHeader("Content-Type", "application/x-ndjson");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("X-Accel-Buffering", "no");
+    (res as any).flushHeaders?.();
+    const send = (obj: any) => {
+      try {
+        res.write(JSON.stringify(obj) + "\n");
+        (res as any).flush?.();
+      } catch {
+        /* client disconnected */
+      }
+    };
+
+    try {
+      const { storage } = await import("../storage");
+      const { normalizeActualRows, matchActuals, applyResourceEmails, PROJECT_ONLINE_TIMESHEET_SOURCE } = await import("./projectOnlineTimesheetSync");
+
+      send({ type: "start" });
+      const { rows, status, truncated } = await fetchAllActuals(client, body.startDate, body.endDate);
+      if (status === 401) {
+        delete req.session.projectOnlineToken;
+        send({ type: "session-expired", message: "Project Online session expired. Please reconnect." });
+        return res.end();
+      }
+      if (status >= 400) {
+        send({ type: "error", message: `Project Online reporting feed responded ${status}` });
+        return res.end();
+      }
+      if (truncated) {
+        send({ type: "error", message: "Project Online returned too many rows for one sync. Please narrow the date range." });
+        return res.end();
+      }
+
+      const emailMap = await fetchResourceEmailMap(client);
+      const normalized = applyResourceEmails(normalizeActualRows(rows), emailMap);
+      const ctx = await buildMatchContext(body.organizationId);
+      const result = matchActuals(normalized, ctx);
+
+      send({ type: "matched", total: result.matched.length, unmatched: result.unmatched.length });
+
+      let inserted = 0;
+      let updated = 0;
+      let conflicts = 0;
+      let failed = 0;
+      let index = 0;
+      for (const entry of result.matched) {
+        index += 1;
+        try {
+          const outcome = await storage.upsertImportedTimesheetEntry({
+            organizationId: body.organizationId,
+            userId: entry.userId,
+            resourceId: entry.resourceId,
+            taskId: entry.taskId,
+            projectId: entry.projectId,
+            entryDate: entry.entryDate,
+            hours: entry.hours,
+            status: body.status,
+            externalSource: PROJECT_ONLINE_TIMESHEET_SOURCE,
+            externalId: entry.externalId,
+            notes: "Imported from Microsoft Project Online",
+          });
+          if (outcome === "inserted") inserted += 1;
+          else if (outcome === "updated") updated += 1;
+          else conflicts += 1;
+        } catch (err: any) {
+          failed += 1;
+          console.error("[project-online] failed to upsert timesheet entry:", err);
+        }
+        if (index % 25 === 0 || index === result.matched.length) {
+          send({ type: "progress", current: index, total: result.matched.length });
+        }
+      }
+
+      try {
+        await storage.createTimesheetAuditLog({
+          organizationId: body.organizationId,
+          entryId: null,
+          action: "import_project_online",
+          actorId: actor,
+          metadata: {
+            startDate: body.startDate,
+            endDate: body.endDate,
+            status: body.status,
+            inserted,
+            updated,
+            conflicts,
+            failed,
+            unmatched: result.unmatched.length,
+          },
+        } as any);
+      } catch (auditErr) {
+        console.error("[project-online] failed to write import audit log:", auditErr);
+      }
+
+      send({
+        type: "done",
+        success: true,
+        inserted,
+        updated,
+        conflicts,
+        failed,
+        unmatched: result.unmatched.length,
+        unmatchedSample: result.unmatched.slice(0, 50),
+        totalHours: result.matchedHours,
+      });
+      res.end();
+    } catch (error: any) {
+      console.error("[project-online] timesheet import failed:", error);
+      send({ type: "error", message: error?.message || "Failed to import timesheets" });
+      res.end();
+    }
+  });
+}
+
+export interface ProjectOnlineClient {
+  siteUrl: string;
+  fetchJson: (url: string, ms?: number) => Promise<{ ok: boolean; status: number; data: any }>;
+}
+
+/**
+ * Build a Project Online API client bound to the caller's session, reusing the
+ * existing OAuth connection (SharePoint-scoped token + MSAL refresh). Returns
+ * null when the session isn't connected. Used by the timesheet sync routes so
+ * they share the same connection as the project import flow.
+ */
+export async function getProjectOnlineClient(req: Request): Promise<ProjectOnlineClient | null> {
+  let token = req.session.projectOnlineToken;
+  const siteUrl = req.session.projectOnlineSiteUrl;
+  if (!token || !siteUrl) return null;
+
+  const refreshAccessToken = async (): Promise<string | null> => {
+    try {
+      const client = getProjectOnlineMsalClient();
+      if (!client || !req.session.projectOnlineHomeAccountId || !req.session.projectOnlineTokenCache) {
+        return null;
+      }
+      const cache = client.getTokenCache();
+      await cache.deserialize(req.session.projectOnlineTokenCache);
+      const account = await cache.getAccountByHomeId(req.session.projectOnlineHomeAccountId);
+      if (!account) return null;
+      const sharePointHost = new URL(siteUrl).origin;
+      const refreshed = await client.acquireTokenSilent({
+        account,
+        scopes: [`${sharePointHost}/.default`],
+      });
+      if (!refreshed?.accessToken) return null;
+      req.session.projectOnlineToken = refreshed.accessToken;
+      req.session.projectOnlineTokenCache = cache.serialize();
+      await new Promise<void>((resolve) => {
+        req.session.save(() => resolve());
+      });
+      return refreshed.accessToken;
+    } catch (err) {
+      console.error("[project-online] token refresh failed:", err);
+      return null;
+    }
+  };
+
+  const fetchJson = async (url: string, ms = 30000) => {
+    const doFetch = async (bearer: string) => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), ms);
+      try {
+        return await fetch(url, {
+          headers: {
+            "Authorization": `Bearer ${bearer}`,
+            "Accept": "application/json;odata=verbose",
+          },
+          signal: ctrl.signal,
+        });
+      } finally {
+        clearTimeout(t);
+      }
+    };
+    let resp = await doFetch(token!);
+    if (resp.status === 401) {
+      const fresh = await refreshAccessToken();
+      if (fresh) {
+        token = fresh;
+        resp = await doFetch(fresh);
+      }
+    }
+    let data: any = null;
+    try {
+      data = await resp.json();
+    } catch {
+      /* non-JSON or empty body */
+    }
+    return { ok: resp.ok, status: resp.status, data };
+  };
+
+  return { siteUrl, fetchJson };
 }

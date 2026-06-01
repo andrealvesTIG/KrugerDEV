@@ -1222,6 +1222,8 @@ export const timesheetEntries = pgTable("timesheet_entries", {
   rejectedAt: timestamp("rejected_at"),
   rejectedBy: varchar("rejected_by").references(() => users.id),
   proxyUserId: varchar("proxy_user_id").references(() => users.id),
+  externalSource: text("external_source"), // e.g. "project_online" — source system for imported actuals (null = manually entered)
+  externalId: text("external_id"), // composite key from the source feed, for traceability
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   isDemo: boolean("is_demo").default(false),
@@ -1232,6 +1234,7 @@ export const timesheetEntries = pgTable("timesheet_entries", {
   index("te_organization_id_idx").on(table.organizationId),
   index("te_user_org_date_idx").on(table.userId, table.organizationId, table.entryDate),
   index("te_resource_task_date_idx").on(table.resourceId, table.taskId, table.entryDate),
+  index("te_external_idx").on(table.organizationId, table.externalSource, table.externalId),
 ]);
 
 // Time Categories (for non-project time like vacation, PTO, etc.)
