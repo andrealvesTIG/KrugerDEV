@@ -82,7 +82,7 @@ import type {
   ResourceCustomFieldValue, InsertResourceCustomFieldValue,
   IntakeCustomFieldValue, InsertIntakeCustomFieldValue,
 } from "@shared/schema";
-import type { ImportedTimesheetUpsert, ImportedTimesheetResult, EnsureImportedResourceInput, EnsureImportedResourceResult } from "./timesheetStorage";
+import type { ImportedTimesheetUpsert, ImportedTimesheetResult } from "./timesheetStorage";
 import type { BillingTransaction, InsertBillingTransaction } from "@shared/models/billing";
 
 export interface TaskDateFilterOptions {
@@ -418,7 +418,6 @@ export interface ITimesheetStorage {
   findTimesheetEntry(resourceId: number, taskId: number, entryDate: string): Promise<TimesheetEntry | undefined>;
   createTimesheetEntry(entry: InsertTimesheetEntry): Promise<TimesheetEntry>;
   upsertImportedTimesheetEntry(entry: ImportedTimesheetUpsert): Promise<ImportedTimesheetResult>;
-  ensureImportedResource(input: EnsureImportedResourceInput): Promise<EnsureImportedResourceResult>;
   updateTimesheetEntry(id: number, updates: UpdateTimesheetEntryRequest): Promise<TimesheetEntry>;
   deleteTimesheetEntry(id: number): Promise<void>;
   submitTimesheetWeek(userId: string, organizationId: number, startDate: string, endDate: string): Promise<void>;

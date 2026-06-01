@@ -24,8 +24,8 @@ interface PreviewResult {
   matchedHours: number;
   unmatched: { name: string; reason: string; hours: number }[];
   unmatchedCount: number;
-  resourcesToCreate: string[];
-  resourcesToCreateCount: number;
+  allResourcesVisible: boolean;
+  permissionWarning: string | null;
 }
 
 interface ImportResult {
@@ -36,8 +36,8 @@ interface ImportResult {
   unmatched: number;
   unmatchedSample: { name: string; reason: string; hours: number }[];
   totalHours: number;
-  resourcesCreated: number;
-  resourcesCreateFailed: number;
+  allResourcesVisible: boolean;
+  permissionWarning: string | null;
 }
 
 type WizardStep = "connect" | "configure" | "preview" | "importing" | "complete";
@@ -68,7 +68,6 @@ export function ProjectOnlineTimesheetWizard({ open, onOpenChange, organizationI
   const [result, setResult] = useState<ImportResult | null>(null);
   const [progressTotal, setProgressTotal] = useState(0);
   const [progressCurrent, setProgressCurrent] = useState(0);
-  const [progressPhase, setProgressPhase] = useState<"resources" | "entries">("entries");
   const { toast } = useToast();
 
   const { data: status, refetch: refetchStatus } = useQuery<ProjectOnlineStatus>({
@@ -151,20 +150,10 @@ export function ProjectOnlineTimesheetWizard({ open, onOpenChange, organizationI
           } catch {
             continue;
           }
-          if (evt.type === "creating-resources") {
-            setProgressPhase("resources");
-            setProgressCurrent(0);
-            setProgressTotal(evt.total || 0);
-          } else if (evt.type === "creating-resources-progress") {
-            setProgressPhase("resources");
-            setProgressCurrent(evt.current || 0);
-            setProgressTotal(evt.total || 0);
-          } else if (evt.type === "matched") {
-            setProgressPhase("entries");
+          if (evt.type === "matched") {
             setProgressCurrent(0);
             setProgressTotal(evt.total || 0);
           } else if (evt.type === "progress") {
-            setProgressPhase("entries");
             setProgressCurrent(evt.current || 0);
             setProgressTotal(evt.total || 0);
           } else if (evt.type === "session-expired") {
@@ -176,7 +165,7 @@ export function ProjectOnlineTimesheetWizard({ open, onOpenChange, organizationI
           }
         }
       }
-      return final ?? { inserted: 0, updated: 0, conflicts: 0, failed: 0, unmatched: 0, unmatchedSample: [], totalHours: 0, resourcesCreated: 0, resourcesCreateFailed: 0 };
+      return final ?? { inserted: 0, updated: 0, conflicts: 0, failed: 0, unmatched: 0, unmatchedSample: [], totalHours: 0, allResourcesVisible: true, permissionWarning: null };
     },
     onSuccess: (data) => {
       setResult(data);
@@ -273,7 +262,7 @@ export function ProjectOnlineTimesheetWizard({ open, onOpenChange, organizationI
           </div>
           <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground space-y-1">
             <p>This pulls actual hours that resources logged in Project Online and matches them to people, projects, and tasks already in this workspace.</p>
-            <p>People who logged time but aren't in this workspace yet are added automatically, each with a lightweight account (they can't sign in until they log in normally). Manually entered time is never overwritten. Project for the Web / Planner Premium timesheets are not supported.</p>
+            <p>People, projects, or tasks that aren't here yet are reported as unmatched so you can add them and re-run — nothing is created automatically. Manually entered time is never overwritten. Project for the Web / Planner Premium timesheets are not supported.</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleClose}>Cancel</Button>
@@ -303,23 +292,13 @@ export function ProjectOnlineTimesheetWizard({ open, onOpenChange, organizationI
               <div className="text-xs text-muted-foreground">could not match</div>
             </div>
           </div>
-          {preview.resourcesToCreateCount > 0 && (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950 p-3 text-sm">
-              <div className="flex items-center gap-2 font-medium text-blue-700 dark:text-blue-300">
-                <AlertCircle className="h-4 w-4" />
-                {preview.resourcesToCreateCount} new {preview.resourcesToCreateCount === 1 ? "person" : "people"} will be added
+          {preview.permissionWarning && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950 p-3 text-sm" data-testid="warning-all-resources">
+              <div className="flex items-center gap-2 font-medium text-amber-700 dark:text-amber-300">
+                <AlertTriangle className="h-4 w-4" />
+                Limited Project Online visibility
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                These people aren't in your workspace yet. They'll be created as resources with a
-                lightweight account so their hours import too. The accounts can't sign in until the
-                person logs in normally.
-              </p>
-              {preview.resourcesToCreate.length > 0 && (
-                <p className="mt-1 text-xs text-muted-foreground truncate" title={preview.resourcesToCreate.join(", ")}>
-                  {preview.resourcesToCreate.slice(0, 8).join(", ")}
-                  {preview.resourcesToCreate.length > 8 ? `, +${preview.resourcesToCreate.length - 8} more` : ""}
-                </p>
-              )}
+              <p className="mt-1 text-xs text-muted-foreground">{preview.permissionWarning}</p>
             </div>
           )}
           {preview.unmatchedCount > 0 && (
@@ -361,9 +340,7 @@ export function ProjectOnlineTimesheetWizard({ open, onOpenChange, organizationI
           <div className="flex items-center gap-3">
             <Loader2 className="h-6 w-6 animate-spin text-primary shrink-0" />
             <p className="text-sm font-medium">
-              {progressPhase === "resources"
-                ? `Adding ${progressCurrent} of ${progressTotal} new people…`
-                : `Syncing ${progressCurrent} of ${progressTotal} entries…`}
+              Syncing {progressCurrent} of {progressTotal} entries…
             </p>
           </div>
           <Progress value={pct} />
@@ -385,19 +362,18 @@ export function ProjectOnlineTimesheetWizard({ open, onOpenChange, organizationI
             <div className="rounded-lg border p-3"><div className="text-2xl font-semibold">{result.conflicts}</div><div className="text-xs text-muted-foreground">skipped (manual entry)</div></div>
             <div className="rounded-lg border p-3"><div className="text-2xl font-semibold">{result.unmatched}</div><div className="text-xs text-muted-foreground">could not match</div></div>
           </div>
-          {result.resourcesCreated > 0 && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <CheckCircle2 className="h-4 w-4 text-green-600" /> {result.resourcesCreated} new {result.resourcesCreated === 1 ? "person" : "people"} added to your workspace.
-            </div>
-          )}
           {result.failed > 0 && (
             <div className="flex items-center gap-2 text-sm text-destructive">
               <AlertCircle className="h-4 w-4" /> {result.failed} entr{result.failed === 1 ? "y" : "ies"} failed to write.
             </div>
           )}
-          {result.resourcesCreateFailed > 0 && (
-            <div className="flex items-center gap-2 text-sm text-destructive">
-              <AlertCircle className="h-4 w-4" /> {result.resourcesCreateFailed} new {result.resourcesCreateFailed === 1 ? "person" : "people"} could not be created.
+          {result.permissionWarning && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950 p-3 text-sm">
+              <div className="flex items-center gap-2 font-medium text-amber-700 dark:text-amber-300">
+                <AlertTriangle className="h-4 w-4" />
+                Limited Project Online visibility
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">{result.permissionWarning}</p>
             </div>
           )}
           <DialogFooter>

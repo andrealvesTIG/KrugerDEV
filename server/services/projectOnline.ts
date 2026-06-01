@@ -650,7 +650,11 @@ export async function setupProjectOnlineRoutes(app: Express) {
       return null;
     }
     if (await enforceMembership(req, res, userId, organizationId)) return null;
-    if (await enforcePermission(req, res, userId, organizationId, PERMISSIONS.TIMESHEET_APPROVE)) {
+    // Timesheet sync is integration management (Org Settings → Integrations),
+    // so it is gated to org admins via the same org-settings permission that
+    // guards the rest of integration management — not the timesheet-approval
+    // permission, which approvers/managers hold without being org admins.
+    if (await enforcePermission(req, res, userId, organizationId, PERMISSIONS.ORG_MANAGE_SETTINGS)) {
       return null;
     }
     return userId;
@@ -695,17 +699,25 @@ export async function setupProjectOnlineRoutes(app: Express) {
   // Pull the Resources directory so we can match resources by email (display
   // names aren't unique). Email failures are non-fatal — we fall back to
   // name-based matching, so we return an empty map on any error.
-  const fetchResourceEmailMap = async (client: ProjectOnlineClient): Promise<Record<string, string>> => {
+  const fetchResourceDirectory = async (
+    client: ProjectOnlineClient,
+  ): Promise<{ uidToEmail: Record<string, string>; distinctResources: number }> => {
     try {
-      const { buildResourcesODataUrl, buildResourceEmailMap } = await import("./projectOnlineTimesheetSync");
+      const { buildResourcesODataUrl, buildResourceEmailMap, countDistinctResources } = await import("./projectOnlineTimesheetSync");
       const { rows, status } = await fetchAllPages(client, buildResourcesODataUrl(client.siteUrl));
-      if (status >= 400) return {};
-      return buildResourceEmailMap(rows);
+      if (status >= 400) return { uidToEmail: {}, distinctResources: 0 };
+      return { uidToEmail: buildResourceEmailMap(rows), distinctResources: countDistinctResources(rows) };
     } catch (err) {
-      console.error("[project-online] failed to load resource email map:", err);
-      return {};
+      console.error("[project-online] failed to load resource directory:", err);
+      return { uidToEmail: {}, distinctResources: 0 };
     }
   };
+
+  // A directory showing only the connected user (or nothing) means the account
+  // likely lacks the Project Online permission to read other resources' time,
+  // so a sync would silently import just one person. Surfaced, not silent.
+  const ALL_RESOURCES_PERMISSION_WARNING =
+    "Your Project Online account can currently see only your own data, so this sync may import just your time. To sync all resources, the connected account needs permission to view other resources' timesheets in Project Online (e.g. the 'Manage Users and Groups' / reporting permission).";
 
   const buildMatchContext = async (organizationId: number) => {
     const { storage } = await import("../storage");
@@ -746,7 +758,7 @@ export async function setupProjectOnlineRoutes(app: Express) {
     if (!client) return res.status(401).json({ message: "Not connected to Project Online" });
 
     try {
-      const { normalizeActualRows, matchActuals, applyResourceEmails, findResourcesToCreate } = await import("./projectOnlineTimesheetSync");
+      const { normalizeActualRows, matchActuals, applyResourceEmails } = await import("./projectOnlineTimesheetSync");
       const { rows, status, truncated } = await fetchAllActuals(client, body.startDate, body.endDate);
       if (status === 401) {
         delete req.session.projectOnlineToken;
@@ -758,25 +770,11 @@ export async function setupProjectOnlineRoutes(app: Express) {
       if (truncated) {
         return res.status(502).json({ message: "Project Online returned too many rows for one sync. Please narrow the date range." });
       }
-      const emailMap = await fetchResourceEmailMap(client);
-      const normalized = applyResourceEmails(normalizeActualRows(rows), emailMap);
+      const { uidToEmail, distinctResources } = await fetchResourceDirectory(client);
+      const normalized = applyResourceEmails(normalizeActualRows(rows), uidToEmail);
       const ctx = await buildMatchContext(body.organizationId);
-      const toCreate = findResourcesToCreate(normalized, ctx.resources);
-      // Simulate the people import would auto-create so the preview's unmatched
-      // count reflects only truly unknown projects/tasks — matching what import does.
-      const simulatedCtx = {
-        ...ctx,
-        resources: [
-          ...ctx.resources,
-          ...toCreate.map((person, i) => ({
-            id: -1 - i,
-            name: person.name,
-            email: person.email,
-            userId: `preview-${i}`,
-          })),
-        ],
-      };
-      const result = matchActuals(normalized, simulatedCtx);
+      // Unmatched resources/projects/tasks are reported here, never auto-created.
+      const result = matchActuals(normalized, ctx);
       res.json({
         totalRows: result.totalRows,
         matchedRows: result.matchedRows,
@@ -785,8 +783,8 @@ export async function setupProjectOnlineRoutes(app: Express) {
         matchedHours: result.matchedHours,
         unmatched: result.unmatched.slice(0, 200),
         unmatchedCount: result.unmatched.length,
-        resourcesToCreate: toCreate.slice(0, 200).map((r) => r.name),
-        resourcesToCreateCount: toCreate.length,
+        allResourcesVisible: distinctResources > 1,
+        permissionWarning: distinctResources > 1 ? null : ALL_RESOURCES_PERMISSION_WARNING,
       });
     } catch (error: any) {
       console.error("[project-online] timesheet preview failed:", error);
@@ -822,7 +820,7 @@ export async function setupProjectOnlineRoutes(app: Express) {
 
     try {
       const { storage } = await import("../storage");
-      const { normalizeActualRows, matchActuals, applyResourceEmails, findResourcesToCreate, PROJECT_ONLINE_TIMESHEET_SOURCE } = await import("./projectOnlineTimesheetSync");
+      const { normalizeActualRows, matchActuals, applyResourceEmails, PROJECT_ONLINE_TIMESHEET_SOURCE } = await import("./projectOnlineTimesheetSync");
 
       send({ type: "start" });
       const { rows, status, truncated } = await fetchAllActuals(client, body.startDate, body.endDate);
@@ -840,49 +838,15 @@ export async function setupProjectOnlineRoutes(app: Express) {
         return res.end();
       }
 
-      const emailMap = await fetchResourceEmailMap(client);
-      const normalized = applyResourceEmails(normalizeActualRows(rows), emailMap);
+      const { uidToEmail, distinctResources } = await fetchResourceDirectory(client);
+      const normalized = applyResourceEmails(normalizeActualRows(rows), uidToEmail);
       const ctx = await buildMatchContext(body.organizationId);
 
-      // Auto-create people who appear in the feed but aren't in this workspace,
-      // each with a lightweight account, then add them to the match context so
-      // their hours import in the same run.
-      const toCreate = findResourcesToCreate(normalized, ctx.resources);
-      let resourcesCreated = 0;
-      let resourcesCreateFailed = 0;
-      if (toCreate.length > 0) {
-        send({ type: "creating-resources", total: toCreate.length });
-        let createIndex = 0;
-        for (const person of toCreate) {
-          createIndex += 1;
-          try {
-            const created = await storage.ensureImportedResource({
-              organizationId: body.organizationId,
-              displayName: person.name,
-              email: person.email,
-              externalId: person.externalResourceId,
-              externalSource: PROJECT_ONLINE_TIMESHEET_SOURCE,
-            });
-            ctx.resources.push({
-              id: created.resourceId,
-              name: person.name,
-              email: person.email,
-              userId: created.userId,
-            });
-            if (created.createdResource) resourcesCreated += 1;
-          } catch (err) {
-            resourcesCreateFailed += 1;
-            console.error("[project-online] failed to create imported resource:", err);
-          }
-          if (createIndex % 10 === 0 || createIndex === toCreate.length) {
-            send({ type: "creating-resources-progress", current: createIndex, total: toCreate.length });
-          }
-        }
-      }
-
+      // Missing resources/projects/tasks are reported as unmatched, never
+      // auto-created — they are expected to already exist here.
       const result = matchActuals(normalized, ctx);
 
-      send({ type: "matched", total: result.matched.length, unmatched: result.unmatched.length, resourcesCreated });
+      send({ type: "matched", total: result.matched.length, unmatched: result.unmatched.length });
 
       let inserted = 0;
       let updated = 0;
@@ -932,8 +896,7 @@ export async function setupProjectOnlineRoutes(app: Express) {
             conflicts,
             failed,
             unmatched: result.unmatched.length,
-            resourcesCreated,
-            resourcesCreateFailed,
+            allResourcesVisible: distinctResources > 1,
           },
         } as any);
       } catch (auditErr) {
@@ -950,8 +913,8 @@ export async function setupProjectOnlineRoutes(app: Express) {
         unmatched: result.unmatched.length,
         unmatchedSample: result.unmatched.slice(0, 50),
         totalHours: result.matchedHours,
-        resourcesCreated,
-        resourcesCreateFailed,
+        allResourcesVisible: distinctResources > 1,
+        permissionWarning: distinctResources > 1 ? null : ALL_RESOURCES_PERMISSION_WARNING,
       });
       res.end();
     } catch (error: any) {

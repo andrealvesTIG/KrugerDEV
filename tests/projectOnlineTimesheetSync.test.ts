@@ -5,8 +5,8 @@ import {
   buildActualsODataUrl,
   buildResourcesODataUrl,
   buildResourceEmailMap,
+  countDistinctResources,
   applyResourceEmails,
-  findResourcesToCreate,
   PROJECT_ONLINE_TIMESHEET_SOURCE,
   type RawActualRow,
   type MatchContext,
@@ -125,30 +125,29 @@ describe("matchActuals", () => {
   });
 });
 
-describe("findResourcesToCreate", () => {
-  it("returns distinct people not matched by email or name", () => {
-    const normalized = normalizeActualRows([
-      { ProjectUID: "P1", TaskUID: "T1", ResourceUID: "R1", ResourceName: "Jane Doe", ResourceEmailAddress: "jane@acme.com", TimeByDay: "2026-05-12", AssignmentActualWork: 4 },
-      { ProjectUID: "P1", TaskUID: "T1", ResourceUID: "R9", ResourceName: "New Person", ResourceEmailAddress: "new@acme.com", TimeByDay: "2026-05-12", AssignmentActualWork: 3 },
-      { ProjectUID: "P1", TaskUID: "T1", ResourceUID: "R9", ResourceName: "New Person", ResourceEmailAddress: "new@acme.com", TimeByDay: "2026-05-13", AssignmentActualWork: 2 },
+describe("countDistinctResources", () => {
+  it("counts distinct resources by UID, then email, then name", () => {
+    const count = countDistinctResources([
+      { ResourceUID: "R1", ResourceName: "Jane Doe", ResourceEmailAddress: "jane@acme.com" },
+      { ResourceUID: "R1", ResourceName: "Jane Doe", ResourceEmailAddress: "jane@acme.com" },
+      { ResourceUID: "R2", ResourceName: "Sam Roe", ResourceEmailAddress: "sam@acme.com" },
+      { ResourceName: "No UID", ResourceEmailAddress: "nouid@acme.com" },
+      { ResourceName: "Name Only" },
     ]);
-    const toCreate = findResourcesToCreate(normalized, ctx().resources);
-    expect(toCreate).toHaveLength(1);
-    expect(toCreate[0]).toMatchObject({ name: "New Person", email: "new@acme.com", externalResourceId: "R9" });
+    expect(count).toBe(4);
   });
 
-  it("skips people who match an existing resource only by name (no email)", () => {
-    const normalized = normalizeActualRows([
-      { ProjectUID: "P1", TaskUID: "T1", ResourceUID: "R2", ResourceName: "Jane Doe", TimeByDay: "2026-05-12", AssignmentActualWork: 4 },
-    ]);
-    expect(findResourcesToCreate(normalized, ctx().resources)).toHaveLength(0);
+  it("returns 1 when only the connected user is visible (no all-resources permission)", () => {
+    expect(
+      countDistinctResources([
+        { ResourceUID: "R1", ResourceName: "Me", ResourceEmailAddress: "me@acme.com" },
+      ]),
+    ).toBe(1);
   });
 
-  it("ignores rows with no resource identity at all", () => {
-    const normalized = normalizeActualRows([
-      { ProjectUID: "P1", TaskUID: "T1", TimeByDay: "2026-05-12", AssignmentActualWork: 4 },
-    ]);
-    expect(findResourcesToCreate(normalized, ctx().resources)).toHaveLength(0);
+  it("returns 0 for an empty or unusable directory", () => {
+    expect(countDistinctResources([])).toBe(0);
+    expect(countDistinctResources([{}])).toBe(0);
   });
 });
 
