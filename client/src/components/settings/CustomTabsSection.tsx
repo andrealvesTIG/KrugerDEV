@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Loader2, Trash2, Pencil, Plus, Save, Columns, LayoutGrid, X, Sparkles, Library } from "lucide-react";
+import { Loader2, Trash2, Pencil, Plus, Save, Columns, LayoutGrid, X, Sparkles, Library, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -114,6 +114,7 @@ export function CustomTabsSection({ organizationId }: { organizationId: number }
   const [showFieldPicker, setShowFieldPicker] = useState(false);
   const [fieldPickerSectionId, setFieldPickerSectionId] = useState<number | null>(null);
   const [fieldPickerTabId, setFieldPickerTabId] = useState<number | null>(null);
+  const [fieldSearch, setFieldSearch] = useState("");
   const { data: fullTabData } = useFullCustomTab(editingTabId ?? undefined);
   const { user } = useAuth() as { user: User | null | undefined };
   const { memberships = [] } = useOrganization();
@@ -272,8 +273,20 @@ export function CustomTabsSection({ organizationId }: { organizationId: number }
 
   const allFields = [
     ...projectFields.map(f => ({ key: f.key, label: f.label, type: 'project' as const })),
-    ...customFields.filter(f => (f.entityType || 'project') === 'project').map(f => ({ key: `customField:${f.id}`, label: f.name, type: 'custom' as const }))
+    ...customFields
+      .filter(f => {
+        const et = f.entityType || 'project';
+        return et === 'project' || et === 'intake';
+      })
+      .map(f => ({ key: `customField:${f.id}`, label: f.name, type: 'custom' as const })),
   ];
+
+  const fieldSearchQuery = fieldSearch.trim().toLowerCase();
+  const filteredFields = fieldSearchQuery
+    ? allFields.filter(f =>
+        f.label.toLowerCase().includes(fieldSearchQuery) ||
+        f.key.toLowerCase().includes(fieldSearchQuery))
+    : allFields;
 
   if (isLoading) {
     return <Card className="p-6"><Loader2 className="h-6 w-6 animate-spin mx-auto" /></Card>;
@@ -467,30 +480,50 @@ export function CustomTabsSection({ organizationId }: { organizationId: number }
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showFieldPicker} onOpenChange={setShowFieldPicker}>
+      <Dialog open={showFieldPicker} onOpenChange={(open) => { setShowFieldPicker(open); if (!open) setFieldSearch(""); }}>
         <DialogContent data-testid="dialog-field-picker">
           <DialogHeader>
             <DialogTitle>Add Field</DialogTitle>
             <DialogDescription>Select a field to add to this section</DialogDescription>
           </DialogHeader>
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              autoFocus
+              value={fieldSearch}
+              onChange={(e) => setFieldSearch(e.target.value)}
+              placeholder="Search fields by name…"
+              className="pl-8 h-9"
+              data-testid="input-field-search"
+            />
+          </div>
           <div className="max-h-[400px] overflow-y-auto space-y-1">
-            {allFields.map((field) => (
-              <Button
-                key={field.key}
-                variant="ghost"
-                className="w-full justify-start"
-                onClick={() => {
-                  handleAddField(field.key, field.type);
-                  setShowFieldPicker(false);
-                }}
-                data-testid={`button-pick-field-${field.key}`}
-              >
-                <Badge variant={field.type === 'custom' ? 'default' : 'secondary'} className="mr-2 text-xs">
-                  {field.type === 'custom' ? 'Custom' : 'Project'}
-                </Badge>
-                {field.label}
-              </Button>
-            ))}
+            {filteredFields.length === 0 ? (
+              <div className="text-sm text-muted-foreground italic p-4 text-center" data-testid="text-no-fields-match">
+                {allFields.length === 0
+                  ? "No fields available. Create custom fields in Settings → Custom Fields."
+                  : `No fields match "${fieldSearch}".`}
+              </div>
+            ) : (
+              filteredFields.map((field) => (
+                <Button
+                  key={field.key}
+                  variant="ghost"
+                  className="w-full justify-start"
+                  onClick={() => {
+                    handleAddField(field.key, field.type);
+                    setShowFieldPicker(false);
+                    setFieldSearch("");
+                  }}
+                  data-testid={`button-pick-field-${field.key}`}
+                >
+                  <Badge variant={field.type === 'custom' ? 'default' : 'secondary'} className="mr-2 text-xs">
+                    {field.type === 'custom' ? 'Custom' : 'Project'}
+                  </Badge>
+                  {field.label}
+                </Button>
+              ))
+            )}
           </div>
         </DialogContent>
       </Dialog>
