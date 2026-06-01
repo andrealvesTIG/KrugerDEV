@@ -13,7 +13,7 @@ export type SoftwareLicenseInput = {
   opexTrailStartDate?: string | null;
   totalCost?: string | number | null;
   frequencyOfRenewal?: string | null;
-  softwareType?: string | null;
+  reseller?: string | null;
 };
 
 export function useProjectSoftwareLicenses(projectId: number | undefined) {

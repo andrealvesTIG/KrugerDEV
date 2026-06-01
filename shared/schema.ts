@@ -2165,7 +2165,7 @@ export const projectSoftwareLicenses = pgTable("project_software_licenses", {
   opexTrailStartDate: timestamp("opex_trail_start_date"),
   totalCost: numeric("total_cost"),
   frequencyOfRenewal: text("frequency_of_renewal"),
-  softwareType: text("software_type"),
+  reseller: text("reseller"),
   createdBy: varchar("created_by").references(() => users.id),
   updatedBy: varchar("updated_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),

@@ -18,7 +18,6 @@ import {
 } from "@/hooks/use-project-software-licenses";
 
 const RENEWAL_OPTIONS = ["Monthly", "Quarterly", "Semi-Annual", "Annual", "Biennial", "One-Time"];
-const SOFTWARE_TYPE_OPTIONS = ["SaaS", "On-Premise", "Perpetual License", "Subscription", "Open Source", "Other"];
 
 const fmtDate = (v: string | Date | null | undefined) => {
   if (!v) return "—";
@@ -56,7 +55,7 @@ export function ProjectSoftwareLicensesBlock({
     const q = filter.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter(r => [
-      r.vendor, r.softwareName, r.frequencyOfRenewal, r.softwareType,
+      r.vendor, r.softwareName, r.frequencyOfRenewal, r.reseller,
     ].some(v => (v || "").toLowerCase().includes(q)));
   }, [rows, filter]);
 
@@ -67,7 +66,7 @@ export function ProjectSoftwareLicensesBlock({
       const k =
         groupBy === "vendor" ? r.vendor || "(no vendor)"
         : groupBy === "frequency" ? r.frequencyOfRenewal || "(no frequency)"
-        : groupBy === "type" ? r.softwareType || "(no type)"
+        : groupBy === "reseller" ? r.reseller || "(no resaler)"
         : "";
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(r);
@@ -107,8 +106,8 @@ export function ProjectSoftwareLicensesBlock({
             <SelectContent>
               <SelectItem value="none">(no grouping)</SelectItem>
               <SelectItem value="vendor">Vendor</SelectItem>
-              <SelectItem value="frequency">Frequency of Renewal</SelectItem>
-              <SelectItem value="type">Software Type</SelectItem>
+              <SelectItem value="frequency">Frequency of Invoicing</SelectItem>
+              <SelectItem value="reseller">Resaler (If Applicable)</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -123,9 +122,9 @@ export function ProjectSoftwareLicensesBlock({
           <TableHeader>
             <TableRow>
               <TableHead>Vendor / Software name / Opex trail Start date</TableHead>
-              <TableHead className="w-[200px]">Total Software / Licenses Cost</TableHead>
-              <TableHead className="w-[180px]">Frequency of Renewal</TableHead>
-              <TableHead className="w-[180px]">Software Type</TableHead>
+              <TableHead className="w-[200px]">Total Software / Licenses Cost (Annual)</TableHead>
+              <TableHead className="w-[180px]">Frequency of Invoicing</TableHead>
+              <TableHead className="w-[180px]">Resaler (If Applicable)</TableHead>
               <TableHead className="w-[80px] text-right"></TableHead>
             </TableRow>
           </TableHeader>
@@ -163,7 +162,7 @@ export function ProjectSoftwareLicensesBlock({
                       </TableCell>
                       <TableCell className="text-sm">{fmtMoney(r.totalCost)}</TableCell>
                       <TableCell className="text-sm">{r.frequencyOfRenewal || "—"}</TableCell>
-                      <TableCell className="text-sm">{r.softwareType || "—"}</TableCell>
+                      <TableCell className="text-sm">{r.reseller || "—"}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditing(r)} disabled={isLocked} data-testid={`button-edit-software-license-${r.id}`}>
                           <Pencil className="h-3.5 w-3.5" />
@@ -234,7 +233,7 @@ function SoftwareLicenseDialog({
   const [opexTrailStartDate, setOpex] = useState(toDateInputValue(initial?.opexTrailStartDate));
   const [totalCost, setTotalCost] = useState(initial?.totalCost != null ? String(initial.totalCost) : "");
   const [frequencyOfRenewal, setFrequency] = useState(initial?.frequencyOfRenewal || "");
-  const [softwareType, setSoftwareType] = useState(initial?.softwareType || "");
+  const [reseller, setReseller] = useState(initial?.reseller || "");
 
   const submit = () => {
     onSubmit({
@@ -243,7 +242,7 @@ function SoftwareLicenseDialog({
       opexTrailStartDate: opexTrailStartDate || null,
       totalCost: totalCost.trim() === "" ? null : totalCost.trim(),
       frequencyOfRenewal: frequencyOfRenewal || null,
-      softwareType: softwareType || null,
+      reseller: reseller.trim() || null,
     });
   };
 
@@ -268,11 +267,11 @@ function SoftwareLicenseDialog({
             <Input type="date" value={opexTrailStartDate} onChange={(e) => setOpex(e.target.value)} data-testid="input-sl-opex-start" />
           </div>
           <div>
-            <Label>Total Software / Licenses Cost</Label>
+            <Label>Total Software / Licenses Cost (Annual)</Label>
             <Input type="number" step="0.01" value={totalCost} onChange={(e) => setTotalCost(e.target.value)} data-testid="input-sl-total-cost" />
           </div>
           <div>
-            <Label>Frequency of Renewal</Label>
+            <Label>Frequency of Invoicing</Label>
             <Select value={frequencyOfRenewal} onValueChange={setFrequency}>
               <SelectTrigger data-testid="select-sl-frequency"><SelectValue placeholder="Select frequency" /></SelectTrigger>
               <SelectContent>
@@ -280,14 +279,9 @@ function SoftwareLicenseDialog({
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label>Software Type</Label>
-            <Select value={softwareType} onValueChange={setSoftwareType}>
-              <SelectTrigger data-testid="select-sl-type"><SelectValue placeholder="Select type" /></SelectTrigger>
-              <SelectContent>
-                {SOFTWARE_TYPE_OPTIONS.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-              </SelectContent>
-            </Select>
+          <div className="col-span-2">
+            <Label>Resaler (If Applicable)</Label>
+            <Input value={reseller} onChange={(e) => setReseller(e.target.value)} data-testid="input-sl-reseller" />
           </div>
         </div>
         <DialogFooter>
