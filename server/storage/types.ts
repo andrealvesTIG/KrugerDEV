@@ -671,6 +671,14 @@ export interface IProjectSoftwareLicenseStorage {
   deleteProjectSoftwareLicense(id: number): Promise<void>;
 }
 
+export interface IProjectPcnRaStorage {
+  listProjectPcnsRas(projectId: number): Promise<any[]>;
+  getProjectPcnRa(id: number): Promise<any>;
+  createProjectPcnRa(data: any, userId: string): Promise<any>;
+  updateProjectPcnRa(id: number, updates: any, userId: string): Promise<any>;
+  deleteProjectPcnRa(id: number): Promise<void>;
+}
+
 export interface IPmoCommentStorage {
   listPmoCommentsForOrg(organizationId: number): Promise<any[]>;
   listPmoCommentsForProject(projectId: number): Promise<any[]>;
@@ -731,5 +739,6 @@ export interface IStorage extends
   IExecutiveSummaryStorage,
   IPmoCommentStorage,
   IProjectSoftwareLicenseStorage,
+  IProjectPcnRaStorage,
   ICalendarStorage,
   IMiscStorage {}

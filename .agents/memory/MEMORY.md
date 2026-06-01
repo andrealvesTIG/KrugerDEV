@@ -1,3 +1,4 @@
 - [Computed custom fields](computed-custom-fields.md) — rollup/roi/formula/etc. are never stored in customFieldValues; threshold/gate logic must compute them via resolveSourceNumericValue, not read stored values.
 - [Project tab editors](project-tab-editors.md) — two separate project-tab editors (ProjectFormLayoutSection vs CustomTabsSection); field pickers must offer project+intake custom fields to match CustomTabRenderer.
 - [Project Online imported resources](project-online-imported-resources.md) — importing external timesheet rows requires a user (timesheetEntries.userId is notNull); make creation idempotent without new columns.
+- [Per-project form blocks](project-form-blocks.md) — how to add a configurable project-form block end-to-end (model on software_licenses); db:push + openapiCoverage RAW_ROUTE_BASELINE gotchas.

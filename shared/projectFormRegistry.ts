@@ -147,6 +147,7 @@ export const PROJECT_FORM_BLOCKS: ProjectBlockDefinition[] = [
   { key: "executive_summaries", label: "Executive Summaries", description: "Table of executive summary records linked to this project, with create / add existing / edit / remove actions." },
   { key: "pmo_comments", label: "PMO Comments", description: "Table of PMO comment records linked to this project, with create / add existing / edit / remove actions." },
   { key: "software_licenses", label: "Software / Licenses", description: "Table of vendor software & licensing records for this project (vendor, software name, opex start date, cost, renewal frequency, type)." },
+  { key: "pcns_ras", label: "PCNs and RAs", description: "Table of per-year PCN (Project Change Notice) and RA (Risk Allowance) amounts for this project, with totals." },
 ];
 
 export const PROJECT_FORM_BLOCK_BY_KEY: Record<string, ProjectBlockDefinition> = Object.fromEntries(

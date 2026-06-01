@@ -44,8 +44,13 @@ const ROUTE_REGEX = /\bapp\.(get|post|put|patch|delete)\(\s*["'`](\/api\/[^"'`]+
  * `integrationRouteDocs.ts` (enforced by the targeted test above), they just
  * follow the existing raw `app.post` + integration-docs pattern used by every
  * other project-online route, so the count moved 271 → 273.
+ *
+ * The four "PCNs and RAs" project-block routes (GET/POST/PATCH/DELETE) follow
+ * the same raw `app.<method>` pattern as the existing per-project block routes
+ * (executive summaries, PMO comments, software/licenses), so the count moved
+ * 273 → 277.
  */
-const RAW_ROUTE_BASELINE = 273;
+const RAW_ROUTE_BASELINE = 277;
 
 function expressPathToOpenApiPath(p: string): string {
   return p.replace(/^\/api/, "").replace(/:(\w+)/g, "{$1}");

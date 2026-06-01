@@ -2174,6 +2174,24 @@ export const projectSoftwareLicenses = pgTable("project_software_licenses", {
   index("project_software_licenses_project_id_idx").on(table.projectId),
 ]);
 
+// PCNs and RAs - Project-scoped per-year Project Change Notice & Risk Allowance amounts
+export const projectPcnsRas = pgTable("project_pcns_ras", {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").references(() => projects.id, { onDelete: "cascade" }).notNull(),
+  organizationId: integer("organization_id").references(() => organizations.id).notNull(),
+  year: integer("year"),
+  pcnAmount: numeric("pcn_amount"),
+  pcnId: text("pcn_id"),
+  raAmount: numeric("ra_amount"),
+  raId: text("ra_id"),
+  createdBy: varchar("created_by").references(() => users.id),
+  updatedBy: varchar("updated_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("project_pcns_ras_project_id_idx").on(table.projectId),
+]);
+
 // Power BI Intake Requests - Captured via AI chat agent
 export const powerbiIntakeRequests = pgTable("powerbi_intake_requests", {
   id: serial("id").primaryKey(),
@@ -3217,6 +3235,20 @@ export const insertProjectSoftwareLicenseSchema = createInsertSchema(projectSoft
   totalCost: z.union([z.string(), z.number()]).nullish().transform(v => v == null || v === "" ? null : String(v)),
 }).omit({ id: true, createdAt: true, updatedAt: true, createdBy: true, updatedBy: true });
 export const updateProjectSoftwareLicenseSchema = insertProjectSoftwareLicenseSchema.partial().omit({ projectId: true, organizationId: true });
+export const insertProjectPcnRaSchema = createInsertSchema(projectPcnsRas, {
+  year: z.union([z.string(), z.number()]).nullish()
+    .transform(v => (v == null || v === "" ? null : Math.trunc(Number(v))))
+    .refine(v => v == null || Number.isFinite(v), { message: "Year must be a valid number" }),
+  pcnAmount: z.union([z.string(), z.number()]).nullish()
+    .transform(v => (v == null || v === "" ? null : Number(v)))
+    .refine(v => v == null || Number.isFinite(v), { message: "PCN amount must be a valid number" })
+    .transform(v => (v == null ? null : String(v))),
+  raAmount: z.union([z.string(), z.number()]).nullish()
+    .transform(v => (v == null || v === "" ? null : Number(v)))
+    .refine(v => v == null || Number.isFinite(v), { message: "RA amount must be a valid number" })
+    .transform(v => (v == null ? null : String(v))),
+}).omit({ id: true, createdAt: true, updatedAt: true, createdBy: true, updatedBy: true });
+export const updateProjectPcnRaSchema = insertProjectPcnRaSchema.partial().omit({ projectId: true, organizationId: true });
 export const insertProjectWorkflowStepSchema = createInsertSchema(projectWorkflowSteps).omit({ id: true, createdAt: true, updatedAt: true });
 
 // === TYPES ===
@@ -3395,6 +3427,9 @@ export type ProjectPmoComment = typeof projectPmoComments.$inferSelect;
 export type ProjectSoftwareLicense = typeof projectSoftwareLicenses.$inferSelect;
 export type InsertProjectSoftwareLicense = z.infer<typeof insertProjectSoftwareLicenseSchema>;
 export type UpdateProjectSoftwareLicense = z.infer<typeof updateProjectSoftwareLicenseSchema>;
+export type ProjectPcnRa = typeof projectPcnsRas.$inferSelect;
+export type InsertProjectPcnRa = z.infer<typeof insertProjectPcnRaSchema>;
+export type UpdateProjectPcnRa = z.infer<typeof updateProjectPcnRaSchema>;
 export type InsertIntakeWorkflowStep = z.infer<typeof insertIntakeWorkflowStepSchema>;
 export type IntakeWorkflow = typeof intakeWorkflows.$inferSelect;
 export type InsertIntakeWorkflow = z.infer<typeof insertIntakeWorkflowSchema>;

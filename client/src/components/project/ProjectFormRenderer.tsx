@@ -14,6 +14,7 @@ import { ProjectSingleCustomField } from "./ProjectSingleCustomField";
 import { ProjectExecutiveSummariesBlock } from "./ProjectExecutiveSummariesBlock";
 import { ProjectPmoCommentsBlock } from "./ProjectPmoCommentsBlock";
 import { ProjectSoftwareLicensesBlock } from "./ProjectSoftwareLicensesBlock";
+import { ProjectPcnsRasBlock } from "./ProjectPcnsRasBlock";
 
 const ICONS: Record<string, LucideIcon> = {
   FileText, ClipboardList, DollarSign, Settings: SettingsIcon, ListChecks, Lightbulb,
@@ -193,6 +194,15 @@ function ItemRenderer({ item, ctx, placedCustomFieldIds }: { item: ProjectFormLa
   if (item.itemKey === "software_licenses") {
     return (
       <ProjectSoftwareLicensesBlock
+        projectId={ctx.project.id}
+        organizationId={ctx.organizationId}
+        isLocked={ctx.isLocked}
+      />
+    );
+  }
+  if (item.itemKey === "pcns_ras") {
+    return (
+      <ProjectPcnsRasBlock
         projectId={ctx.project.id}
         organizationId={ctx.organizationId}
         isLocked={ctx.isLocked}
