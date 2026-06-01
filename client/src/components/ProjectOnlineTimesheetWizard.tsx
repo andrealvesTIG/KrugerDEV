@@ -273,7 +273,7 @@ export function ProjectOnlineTimesheetWizard({ open, onOpenChange, organizationI
           </div>
           <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground space-y-1">
             <p>This pulls actual hours that resources logged in Project Online and matches them to people, projects, and tasks already in this workspace.</p>
-            <p>Nothing is created automatically. Manually entered time is never overwritten. Project for the Web / Planner Premium timesheets are not supported.</p>
+            <p>People who logged time but aren't in this workspace yet are added automatically, each with a lightweight account (they can't sign in until they log in normally). Manually entered time is never overwritten. Project for the Web / Planner Premium timesheets are not supported.</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleClose}>Cancel</Button>

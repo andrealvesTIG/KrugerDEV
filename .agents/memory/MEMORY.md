@@ -1,3 +1,3 @@
 - [Computed custom fields](computed-custom-fields.md) — rollup/roi/formula/etc. are never stored in customFieldValues; threshold/gate logic must compute them via resolveSourceNumericValue, not read stored values.
 - [Project tab editors](project-tab-editors.md) — two separate project-tab editors (ProjectFormLayoutSection vs CustomTabsSection); field pickers must offer project+intake custom fields to match CustomTabRenderer.
-- [Project Online imported resources](project-online-imported-resources.md) — timesheet sync auto-creates resource+lightweight account for absent people; idempotency via org+userId resource lookup, no new columns.
+- [Project Online imported resources](project-online-imported-resources.md) — importing external timesheet rows requires a user (timesheetEntries.userId is notNull); make creation idempotent without new columns.
